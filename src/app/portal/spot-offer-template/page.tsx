@@ -168,6 +168,7 @@ export default function SpotOfferTemplatePage() {
 
   const [rows, setRows] = useState<RowWithClient[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const [q, setQ] = useState("");
 
@@ -475,10 +476,11 @@ useEffect(() => {
   };
 
   const openCreate = () => {
-    setEditing(null);
-    resetForm();
-    setOpenEdit(true);
-  };
+  setEditing(null);
+  resetForm();
+  setEditError(null);
+  setOpenEdit(true);
+};
 
   const openUpdate = (row: SpotOfferTemplateUnified) => {
     setEditing(row);
@@ -513,6 +515,7 @@ useEffect(() => {
     setFMeetingYuubinn(row.meeting_yuubinn ?? "");
     setFMatchingPlaceName(row.matching_place_name ?? "");
     setFMeetingPlaceBanchi(row.meeting_place_banchi ?? "");
+    setEditError(null);
     setOpenEdit(true);
   };
 
@@ -560,7 +563,7 @@ useEffect(() => {
 
 const saveTemplate = async () => {
   try {
-    setError(null);
+    setEditError(null);
 
     if (!fTitle.trim()) {
       throw new Error("タイトルは必須です");
@@ -648,8 +651,8 @@ const saveTemplate = async () => {
     setOpenEdit(false);
     await fetchList();
   } catch (e) {
-    setError(e instanceof Error ? e.message : String(e));
-  }
+  setEditError(e instanceof Error ? e.message : String(e));
+}
 };
 
   const toggleRowStatus = async (row: SpotOfferTemplateUnified) => {
@@ -1215,13 +1218,28 @@ await fetchList();
         </Table>
       </div>
 
-      <Dialog open={openEdit} onOpenChange={setOpenEdit}>
+      <Dialog
+  open={openEdit}
+  onOpenChange={(open) => {
+    setOpenEdit(open);
+
+    if (!open) {
+      setEditError(null);
+    }
+  }}
+>
         <DialogContent className="w-[96vw] max-w-6xl max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
+<DialogHeader>
   <DialogTitle>
     {editing ? "テンプレート編集" : "テンプレート新規追加"}
   </DialogTitle>
 </DialogHeader>
+
+{editError && (
+  <div className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 whitespace-pre-wrap">
+    {editError}
+  </div>
+)}
 
 {!editing && (
   <div className="mb-4 rounded-md border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -1623,9 +1641,15 @@ await fetchList();
 )}
 
           <DialogFooter className="flex justify-start gap-2 pt-2">
-            <Button variant="secondary" onClick={() => setOpenEdit(false)}>
-              閉じる
-            </Button>
+            <Button
+  variant="secondary"
+  onClick={() => {
+    setEditError(null);
+    setOpenEdit(false);
+  }}
+>
+  閉じる
+</Button>
             <Button onClick={saveTemplate}>{editing ? "更新" : "追加"}</Button>
           </DialogFooter>
         </DialogContent>
