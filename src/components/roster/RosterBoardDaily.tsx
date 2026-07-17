@@ -755,35 +755,48 @@ return sorted.filter((st) => {
   const eventTime =
     getGoogleEventTimeForDate(event, date);
 
-  const topPx =
-    rowIdx != null
-      ? rowIdx * ROW_HEIGHT + ROW_HEIGHT - 20
-      : ROW_HEIGHT - 20;
+  const googleEventHeight = 32;
+
+const topPx =
+  rowIdx != null
+    ? rowIdx * ROW_HEIGHT + ROW_HEIGHT - 20
+    : ROW_HEIGHT - 20;
 
   return {
     position: "absolute",
     top: topPx,
     left: leftPx(eventTime.start),
-width: widthPx(
-  eventTime.start,
-  eventTime.end,
-),
-    height: 17,
+    width: widthPx(
+      eventTime.start,
+      eventTime.end,
+    ),
+
+    // 高さを約2倍に変更
+    height: googleEventHeight,
     minWidth: 4,
-    borderRadius: 3,
-    border: "1px solid #6b7280",
-    background:
-      "repeating-linear-gradient(135deg, #e5e7eb 0, #e5e7eb 5px, #d1d5db 5px, #d1d5db 10px)",
-    color: "#111827",
-    padding: "1px 4px",
-    fontSize: 10,
+
+    borderRadius: 4,
+
+    // オレンジ色
+    border: "1px solid rgba(234, 88, 12, 0.85)",
+    background: "rgba(251, 146, 60, 0.55)",
+
+    color: "#7c2d12",
+    padding: "2px 5px",
+    fontSize: 11,
     fontWeight: 600,
-    lineHeight: "13px",
+    lineHeight: "14px",
+
     overflow: "hidden",
     whiteSpace: "nowrap",
     textOverflow: "ellipsis",
+
     cursor: "default",
     userSelect: "none",
+
+    // 後ろのシフトを見えるようにする
+    opacity: 0.72,
+
     zIndex: 5,
     boxSizing: "border-box",
   };
@@ -1144,7 +1157,7 @@ width: widthPx(
         );
       }}
     >
-      G {displayTitle}
+      {displayTitle}
     </div>
   );
 })}
