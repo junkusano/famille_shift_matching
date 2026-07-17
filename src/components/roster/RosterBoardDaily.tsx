@@ -756,11 +756,17 @@ return sorted.filter((st) => {
     getGoogleEventTimeForDate(event, date);
 
   const googleEventHeight = 32;
+const googleEventBottomMargin = 3;
 
 const topPx =
   rowIdx != null
-    ? rowIdx * ROW_HEIGHT + ROW_HEIGHT - 20
-    : ROW_HEIGHT - 20;
+    ? rowIdx * ROW_HEIGHT +
+      ROW_HEIGHT -
+      googleEventHeight -
+      googleEventBottomMargin
+    : ROW_HEIGHT -
+      googleEventHeight -
+      googleEventBottomMargin;
 
   return {
     position: "absolute",
@@ -1104,33 +1110,6 @@ const topPx =
   return (
     <div
       key={`google-${event.id}`}
-      style={{
-        position: "absolute",
-        top: rowIdx * ROW_HEIGHT + ROW_HEIGHT - 20,
-        left: leftPx(eventTime.start),
-        width: widthPx(
-          eventTime.start,
-          eventTime.end,
-        ),
-        height: 17,
-        minWidth: 4,
-        borderRadius: 3,
-        border: "1px solid #6b7280",
-        background:
-          "repeating-linear-gradient(135deg, #e5e7eb 0, #e5e7eb 5px, #d1d5db 5px, #d1d5db 10px)",
-        color: "#111827",
-        padding: "1px 4px",
-        fontSize: 10,
-        fontWeight: 600,
-        lineHeight: "13px",
-        overflow: "hidden",
-        whiteSpace: "nowrap",
-        textOverflow: "ellipsis",
-        cursor: "default",
-        userSelect: "none",
-        zIndex: 5,
-        boxSizing: "border-box",
-      }}
       title={[
         "Googleカレンダー予定",
         `${eventTime.start}-${eventTime.end}`,
@@ -1207,7 +1186,7 @@ const topPx =
         );
       }}
     >
-      G {displayTitle}
+      {displayTitle}
     </div>
   );
 })}
