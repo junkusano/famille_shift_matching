@@ -1,3 +1,4 @@
+//app/portal/fax-sending/page.tsx
 "use client"
 
 import React, { useState, useEffect, useMemo } from "react"
@@ -5,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
 import { useUserRole } from "@/context/RoleContext"
-import { supabase } from "@/lib/supabaseClient"
 
 // =========================
 // 定数
@@ -30,6 +30,15 @@ type ServiceKind = { id: string; label: string; sort_order: number }
 type PostalDistrict = { postal_code_3: string; district: string }
 
 type Option = { value: string; label: string }
+
+type FaximoSendResponse = {
+  ok: boolean
+  error?: string
+  faximoResultCode?: string
+  processKey?: string
+  acceptedAt?: string
+  faximoRequestId?: string
+}
 
 // =========================
 // 汎用マルチセレクト（ネイティブ <select multiple> 版）
@@ -253,82 +262,163 @@ export default function FaxSendingPage() {
   // 送信（30件超はOK/キャンセル確認、ファイルは念のため再チェック）
   // =========================
   const handleUploadAndSend = async () => {
-    if (files.length === 0 || selectedFaxes.length === 0) {
-      alert("ファイルとFAX送信先を選んでください")
+    if (files.length === 0) {
+      alert("送信するファイルを選んでください")
       return
     }
 
-    // 念のための再チェック（直接 files に入ったケースの保険）
-    const overs = files.filter(f => f.size > MAX_FILE_SIZE)
-    if (overs.length > 0) {
-      const msg = [
-        "1MBを超えるファイルが含まれているため送信できません。",
-        ...overs.map(o => `・${o.name}（${formatBytes(o.size)}）`),
-      ].join("\n")
-      alert(msg)
+    if (selectedFaxes.length === 0) {
+      alert("FAX送信先を選んでください")
       return
     }
 
-    // 30件超の確認（課金・管理者連絡の注意喚起）
-    if (selectedFaxes.length > 30) {
-      const ok = window.confirm(
-        `送信先が ${selectedFaxes.length} 件あります。\n\n30件以上を一度に送る場合は、チャージが必要です。\n管理者まで連絡をお願いします。\n\nOKで続行 / キャンセルで中止`
+    // faximoSilverは1回につき最大50件
+    if (selectedFaxes.length > 50) {
+      alert(
+        `FAX送信先は1回につき最大50件です。\n現在 ${selectedFaxes.length} 件選択されています。`
       )
-      if (!ok) return
+      return
+    }
+
+    // 念のためファイルサイズを再確認
+    const oversizedFiles = files.filter((file) => file.size > MAX_FILE_SIZE)
+
+    if (oversizedFiles.length > 0) {
+      const message = [
+        "1MBを超えるファイルが含まれているため送信できません。",
+        ...oversizedFiles.map(
+          (file) => `・${file.name}（${formatBytes(file.size)}）`
+        ),
+      ].join("\n")
+
+      alert(message)
+      return
+    }
+
+    // 同じFAX番号が複数事業所に登録されている場合の確認
+    const normalizedFaxNumbers = selectedFaxes.map((entry) =>
+      entry.fax.replace(/[\s()-]/g, "")
+    )
+
+    const duplicateFaxNumbers = normalizedFaxNumbers.filter(
+      (faxNumber, index, array) => array.indexOf(faxNumber) !== index
+    )
+
+    if (duplicateFaxNumbers.length > 0) {
+      const uniqueDuplicates = Array.from(new Set(duplicateFaxNumbers))
+
+      alert(
+        [
+          "同じFAX番号が複数選択されています。",
+          "重複したFAX番号は選択解除してから送信してください。",
+          "",
+          ...uniqueDuplicates.map((faxNumber) => `・${faxNumber}`),
+        ].join("\n")
+      )
+      return
+    }
+
+    // 30件超の場合は従来どおり確認
+    if (selectedFaxes.length > 30) {
+      const confirmed = window.confirm(
+        [
+          `送信先が ${selectedFaxes.length} 件あります。`,
+          "",
+          "30件以上を一度に送る場合は、チャージが必要です。",
+          "管理者まで連絡をお願いします。",
+          "",
+          "OKで送信 / キャンセルで中止",
+        ].join("\n")
+      )
+
+      if (!confirmed) {
+        return
+      }
     }
 
     try {
       setUploading(true)
-      const uploadedUrls: string[] = []
 
-      for (const file of files) {
-        const formData = new FormData()
-        formData.append("file", file)
-        formData.append("filename", `fax_${Date.now()}_${file.name}`)
-        const res = await fetch("/api/upload", { method: "POST", body: formData })
-        const result = await res.json()
-        if (result.url) uploadedUrls.push(result.url)
-      }
+      const formData = new FormData()
 
-      const session = await supabase.auth.getSession()
-      const authUserId = session.data?.session?.user?.id
-      if (!authUserId) throw new Error("ログインユーザー未取得")
-
-      const { data: userData, error: userError } = await supabase
-        .from("user_entry_united_view")
-        .select("manager_auth_user_id, manager_user_id, user_id")
-        .eq("auth_user_id", authUserId)
-        .eq("group_type", "人事労務サポートルーム")
-        .limit(1)
-        .single()
-
-      if (userError || !userData?.manager_user_id) throw new Error("マネージャー情報取得エラー")
-
-      const templateId = "2ca8aa86-e907-444c-9cf2-aec69563f9f0"
-
-      const { error: insertError } = await supabase.from("rpa_command_requests").insert({
-        template_id: templateId,
-        requester_id: authUserId,
-        approver_id: userData.manager_auth_user_id,
-        status: "approved",
-        request_details: {
-          file_urls: uploadedUrls,
-          fax_targets: selectedFaxes,
-          requester_user_id: userData.user_id,
-          filter_snapshot: { qFax, qOffice, qDistrict3, qKind },
-        },
+      selectedFaxes.forEach((entry) => {
+        const normalizedFaxNumber = entry.fax.replace(/[\s()-]/g, "")
+        formData.append("faxNumbers", normalizedFaxNumber)
       })
 
-      if (insertError) throw new Error(`送信に失敗しました: ${insertError.message}`)
+      formData.append(
+        "faxTargets",
+        JSON.stringify(
+          selectedFaxes.map((entry) => ({
+            id: entry.id,
+            fax: entry.fax.replace(/[\s()-]/g, ""),
+            office_name: entry.office_name,
+          }))
+        )
+      )
 
-      alert("FAX送信リクエストを送信しました")
+      // 添付ファイル
+      files.forEach((file) => {
+        formData.append("files", file, file.name)
+      })
+
+      // faximoSilver側の送信設定
+      formData.append("subject", "FAX送信")
+      formData.append("retryCount", "3")
+
+      const response = await fetch("/api/faximo/send", {
+        method: "POST",
+        body: formData,
+      })
+
+      const result = (await response.json()) as FaximoSendResponse
+
+      if (!response.ok || !result.ok) {
+        const errorDetails = [
+          result.error ?? "FAX送信処理に失敗しました",
+          result.faximoResultCode
+            ? `faximo結果コード: ${result.faximoResultCode}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join("\n")
+
+        throw new Error(errorDetails)
+      }
+
+      const successMessage = [
+        "FAX送信を受け付けました。",
+        "",
+        `送信先: ${selectedFaxes.length}件`,
+        `添付ファイル: ${files.length}件`,
+        result.acceptedAt ? `受付日時: ${result.acceptedAt}` : null,
+        result.faximoRequestId
+          ? `受付ID: ${result.faximoRequestId}`
+          : null,
+        result.processKey
+          ? `処理キー: ${result.processKey}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n")
+
+      alert(successMessage)
+
       setFiles([])
       setSelectedFaxes([])
+      setFileWarning("")
+    } catch (error) {
+      console.error("[fax-sending] faximo send failed", error)
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "FAX送信処理に失敗しました"
+      )
     } finally {
       setUploading(false)
     }
   }
-
   // =========================
   // オプション配列（HOOKは早期returnより前に定義）
   // =========================
@@ -352,7 +442,7 @@ export default function FaxSendingPage() {
   // =========================
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-xl font-bold">FAX送信リクエスト</h1>
+      <h1 className="text-xl font-bold">FAX送信</h1>
 
       {/* アップロードUI & ファイル一覧 */}
       <div className="space-y-2">
@@ -456,13 +546,20 @@ export default function FaxSendingPage() {
 
       <div className="flex items-center gap-2">
         <Button onClick={handleUploadAndSend} disabled={uploading || files.length === 0 || selectedFaxes.length === 0}>
-          {uploading ? "送信中..." : "FAX送信リクエストを送る"}
+          {uploading ? "FAX送信中..." : "FAXを送信する"}
         </Button>
         <div className="text-xs text-muted-foreground">
           送信先: {selectedFaxes.length} 件 / 添付: {files.length} 件
-          {selectedFaxes.length > 30 && (
-            <span className="ml-2 text-red-600">※30件以上はチャージが必要（管理者へ連絡の上、確認ダイアログでOKしてください）</span>
-          )}
+
+          {selectedFaxes.length > 50 ? (
+            <span className="ml-2 text-red-600 font-medium">
+              ※faximoSilverの上限は1回50件です。50件以下にしてください。
+            </span>
+          ) : selectedFaxes.length > 30 ? (
+            <span className="ml-2 text-red-600">
+              ※30件以上はチャージが必要です。管理者へ連絡してから送信してください。
+            </span>
+          ) : null}
         </div>
         {selectedFaxes.length > 0 && (
           <Button size="sm" variant="ghost" onClick={clearSelected}>選択解除</Button>
