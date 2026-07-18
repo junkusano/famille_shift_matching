@@ -10,7 +10,7 @@ import { useUserRole } from "@/context/RoleContext"
 // =========================
 // 定数
 // =========================
-const MAX_FILE_SIZE = 1024 * 1024 // 1MB（バイト）
+const MAX_TOTAL_FILE_SIZE = 28 * 1024 * 1024
 
 // =========================
 // 型定義
@@ -223,34 +223,39 @@ export default function FaxSendingPage() {
   // =========================
   // ファイル系（1MB超は除外して警告）
   // =========================
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     if (!e.target.files) return
+
     const picked = Array.from(e.target.files)
-    const accepted: File[] = []
-    const rejected: { name: string; size: number }[] = []
 
-    for (const f of picked) {
-      if (f.size > MAX_FILE_SIZE) {
-        rejected.push({ name: f.name, size: f.size })
-      } else {
-        accepted.push(f)
-      }
-    }
+    const currentTotal = files.reduce(
+      (sum, file) => sum + file.size,
+      0
+    )
 
-    setFiles((prev) => [...prev, ...accepted])
+    const pickedTotal = picked.reduce(
+      (sum, file) => sum + file.size,
+      0
+    )
 
-    if (rejected.length > 0) {
-      const msg = [
-        "以下のファイルはサイズ上限（1MB）を超えるため除外しました。",
-        ...rejected.map(r => `・${r.name}（${formatBytes(r.size)}）`),
+    if (currentTotal + pickedTotal > MAX_TOTAL_FILE_SIZE) {
+      const message = [
+        "添付ファイルの合計サイズが上限を超えています。",
+        `上限: ${formatBytes(MAX_TOTAL_FILE_SIZE)}`,
+        `現在: ${formatBytes(currentTotal)}`,
+        `追加分: ${formatBytes(pickedTotal)}`,
       ].join("\n")
-      setFileWarning(msg)
-      alert(msg)
-    } else {
-      setFileWarning("")
+
+      setFileWarning(message)
+      alert(message)
+      e.currentTarget.value = ""
+      return
     }
 
-    // 選択状態をリセット（同じファイルを続けて選べるように）
+    setFiles((prev) => [...prev, ...picked])
+    setFileWarning("")
     e.currentTarget.value = ""
   }
 
@@ -281,19 +286,20 @@ export default function FaxSendingPage() {
     }
 
     // 念のためファイルサイズを再確認
-    const oversizedFiles = files.filter((file) => file.size > MAX_FILE_SIZE)
+    const totalFileSize = files.reduce(
+      (sum, file) => sum + file.size,
+      0
+    )
 
-    if (oversizedFiles.length > 0) {
-      const message = [
-        "1MBを超えるファイルが含まれているため送信できません。",
-        ...oversizedFiles.map(
-          (file) => `・${file.name}（${formatBytes(file.size)}）`
-        ),
-      ].join("\n")
-
-      alert(message)
+    if (totalFileSize > MAX_TOTAL_FILE_SIZE) {
+      alert(
+        `添付ファイルの合計サイズが上限を超えています。\n` +
+        `上限: ${formatBytes(MAX_TOTAL_FILE_SIZE)}\n` +
+        `現在: ${formatBytes(totalFileSize)}`
+      )
       return
     }
+
 
     // 同じFAX番号が複数事業所に登録されている場合の確認
     const normalizedFaxNumbers = selectedFaxes.map((entry) =>
@@ -452,7 +458,9 @@ export default function FaxSendingPage() {
           onChange={handleFileChange}
           className="bg-yellow-50 focus-visible:ring-yellow-300 file:bg-yellow-100 file:text-yellow-800 file:font-medium file:px-3 file:py-1 file:rounded-md"
         />
-        <div className="text-[11px] text-muted-foreground">※ ファイルサイズ上限は1MBです（超過ファイルは自動除外）。</div>
+        <div className="text-[11px] text-muted-foreground">
+          ※ 添付ファイルの合計サイズ上限は28MBです。
+        </div>
         {fileWarning && (
           <div className="text-xs text-red-600 whitespace-pre-wrap">{fileWarning}</div>
         )}
@@ -545,8 +553,18 @@ export default function FaxSendingPage() {
       </div>
 
       <div className="flex items-center gap-2">
-        <Button onClick={handleUploadAndSend} disabled={uploading || files.length === 0 || selectedFaxes.length === 0}>
-          {uploading ? "FAX送信中..." : "FAXを送信する"}
+        <Button
+          onClick={handleUploadAndSend}
+          disabled={
+            uploading ||
+            files.length === 0 ||
+            selectedFaxes.length === 0 ||
+            selectedFaxes.length > 50
+          }
+        >
+          {uploading
+            ? "FAX送信中..."
+            : "FAXを送信する"}
         </Button>
         <div className="text-xs text-muted-foreground">
           送信先: {selectedFaxes.length} 件 / 添付: {files.length} 件

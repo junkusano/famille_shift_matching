@@ -115,7 +115,8 @@ function NavLinks({ role }: { role: string | null }) {
           <li><Link href="/portal/event-tasks" className="text-blue-300 hover:underline">イベント管理</Link></li>
           <li><Link href="/portal/event-template" className="text-blue-300 hover:underline">イベントテンプレート管理</Link></li>
           <li><Link href="/portal/phone" className="text-blue-300 hover:underline">電話帳</Link></li>
-          <li><Link href="/portal/fax-sending" className="text-blue-300 hover:underline">fax送付</Link></li>
+          <li><Link href="/portal/fax-sending" className="text-blue-300 hover:underline">fax送信</Link></li>
+          <li><Link href="/portal/fax-history" className="text-blue-300 hover:underline">fax送信履歴</Link></li>
           <li><Link href="/portal/fax" className="text-blue-300 hover:underline">fax電話帳</Link></li>
           <li><Link href="/portal/rpa_requests" className="text-blue-300 hover:underline">RPAリクエスト管理</Link></li>
           <li><Link href="/portal/rpa_temp/list" className="text-blue-300 hover:underline">RPAテンプレ管理</Link></li>
