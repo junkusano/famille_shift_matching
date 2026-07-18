@@ -5,13 +5,12 @@ import TableViewer, { type TableColumnConfig } from "@/components/TableViewer";
 import { useUserRole } from "@/context/RoleContext";
 
 const STATUS_LABELS: Record<string, string> = {
-  requesting: "受付処理中",
-  accepted: "受付済み",
-  sending: "送信中",
-  sent: "送信成功",
-  failed: "送信失敗",
+  requesting: "送信依頼中",
+  accepted: "受付済",
+  completed: "送信完了",
+  error: "送信エラー",
   request_failed: "受付失敗",
-  unknown: "確認待ち",
+  unknown: "状態不明",
 };
 
 function formatDateTime(value: unknown) {
