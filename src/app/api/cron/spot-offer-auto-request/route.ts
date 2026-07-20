@@ -217,6 +217,22 @@ const hasManager = (staffRoles ?? []).some(
       );
 
       const start = shift.shift_start_time;
+      const { data: clientInfo, error: clientInfoError } =
+  await supabaseAdmin
+    .from("cs_kaipoke_info")
+    .select("name")
+    .eq("kaipoke_cs_id", shift.kaipoke_cs_id)
+    .maybeSingle();
+
+if (clientInfoError) {
+  throw clientInfoError;
+}
+
+const clientName =
+  typeof clientInfo?.name === "string"
+    ? clientInfo.name.trim()
+    : "";
+
 
 const nextShiftWithinTwoHours = (shifts ?? [])
   .filter((candidate) =>
@@ -289,7 +305,7 @@ const breakEnd =
       ? selectedTemplate["break_end"]
       : null;
 
-      const details = createRpaRequestDetails({
+const details = createRpaRequestDetails({
   selectedTemplate,
   form: { shift_id: shift.shift_id },
   shift,
@@ -297,17 +313,16 @@ const breakEnd =
   start,
   end,
   breakStart:
-  typeof breakStart === "string" ? breakStart : null,
-
+    typeof breakStart === "string" ? breakStart : null,
   breakEnd:
-  typeof breakEnd === "string" ? breakEnd : null,
+    typeof breakEnd === "string" ? breakEnd : null,
   userData: {
     user_id: "cron",
   },
+  clientName,
   mergedShiftIds,
   mergedServiceCodes,
 });
-
       const spotOfferPayload = {
         shift_id: shift.shift_id,
         core_id: selectedTemplate.core_id,

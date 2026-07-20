@@ -9,6 +9,8 @@ type CreateRpaRequestDetailsParams = {
   breakEnd: unknown;
   userData: Record<string, unknown>;
 
+  clientName?: unknown;
+
   mergedShiftIds?: unknown[];
   mergedServiceCodes?: unknown[];
 };
@@ -31,15 +33,18 @@ export function createRpaRequestDetails({
   start,
   end,
   userData,
+  clientName,
   mergedShiftIds,
   mergedServiceCodes,
 }: CreateRpaRequestDetailsParams) {
+
   return {
     core_id: selectedTemplate["core_id"],
     created_from: "/portal/roster/daily",
 
     shift_id: form["shift_id"],
     kaipoke_cs_id: shift?.["kaipoke_cs_id"] ?? null,
+    client_name: normalizeTextForPadJson(clientName),
 
     merged_shift_ids: mergedShiftIds ?? [form["shift_id"]],
     merged_service_codes: mergedServiceCodes ?? [shift?.["service_code"] ?? null],
