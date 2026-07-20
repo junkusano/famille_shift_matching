@@ -1110,54 +1110,6 @@ const topPx =
   if (rowIdx == null) {
     return null;
   }
-    const eventTime = getGoogleEventTimeForDate(
-    event,
-    date,
-  );
-
-  const displayTitle =
-    event.title?.trim() || "予定あり";
-
-  return (
-    <div
-      key={`google-${event.id}`}
-      title={[
-        "Googleカレンダー予定",
-        `${eventTime.start}-${eventTime.end}`,
-        displayTitle,
-        "編集はGoogleカレンダーで行ってください",
-      ].join("\n")}
-      onMouseDown={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      }}
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        alert(
-          [
-            "Googleカレンダーから同期された予定です。",
-            "",
-            `${eventTime.start}-${eventTime.end}`,
-            displayTitle,
-            "",
-            "編集はGoogleカレンダーで行ってください。",
-          ].join("\n"),
-        );
-      }}
-    >
-      {displayTitle}
-    </div>
-  );
-})}
-{/* Googleカレンダー予定・参照専用 */}
-{googleCalendarEvents.map((event) => {
-  const rowIdx = rowIndexByStaff.get(event.user_id);
-
-  if (rowIdx == null) {
-    return null;
-  }
 
   const eventTime = getGoogleEventTimeForDate(
     event,
