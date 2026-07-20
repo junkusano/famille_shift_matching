@@ -487,16 +487,65 @@ setSubmitting(true);
   .reduce((sum, shift) => sum + shift.amount, 0);
 
       const calculation = calculateAvailableAmount({
-        baseAmount: eligibleAmount,
-        hasSocialInsurance: Boolean(me.has_social_insurance),
-        hasEmploymentAndWorkersInsurance: Boolean(
-          me.has_employment_insurance
-        ),
-        hasEmployeeLoan: Boolean(me.has_employee_loan),
-      });
+  baseAmount: eligibleAmount,
+  hasSocialInsurance: Boolean(me.has_social_insurance),
+  hasEmploymentAndWorkersInsurance: Boolean(
+    me.has_employment_insurance
+  ),
+  hasEmployeeLoan: Boolean(me.has_employee_loan),
+});
 
+// 訪問記録が未記載のシフト
+const unrecordedShifts = targetShifts.filter(
+  (shift) => !shift.has_shift_record
+);
 
-      const employeeName = me.user_id;
+// 確認画面に表示する内容
+const confirmationLines: string[] = [
+  "日払い申請の最終確認です。",
+  "",
+  `日払い計算対象額：¥${eligibleAmount.toLocaleString()}`,
+  `控除額：¥${(
+    eligibleAmount - calculation.availableAmount
+  ).toLocaleString()}`,
+  `振込手数料：¥200`,
+  `振込予定額：¥${Math.max(
+    calculation.availableAmount - 200,
+    0
+  ).toLocaleString()}`,
+];
+
+if (unrecordedShifts.length > 0) {
+  confirmationLines.push(
+    "",
+    "⚠️ 訪問記録が未記載のシフトがあります。",
+    "訪問記録未記載分は日払い対象額から控除されます。",
+    "",
+    ...unrecordedShifts.map(
+      (shift) =>
+        `・${shift.shift_start_date} ${formatTime(
+          shift.shift_start_time
+        )}～${formatTime(shift.shift_end_time)} ${shift.client_name}`
+    ),
+    "",
+    "この内容で申請してよろしいですか？"
+  );
+} else {
+  confirmationLines.push(
+    "",
+    "この内容で申請してよろしいですか？"
+  );
+}
+
+const confirmed = window.confirm(
+  confirmationLines.join("\n")
+);
+
+if (!confirmed) {
+  return;
+}
+
+const employeeName = me.user_id;
       const applicationNo = makeApplicationNo();
 
       const todayJst = toJstDateString();
