@@ -212,19 +212,6 @@ const isSilverOrHigher =
 
     const isTestAccount = me?.user_id === "servicesuport";
 
-  const canSubmit =
-  isTestAccount ||
-  (
-    !rankLoading &&
-    isSilverOrHigher &&
-    !isManager &&
-    !isAfterDeadline &&
-    hasSelectedShift &&
-    allChecked &&
-    !submitting
-  );
-
-
 const baseAmount = targetShifts
   .reduce((sum, shift) => sum + shift.amount, 0);
 
@@ -246,6 +233,19 @@ const calculation = calculateAvailableAmount({
       me?.has_employee_loan
     ),
   });
+
+  const canSubmit =
+  isTestAccount ||
+  (
+    !rankLoading &&
+    isSilverOrHigher &&
+    !isManager &&
+    !isAfterDeadline &&
+    hasSelectedShift &&
+    allChecked &&
+    calculation.availableAmount > 0 &&
+    !submitting
+  );
 
   useEffect(() => {
     async function fetchTargetShifts() {
@@ -465,7 +465,21 @@ if (!isSilverOrHigher && !isTestAccount) {
 
 if (!canSubmit && !isTestAccount) return;
 
-      setSubmitting(true);
+const submitCalculation = calculateAvailableAmount({
+  baseAmount: eligibleAmount,
+  hasSocialInsurance: Boolean(me.has_social_insurance),
+  hasEmploymentAndWorkersInsurance: Boolean(
+    me.has_employment_insurance
+  ),
+  hasEmployeeLoan: Boolean(me.has_employee_loan),
+});
+
+if (submitCalculation.availableAmount <= 0) {
+  setErrorMessage("申請可能額が0円のため、日払い申請はできません。");
+  return;
+}
+
+setSubmitting(true);
       setErrorMessage("");
       setMessage("");
 
