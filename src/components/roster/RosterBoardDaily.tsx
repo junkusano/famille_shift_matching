@@ -633,7 +633,7 @@ console.log(
             window.removeEventListener("mousemove", onMove);
             window.removeEventListener("mouseup", onUp);
         };
-    }, [drag, displayStaff, date, supabase]);
+    }, [drag, displayStaff, date]);
 
     // ====== スタイル ======
     const MAX_H_MULTIPLIER = 10; // ← 4〜5倍にしたいときは 4 or 5 を指定
