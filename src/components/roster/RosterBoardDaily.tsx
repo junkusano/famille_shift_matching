@@ -436,11 +436,22 @@ return sorted.filter((st) => {
     }, [cards]);
 
     const rowIndexByStaff = useMemo(() => {
-        const m = new Map<string, number>();
-        displayStaff.forEach((st, i) => m.set(st.id, i));
-        return m;
-    }, [displayStaff]);
+  const m = new Map<string, number>();
 
+  displayStaff.forEach((st, i) => {
+    m.set(st.id, i);
+  });
+
+  return m;
+}, [displayStaff]);
+
+console.log(
+  "[Google予定ID確認]",
+  googleCalendarEvents.map((event) => ({
+    eventUserId: event.user_id,
+    staffExists: rowIndexByStaff.has(event.user_id),
+  })),
+);
     // ====== スクロール制御 ======
     const rightScrollRef = useRef<HTMLDivElement>(null);   // 横スクロール（時間）
     const outerScrollRef = useRef<HTMLDivElement>(null);   // ★ 縦スクロールを与えるコンテナ
