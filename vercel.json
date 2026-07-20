@@ -211,6 +211,10 @@
     {
       "path": "/api/cron/spot-offer-auto-request",
       "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/cron/google-calendar-sync",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
