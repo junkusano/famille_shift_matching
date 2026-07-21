@@ -25,8 +25,14 @@ type SummaryRow = {
     visit_record_past_incomplete_count: number | null;
     meeting_previous_month_attended: boolean | null;
     meeting_past_attended: boolean | null;
+    jisseki_previous_month_total_count: number | null;
     jisseki_previous_month_done_count: number | null;
     jisseki_past_incomplete_count: number | null;
+
+    jisseki_team_total_count: number | null;
+    jisseki_team_done_count: number | null;
+    jisseki_team_collection_rate: number | string | null;
+    jisseki_team_bonus_score: number | null;
     training_goal_selected_count: number | null;
     health_check_done: boolean | null;
     shift_decline_3days_count: number | null;
@@ -326,7 +332,10 @@ function calcTotalScore(row: SummaryRow) {
             ? 10
             : 0;
 
-    const jissekiScore = 20 - Number(row.jisseki_past_incomplete_count ?? 0) * 5;
+    const jissekiScore = Math.max(
+        0,
+        20 - Number(row.jisseki_past_incomplete_count ?? 0) * 5
+    );
 
     const trainingGoalScore = Math.min(
         Number(row.training_goal_selected_count ?? 0) * 5,
@@ -435,8 +444,14 @@ export async function GET(req: NextRequest) {
                 visit_record_past_incomplete_count: 0,
                 meeting_previous_month_attended: false,
                 meeting_past_attended: false,
+                jisseki_previous_month_total_count: 0,
                 jisseki_previous_month_done_count: 0,
                 jisseki_past_incomplete_count: 0,
+
+                jisseki_team_total_count: 0,
+                jisseki_team_done_count: 0,
+                jisseki_team_collection_rate: 0,
+                jisseki_team_bonus_score: 0,
                 training_goal_selected_count: 0,
                 health_check_done: false,
                 shift_decline_3days_count: 0,
@@ -525,8 +540,14 @@ export async function GET(req: NextRequest) {
             visit_record_past_incomplete_count: 0,
             meeting_previous_month_attended: false,
             meeting_past_attended: false,
+            jisseki_previous_month_total_count: 0,
             jisseki_previous_month_done_count: 0,
             jisseki_past_incomplete_count: 0,
+
+            jisseki_team_total_count: 0,
+            jisseki_team_done_count: 0,
+            jisseki_team_collection_rate: 0,
+            jisseki_team_bonus_score: 0,
             training_goal_selected_count: 0,
             health_check_done: false,
             shift_decline_3days_count: 0,
@@ -742,7 +763,7 @@ export async function GET(req: NextRequest) {
         const visitCurrentMonthIncompleteCountMap = new Map<string, number>();
 
         const serviceHoursMap = new Map<string, number>();
-
+        const jissekiPreviousMonthTotalMap = new Map<string, number>();
         const jissekiPreviousMonthDoneMap = new Map<string, number>();
         const jissekiPastIncompleteMap = new Map<string, number>();
 
@@ -787,15 +808,32 @@ export async function GET(req: NextRequest) {
 
         for (const row of disabilityRows ?? []) {
             const staffId = row.asigned_jisseki_staff_id;
-            if (!staffId || !row.year_month) continue;
 
-            if (row.year_month === jissekiBaseYearMonth && row.application_check === true) {
-                jissekiPreviousMonthDoneMap.set(
-                    staffId,
-                    (jissekiPreviousMonthDoneMap.get(staffId) ?? 0) + 1
-                );
+            if (!staffId || !row.year_month) {
+                continue;
             }
 
+            /*
+             * 対象月の実績記録は、完了・未完了を問わず
+             * チーム回収率の対象件数に含める
+             */
+            if (row.year_month === jissekiBaseYearMonth) {
+                jissekiPreviousMonthTotalMap.set(
+                    staffId,
+                    (jissekiPreviousMonthTotalMap.get(staffId) ?? 0) + 1
+                );
+
+                if (row.application_check === true) {
+                    jissekiPreviousMonthDoneMap.set(
+                        staffId,
+                        (jissekiPreviousMonthDoneMap.get(staffId) ?? 0) + 1
+                    );
+                }
+            }
+
+            /*
+             * 個人スコア用の過去未完了件数
+             */
             if (row.application_check === false) {
                 jissekiPastIncompleteMap.set(
                     staffId,
@@ -936,8 +974,12 @@ export async function GET(req: NextRequest) {
                         visitCurrentMonthIncompleteCountMap.get(row.user_id) ?? 0,
                     visit_record_past_incomplete_count:
                         incompleteCountMap.get(row.user_id)?.past ?? 0,
+                    jisseki_previous_month_total_count:
+                        jissekiPreviousMonthTotalMap.get(row.user_id) ?? 0,
+
                     jisseki_previous_month_done_count:
                         jissekiPreviousMonthDoneMap.get(row.user_id) ?? 0,
+
                     jisseki_past_incomplete_count:
                         jissekiPastIncompleteMap.get(row.user_id) ?? 0,
                     training_goal_selected_count: trainingGoalSelectedCount,
@@ -975,8 +1017,12 @@ export async function GET(req: NextRequest) {
             meeting_previous_month_attended:
                 meetingPreviousMonthAttendedMap.get(row.user_id) ?? false,
             meeting_past_attended: row.meeting_past_attended ?? false,
+            jisseki_previous_month_total_count:
+                jissekiPreviousMonthTotalMap.get(row.user_id) ?? 0,
+
             jisseki_previous_month_done_count:
                 jissekiPreviousMonthDoneMap.get(row.user_id) ?? 0,
+
             jisseki_past_incomplete_count:
                 jissekiPastIncompleteMap.get(row.user_id) ?? 0,
             training_goal_selected_count:
