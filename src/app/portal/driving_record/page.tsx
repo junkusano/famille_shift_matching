@@ -198,6 +198,35 @@ export default function ManagerDistanceIndexPage() {
             マネージャー移動距離指数
           </h1>
 
+          <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4">
+  <h2 className="mb-3 text-lg font-semibold text-amber-900">
+    ガソリン代上限額
+  </h2>
+
+  <div className="grid gap-2 text-sm sm:grid-cols-3">
+    <div className="rounded-md bg-white px-4 py-3 shadow-sm">
+      <div className="font-medium text-gray-700">指数 899以下</div>
+      <div className="mt-1 text-lg font-bold text-gray-900">
+        13,000円
+      </div>
+    </div>
+
+    <div className="rounded-md bg-white px-4 py-3 shadow-sm">
+      <div className="font-medium text-gray-700">指数 900～1,499</div>
+      <div className="mt-1 text-lg font-bold text-gray-900">
+        16,000円
+      </div>
+    </div>
+
+    <div className="rounded-md bg-white px-4 py-3 shadow-sm">
+      <div className="font-medium text-gray-700">指数 1,500以上</div>
+      <div className="mt-1 text-lg font-bold text-gray-900">
+        20,000円
+      </div>
+    </div>
+  </div>
+</div>
+
           <p className="mt-1 text-sm text-muted-foreground">
             自宅と各シフト先の郵便番号上3桁の
             差分を、月ごとに合計しています。
