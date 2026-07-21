@@ -56,6 +56,7 @@ type UserRow = {
     first_name_kanji: string | null;
     last_name_kana: string | null;
     first_name_kana: string | null;
+    org_unit_id: string | null;
 };
 
 type MemberOption = {
@@ -66,6 +67,7 @@ type MemberOption = {
     first_name_kanji: string | null;
     last_name_kana: string | null;
     first_name_kana: string | null;
+    org_unit_id: string | null;
 };
 
 /*type Metric = {
@@ -343,7 +345,8 @@ export async function GET(req: NextRequest) {
             last_name_kanji,
             first_name_kanji,
             last_name_kana,
-            first_name_kana
+            first_name_kana,
+    org_unit_id
             `
         )
         .eq("auth_uid", authData.user.id)
@@ -373,7 +376,8 @@ export async function GET(req: NextRequest) {
         last_name_kanji,
         first_name_kanji,
         last_name_kana,
-        first_name_kana
+        first_name_kana,
+    org_unit_id
       `
         )
         .not("user_id", "is", null)
@@ -401,6 +405,7 @@ export async function GET(req: NextRequest) {
                 first_name_kanji: loginUser.first_name_kanji,
                 last_name_kana: loginUser.last_name_kana,
                 first_name_kana: loginUser.first_name_kana,
+                org_unit_id: loginUser.org_unit_id,
             },
         ];
     const selectedMember =
@@ -433,6 +438,202 @@ export async function GET(req: NextRequest) {
     const previousYm = getPreviousYm(ym);
 
     const targetMonthDate = `${ym}-01`;
+
+    /*
+     * 選択中スタッフの所属チームを取得
+     *
+     * user_entry_united_view_single は、
+     * user_org_exception.orgunitid があればそちらを優先し、
+     * なければ users.org_unit_id を返しています。
+     */
+    const { data: selectedUserOrg, error: selectedUserOrgError } =
+        await supabaseAdmin
+            .from("user_entry_united_view_single")
+            .select(`
+            user_id,
+            org_unit_id
+        `)
+            .eq("user_id", userId)
+            .maybeSingle<{
+                user_id: string;
+                org_unit_id: string | null;
+            }>();
+
+    if (selectedUserOrgError) {
+        console.error(
+            "[my-score] selected user org error",
+            selectedUserOrgError
+        );
+
+        return NextResponse.json(
+            { error: selectedUserOrgError.message },
+            { status: 500 }
+        );
+    }
+
+    const selectedOrgUnitId = selectedUserOrg?.org_unit_id ?? null;
+
+    let calculatedTeamTotalCount = 0;
+    let calculatedTeamDoneCount = 0;
+    let calculatedTeamCollectionRate = 0;
+    let calculatedTeamBonusScore = 0;
+
+    if (selectedOrgUnitId) {
+        /*
+         * 同じorg_unit_idに所属するスタッフを取得
+         */
+        const { data: teamMemberRows, error: teamMemberError } =
+            await supabaseAdmin
+                .from("user_entry_united_view_single")
+                .select(`
+                user_id,
+                org_unit_id,
+                status
+            `)
+                .eq("org_unit_id", selectedOrgUnitId)
+                .not("user_id", "is", null)
+                .neq("status", "removed_from_lineworks_kaipoke")
+                .returns<
+                    Array<{
+                        user_id: string;
+                        org_unit_id: string | null;
+                        status: string | null;
+                    }>
+                >();
+
+        if (teamMemberError) {
+            console.error(
+                "[my-score] team members error",
+                teamMemberError
+            );
+
+            return NextResponse.json(
+                { error: teamMemberError.message },
+                { status: 500 }
+            );
+        }
+
+        /*
+         * view内で重複する可能性に備えてuser_idを一意化
+         */
+        const teamUserIds = Array.from(
+            new Set(
+                (teamMemberRows ?? [])
+                    .map((row) => row.user_id)
+                    .filter(
+                        (teamUserId): teamUserId is string =>
+                            Boolean(teamUserId) &&
+                            !EXCLUDED_PERFORMANCE_SCORE_USER_IDS.includes(
+                                teamUserId
+                            )
+                    )
+            )
+        );
+
+        if (teamUserIds.length > 0) {
+            /*
+             * 同じ月のチームメンバーの実績記録件数を取得
+             */
+            const { data: teamSummaryRows, error: teamSummaryError } =
+                await supabaseAdmin
+                    .from("staff_monthly_score_summaries")
+                    .select(`
+                    user_id,
+                    jisseki_previous_month_done_count,
+                    jisseki_past_incomplete_count
+                `)
+                    .eq("target_month", targetMonthDate)
+                    .in("user_id", teamUserIds)
+                    .returns<
+                        Array<{
+                            user_id: string;
+                            jisseki_previous_month_done_count: number | null;
+                            jisseki_past_incomplete_count: number | null;
+                        }>
+                    >();
+
+            if (teamSummaryError) {
+                console.error(
+                    "[my-score] team summaries error",
+                    teamSummaryError
+                );
+
+                return NextResponse.json(
+                    { error: teamSummaryError.message },
+                    { status: 500 }
+                );
+            }
+
+            calculatedTeamDoneCount = (teamSummaryRows ?? []).reduce(
+                (total, row) =>
+                    total +
+                    Number(
+                        row.jisseki_previous_month_done_count ?? 0
+                    ),
+                0
+            );
+
+            const teamIncompleteCount = (teamSummaryRows ?? []).reduce(
+                (total, row) =>
+                    total +
+                    Number(row.jisseki_past_incomplete_count ?? 0),
+                0
+            );
+
+            calculatedTeamTotalCount =
+                calculatedTeamDoneCount + teamIncompleteCount;
+
+            calculatedTeamCollectionRate =
+                calculatedTeamTotalCount > 0
+                    ? Number(
+                        (
+                            calculatedTeamDoneCount /
+                            calculatedTeamTotalCount *
+                            100
+                        ).toFixed(2)
+                    )
+                    : 0;
+
+            if (calculatedTeamCollectionRate >= 100) {
+                calculatedTeamBonusScore = 20;
+            } else if (calculatedTeamCollectionRate >= 95) {
+                calculatedTeamBonusScore = 10;
+            } else if (calculatedTeamCollectionRate >= 90) {
+                calculatedTeamBonusScore = 5;
+            }
+
+            /*
+             * 同じチームの月次スコア全員へ同じチーム値を保存
+             */
+            const { error: teamUpdateError } = await supabaseAdmin
+                .from("staff_monthly_score_summaries")
+                .update({
+                    jisseki_team_total_count:
+                        calculatedTeamTotalCount,
+                    jisseki_team_done_count:
+                        calculatedTeamDoneCount,
+                    jisseki_team_collection_rate:
+                        calculatedTeamCollectionRate,
+                    jisseki_team_bonus_score:
+                        calculatedTeamBonusScore,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("target_month", targetMonthDate)
+                .in("user_id", teamUserIds);
+
+            if (teamUpdateError) {
+                console.error(
+                    "[my-score] team score update error",
+                    teamUpdateError
+                );
+
+                return NextResponse.json(
+                    { error: teamUpdateError.message },
+                    { status: 500 }
+                );
+            }
+        }
+    }
 
     const { data: summary, error: summaryError } = await supabaseAdmin
         .from("staff_monthly_score_summaries")
@@ -552,21 +753,25 @@ shift_decline_penalty_score,
     );
 
     // チーム実績記録
-    const jissekiTeamTotalCount = Number(
-        summary.jisseki_team_total_count ?? 0
-    );
+    const jissekiTeamTotalCount =
+        selectedOrgUnitId
+            ? calculatedTeamTotalCount
+            : Number(summary.jisseki_team_total_count ?? 0);
 
-    const jissekiTeamDoneCount = Number(
-        summary.jisseki_team_done_count ?? 0
-    );
+    const jissekiTeamDoneCount =
+        selectedOrgUnitId
+            ? calculatedTeamDoneCount
+            : Number(summary.jisseki_team_done_count ?? 0);
 
-    const jissekiTeamCollectionRate = Number(
-        summary.jisseki_team_collection_rate ?? 0
-    );
+    const jissekiTeamCollectionRate =
+        selectedOrgUnitId
+            ? calculatedTeamCollectionRate
+            : Number(summary.jisseki_team_collection_rate ?? 0);
 
-    const jissekiTeamBonusScore = Number(
-        summary.jisseki_team_bonus_score ?? 0
-    );
+    const jissekiTeamBonusScore =
+        selectedOrgUnitId
+            ? calculatedTeamBonusScore
+            : Number(summary.jisseki_team_bonus_score ?? 0);
 
     const totalScore = Number(summary.total_score ?? 0);
     //const rankNo = Number(summary.rank_no ?? 0);
