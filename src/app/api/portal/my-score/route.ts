@@ -228,6 +228,7 @@ type ScoreRow = {
     shift_decline_3days_count: number | null;
     shift_decline_6hours_count: number | null;
     shift_decline_penalty_score: number | null;
+    jisseki_team_bonus_score: number | null;
 };
 
 function calcDisplayTotalScore(row: ScoreRow) {
@@ -268,6 +269,10 @@ function calcDisplayTotalScore(row: ScoreRow) {
     );
     const healthCheckScore = row.health_check_done === true ? 10 : 0;
 
+    const teamBonusScore = Number(
+        row.jisseki_team_bonus_score ?? 0
+    );
+
     return Math.max(
         0,
         serviceHoursScore +
@@ -275,7 +280,8 @@ function calcDisplayTotalScore(row: ScoreRow) {
         meetingScore +
         jissekiScore +
         trainingGoalScore +
-        healthCheckScore -
+        healthCheckScore +
+        teamBonusScore -
         shiftDeclinePenaltyScore
     );
 }
@@ -483,7 +489,11 @@ export async function GET(req: NextRequest) {
             health_check_done,
 shift_decline_3days_count,
 shift_decline_6hours_count,
-shift_decline_penalty_score
+shift_decline_penalty_score,
+  jisseki_team_total_count,
+        jisseki_team_done_count,
+        jisseki_team_collection_rate,
+        jisseki_team_bonus_score
 `)
         .eq("user_id", userId)
         .gte("target_month", "2026-05-01")
@@ -541,6 +551,23 @@ shift_decline_penalty_score
         summary.shift_decline_penalty_score ?? 0
     );
 
+    // チーム実績記録
+    const jissekiTeamTotalCount = Number(
+        summary.jisseki_team_total_count ?? 0
+    );
+
+    const jissekiTeamDoneCount = Number(
+        summary.jisseki_team_done_count ?? 0
+    );
+
+    const jissekiTeamCollectionRate = Number(
+        summary.jisseki_team_collection_rate ?? 0
+    );
+
+    const jissekiTeamBonusScore = Number(
+        summary.jisseki_team_bonus_score ?? 0
+    );
+
     const totalScore = Number(summary.total_score ?? 0);
     //const rankNo = Number(summary.rank_no ?? 0);
     //const medalRank = summary.medal_rank ?? "ブロンズ";
@@ -552,11 +579,22 @@ shift_decline_penalty_score
         userName:
             summary.staff_name ??
             `${me.last_name_kanji ?? ""}${me.first_name_kanji ?? ""}`,
+
         totalScore,
+
+        // 追加
+        jissekiTeamTotalCount,
+        jissekiTeamDoneCount,
+        jissekiTeamCollectionRate,
+        jissekiTeamBonusScore,
+
         debugDbTotalScore: summary.total_score,
         debugTargetMonth: summary.target_month,
         debugUserId: summary.user_id,
-        totalMaxScore: 160,
+
+        // 個人最大170点＋チームボーナス最大20点
+        totalMaxScore: 190,
+
         badge: getBadge(totalScore),
         metrics: [
             {
@@ -609,6 +647,15 @@ shift_decline_penalty_score
                     ym: previousYm,
                     user_id: userId,
                 }),
+            },
+            {
+                key: "jisseki_team_bonus",
+                label: "チーム実績回収ボーナス",
+                score: jissekiTeamBonusScore,
+                maxScore: 20,
+                note:
+                    `チーム回収率 ${jissekiTeamCollectionRate.toFixed(1)}% ` +
+                    `（完了 ${jissekiTeamDoneCount}件 / 対象 ${jissekiTeamTotalCount}件）`,
             },
             {
                 key: "training_goal",
