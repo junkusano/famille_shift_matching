@@ -424,7 +424,7 @@ export default function BentoSurveyPage() {
                                         <img
                                             src={menu.image_url}
                                             alt={menu.name}
-                                            className="h-44 w-full object-cover"
+                                            className="h-44 w-full bg-white object-contain p-2"
                                         />
                                     )}
                                     <div className="flex gap-3 p-4">

@@ -1223,7 +1223,7 @@ export default function BentoAdminPage() {
                                         <img
                                             src={menuDraft.imageUrl}
                                             alt="メニュー画像"
-                                            className="mt-3 h-40 w-full rounded border object-cover"
+                                            className="mt-3 h-40 w-full rounded border bg-white object-contain"
                                         />
                                     )}
                                 </label>
@@ -1295,7 +1295,7 @@ export default function BentoAdminPage() {
                                                 <img
                                                     src={menu.image_url}
                                                     alt={menu.name}
-                                                    className="h-20 w-24 rounded object-cover"
+                                                    className="h-20 w-24 rounded border bg-white object-contain"
                                                 />
                                             )}
                                             <div className="min-w-0 flex-1">
