@@ -43,12 +43,13 @@ type SurveyResponse = {
     id: string;
     survey_id: string;
     user_id: string;
-    menu_id: string;
-    pickup_location_id: string;
+    menu_id: string | null;
+    pickup_location_id: string | null;
     option_text: string | null;
     submitted_at: string;
     updated_at: string;
     received_at: string | null;
+    wants_bento: boolean;
 };
 
 type UserName = {
@@ -179,6 +180,7 @@ export default function BentoAdminPage() {
     const [responses, setResponses] = useState<SurveyResponse[]>([]);
     const [userNames, setUserNames] = useState<UserName[]>([]);
     const [selectedSurveyId, setSelectedSurveyId] = useState<string>("");
+    const [copySourceSurveyId, setCopySourceSurveyId] = useState<string>("");
     const [surveyForm, setSurveyForm] = useState<SurveyForm>(initialSurveyForm);
     const [menuDraft, setMenuDraft] = useState<MenuDraft>(initialMenuDraft);
     const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
@@ -207,6 +209,104 @@ export default function BentoAdminPage() {
         () => responses.filter((response) => response.survey_id === selectedSurveyId),
         [responses, selectedSurveyId]
     );
+
+    const orderSummary = useMemo(() => {
+        const validResponses = selectedResponses.filter(
+            (response) =>
+                response.wants_bento !== false &&
+                response.menu_id &&
+                response.pickup_location_id
+        );
+
+        const locationMap = new Map<
+            string,
+            {
+                locationId: string;
+                locationName: string;
+                menus: Map<string, number>;
+            }
+        >();
+
+        const totalMenuMap = new Map<string, number>();
+
+        for (const response of validResponses) {
+            const menu = menus.find(
+                (item) => item.id === response.menu_id
+            );
+
+            const location = locations.find(
+                (item) => item.id === response.pickup_location_id
+            );
+
+            if (!menu || !location) {
+                continue;
+            }
+
+            if (!locationMap.has(location.id)) {
+                locationMap.set(location.id, {
+                    locationId: location.id,
+                    locationName: location.name,
+                    menus: new Map<string, number>(),
+                });
+            }
+
+            const locationSummary = locationMap.get(location.id);
+
+            if (locationSummary) {
+                locationSummary.menus.set(
+                    menu.name,
+                    (locationSummary.menus.get(menu.name) ?? 0) + 1
+                );
+            }
+
+            totalMenuMap.set(
+                menu.name,
+                (totalMenuMap.get(menu.name) ?? 0) + 1
+            );
+        }
+
+        const byLocation = Array.from(locationMap.values())
+            .sort((a, b) => {
+                const locationA = locations.find(
+                    (item) => item.id === a.locationId
+                );
+                const locationB = locations.find(
+                    (item) => item.id === b.locationId
+                );
+
+                return (
+                    (locationA?.sort_order ?? 0) -
+                    (locationB?.sort_order ?? 0)
+                );
+            })
+            .map((location) => ({
+                locationId: location.locationId,
+                locationName: location.locationName,
+                menus: Array.from(location.menus.entries())
+                    .map(([menuName, count]) => ({
+                        menuName,
+                        count,
+                    }))
+                    .sort((a, b) =>
+                        a.menuName.localeCompare(b.menuName, "ja")
+                    ),
+            }));
+
+        const totals = Array.from(totalMenuMap.entries())
+            .map(([menuName, count]) => ({
+                menuName,
+                count,
+            }))
+            .sort((a, b) =>
+                a.menuName.localeCompare(b.menuName, "ja")
+            );
+
+        return {
+            byLocation,
+            totals,
+            totalCount: validResponses.length,
+        };
+    }, [selectedResponses, menus, locations]);
 
     const loadData = useCallback(async () => {
         setLoading(true);
@@ -312,11 +412,15 @@ export default function BentoAdminPage() {
         return fullName || userId;
     }
 
-    function getMenuName(menuId: string): string {
+    function getMenuName(menuId: string | null): string {
+        if (!menuId) return "-";
+
         return menus.find((menu) => menu.id === menuId)?.name ?? "-";
     }
 
-    function getPickupLocationName(locationId: string): string {
+    function getPickupLocationName(locationId: string | null): string {
+        if (!locationId) return "-";
+
         return (
             locations.find((location) => location.id === locationId)?.name ?? "-"
         );
@@ -508,8 +612,12 @@ export default function BentoAdminPage() {
     }
 
     async function copySurvey() {
-        if (!selectedSurvey) {
-            setError("コピーするアンケートを選択してください。");
+        const sourceSurvey = surveys.find(
+            (survey) => survey.id === copySourceSurveyId
+        );
+
+        if (!sourceSurvey) {
+            setError("コピー元のアンケートを選択してください。");
             return;
         }
 
@@ -520,14 +628,14 @@ export default function BentoAdminPage() {
             await supabase
                 .from("bento_surveys")
                 .insert({
-                    title: `${selectedSurvey.title}（コピー）`,
-                    description: selectedSurvey.description,
-                    notes: selectedSurvey.notes,
-                    event_date: selectedSurvey.event_date,
-                    response_deadline: selectedSurvey.response_deadline,
+                    title: `${sourceSurvey.title}（コピー）`,
+                    description: sourceSurvey.description,
+                    notes: sourceSurvey.notes,
                     status: "draft",
+                    event_date: sourceSurvey.event_date,
+                    response_deadline: sourceSurvey.response_deadline,
                     allow_edit_after_submit:
-                        selectedSurvey.allow_edit_after_submit,
+                        sourceSurvey.allow_edit_after_submit,
                     is_active: true,
                     published_at: null,
                     updated_at: new Date().toISOString(),
@@ -542,7 +650,7 @@ export default function BentoAdminPage() {
         }
 
         const sourceMenus = menus.filter(
-            (menu) => menu.survey_id === selectedSurvey.id
+            (menu) => menu.survey_id === sourceSurvey.id
         );
 
         if (sourceMenus.length > 0) {
@@ -571,6 +679,8 @@ export default function BentoAdminPage() {
         }
 
         setSelectedSurveyId(newSurvey.id);
+        setCopySourceSurveyId("");
+
         setMessage(
             "アンケートを下書きとしてコピーしました。配布日と回答締切を変更してください。"
         );
@@ -810,15 +920,32 @@ export default function BentoAdminPage() {
                     >
                         新しいアンケートを作成
                     </button>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <select
+                            value={copySourceSurveyId}
+                            onChange={(event) =>
+                                setCopySourceSurveyId(event.target.value)
+                            }
+                            className="rounded border px-3 py-2"
+                        >
+                            <option value="">コピー元を選択</option>
 
-                    <button
-                        type="button"
-                        onClick={() => void copySurvey()}
-                        disabled={!selectedSurveyId || saving}
-                        className="rounded border border-blue-300 bg-white px-4 py-2 font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
-                    >
-                        前回アンケートをコピー
-                    </button>
+                            {surveys.map((survey) => (
+                                <option key={survey.id} value={survey.id}>
+                                    {survey.event_date}　{survey.title}
+                                </option>
+                            ))}
+                        </select>
+
+                        <button
+                            type="button"
+                            onClick={() => void copySurvey()}
+                            disabled={!copySourceSurveyId || saving}
+                            className="rounded border border-blue-300 bg-white px-4 py-2 font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                        >
+                            選択したアンケートをコピー
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1303,6 +1430,77 @@ export default function BentoAdminPage() {
                                 <div className="text-3xl font-bold text-blue-700">{selectedResponses.length}</div>
                             </div>
 
+                            <div className="mt-6 rounded border bg-white p-4">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <h3 className="text-lg font-semibold">
+                                        発注用集計
+                                    </h3>
+
+                                    <div className="text-sm text-gray-600">
+                                        注文合計：{orderSummary.totalCount}個
+                                    </div>
+                                </div>
+
+                                {orderSummary.byLocation.length === 0 ? (
+                                    <p className="mt-4 text-sm text-gray-500">
+                                        集計対象の回答はまだありません。
+                                    </p>
+                                ) : (
+                                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                        {orderSummary.byLocation.map((location) => (
+                                            <div
+                                                key={location.locationId}
+                                                className="rounded border p-4"
+                                            >
+                                                <h4 className="font-bold">
+                                                    ● {location.locationName}
+                                                </h4>
+
+                                                <div className="mt-3 space-y-2">
+                                                    {location.menus.map((menu) => (
+                                                        <div
+                                                            key={menu.menuName}
+                                                            className="flex items-center justify-between border-b pb-1"
+                                                        >
+                                                            <span>{menu.menuName}</span>
+                                                            <span className="font-bold">
+                                                                {menu.count}個
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="mt-6 rounded border border-blue-300 bg-blue-50 p-4">
+                                    <h4 className="font-bold text-blue-900">
+                                        ● お弁当合計
+                                    </h4>
+
+                                    <div className="mt-3 space-y-2">
+                                        {orderSummary.totals.map((menu) => (
+                                            <div
+                                                key={menu.menuName}
+                                                className="flex items-center justify-between border-b border-blue-200 pb-1"
+                                            >
+                                                <span>{menu.menuName}</span>
+                                                <span className="font-bold">
+                                                    {menu.count}個
+                                                </span>
+                                            </div>
+                                        ))}
+
+                                        {orderSummary.totals.length === 0 && (
+                                            <div className="text-sm text-gray-500">
+                                                集計対象はありません。
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="mt-4 max-h-72 overflow-auto rounded border">
                                 <table className="min-w-[900px] w-full text-sm">
                                     <thead className="sticky top-0 bg-gray-100">
@@ -1324,38 +1522,48 @@ export default function BentoAdminPage() {
                                                 </td>
 
                                                 <td className="px-3 py-2">
-                                                    {getMenuName(response.menu_id)}
+                                                    {response.wants_bento
+                                                        ? getMenuName(response.menu_id)
+                                                        : "不要"}
                                                 </td>
 
                                                 <td className="px-3 py-2">
-                                                    {response.option_text || "-"}
+                                                    {response.wants_bento
+                                                        ? response.option_text || "-"
+                                                        : "-"}
                                                 </td>
 
                                                 <td className="px-3 py-2">
-                                                    {getPickupLocationName(
-                                                        response.pickup_location_id
+                                                    {response.wants_bento
+                                                        ? getPickupLocationName(
+                                                            response.pickup_location_id
+                                                        )
+                                                        : "-"}
+                                                </td>
+
+                                                <td className="px-3 py-2">
+                                                    {response.wants_bento ? (
+                                                        <label className="inline-flex items-center gap-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={response.received_at !== null}
+                                                                onChange={(event) =>
+                                                                    void updateReceivedStatus(
+                                                                        response.id,
+                                                                        event.target.checked
+                                                                    )
+                                                                }
+                                                            />
+
+                                                            <span>
+                                                                {response.received_at
+                                                                    ? "受取済み"
+                                                                    : "未受取"}
+                                                            </span>
+                                                        </label>
+                                                    ) : (
+                                                        <span className="text-gray-500">対象外</span>
                                                     )}
-                                                </td>
-
-                                                <td className="px-3 py-2">
-                                                    <label className="inline-flex items-center gap-2">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={response.received_at !== null}
-                                                            onChange={(event) =>
-                                                                void updateReceivedStatus(
-                                                                    response.id,
-                                                                    event.target.checked
-                                                                )
-                                                            }
-                                                        />
-
-                                                        <span>
-                                                            {response.received_at
-                                                                ? "受取済み"
-                                                                : "未受取"}
-                                                        </span>
-                                                    </label>
                                                 </td>
 
                                                 <td className="px-3 py-2">
