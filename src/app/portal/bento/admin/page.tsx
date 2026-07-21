@@ -90,7 +90,7 @@ const initialSurveyForm: SurveyForm = {
     eventDate: "",
     responseDeadline: "",
     allowEditAfterSubmit: false,
-    options: ["普通盛り", "大盛り"],
+    options: [],
 };
 
 const initialMenuDraft: MenuDraft = {
@@ -242,6 +242,17 @@ export default function BentoAdminPage() {
                 continue;
             }
 
+            const optionText = response.option_text?.trim();
+
+            // オプションがある場合：
+            // からあげ弁当（大盛り）
+            //
+            // オプションがない場合：
+            // からあげ弁当
+            const menuLabel = optionText
+                ? `${menu.name}（${optionText}）`
+                : menu.name;
+
             if (!locationMap.has(location.id)) {
                 locationMap.set(location.id, {
                     locationId: location.id,
@@ -254,14 +265,14 @@ export default function BentoAdminPage() {
 
             if (locationSummary) {
                 locationSummary.menus.set(
-                    menu.name,
-                    (locationSummary.menus.get(menu.name) ?? 0) + 1
+                    menuLabel,
+                    (locationSummary.menus.get(menuLabel) ?? 0) + 1
                 );
             }
 
             totalMenuMap.set(
-                menu.name,
-                (totalMenuMap.get(menu.name) ?? 0) + 1
+                menuLabel,
+                (totalMenuMap.get(menuLabel) ?? 0) + 1
             );
         }
 
@@ -270,6 +281,7 @@ export default function BentoAdminPage() {
                 const locationA = locations.find(
                     (item) => item.id === a.locationId
                 );
+
                 const locationB = locations.find(
                     (item) => item.id === b.locationId
                 );
@@ -395,7 +407,7 @@ export default function BentoAdminPage() {
             eventDate: selectedSurvey.event_date,
             responseDeadline: toLocalDateTimeInput(selectedSurvey.response_deadline),
             allowEditAfterSubmit: selectedSurvey.allow_edit_after_submit,
-            options: notes.options.length > 0 ? notes.options : ["普通盛り", "大盛り"],
+            options: notes.options,
         });
     }, [selectedSurvey]);
 
