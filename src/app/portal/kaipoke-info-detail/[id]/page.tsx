@@ -84,8 +84,6 @@ type Attachment = {
 };
 
 type KaipokeInfo = {
-    shift_detail_information: string | null;
-    document_summary: string | null;
     id: string;
     kaipoke_cs_id: string | null;
     name: string | null;
@@ -205,7 +203,7 @@ export default function KaipokeInfoDetailPage() {
 
     const fetchData = async () => {
         const { data, error } = await supabase
-            .from("cs_kaipoke_info_shift_detail_view")
+            .from("cs_kaipoke_info")
             .select("*")
             .eq("id", id)
             .maybeSingle();
@@ -638,7 +636,7 @@ export default function KaipokeInfoDetailPage() {
         if (!row) return;
 
         const { error } = await supabase
-            .from("cs_kaipoke_info_shift_detail_view")
+            .from("cs_kaipoke_info")
             .update({ documents: next })
             .eq("id", row.id);
 
@@ -950,17 +948,6 @@ export default function KaipokeInfoDetailPage() {
                     onChange={(e) => setRow({ ...row, biko: e.target.value })}
                 />
             </div>
-            {row.document_summary && (
-    <div className="space-y-2 max-w-4xl">
-        <label className="block text-sm font-semibold text-blue-700">
-            利用者様の基本情報サマリー
-        </label>
-
-        <div className="border rounded bg-slate-50 p-3 whitespace-pre-wrap text-sm">
-            {row.document_summary}
-        </div>
-    </div>
-)}
 
             <div className="max-w-[14rem] md:max-w-[18rem]">
                 <label className="block text-sm text-gray-600">ケアマネ（相談支援）</label>
