@@ -128,9 +128,16 @@ export default function ShiftPage() {
                     female_flg: s.female_flg || false,
                     postal_code_3: s.postal_code_3 || "",
                     district: s.district || "",
-                    require_doc_group: (typeof s.require_doc_group === "string" && s.require_doc_group.trim() !== "")
-                        ? s.require_doc_group
-                        : null,
+                    require_doc_group:
+    typeof s.require_doc_group === "string" &&
+    s.require_doc_group.trim() !== ""
+        ? s.require_doc_group
+        : null,
+
+document_summary:
+    typeof s.document_summary === "string"
+        ? s.document_summary.trim()
+        : "",
                 }));
 
             //alert("filtered shiftData before map:" + formatted.length);

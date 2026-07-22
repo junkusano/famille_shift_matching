@@ -833,6 +833,10 @@ useEffect(() => {
     // 備考
     const biko = pickNonEmptyString(shift, ["biko"]);
 
+    const documentSummary =
+      pickNonEmptyString(shift, ["document_summary"]) ??
+      pickNonEmptyString(shift, ["basic_information_summary"]);
+
     return (
       <>
         <div className="text-sm">
@@ -877,10 +881,25 @@ useEffect(() => {
                 <DialogPortal>
                   <DialogOverlay className="overlay-avoid-sidebar" />
                   <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] ml-4 mr-0 modal-avoid-sidebar">
-                    <div className="text-sm space-y-2">
-                      <strong>備考</strong>
-                      <p>{biko}</p>
-                    </div>
+                    <div className="text-sm space-y-4">
+                      {documentSummary && (
+                      <div>
+                        <strong>基本情報サマリ</strong>
+                        <p className="mt-1 whitespace-pre-wrap">
+                      {documentSummary}
+                        </p>
+                      </div>
+                    )}
+
+                    {(documentSummary || biko) && (
+                      <div>
+                        <strong>シフト詳細情報</strong>
+                        <p className="mt-1 whitespace-pre-wrap">
+                          {biko}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                   </DialogContent>
                 </DialogPortal>
               </Dialog>

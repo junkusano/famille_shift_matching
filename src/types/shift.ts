@@ -32,6 +32,7 @@ export interface SupabaseShiftRaw {
   applicant_name?: string | null;
   applicant_sex?: string | null;
   applicant_control_url?: string | null;
+  document_summary?: string | null;
 }
 
 export interface ShiftData {
@@ -74,4 +75,5 @@ export interface ShiftData {
   applicant_name?: string | null;
   applicant_sex?: string | null;
   applicant_control_url?: string | null;
+  document_summary?: string | null;
 }
