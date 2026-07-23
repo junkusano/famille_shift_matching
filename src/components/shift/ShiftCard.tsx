@@ -819,95 +819,135 @@ useEffect(() => {
   const badgeText = timeAdjustText ?? label ?? DEFAULT_BADGE_TEXT;
 
   /* ------- MiniInfo（名前/備考や通学情報） ------- */
-  const MiniInfo = () => {
-    // 文字列は安全ヘルパで取得
-    const route = pickNonEmptyString(shift, ["standard_route"]) ?? pickNonEmptyString(kaipokeInfo, ["standard_route"]);
-    const trans = pickNonEmptyString(shift, ["standard_trans_ways"]) ?? pickNonEmptyString(kaipokeInfo, ["standard_trans_ways"]);
-    const purpose = pickNonEmptyString(shift, ["standard_purpose"]) ?? pickNonEmptyString(kaipokeInfo, ["standard_purpose"]);
-    const routeParts = [route, trans, purpose].filter((v): v is string => Boolean(v));
-    const routeText = routeParts.length ? routeParts.join(" / ") : "—";
+const MiniInfo = () => {
+  const route =
+    pickNonEmptyString(shift, ["standard_route"]) ??
+    pickNonEmptyString(kaipokeInfo, ["standard_route"]);
 
-    // 通学フラグもヘルパで
-    const commuting = pickBooleanish(shift, ["commuting_flg", "commutingFlg"]) ?? false;
+  const trans =
+    pickNonEmptyString(shift, ["standard_trans_ways"]) ??
+    pickNonEmptyString(kaipokeInfo, ["standard_trans_ways"]);
 
-    // 備考
-    const biko = pickNonEmptyString(shift, ["biko"]);
+  const purpose =
+    pickNonEmptyString(shift, ["standard_purpose"]) ??
+    pickNonEmptyString(kaipokeInfo, ["standard_purpose"]);
 
-    const shiftDetailInformation =
-  pickNonEmptyString(shift, ["shift_detail_information"]);
+  const routeParts = [route, trans, purpose].filter(
+    (v): v is string => Boolean(v)
+  );
 
-    return (
-      <>
-        <div className="text-sm">
-          利用者名: {shift.client_name ?? "—"} 様
-          {commuting && (
-            <Dialog onOpenChange={(open) => { if (open) void ensureInfoOnDemand(); }}>
+  const routeText = routeParts.length
+    ? routeParts.join(" / ")
+    : "—";
+
+  const commuting =
+    pickBooleanish(shift, ["commuting_flg", "commutingFlg"]) ?? false;
+
+  const biko = pickNonEmptyString(shift, ["biko"]);
+
+  const shiftDetailInformation = pickNonEmptyString(shift, [
+    "shift_detail_information",
+  ]);
+
+  return (
+    <>
+      <div className="text-sm">
+        利用者名: {shift.client_name ?? "—"} 様
+
+        {commuting && (
+          <Dialog
+            onOpenChange={(open) => {
+              if (open) void ensureInfoOnDemand();
+            }}
+          >
+            <DialogTrigger asChild>
+              <button className="ml-2 text-xs text-blue-500 underline">
+                通所・通学
+              </button>
+            </DialogTrigger>
+
+            <DialogPortal>
+              <DialogOverlay className="overlay-avoid-sidebar" />
+
+              <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] ml-4 mr-0 modal-avoid-sidebar">
+                <div className="text-sm space-y-2">
+                  <div>
+                    <strong>通所経路等</strong>
+                    <p>{routeText}</p>
+                  </div>
+                </div>
+              </DialogContent>
+            </DialogPortal>
+          </Dialog>
+        )}
+      </div>
+
+      {mode === "request" && (
+        <div
+          className="text-sm"
+          style={{
+            color:
+              shift.gender_request_name === "男性希望"
+                ? "blue"
+                : shift.gender_request_name === "女性希望"
+                  ? "red"
+                  : "black",
+          }}
+        >
+          性別希望: {shift.gender_request_name ?? "—"}
+
+          {(shiftDetailInformation || biko) && (
+            <Dialog>
               <DialogTrigger asChild>
-                <button className="ml-2 text-xs text-blue-500 underline">通所・通学</button>
+                <button className="ml-2 text-xs text-blue-500 underline">
+                  詳細情報
+                </button>
               </DialogTrigger>
+
               <DialogPortal>
                 <DialogOverlay className="overlay-avoid-sidebar" />
-                <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] ml-4 mr-0 modal-avoid-sidebar">
-                  <div className="text-sm space-y-2">
-                    <div>
-                      <strong>通所経路等</strong>
-                      <p>{routeText}</p>
-                    </div>
+
+                <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[640px] ml-4 mr-0 modal-avoid-sidebar max-h-[85vh] overflow-hidden">
+                  <div className="max-h-[70vh] overflow-y-auto pr-2 text-sm space-y-4">
+                    {shiftDetailInformation && (
+                      <div>
+                        <strong className="block text-base">
+                          基本情報サマリ
+                        </strong>
+
+                        <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+                          {shiftDetailInformation}
+                        </p>
+                      </div>
+                    )}
+
+                    {biko && (
+                      <div
+                        className={
+                          shiftDetailInformation
+                            ? "border-t pt-4"
+                            : ""
+                        }
+                      >
+                        <strong className="block text-base">
+                          シフト詳細情報
+                        </strong>
+
+                        <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+                          {biko}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </DialogContent>
               </DialogPortal>
             </Dialog>
           )}
         </div>
-        {mode === "request" && (
-          <div
-            className="text-sm"
-            style={{
-              color:
-                shift.gender_request_name === "男性希望"
-                  ? "blue"
-                  : shift.gender_request_name === "女性希望"
-                    ? "red"
-                    : "black",
-            }}
-          >
-            性別希望: {shift.gender_request_name ?? "—"}
-            {biko && (
-              <Dialog>
-                <DialogTrigger asChild>
-                  <button className="ml-2 text-xs text-blue-500 underline">詳細情報</button>
-                </DialogTrigger>
-                <DialogPortal>
-                  <DialogOverlay className="overlay-avoid-sidebar" />
-                  <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] ml-4 mr-0 modal-avoid-sidebar">
-                    <div className="text-sm space-y-4">
-                      {shiftDetailInformation && (
-  <div>
-    <strong>基本情報サマリ</strong>
-    <p className="mt-1 whitespace-pre-wrap">
-      {shiftDetailInformation}
-    </p>
-  </div>
-)}
-
-                    {shiftDetailInformation && (
-                      <div>
-                        <strong>シフト詳細情報</strong>
-                        <p className="mt-1 whitespace-pre-wrap">
-                          {biko}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  </DialogContent>
-                </DialogPortal>
-              </Dialog>
-            )}
-          </div>
-        )}
-      </>
-    );
-  };
+      )}
+    </>
+  );
+};
 
   // ★ 追加：return の直前（addr/postal/mapsUrl 等の下あたりが分かりやすいです）
   const startIsoForColor = `${shift.shift_start_date}T${(shift.shift_start_time || '00:00').slice(0, 5)}:00`;
