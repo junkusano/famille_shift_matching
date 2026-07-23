@@ -221,6 +221,14 @@ async function findExistingRequest(
 async function createRpaRequest(
   targetDate: string
 ): Promise<RpaRequestRow> {
+  const requesterId = "junkusano";
+
+  if (!requesterId) {
+    throw new Error(
+      "UNQUALIFIED_TIMEE_REQUESTER_IDが設定されていません。"
+    );
+  }
+
   const requestDetails = {
     action: "create_taimee_job",
     command: "create_job",
@@ -230,17 +238,17 @@ async function createRpaRequest(
     requested_at: new Date().toISOString(),
   };
 
-  const { data, error } =
-    await supabaseAdmin
-      .from("rpa_command_requests")
-      .insert({
-        status: "test",
-        request_details: requestDetails,
-      })
-      .select(
-        "id, status, created_at, request_details"
-      )
-      .single();
+  const { data, error } = await supabaseAdmin
+    .from("rpa_command_requests")
+    .insert({
+      requester_id: requesterId,
+      status: "test",
+      request_details: requestDetails,
+    })
+    .select(
+      "id, status, created_at, request_details"
+    )
+    .single();
 
   if (error) {
     throw new Error(
