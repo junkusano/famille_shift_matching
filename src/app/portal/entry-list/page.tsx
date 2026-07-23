@@ -191,6 +191,48 @@ function calculateAge(entry: EntryData): number | null {
 
   return age;
 }
+const DELETE_AFTER_DAYS = 14;
+
+function canDeleteEntry(entry: EntryData): boolean {
+  // usersとの紐づけがある場合は削除不可
+  if (entry.user_id) {
+    return false;
+  }
+
+  /*
+   * ステータスが設定されている場合は削除不可。
+   *
+   * account_id_create
+   * auth_mail_send
+   * auth_complite
+   * lineworks_kaipoke_joined
+   * removed_from_lineworks_kaipoke
+   *
+   * 上記のいずれかに進んでいる方は対象外。
+   */
+  const currentStatus =
+    typeof entry.status === 'string'
+      ? entry.status.trim()
+      : '';
+
+  if (currentStatus !== '') {
+    return false;
+  }
+
+  const createdAt = new Date(entry.created_at);
+
+  if (Number.isNaN(createdAt.getTime())) {
+    return false;
+  }
+
+  const deletableDate = new Date(createdAt);
+
+  deletableDate.setDate(
+    deletableDate.getDate() + DELETE_AFTER_DAYS
+  );
+
+  return new Date() >= deletableDate;
+}
 
 export default function EntryListPage() {
   const [entries, setEntries] = useState<EntryData[]>([]);
@@ -216,6 +258,9 @@ export default function EntryListPage() {
 
   // 保存ボタンの行ごとの状態: idle/saving/ok/err
   const [rowSaveState, setRowSaveState] = useState<Record<string, 'idle' | 'saving' | 'ok' | 'err'>>({});
+  // 削除処理中のエントリーID
+  const [deletingEntryId, setDeletingEntryId] =
+    useState<string | null>(null);
   // ステータス候補（表示ラベルと並び順も使用）
   const [statusMaster, setStatusMaster] = useState<{ id: string; label: string | null; sort_order: number }[]>([]);
   // 追加：未保存の選択値（行単位で貯める）
@@ -657,6 +702,129 @@ export default function EntryListPage() {
     Math.ceil(displayTotalCount / pageSize)
   );
 
+  const handleDeleteEntry = async (
+    entry: EntryData
+  ) => {
+    if (!canDeleteEntry(entry)) {
+      alert(
+        'このエントリーは削除条件を満たしていません。'
+      );
+      return;
+    }
+
+    const fullName =
+      `${entry.last_name_kanji ?? ''} ${entry.first_name_kanji ?? ''
+        }`.trim() || '氏名未設定';
+
+    const confirmed = window.confirm(
+      `${fullName}さんのエントリーを削除します。\n\n` +
+      'この操作は元に戻せません。\n' +
+      '本当に削除してよろしいですか？'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingEntryId(entry.id);
+
+    try {
+      // 削除直前にusersテーブルを再確認する
+      const {
+        data: existingUser,
+        error: userCheckError,
+      } = await supabase
+        .from('users')
+        .select('entry_id, user_id, auth_user_id')
+        .eq('entry_id', entry.id)
+        .maybeSingle();
+
+      if (userCheckError) {
+        throw new Error(
+          `アカウント確認に失敗しました：${userCheckError.message}`
+        );
+      }
+
+      if (existingUser) {
+        alert(
+          'このエントリーには既にアカウント情報が作成されています。削除できません。'
+        );
+        return;
+      }
+
+      /*
+       * 一覧で使用している form_entries_with_status は
+       * Viewの可能性が高いため、元テーブルを削除します。
+       *
+       * 実際の元テーブル名が form_entries でない場合は
+       * 正しいテーブル名に変更してください。
+       */
+      const {
+        data: deletedRows,
+        error: deleteError,
+      } = await supabase
+        .from('form_entries')
+        .delete()
+        .eq('id', entry.id)
+        .select('id');
+
+      if (deleteError) {
+        throw new Error(
+          `削除に失敗しました：${deleteError.message}`
+        );
+      }
+
+      if (!deletedRows || deletedRows.length === 0) {
+        throw new Error(
+          '削除対象が見つからないか、削除権限がありません。'
+        );
+      }
+
+      // 表示中の一覧から削除
+      setEntries((current) =>
+        current.filter(
+          (currentEntry) =>
+            currentEntry.id !== entry.id
+        )
+      );
+
+      setEntriesWithMap((current) =>
+        current.filter(
+          (currentEntry) =>
+            currentEntry.id !== entry.id
+        )
+      );
+
+      setRosterEdits((current) => {
+        const next = { ...current };
+        delete next[entry.id];
+        return next;
+      });
+
+      setStatusEdits((current) => {
+        const next = { ...current };
+        delete next[entry.id];
+        return next;
+      });
+
+      alert(`${fullName}さんを削除しました。`);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : '削除中に不明なエラーが発生しました。';
+
+      console.error(
+        'エントリー削除エラー:',
+        error
+      );
+
+      alert(message);
+    } finally {
+      setDeletingEntryId(null);
+    }
+  };
+
   return (
     <div className="content">
       <h2 className="text-xl font-bold mb-4">全エントリー一覧</h2>
@@ -947,8 +1115,36 @@ export default function EntryListPage() {
                           <span className="text-xs text-green-600">保存しました</span>
                         )}
                         <Link href={`/portal/entry-detail/${entry.id}`}>
-                          <button className="px-3 py-1 bg-blue-600 text-white rounded">詳細</button>
+                          <button
+                            type="button"
+                            className="px-3 py-1 bg-blue-600 text-white rounded"
+                          >
+                            詳細
+                          </button>
                         </Link>
+
+                        {canDeleteEntry(entry) && (
+                          <button
+                            type="button"
+                            className="
+      px-3 py-1
+      bg-red-600
+      text-white
+      rounded
+      hover:bg-red-700
+      disabled:cursor-not-allowed
+      disabled:opacity-50
+    "
+                            disabled={deletingEntryId === entry.id}
+                            onClick={() => {
+                              void handleDeleteEntry(entry);
+                            }}
+                          >
+                            {deletingEntryId === entry.id
+                              ? '削除中…'
+                              : '削除'}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
