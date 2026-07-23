@@ -1,5 +1,10 @@
 // src/lib/assessment/template.ts
-import type { AssessmentContent, AssessmentServiceKind } from "@/types/assessment";
+import type {
+    AssessmentContent,
+    AssessmentServiceKind,
+} from "@/types/assessment";
+
+import { getDefaultElderCareAssessmentContent } from "@/lib/assessment/elder-care-template";
 
 function row(key: string, label: string) {
     return { key, label, check: "NONE" as const, remark: "", hope: "" };
@@ -9,11 +14,12 @@ function isCare(serviceKind: AssessmentServiceKind) {
     return serviceKind === "要支援" || serviceKind === "要介護";
 }
 
-export function getDefaultAssessmentContent(serviceKind: AssessmentServiceKind): AssessmentContent {
+export function getDefaultAssessmentContent(
+    serviceKind: AssessmentServiceKind,
+): AssessmentContent {
     // care（要介護・要支援）
     if (isCare(serviceKind)) {
-        // 将来：要介護・要支援用テンプレをここに追加
-        return { version: 1, sheets: [] };
+        return getDefaultElderCareAssessmentContent(serviceKind);
     }
 
     // disability_ido（障害・移動支援）：カイポケを参考にした構成
@@ -108,7 +114,8 @@ export function getDefaultAssessmentContent(serviceKind: AssessmentServiceKind):
                     row("relation_06", "予定変更の受容ができる"),
                 ],
             },
-            { key: "health", title: "健康管理 シート", printTarget: true, 
+            {
+                key: "health", title: "健康管理 シート", printTarget: true,
                 rows: [
                     row("health_01", "不調を訴える事ができる"),
                     row("health_02", "服用支援の必要性がある"),
@@ -117,30 +124,36 @@ export function getDefaultAssessmentContent(serviceKind: AssessmentServiceKind):
                     row("health_01", "不通院支援の必要性がある"),
                     row("health_02", "生活のリズムは安定している"),
                     row("health_03", "発作を起こす可能性がある"),
-                ]  
+                ]
             },
-            { key: "money", title: "金銭管理 シート", printTarget: true, rows: [
-                row("health_01", "買物をする事ができる"),
+            {
+                key: "money", title: "金銭管理 シート", printTarget: true, rows: [
+                    row("health_01", "買物をする事ができる"),
                     row("health_02", "お金の計算ができる"),
                     row("health_03", "適切なお金の管理・利用ができる"),
                     row("health_04", "小遣い帳をつけている"),
                     row("health_01", "計画的に支出できる"),
                     row("health_02", "悪質商法等に適切な対応ができる"),
-            ] },
-            { key: "crisis", title: "危機管理 シート", printTarget: true, rows: [
-                row("health_01", "車道に飛び出す事がある"),
+                ]
+            },
+            {
+                key: "crisis", title: "危機管理 シート", printTarget: true, rows: [
+                    row("health_01", "車道に飛び出す事がある"),
                     row("health_02", "信号や公共のサインを無視する事がある"),
                     row("health_03", "危険に対する判断ができる"),
                     row("health_04", "災害時に自力で避難する事ができる"),
                     row("health_01", "避難経路を理解している"),
-            ] },
-            { key: "behavior", title: "行動障害 シート", printTarget: true, rows: [
-                row("health_01", "人を傷つけたり、物を破壊する事がある"),
+                ]
+            },
+            {
+                key: "behavior", title: "行動障害 シート", printTarget: true, rows: [
+                    row("health_01", "人を傷つけたり、物を破壊する事がある"),
                     row("health_02", "自分自身を傷つける事がある"),
                     row("health_03", "同じ事を繰り返す事がある"),
                     row("health_04", "誤飲してしまう事がある"),
                     row("health_01", "反社会的な行動をとる事がある"),
-            ] },
+                ]
+            },
         ],
     };
 }

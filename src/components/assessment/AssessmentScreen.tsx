@@ -12,6 +12,7 @@ import type {
 import { getDefaultAssessmentContent } from "@/lib/assessment/template";
 import { supabase } from "@/lib/supabaseClient";
 import PlanEditor, { type PlanDetailForEditor } from "@/components/assessment/PlanEditor";
+import ElderCareAssessmentForm from "@/components/assessment/ElderCareAssessmentForm";
 
 type Props = { initialAssessmentId: string | null };
 
@@ -802,115 +803,213 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                                 </div>
                             )}
 
-                            <div className="space-y-4">
-                                {detail.content?.sheets?.map((sheet) => (
-                                    <div key={sheet.key} className="border rounded p-2">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <div className="font-semibold">{sheet.title}</div>
-                                            <div className="text-sm">
-                                                印刷対象：
-                                                <label className="ml-2">
-                                                    <input
-                                                        type="radio"
-                                                        name={`print_${sheet.key}`}
-                                                        checked={sheet.printTarget === true}
-                                                        onChange={() => setPrintTarget(sheet.key, true)}
-                                                    />{" "}
-                                                    対象
-                                                </label>
-                                                <label className="ml-2">
-                                                    <input
-                                                        type="radio"
-                                                        name={`print_${sheet.key}`}
-                                                        checked={sheet.printTarget === false}
-                                                        onChange={() => setPrintTarget(sheet.key, false)}
-                                                    />{" "}
-                                                    対象外
-                                                </label>
-                                            </div>
-                                        </div>
+                            {detail.service_kind === "要介護" ||
+                                detail.service_kind === "要支援" ? (
+                                <ElderCareAssessmentForm
+                                    content={detail.content}
+                                    onChange={(nextContent) => {
+                                        setDetail({
+                                            ...detail,
+                                            content: nextContent,
+                                        });
+                                    }}
+                                />
+                            ) : (
+                                <div className="space-y-4">
+                                    {detail.content?.sheets?.map((sheet) => (
+                                        <div key={sheet.key} className="border rounded p-2">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="font-semibold">{sheet.title}</div>
 
-                                        {sheet.rows.length === 0 ? (
-                                            <div className="text-sm text-gray-600 mt-2">
-                                                （このシートの項目は未投入です。template.ts にカイポケ項目を追記してください）
-                                            </div>
-                                        ) : (
-                                            <div className="overflow-auto mt-2">
-                                                <table className="min-w-full border-collapse">
-                                                    <thead>
-                                                        <tr className="text-left">
-                                                            <th className="border px-2 py-1 w-[110px]">チェック欄</th>
-                                                            <th className="border px-2 py-1">詳細項目</th>
-                                                            <th className="border px-2 py-1">備考</th>
-                                                            <th className="border px-2 py-1">本人・家族の希望・要望</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {sheet.rows.map((r) => {
-                                                            const rowAny = r as typeof r & {
-                                                                inputType?: string;
-                                                                value?: string;
-                                                                defaultValue?: string;
-                                                                options?: { value: string; label: string }[];
-                                                            };
-                                                            const isRadio = rowAny.inputType === "radio" && Array.isArray(rowAny.options);
-                                                            const currentValue = String(rowAny.value ?? rowAny.defaultValue ?? "01");
+                                                <div className="text-sm">
+                                                    印刷対象：
 
-                                                            return (
-                                                                <tr key={r.key}>
-                                                                    <td className="border px-2 py-1 align-top">
-                                                                        <select
-                                                                            className="border rounded px-2 py-1 w-full"
-                                                                            value={r.check}
-                                                                            onChange={(e) => setCheck(sheet.key, r.key, e.target.value as AssessmentCheck)}
-                                                                        >
-                                                                            <option value="NONE">－</option>
-                                                                            <option value="CIRCLE">○</option>
-                                                                        </select>
-                                                                    </td>
-                                                                    <td className="border px-2 py-1 align-top">
-                                                                        <div className="font-medium">{r.label}</div>
-                                                                        {isRadio ? (
-                                                                            <div className="mt-2 space-y-1 text-sm">
-                                                                                {rowAny.options!.map((opt) => (
-                                                                                    <label key={opt.value} className="block">
-                                                                                        <input
-                                                                                            type="radio"
-                                                                                            name={`${sheet.key}_${r.key}`}
-                                                                                            value={opt.value}
-                                                                                            checked={currentValue === opt.value}
-                                                                                            onChange={(e) => setRowValue(sheet.key, r.key, e.target.value)}
-                                                                                        />{" "}
-                                                                                        {opt.label}
-                                                                                    </label>
-                                                                                ))}
+                                                    <label className="ml-2">
+                                                        <input
+                                                            type="radio"
+                                                            name={`print_${sheet.key}`}
+                                                            checked={sheet.printTarget === true}
+                                                            onChange={() =>
+                                                                setPrintTarget(sheet.key, true)
+                                                            }
+                                                        />{" "}
+                                                        対象
+                                                    </label>
+
+                                                    <label className="ml-2">
+                                                        <input
+                                                            type="radio"
+                                                            name={`print_${sheet.key}`}
+                                                            checked={sheet.printTarget === false}
+                                                            onChange={() =>
+                                                                setPrintTarget(sheet.key, false)
+                                                            }
+                                                        />{" "}
+                                                        対象外
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            {sheet.rows.length === 0 ? (
+                                                <div className="text-sm text-gray-600 mt-2">
+                                                    （このシートの項目は未投入です。template.ts
+                                                    にカイポケ項目を追記してください）
+                                                </div>
+                                            ) : (
+                                                <div className="overflow-auto mt-2">
+                                                    <table className="min-w-full border-collapse">
+                                                        <thead>
+                                                            <tr className="text-left">
+                                                                <th className="border px-2 py-1 w-[110px]">
+                                                                    チェック欄
+                                                                </th>
+
+                                                                <th className="border px-2 py-1">
+                                                                    詳細項目
+                                                                </th>
+
+                                                                <th className="border px-2 py-1">
+                                                                    備考
+                                                                </th>
+
+                                                                <th className="border px-2 py-1">
+                                                                    本人・家族の希望・要望
+                                                                </th>
+                                                            </tr>
+                                                        </thead>
+
+                                                        <tbody>
+                                                            {sheet.rows.map((r) => {
+                                                                const rowAny = r as typeof r & {
+                                                                    inputType?: string;
+                                                                    value?: string;
+                                                                    defaultValue?: string;
+                                                                    options?: {
+                                                                        value: string;
+                                                                        label: string;
+                                                                    }[];
+                                                                };
+
+                                                                const isRadio =
+                                                                    rowAny.inputType === "radio" &&
+                                                                    Array.isArray(rowAny.options);
+
+                                                                const currentValue = String(
+                                                                    rowAny.value ??
+                                                                    rowAny.defaultValue ??
+                                                                    "01",
+                                                                );
+
+                                                                return (
+                                                                    <tr key={r.key}>
+                                                                        <td className="border px-2 py-1 align-top">
+                                                                            <select
+                                                                                className="border rounded px-2 py-1 w-full"
+                                                                                value={r.check}
+                                                                                onChange={(e) =>
+                                                                                    setCheck(
+                                                                                        sheet.key,
+                                                                                        r.key,
+                                                                                        e.target
+                                                                                            .value as AssessmentCheck,
+                                                                                    )
+                                                                                }
+                                                                            >
+                                                                                <option value="NONE">
+                                                                                    －
+                                                                                </option>
+
+                                                                                <option value="CIRCLE">
+                                                                                    ○
+                                                                                </option>
+                                                                            </select>
+                                                                        </td>
+
+                                                                        <td className="border px-2 py-1 align-top">
+                                                                            <div className="font-medium">
+                                                                                {r.label}
                                                                             </div>
-                                                                        ) : null}
-                                                                    </td>
-                                                                    <td className="border px-2 py-1 align-top">
-                                                                        <textarea
-                                                                            className="border rounded px-2 py-1 w-full min-h-[70px]"
-                                                                            value={r.remark}
-                                                                            onChange={(e) => setText(sheet.key, r.key, "remark", e.target.value)}
-                                                                        />
-                                                                    </td>
-                                                                    <td className="border px-2 py-1 align-top">
-                                                                        <textarea
-                                                                            className="border rounded px-2 py-1 w-full min-h-[70px]"
-                                                                            value={r.hope}
-                                                                            onChange={(e) => setText(sheet.key, r.key, "hope", e.target.value)}
-                                                                        />
-                                                                    </td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
+
+                                                                            {isRadio ? (
+                                                                                <div className="mt-2 space-y-1 text-sm">
+                                                                                    {rowAny.options!.map(
+                                                                                        (opt) => (
+                                                                                            <label
+                                                                                                key={
+                                                                                                    opt.value
+                                                                                                }
+                                                                                                className="block"
+                                                                                            >
+                                                                                                <input
+                                                                                                    type="radio"
+                                                                                                    name={`${sheet.key}_${r.key}`}
+                                                                                                    value={
+                                                                                                        opt.value
+                                                                                                    }
+                                                                                                    checked={
+                                                                                                        currentValue ===
+                                                                                                        opt.value
+                                                                                                    }
+                                                                                                    onChange={(
+                                                                                                        e,
+                                                                                                    ) =>
+                                                                                                        setRowValue(
+                                                                                                            sheet.key,
+                                                                                                            r.key,
+                                                                                                            e
+                                                                                                                .target
+                                                                                                                .value,
+                                                                                                        )
+                                                                                                    }
+                                                                                                />{" "}
+                                                                                                {opt.label}
+                                                                                            </label>
+                                                                                        ),
+                                                                                    )}
+                                                                                </div>
+                                                                            ) : null}
+                                                                        </td>
+
+                                                                        <td className="border px-2 py-1 align-top">
+                                                                            <textarea
+                                                                                className="border rounded px-2 py-1 w-full min-h-[70px]"
+                                                                                value={r.remark}
+                                                                                onChange={(e) =>
+                                                                                    setText(
+                                                                                        sheet.key,
+                                                                                        r.key,
+                                                                                        "remark",
+                                                                                        e.target.value,
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                        </td>
+
+                                                                        <td className="border px-2 py-1 align-top">
+                                                                            <textarea
+                                                                                className="border rounded px-2 py-1 w-full min-h-[70px]"
+                                                                                value={r.hope}
+                                                                                onChange={(e) =>
+                                                                                    setText(
+                                                                                        sheet.key,
+                                                                                        r.key,
+                                                                                        "hope",
+                                                                                        e.target.value,
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
