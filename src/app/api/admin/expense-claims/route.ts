@@ -39,7 +39,7 @@ async function getMyUserIdAndAdmin(authUid: string) {
     const { data: entryRow, error: entryError } =
         await supabaseAdmin
             .from("user_entry_united_view_single")
-            .select("user_id, level_sort, orgunitname")
+            .select("user_id, level_sort, orgunitname, system_role")
             .eq("user_id", userRow.user_id)
             .maybeSingle();
 
@@ -52,9 +52,8 @@ async function getMyUserIdAndAdmin(authUid: string) {
     );
 
     const isAdmin =
-        levelSort < 4500000 &&
-        entryRow?.orgunitname !==
-        "ファミーユケアプランセンター高蔵寺";
+        levelSort < 4500000 ||
+        (entryRow?.system_role ?? "").toLowerCase() === "admin";
 
     return {
         myUserId: userRow.user_id as string,
