@@ -382,100 +382,102 @@ function PerformanceScorePanelContent({
                     </div>
 
                     <div className="mt-6 space-y-5">
-                        {score.metrics.map((m) => {
-                            const percent = getProgressPercent(m);
+                        {score.metrics
+                            .filter((m) => m.key !== "jisseki_team_bonus")
+                            .map((m) => {
+                                const percent = getProgressPercent(m);
 
-                            return (
-                                <div
-                                    key={m.key}
-                                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-                                >
-                                    <div className="mb-3 flex items-start justify-between gap-3">
-                                        <div>
-                                            {m.linkUrl ? (
-                                                <Link
-                                                    href={m.linkUrl}
-                                                    className="text-base font-bold text-blue-600 hover:underline"
-                                                >
-                                                    {m.label}
-                                                </Link>
-                                            ) : (
-                                                <div className="text-base font-bold text-slate-900">
-                                                    {m.label}
-                                                </div>
-                                            )}
-
-                                            <div className="mt-1 text-xs text-slate-500">
-                                                {m.note}
-                                            </div>
-
-                                            <div className="mt-1 text-xs font-medium text-blue-600">
-                                                {getMetricDescription(m.key)}
-                                            </div>
-
-                                            {m.key === "jisseki" && (
-                                                <div className="mt-2 text-[11px] leading-5 text-slate-600">
-                                                    実績記録の担当者は、直近のシフト実績をもとに自動で割り当てられています。
-                                                    回収が難しい場合は、一人で抱え込まず、早めにマネジャーへ担当変更をご相談ください。
-                                                    <br />
-                                                    📖
-                                                    <a
-                                                        href="https://board.worksmobile.com/main/article/4090000000171483974?searchKind=basic&keyword=%E5%AE%9F%E7%B8%BE%E8%A8%98%E9%8C%B2&boardNo=0&t=28160&isSearch=true"
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="ml-1 font-semibold text-blue-600 underline hover:text-blue-800"
+                                return (
+                                    <div
+                                        key={m.key}
+                                        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                                    >
+                                        <div className="mb-3 flex items-start justify-between gap-3">
+                                            <div>
+                                                {m.linkUrl ? (
+                                                    <Link
+                                                        href={m.linkUrl}
+                                                        className="text-base font-bold text-blue-600 hover:underline"
                                                     >
-                                                        実績記録印刷マニュアルはこちら
-                                                    </a>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="shrink-0 text-right">
-                                            <span className="text-3xl font-black text-blue-700">
-                                                {m.score}
-                                            </span>
-                                            <span className="ml-1 text-sm font-bold text-slate-600">
-                                                点
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="h-4 overflow-hidden rounded-full bg-slate-200">
-                                        <div
-                                            className="h-full rounded-full bg-gradient-to-r from-gray-300 via-blue-300 to-blue-700 transition-all"
-                                            style={{ width: `${percent}%` }}
-                                        />
-                                    </div>
-
-                                    {m.key === "service_hours" && (
-                                        <div className="mt-4">
-                                            <div className="relative h-8">
-                                                {[
-                                                    20, 40, 60, 80, 100, 120,
-                                                    140, 160,
-                                                ].map((hour) => (
-                                                    <div
-                                                        key={hour}
-                                                        className="absolute top-0 -translate-x-1/2 text-center text-[10px] text-slate-500"
-                                                        style={{
-                                                            left: `${(hour / 160) * 100}%`,
-                                                        }}
-                                                    >
-                                                        <div className="mx-auto mb-1 h-2 w-px bg-slate-300" />
-                                                        {hour}h
+                                                        {m.label}
+                                                    </Link>
+                                                ) : (
+                                                    <div className="text-base font-bold text-slate-900">
+                                                        {m.label}
                                                     </div>
-                                                ))}
+                                                )}
+
+                                                <div className="mt-1 text-xs text-slate-500">
+                                                    {m.note}
+                                                </div>
+
+                                                <div className="mt-1 text-xs font-medium text-blue-600">
+                                                    {getMetricDescription(m.key)}
+                                                </div>
+
+                                                {m.key === "jisseki" && (
+                                                    <div className="mt-2 text-[11px] leading-5 text-slate-600">
+                                                        実績記録の担当者は、直近のシフト実績をもとに自動で割り当てられています。
+                                                        回収が難しい場合は、一人で抱え込まず、早めにマネジャーへ担当変更をご相談ください。
+                                                        <br />
+                                                        📖
+                                                        <a
+                                                            href="https://board.worksmobile.com/main/article/4090000000171483974?searchKind=basic&keyword=%E5%AE%9F%E7%B8%BE%E8%A8%98%E9%8C%B2&boardNo=0&t=28160&isSearch=true"
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="ml-1 font-semibold text-blue-600 underline hover:text-blue-800"
+                                                        >
+                                                            実績記録印刷マニュアルはこちら
+                                                        </a>
+                                                    </div>
+                                                )}
                                             </div>
 
-                                            <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
-                                                {getServiceNextMessage(m.note)}
+                                            <div className="shrink-0 text-right">
+                                                <span className="text-3xl font-black text-blue-700">
+                                                    {m.score}
+                                                </span>
+                                                <span className="ml-1 text-sm font-bold text-slate-600">
+                                                    点
+                                                </span>
                                             </div>
                                         </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+
+                                        <div className="h-4 overflow-hidden rounded-full bg-slate-200">
+                                            <div
+                                                className="h-full rounded-full bg-gradient-to-r from-gray-300 via-blue-300 to-blue-700 transition-all"
+                                                style={{ width: `${percent}%` }}
+                                            />
+                                        </div>
+
+                                        {m.key === "service_hours" && (
+                                            <div className="mt-4">
+                                                <div className="relative h-8">
+                                                    {[
+                                                        20, 40, 60, 80, 100, 120,
+                                                        140, 160,
+                                                    ].map((hour) => (
+                                                        <div
+                                                            key={hour}
+                                                            className="absolute top-0 -translate-x-1/2 text-center text-[10px] text-slate-500"
+                                                            style={{
+                                                                left: `${(hour / 160) * 100}%`,
+                                                            }}
+                                                        >
+                                                            <div className="mx-auto mb-1 h-2 w-px bg-slate-300" />
+                                                            {hour}h
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
+                                                    {getServiceNextMessage(m.note)}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                     </div>
 
                     <div className="mt-6">
