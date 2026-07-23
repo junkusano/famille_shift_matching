@@ -32,14 +32,18 @@ async function getMyUserIdAndAdmin(authUid: string) {
 
   const { data: v, error: vErr } = await supabaseAdmin
     .from("user_entry_united_view_single")
-    .select("user_id, level_sort")
+    .select("user_id, level_sort, orgunitname")
     .eq("user_id", u.user_id)
     .maybeSingle();
 
   if (vErr) throw vErr;
 
   const levelSort = Number(v?.level_sort ?? 99999999);
-  const isAdmin = levelSort < 4500000; // いったん admin=approver
+  const orgUnitName = String(v?.orgunitname ?? "").trim();
+
+  const isAdmin =
+    levelSort < 4500000 &&
+    orgUnitName !== "ファミーユケアプランセンター高蔵寺";
 
   return { myUserId: u.user_id as string, isAdmin };
 }
