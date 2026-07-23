@@ -221,20 +221,21 @@ async function findExistingRequest(
 async function createRpaRequest(
   targetDate: string
 ): Promise<RpaRequestRow> {
-  const requesterId =
-  "70e7f7f4-7478-482c-9ff0-8c23269337b3";
+  const templateId =
+    "SQLで確認したrpa_command_templates.id";
 
-  if (!requesterId) {
-    throw new Error(
-      "UNQUALIFIED_TIMEE_REQUESTER_IDが設定されていません。"
-    );
-  }
+  const requesterId =
+    "7ed354ed-5363-4721-a056-e58c39f8f9d7";
+
+  const approverId =
+    "7ed354ed-5363-4721-a056-e58c39f8f9d7";
 
   const requestDetails = {
     action: "create_taimee_job",
     command: "create_job",
     target_date: targetDate,
     template_name: TEMPLATE_NAME,
+    requester_user_id: "junkusano",
     created_from: CREATED_FROM,
     requested_at: new Date().toISOString(),
   };
@@ -242,8 +243,10 @@ async function createRpaRequest(
   const { data, error } = await supabaseAdmin
     .from("rpa_command_requests")
     .insert({
+      template_id: templateId,
       requester_id: requesterId,
-      status: "test",
+      approver_id: approverId,
+      status: "pending",
       request_details: requestDetails,
     })
     .select(
