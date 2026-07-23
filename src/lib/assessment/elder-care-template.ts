@@ -60,13 +60,13 @@ type ElderCareSheet = {
    * 次に作成する介護専用フォームが利用します。
    */
   layout:
-    | "basic-information"
-    | "service-frequency"
-    | "housing"
-    | "health"
-    | "special"
-    | "adl"
-    | "cognition";
+  | "basic-information"
+  | "service-frequency"
+  | "housing"
+  | "health"
+  | "special"
+  | "adl"
+  | "cognition";
 };
 
 function createRow(params: {
@@ -398,6 +398,14 @@ export function getDefaultElderCareAssessmentContent(
           label: "携帯電話番号",
           inputType: "text",
           group: "client",
+          width: "half",
+        }),
+
+        createRow({
+          key: "kaigo_hoken_no",
+          label: "介護保険被保険者番号",
+          inputType: "text",
+          group: "certification",
           width: "half",
         }),
 
