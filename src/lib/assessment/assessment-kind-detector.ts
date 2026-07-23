@@ -85,13 +85,19 @@ export function detectAssessmentKindsFromWeeklyRows(rows: WeeklyAssessmentSource
       kinds.add("移動支援" as AssessmentServiceKind);
     }
 
-    // 介護保険。サービスコードだけの行でも拾えるように、介護保険でよく使う訪問介護系の語を広めに見る。
-    if (/要介護|介護保険|訪問介護|身体介護|生活援助|通院等乗降介助|訪介|ホームヘルプ|総合事業/.test(text)) {
-      kinds.add("要介護");
-    }
+    // 介護保険サービスの判定。
+    // 要支援・介護予防系を先に判定し、要支援の行を要介護として重複判定しない。
+    const isPreventiveCare =
+      /要支援|介護予防|予防訪問|予防専門型|生活支援型|総合事業/.test(text);
 
-    if (/要支援|介護予防|予防訪問|予防専門型|生活支援型/.test(text)) {
+    if (isPreventiveCare) {
       kinds.add("要支援");
+    } else if (
+      /要介護|介護保険|訪問介護|身体介護|生活援助|通院等乗降介助|訪介|ホームヘルプ/.test(
+        text,
+      )
+    ) {
+      kinds.add("要介護");
     }
   }
 
