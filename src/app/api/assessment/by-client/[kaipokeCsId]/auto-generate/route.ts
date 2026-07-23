@@ -419,12 +419,17 @@ async function createAssessment(params: {
 }): Promise<AssessmentResultRow> {
   const { client, kind, weeklyRows, author } = params;
 
+  const sourceText =
+    extractAssessmentSourceText(
+      client.documents,
+    );
+
   const content = buildAssessmentContentForKind({
     kind,
     client,
     weeklyRows,
+    sourceText,
   });
-
   const { data, error } = await supabaseAdmin
     .from("assessments_records")
     .insert({
@@ -469,7 +474,7 @@ async function createAssessment(params: {
     );
   }
 
- return data as unknown as AssessmentResultRow;
+  return data as unknown as AssessmentResultRow;
 }
 
 async function overwriteAssessment(params: {
@@ -487,10 +492,16 @@ async function overwriteAssessment(params: {
     author,
   } = params;
 
+  const sourceText =
+    extractAssessmentSourceText(
+      client.documents,
+    );
+
   const content = buildAssessmentContentForKind({
     kind,
     client,
     weeklyRows,
+    sourceText,
   });
 
   const { data, error } = await supabaseAdmin
@@ -538,7 +549,7 @@ async function overwriteAssessment(params: {
     );
   }
 
- return data as unknown as AssessmentResultRow;
+  return data as unknown as AssessmentResultRow;
 }
 
 export async function POST(
@@ -765,4 +776,63 @@ export async function POST(
       500,
     );
   }
+}
+
+function extractAssessmentSourceText(
+  documents: unknown,
+): string {
+  if (!documents) {
+    return "";
+  }
+
+  if (typeof documents === "string") {
+    return documents.trim();
+  }
+
+  if (Array.isArray(documents)) {
+    return documents
+      .map((document) =>
+        extractAssessmentSourceText(document),
+      )
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  const record = asRecord(documents);
+
+  if (!record) {
+    return "";
+  }
+
+  const textCandidates = [
+    record.text,
+    record.content,
+    record.summary,
+    record.document_summary,
+    record.shift_detail_information,
+    record.extracted_text,
+    record.ocr_text,
+    record.body,
+    record.description,
+  ];
+
+  const directText = textCandidates
+    .map((value) =>
+      typeof value === "string"
+        ? value.trim()
+        : "",
+    )
+    .filter(Boolean)
+    .join("\n\n");
+
+  if (directText) {
+    return directText;
+  }
+
+  return Object.values(record)
+    .map((value) =>
+      extractAssessmentSourceText(value),
+    )
+    .filter(Boolean)
+    .join("\n\n");
 }

@@ -9,7 +9,9 @@ import type {
     AssessmentServiceKind,
     AssessmentCheck,
 } from "@/types/assessment";
-import { getDefaultAssessmentContent } from "@/lib/assessment/template";
+import {
+    getAssessmentContentTemplate,
+} from "@/lib/assessment/assessment-kind-detector";
 import { supabase } from "@/lib/supabaseClient";
 import PlanEditor, { type PlanDetailForEditor } from "@/components/assessment/PlanEditor";
 import ElderCareAssessmentForm from "@/components/assessment/ElderCareAssessmentForm";
@@ -179,7 +181,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
             body: JSON.stringify({
                 client_id: clientId,
                 service_kind: serviceKind,
-                content: getDefaultAssessmentContent(serviceKind),
+                content: getAssessmentContentTemplate(serviceKind),
             }),
         });
         const j = await res.json();
@@ -231,44 +233,90 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
             // 詳細を開いていない場合は、利用者単位で週間シフトを判定し、必要な種類を作成する。
             // service_kind は「現在画面で選択中の種別を最低限作るためのフォールバック」。
             // API側では、週間シフトで検出できた種別 + この service_kind を対象にする。
-            const res = await fetch(`/api/assessment/by-client/${encodeURIComponent(clientId)}/auto-generate`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(bearer ? { Authorization: bearer } : {}),
+            const res = await fetch(
+                `/api/assessment/by-client/${encodeURIComponent(clientId)}/auto-generate`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(bearer
+                            ? { Authorization: bearer }
+                            : {}),
+                    },
+                    body: JSON.stringify({
+                        service_kind: serviceKind,
+                        overwrite: true,
+                    }),
                 },
-                body: JSON.stringify({
-                    service_kind: serviceKind,
-                    overwrite: false,
-                }),
-            });
+            );
 
             const j = await res.json();
 
             if (!j?.ok) {
-                console.log("by-client auto-generate error body:", j);
-                window.alert(`自動生成に失敗: ${j?.error ?? "unknown error"}`);
+                console.log(
+                    "by-client auto-generate error body:",
+                    j,
+                );
+
+                window.alert(
+                    `自動生成に失敗: ${j?.error ?? "unknown error"
+                    }`,
+                );
+
                 return;
             }
 
-            const created = Array.isArray(j.created) ? j.created : [];
-            const updated = Array.isArray(j.updated) ? j.updated : [];
-            const skipped = Array.isArray(j.skipped) ? j.skipped : [];
-            const detectedKinds = Array.isArray(j.detected_kinds) ? j.detected_kinds : [];
-            const targetKinds = Array.isArray(j.target_kinds) ? j.target_kinds : [];
-            const affected = created[0] ?? updated[0] ?? skipped[0] ?? null;
+            const created = Array.isArray(j.created)
+                ? j.created
+                : [];
+
+            const updated = Array.isArray(j.updated)
+                ? j.updated
+                : [];
+
+            const skipped = Array.isArray(j.skipped)
+                ? j.skipped
+                : [];
+
+            const detectedKinds = Array.isArray(
+                j.detected_kinds,
+            )
+                ? j.detected_kinds
+                : [];
+
+            const targetKinds = Array.isArray(
+                j.target_kinds,
+            )
+                ? j.target_kinds
+                : [];
+
+            const affected =
+                created.find(
+                    (record) =>
+                        record?.service_kind === serviceKind,
+                ) ??
+                updated.find(
+                    (record) =>
+                        record?.service_kind === serviceKind,
+                ) ??
+                created[0] ??
+                updated[0] ??
+                null;
 
             if (!affected) {
                 window.alert(
                     [
-                        `生成対象のアセスメントはありませんでした。`,
-                        `判定: ${detectedKinds.join(" / ") || "なし"}`,
-                        `対象: ${targetKinds.join(" / ") || "なし"}`,
-                    ].join("\n")
+                        "生成または更新されたアセスメントはありませんでした。",
+                        `判定: ${detectedKinds.join(" / ") || "なし"
+                        }`,
+                        `対象: ${targetKinds.join(" / ") || "なし"
+                        }`,
+                        `既存スキップ: ${skipped.length}件`,
+                    ].join("\n"),
                 );
+
                 return;
             }
-
             const nextKind = normalizeServiceKind(String(affected.service_kind ?? serviceKind));
             const nextId = String(affected.assessment_id ?? "") || null;
 
