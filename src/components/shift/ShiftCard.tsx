@@ -909,35 +909,29 @@ const MiniInfo = () => {
 
                 <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[640px] ml-4 mr-0 modal-avoid-sidebar max-h-[85vh] overflow-hidden">
                   <div className="max-h-[70vh] overflow-y-auto pr-2 text-sm space-y-4">
-                    {shiftDetailInformation && (
-                      <div>
-                        <strong className="block text-base">
-                          基本情報サマリ
-                        </strong>
+                   {biko && (
+  <div>
+    <strong className="block text-base">
+      シフト詳細情報
+    </strong>
 
-                        <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
-                          {shiftDetailInformation}
-                        </p>
-                      </div>
-                    )}
+    <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+      {biko}
+    </p>
+  </div>
+)}
 
-                    {biko && (
-                      <div
-                        className={
-                          shiftDetailInformation
-                            ? "border-t pt-4"
-                            : ""
-                        }
-                      >
-                        <strong className="block text-base">
-                          シフト詳細情報
-                        </strong>
+{shiftDetailInformation && (
+  <div className={biko ? "border-t pt-4" : ""}>
+    <strong className="block text-base">
+      基本情報サマリ
+    </strong>
 
-                        <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
-                          {biko}
-                        </p>
-                      </div>
-                    )}
+    <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+      {shiftDetailInformation}
+    </p>
+  </div>
+)}
                   </div>
                 </DialogContent>
               </DialogPortal>
