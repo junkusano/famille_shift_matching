@@ -221,7 +221,8 @@ async function findExistingRequest(
 async function createRpaRequest(
   targetDate: string
 ): Promise<RpaRequestRow> {
-  const requesterId = "junkusano";
+  const requesterId =
+  "70e7f7f4-7478-482c-9ff0-8c23269337b3";
 
   if (!requesterId) {
     throw new Error(
