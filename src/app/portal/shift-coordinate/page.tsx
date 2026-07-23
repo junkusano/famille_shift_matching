@@ -157,20 +157,40 @@ document_summary:
                 .select("kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko")
                 .in("kaipoke_cs_id", formatted.map(f => f.kaipoke_cs_id));
 
+            const { data: shiftDetailData } = await supabase
+  .from("cs_kaipoke_info_shift_detail_view")
+  .select("kaipoke_cs_id, shift_detail_information")
+  .in(
+    "kaipoke_cs_id",
+    formatted.map((f) => f.kaipoke_cs_id)
+  );
+
+const shiftDetailMap = new Map(
+  shiftDetailData?.map((info) => [
+    info.kaipoke_cs_id,
+    info.shift_detail_information,
+  ]) ?? []
+);
+
             const csInfoMap = new Map(csInfoData?.map(info => [info.kaipoke_cs_id, info]) ?? []);
 
-            const merged = formatted.map(shift => {
-                const csInfo = csInfoMap.get(shift.kaipoke_cs_id);
-                return {
-                    ...shift,
-                    cs_name: csInfo?.name ?? '',
-                    commuting_flg: csInfo?.commuting_flg ?? false,
-                    standard_route: csInfo?.standard_route ?? '',
-                    standard_trans_ways: csInfo?.standard_trans_ways ?? '',
-                    standard_purpose: csInfo?.standard_purpose ?? '',
-                    biko: csInfo?.biko ?? '',
-                };
-            });
+            const merged = formatted.map((shift) => {
+    const csInfo = csInfoMap.get(shift.kaipoke_cs_id);
+
+    return {
+        ...shift,
+        cs_name: csInfo?.name ?? "",
+        commuting_flg: csInfo?.commuting_flg ?? false,
+        standard_route: csInfo?.standard_route ?? "",
+        standard_trans_ways: csInfo?.standard_trans_ways ?? "",
+        standard_purpose: csInfo?.standard_purpose ?? "",
+        biko: csInfo?.biko ?? "",
+
+        // ★追加
+        shift_detail_information:
+            shiftDetailMap.get(shift.kaipoke_cs_id) ?? "",
+    };
+});
             setShifts(merged);
             setFilteredShifts(merged);
 
