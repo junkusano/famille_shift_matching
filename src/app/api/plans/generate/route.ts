@@ -201,6 +201,8 @@ async function buildPlanSourceText(a: AssessmentRow): Promise<PlanSourceTextResu
       "障害福祉サービス等利用計画",
       "サービス等利用計画案",
       "情報連携・看護サマリー等",
+      "サ担会要点・議事録",
+      "ケアプラン(居宅介護支援計画書）",
     ])
     .order("created_at", { ascending: false })
     .limit(8);
