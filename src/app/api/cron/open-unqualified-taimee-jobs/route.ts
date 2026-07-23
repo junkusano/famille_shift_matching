@@ -222,7 +222,7 @@ async function createRpaRequest(
   targetDate: string
 ): Promise<RpaRequestRow> {
   const templateId =
-    "SQLで確認したrpa_command_templates.id";
+  "70e7f7f4-7478-482c-9ff0-8c23269337b3";
 
   const requesterId =
     "7ed354ed-5363-4721-a056-e58c39f8f9d7";
@@ -241,19 +241,18 @@ async function createRpaRequest(
   };
 
   const { data, error } = await supabaseAdmin
-    .from("rpa_command_requests")
-    .insert({
-      template_id: templateId,
-      requester_id: requesterId,
-      approver_id: approverId,
-      status: "pending",
-      request_details: requestDetails,
-    })
-    .select(
-      "id, status, created_at, request_details"
-    )
-    .single();
-
+  .from("rpa_command_requests")
+  .insert({
+    template_id: templateId,
+    requester_id: requesterId,
+    approver_id: approverId,
+    status: "pending",
+    request_details: requestDetails,
+  })
+  .select(
+    "id, status, created_at, request_details"
+  )
+  .single();
   if (error) {
     throw new Error(
       `RPAリクエストの作成に失敗しました: ${error.message}`
