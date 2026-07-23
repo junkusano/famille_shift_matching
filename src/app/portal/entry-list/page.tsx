@@ -927,7 +927,7 @@ export default function EntryListPage() {
                     className="flex w-full items-center whitespace-nowrap text-left hover:text-blue-700"
                     title="rosterの並び順で並べ替え"
                   >
-                    並び順(roster)
+                    並び順
                     {getSortArrow('roster')}
                   </button>
                 </th>
@@ -944,7 +944,7 @@ export default function EntryListPage() {
                   </button>
                 </th>
 
-                <th className="border px-2 py-1">
+                <th className="border px-2 py-1 w-44">
                   操作
                 </th>
               </tr>
@@ -974,7 +974,7 @@ export default function EntryListPage() {
                       {age === null ? '―' : `${age}歳`}
                     </td>
                     <td className="border px-2 py-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 whitespace-nowrap">
                         <a
                           href={entry.googleMapUrl}
                           target="_blank"
@@ -1011,7 +1011,7 @@ export default function EntryListPage() {
                     </td>
                     <td className="border px-2 py-1">
                       <input
-                        className="w-20 border rounded px-1 text-sm"
+                        className="w-14 border rounded px-1 text-sm text-center"
                         value={rosterEdits[entry.id] ?? (entry.roster_sort ?? '')}
                         onChange={(e) => {
                           const v = e.target.value;
@@ -1020,14 +1020,13 @@ export default function EntryListPage() {
                         placeholder="9999"
                         disabled={!entry.user_id}
                         title={!entry.user_id ? 'ユーザー未作成のため編集不可（詳細画面でユーザーIDを作成）' : ''}
-
                       />
                     </td>
                     <td className="border px-2 py-1">{new Date(entry.created_at).toLocaleDateString()}</td>
                     <td className="border px-2 py-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 whitespace-nowrap">
                         <button
-                          className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
+                          className="px-2 py-1 bg-green-600 text-white rounded disabled:opacity-50"
                           disabled={!entry.user_id || (!rosterChanged && !statusChanged)}
                           onClick={async () => {
                             if (!entry.user_id) {
@@ -1117,7 +1116,7 @@ export default function EntryListPage() {
                         <Link href={`/portal/entry-detail/${entry.id}`}>
                           <button
                             type="button"
-                            className="px-3 py-1 bg-blue-600 text-white rounded"
+                            className="px-2 py-1 bg-blue-600 text-white rounded"
                           >
                             詳細
                           </button>
@@ -1127,14 +1126,14 @@ export default function EntryListPage() {
                           <button
                             type="button"
                             className="
-      px-3 py-1
-      bg-red-600
-      text-white
-      rounded
-      hover:bg-red-700
-      disabled:cursor-not-allowed
-      disabled:opacity-50
-    "
+  px-2 py-1
+  bg-red-600
+  text-white
+  rounded
+  hover:bg-red-700
+  disabled:cursor-not-allowed
+  disabled:opacity-50
+"
                             disabled={deletingEntryId === entry.id}
                             onClick={() => {
                               void handleDeleteEntry(entry);
