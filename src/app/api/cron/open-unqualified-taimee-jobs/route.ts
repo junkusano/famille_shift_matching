@@ -10,8 +10,11 @@ const CRON_NAME = "open-unqualified-taimee-jobs";
 const CREATED_FROM =
   "/api/cron/open-unqualified-taimee-jobs";
 
+const TEMPLATE_ID =
+  "70e7f7f4-7478-482c-9ff0-8c23269337b3";
+
 const TEMPLATE_NAME =
-  "タイミー募集（無資格・無資格マネジャー候補）";
+  "タイミー募集（無資格）";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -20,6 +23,7 @@ type RpaRequestRow = {
   status: string | null;
   created_at: string | null;
   request_details: JsonRecord | null;
+  template_id: string | null;
 };
 
 function isAuthorized(req: NextRequest): boolean {
@@ -161,15 +165,15 @@ function isSameRequest(
   const command = toText(details["command"]);
   const requestTargetDate =
     toText(details["target_date"]);
-  const templateName =
-    toText(details["template_name"]);
+  const templateId =
+  row.template_id ?? "";
 
-  return (
-    action === "create_taimee_job" &&
-    command === "create_job" &&
-    requestTargetDate === targetDate &&
-    templateName === TEMPLATE_NAME
-  );
+return (
+  action === "create_taimee_job" &&
+  command === "create_job" &&
+  requestTargetDate === targetDate &&
+  templateId === TEMPLATE_ID
+);
 }
 
 async function findExistingRequest(
@@ -185,7 +189,7 @@ async function findExistingRequest(
     await supabaseAdmin
       .from("rpa_command_requests")
       .select(
-        "id, status, created_at, request_details"
+        "id, template_id, status, created_at, request_details"
       )
       .in("status", [
         "test",
@@ -250,7 +254,7 @@ async function createRpaRequest(
     request_details: requestDetails,
   })
   .select(
-    "id, status, created_at, request_details"
+    "id, template_id, status, created_at, request_details"
   )
   .single();
   if (error) {
