@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const CRON_NAME = "open-unqualified-taimee-jobs";
+
 const CREATED_FROM =
   "/api/cron/open-unqualified-taimee-jobs";
 
@@ -16,14 +17,23 @@ const TEMPLATE_ID =
 const TEMPLATE_NAME =
   "タイミー募集（無資格）";
 
+const REQUESTER_ID =
+  "7ed354ed-5363-4721-a056-e58c39f8f9d7";
+
+const APPROVER_ID =
+  "7ed354ed-5363-4721-a056-e58c39f8f9d7";
+
+const SHIFT_START_TIME = "10:00:00";
+const SHIFT_END_TIME = "11:00:00";
+
 type JsonRecord = Record<string, unknown>;
 
 type RpaRequestRow = {
   id: string;
+  template_id: string | null;
   status: string | null;
   created_at: string | null;
   request_details: JsonRecord | null;
-  template_id: string | null;
 };
 
 function isAuthorized(req: NextRequest): boolean {
@@ -52,9 +62,6 @@ function getJstDateParts(date = new Date()) {
       month: "2-digit",
       day: "2-digit",
       weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
       hourCycle: "h23",
     }
   );
@@ -165,15 +172,14 @@ function isSameRequest(
   const command = toText(details["command"]);
   const requestTargetDate =
     toText(details["target_date"]);
-  const templateId =
-  row.template_id ?? "";
+  const templateId = row.template_id ?? "";
 
-return (
-  action === "create_taimee_job" &&
-  command === "create_job" &&
-  requestTargetDate === targetDate &&
-  templateId === TEMPLATE_ID
-);
+  return (
+    action === "create_taimee_job" &&
+    command === "create_job" &&
+    requestTargetDate === targetDate &&
+    templateId === TEMPLATE_ID
+  );
 }
 
 async function findExistingRequest(
@@ -192,9 +198,9 @@ async function findExistingRequest(
         "id, template_id, status, created_at, request_details"
       )
       .in("status", [
-        "test",
-        "pending",
-        "processing",
+        "waiting_approval",
+        "approved",
+        "running",
         "done",
       ])
       .gte(
@@ -225,38 +231,39 @@ async function findExistingRequest(
 async function createRpaRequest(
   targetDate: string
 ): Promise<RpaRequestRow> {
-  const templateId =
-  "70e7f7f4-7478-482c-9ff0-8c23269337b3";
-
-  const requesterId =
-    "7ed354ed-5363-4721-a056-e58c39f8f9d7";
-
-  const approverId =
-    "7ed354ed-5363-4721-a056-e58c39f8f9d7";
+  const requestedAt = new Date().toISOString();
 
   const requestDetails = {
     action: "create_taimee_job",
     command: "create_job",
+
     target_date: targetDate,
+    shift_start_date: targetDate,
+    shift_start_time: SHIFT_START_TIME,
+    shift_end_time: SHIFT_END_TIME,
+
     template_name: TEMPLATE_NAME,
     requester_user_id: "junkusano",
     created_from: CREATED_FROM,
-    requested_at: new Date().toISOString(),
+    requested_at: requestedAt,
   };
 
-  const { data, error } = await supabaseAdmin
-  .from("rpa_command_requests")
-  .insert({
-    template_id: templateId,
-    requester_id: requesterId,
-    approver_id: approverId,
-    status: "pending",
-    request_details: requestDetails,
-  })
-  .select(
-    "id, template_id, status, created_at, request_details"
-  )
-  .single();
+  const { data, error } =
+    await supabaseAdmin
+      .from("rpa_command_requests")
+      .insert({
+        template_id: TEMPLATE_ID,
+        requester_id: REQUESTER_ID,
+        approver_id: APPROVER_ID,
+        status: "approved",
+        approved_at: requestedAt,
+        request_details: requestDetails,
+      })
+      .select(
+        "id, template_id, status, created_at, request_details"
+      )
+      .single();
+
   if (error) {
     throw new Error(
       `RPAリクエストの作成に失敗しました: ${error.message}`
@@ -346,6 +353,8 @@ export async function GET(
         status: createdRequest.status,
         targetDate,
         templateName: TEMPLATE_NAME,
+        shiftStartTime: SHIFT_START_TIME,
+        shiftEndTime: SHIFT_END_TIME,
       }
     );
 
@@ -356,6 +365,8 @@ export async function GET(
         "翌日分のタイミー募集RPAリクエストを作成しました。",
       targetDate,
       templateName: TEMPLATE_NAME,
+      shiftStartTime: SHIFT_START_TIME,
+      shiftEndTime: SHIFT_END_TIME,
       request: {
         id: createdRequest.id,
         status: createdRequest.status,
