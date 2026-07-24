@@ -31,13 +31,28 @@ type PostalDistrict = { postal_code_3: string; district: string }
 
 type Option = { value: string; label: string }
 
+type FaximoChunkResult = {
+  chunkNo: number
+  recipientCount: number
+  ok: boolean
+  processKey: string
+  faximoResultCode?: string
+  faximoRequestId?: string
+  acceptedAt?: string
+  error?: string
+}
+
 type FaximoSendResponse = {
   ok: boolean
+  partial?: boolean
   error?: string
-  faximoResultCode?: string
-  processKey?: string
-  acceptedAt?: string
-  faximoRequestId?: string
+  batchId?: string
+  resultEmail?: string
+  totalRecipientCount?: number
+  acceptedRecipientCount?: number
+  failedRecipientCount?: number
+  chunkCount?: number
+  results?: FaximoChunkResult[]
 }
 
 // =========================
@@ -264,7 +279,7 @@ export default function FaxSendingPage() {
   }
 
   // =========================
-  // 送信（30件超はOK/キャンセル確認、ファイルは念のため再チェック）
+  // 送信（50件超はAPI側で自動分割、30件超は確認）
   // =========================
   const handleUploadAndSend = async () => {
     if (files.length === 0) {
@@ -274,14 +289,6 @@ export default function FaxSendingPage() {
 
     if (selectedFaxes.length === 0) {
       alert("FAX送信先を選んでください")
-      return
-    }
-
-    // faximoSilverは1回につき最大50件
-    if (selectedFaxes.length > 50) {
-      alert(
-        `FAX送信先は1回につき最大50件です。\n現在 ${selectedFaxes.length} 件選択されています。`
-      )
       return
     }
 
@@ -379,31 +386,46 @@ export default function FaxSendingPage() {
 
       const result = (await response.json()) as FaximoSendResponse
 
-      if (!response.ok || !result.ok) {
-        const errorDetails = [
-          result.error ?? "FAX送信処理に失敗しました",
-          result.faximoResultCode
-            ? `faximo結果コード: ${result.faximoResultCode}`
-            : null,
-        ]
-          .filter(Boolean)
-          .join("\n")
+      const acceptedCount = result.acceptedRecipientCount ?? 0
+      const failedCount = result.failedRecipientCount ?? 0
+      const totalChunks = result.chunkCount ?? 0
 
-        throw new Error(errorDetails)
+      if (!result.ok) {
+        const failedDetails = (result.results ?? [])
+          .filter((item) => !item.ok)
+          .map(
+            (item) =>
+              `・分割${item.chunkNo}（${item.recipientCount}件）: ${item.error ?? "受付失敗"}`
+          )
+
+        alert(
+          [
+            result.partial
+              ? "FAX送信は一部のみ受け付けられました。"
+              : "FAX送信を受け付けられませんでした。",
+            "",
+            `受付成功: ${acceptedCount}件`,
+            `受付失敗: ${failedCount}件`,
+            `API分割数: ${totalChunks}回`,
+            result.batchId ? `バッチID: ${result.batchId}` : null,
+            failedDetails.length > 0 ? "" : null,
+            ...failedDetails,
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+
+        // 一部でも失敗した場合は、誤って全件再送しないよう入力を残す。
+        return
       }
 
       const successMessage = [
         "FAX送信を受け付けました。",
         "",
-        `送信先: ${selectedFaxes.length}件`,
+        `送信先: ${acceptedCount || selectedFaxes.length}件`,
+        `API分割数: ${totalChunks || 1}回`,
         `添付ファイル: ${files.length}件`,
-        result.acceptedAt ? `受付日時: ${result.acceptedAt}` : null,
-        result.faximoRequestId
-          ? `受付ID: ${result.faximoRequestId}`
-          : null,
-        result.processKey
-          ? `処理キー: ${result.processKey}`
-          : null,
+        result.batchId ? `バッチID: ${result.batchId}` : null,
       ]
         .filter(Boolean)
         .join("\n")
@@ -558,8 +580,7 @@ export default function FaxSendingPage() {
           disabled={
             uploading ||
             files.length === 0 ||
-            selectedFaxes.length === 0 ||
-            selectedFaxes.length > 50
+            selectedFaxes.length === 0
           }
         >
           {uploading
@@ -569,11 +590,7 @@ export default function FaxSendingPage() {
         <div className="text-xs text-muted-foreground">
           送信先: {selectedFaxes.length} 件 / 添付: {files.length} 件
 
-          {selectedFaxes.length > 50 ? (
-            <span className="ml-2 text-red-600 font-medium">
-              ※faximoSilverの上限は1回50件です。50件以下にしてください。
-            </span>
-          ) : selectedFaxes.length > 30 ? (
+          {selectedFaxes.length > 30 ? (
             <span className="ml-2 text-red-600">
               ※30件以上はチャージが必要です。管理者へ連絡してから送信してください。
             </span>
