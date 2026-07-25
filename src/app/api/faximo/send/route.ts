@@ -63,20 +63,74 @@ function readOptionalString(
   return trimmed || undefined;
 }
 
-function parseFaxNumbers(formData: FormData): string[] {
+
+function getSendableFaxNumber(
+  value: string,
+): string | null {
+  const source = value.trim();
+
+  if (!source) {
+    return null;
+  }
+
+  /*
+   * 使用を許可する文字：
+   * ・半角数字
+   * ・半角ハイフン
+   * ・半角/改行系の空白
+   * ・半角丸括弧
+   *
+   * アルファベット、#、全角文字などが
+   * 1文字でも含まれる場合は送信対象外にする。
+   */
+  if (!/^[0-9\s()-]+$/.test(source)) {
+    return null;
+  }
+
+  const normalized = source.replace(
+    /[\s()-]/g,
+    "",
+  );
+
+  if (!/^\d{1,20}$/.test(normalized)) {
+    return null;
+  }
+
+  return normalized;
+}
+
+
+function parseFaxNumbers(
+  formData: FormData,
+): string[] {
   const repeatedValues = formData
     .getAll("faxNumbers")
-    .filter((value): value is string => typeof value === "string");
+    .filter(
+      (value): value is string =>
+        typeof value === "string",
+    );
 
   const rawValues =
     repeatedValues.length > 0
       ? repeatedValues
-      : [readOptionalString(formData, "fax_numbers") ?? ""];
+      : [
+        readOptionalString(
+          formData,
+          "fax_numbers",
+        ) ?? "",
+      ];
 
   return rawValues
-    .flatMap((value) => value.split(/[\n,、;；]+/))
-    .map((value) => value.replace(/[\s()-]/g, ""))
-    .filter(Boolean);
+    .flatMap((value) =>
+      value.split(/[\n,、;；]+/),
+    )
+    .map(getSendableFaxNumber)
+    .filter(
+      (
+        faxNumber,
+      ): faxNumber is string =>
+        faxNumber !== null,
+    );
 }
 
 function parseFaxTargets(
@@ -106,8 +160,8 @@ function parseFaxTargets(
 
         const fax =
           typeof row.fax === "string"
-            ? row.fax.replace(/[\s()-]/g, "")
-            : "";
+            ? getSendableFaxNumber(row.fax)
+            : null;
 
         if (!fax) {
           return null;
@@ -191,6 +245,7 @@ function getFaximoResultEmail(): string {
   return resultEmail;
 }
 
+
 export async function POST(request: NextRequest) {
   const supabase = getSupabaseAdmin();
   const batchId = crypto.randomUUID();
@@ -223,7 +278,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: "FAX番号が指定されていません",
+          error:
+            "送信可能なFAX番号がありません。半角数字、半角ハイフン、空白、丸括弧以外を含む番号は送信対象外です。",
         },
         { status: 400 },
       );
