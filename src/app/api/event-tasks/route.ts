@@ -60,7 +60,6 @@ const pageSize = Math.min(
     //if (!admin) return bad("Forbidden", 403);
 
     const url = new URL(req.url);
-    const status = url.searchParams.get("status");
     const template_id = url.searchParams.get("template_id");
     const kaipoke_cs_id = url.searchParams.get("kaipoke_cs_id");
     const due_from = url.searchParams.get("due_from");
@@ -483,6 +482,7 @@ const userMap = new Map<string, string>(
 );
 
 const managerNameByOrg = new Map<string, string>();
+const managerUserIdByOrg = new Map<string, string>();
 
 for (const manager of managers) {
     if (!manager.org_unit_id) {
@@ -498,10 +498,16 @@ for (const manager of managers) {
             manager.org_unit_id,
             managerName
         );
+
+        managerUserIdByOrg.set(
+            manager.org_unit_id,
+            manager.user_id
+        );
     }
 }
 
 const managerNameByClientId = new Map<string, string>();
+const managerUserIdByClientId = new Map<string, string>();
 
 for (const client of clients) {
     if (!client.asigned_org) {
@@ -511,10 +517,20 @@ for (const client of clients) {
     const managerName =
         managerNameByOrg.get(client.asigned_org);
 
+    const managerUserId =
+        managerUserIdByOrg.get(client.asigned_org);
+
     if (managerName) {
         managerNameByClientId.set(
             client.kaipoke_cs_id,
             managerName
+        );
+    }
+
+    if (managerUserId) {
+        managerUserIdByClientId.set(
+            client.kaipoke_cs_id,
+            managerUserId
         );
     }
 }
@@ -544,21 +560,25 @@ for (const client of clients) {
 }));
 
 // 担当フィルター
-const selectedUserName = userFilter
-    ? userMap.get(userFilter) ?? null
-    : null;
-
 const filteredResult = userFilter
     ? result.filter((task) => {
+          // event_tasks.user_id に直接担当者が設定されている場合
           if (task.user_id === userFilter) {
               return true;
           }
 
-          return (
-              !task.user_id &&
-              selectedUserName !== null &&
-              task.assigned_user_name === selectedUserName
-          );
+          // user_id が未設定の場合は、
+          // 利用者の所属チームのマネジャーIDで判定する
+          if (!task.user_id) {
+              const managerUserId =
+                  managerUserIdByClientId.get(
+                      task.kaipoke_cs_id
+                  );
+
+              return managerUserId === userFilter;
+          }
+
+          return false;
       })
     : result;
 
