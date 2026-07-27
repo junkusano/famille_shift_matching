@@ -66,16 +66,30 @@ const pageSize = Math.min(
     const due_from = url.searchParams.get("due_from");
     const due_to = url.searchParams.get("due_to");
     const order = searchParams.get("order") === "desc" ? "desc" : "asc";
-    const statusFilter = searchParams.get("status");
-    
+    const rawStatusFilter = searchParams.get("status");
+const rawDueFilter = searchParams.get("due");
+const rawClientFilter = searchParams.get("client_id");
+const rawUserFilter = searchParams.get("user_id");
+
+const statusFilter =
+    rawStatusFilter && rawStatusFilter !== "all"
+        ? rawStatusFilter
+        : null;
+
 const dueFilter =
-    searchParams.get("due");
+    rawDueFilter && rawDueFilter !== "all"
+        ? rawDueFilter
+        : null;
 
 const clientFilter =
-    searchParams.get("client_id");
+    rawClientFilter && rawClientFilter !== "all"
+        ? rawClientFilter
+        : null;
 
 const userFilter =
-    searchParams.get("user_id");
+    rawUserFilter && rawUserFilter !== "all"
+        ? rawUserFilter
+        : null;
 
 const sort =
     searchParams.get("sort") ?? "due_date";

@@ -254,6 +254,14 @@ const [pagination, setPagination] = useState<Pagination>({
 
         if (clientFilter) {
     qs.set("client_id", clientFilter);
+
+    if (clientFilter) {
+    qs.set("client_id", clientFilter);
+}
+
+if (userFilter) {
+    qs.set("user_id", userFilter);
+}
 }
 
 
@@ -419,7 +427,7 @@ const displayTasks = useMemo(() => {
 }, [tasks, sortColumn, sortOrder]);
 
 return (
-    
+
         <div className="p-6 space-y-6">
 <div className="space-y-4">
     {/* タイトル行 */}
