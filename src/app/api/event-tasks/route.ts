@@ -54,12 +54,7 @@ const pageSize = Math.min(
         Number(searchParams.get("pageSize") ?? "50")
     )
 );
-const dueFilter = searchParams.get("due");
-const clientFilter =
-    searchParams.get("client_id");
 
-const from = (page - 1) * pageSize;
-const to = from + pageSize - 1;
 
     //const admin = await isAdminByAuthUserId(supabaseAdmin, user.id);
     //if (!admin) return bad("Forbidden", 403);
@@ -70,8 +65,20 @@ const to = from + pageSize - 1;
     const kaipoke_cs_id = url.searchParams.get("kaipoke_cs_id");
     const due_from = url.searchParams.get("due_from");
     const due_to = url.searchParams.get("due_to");
-    const sort = searchParams.get("sort") ?? "due_date";
     const order = searchParams.get("order") === "desc" ? "desc" : "asc";
+    const statusFilter = searchParams.get("status");
+    
+const dueFilter =
+    searchParams.get("due");
+
+const clientFilter =
+    searchParams.get("client_id");
+
+const userFilter =
+    searchParams.get("user_id");
+
+const sort =
+    searchParams.get("sort") ?? "due_date";
 
     const allowedSortColumns = [
         "due_date",
@@ -87,9 +94,10 @@ const to = from + pageSize - 1;
 
     let q = supabaseAdmin
     .from("event_tasks")
-    .select("*", { count: "exact" })
-    .order(sortColumn, { ascending: order === "asc" })
-    .range(from, to);
+    .select("*")
+    .order(sortColumn, {
+        ascending: order === "asc",
+    });
 
     if (status) q = q.eq("status", status);
 
@@ -100,7 +108,14 @@ const to = from + pageSize - 1;
     );
 }
 
-    const today = new Date();
+if (statusFilter) {
+    q = q.eq(
+        "status",
+        statusFilter
+    );
+}
+
+const today = new Date();
 
 const todayStr = today.toISOString().slice(0, 10);
 
@@ -122,21 +137,39 @@ if (dueFilter === "week") {
 }
 
 if (dueFilter === "month") {
-    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    const end = new Date(
+        today.getFullYear(),
+        today.getMonth() + 1,
+        0
+    );
 
     q = q
         .gte("due_date", todayStr)
         .lte("due_date", end.toISOString().slice(0, 10));
 }
-    if (template_id) q = q.eq("template_id", template_id);
-    if (kaipoke_cs_id) q = q.eq("kaipoke_cs_id", kaipoke_cs_id);
-    if (due_from) q = q.gte("due_date", due_from);
-    if (due_to) q = q.lte("due_date", due_to);
 
-   const {
+if (template_id) {
+    q = q.eq("template_id", template_id);
+}
+
+if (kaipoke_cs_id) {
+    q = q.eq(
+        "kaipoke_cs_id",
+        kaipoke_cs_id
+    );
+}
+
+if (due_from) {
+    q = q.gte("due_date", due_from);
+}
+
+if (due_to) {
+    q = q.lte("due_date", due_to);
+}
+
+const {
     data: tasks,
     error: tErr,
-    count,
 } = await q;
 
 if (tErr) {
@@ -483,25 +516,59 @@ for (const client of clients) {
     }
 
     const result = (tasks ?? []).map((t) => ({
-        ...t,
-        template_name: templateMap.get(t.template_id) ?? null,
-        client_name: clientMap.get(t.kaipoke_cs_id) ?? null,
-        assigned_user_name: t.user_id
-    ? userMap.get(t.user_id) ?? t.user_id
-    : managerNameByClientId.get(t.kaipoke_cs_id) ?? null,
-        required_docs: (docsByTask.get(t.id) ?? []).sort((a, b) => (a.doc_type_name ?? "").localeCompare(b.doc_type_name ?? "")),
-    }));
+    ...t,
+    template_name: templateMap.get(t.template_id) ?? null,
+    client_name: clientMap.get(t.kaipoke_cs_id) ?? null,
+    assigned_user_name: t.user_id
+        ? userMap.get(t.user_id) ?? t.user_id
+        : managerNameByClientId.get(t.kaipoke_cs_id) ?? null,
+    required_docs: (docsByTask.get(t.id) ?? []).sort((a, b) =>
+        (a.doc_type_name ?? "").localeCompare(
+            b.doc_type_name ?? ""
+        )
+    ),
+}));
 
-    return NextResponse.json({
-    tasks: result,
+// 担当フィルター
+const selectedUserName = userFilter
+    ? userMap.get(userFilter) ?? null
+    : null;
+
+const filteredResult = userFilter
+    ? result.filter((task) => {
+          if (task.user_id === userFilter) {
+              return true;
+          }
+
+          return (
+              !task.user_id &&
+              selectedUserName !== null &&
+              task.assigned_user_name === selectedUserName
+          );
+      })
+    : result;
+
+// ここでページング
+const total = filteredResult.length;
+const totalPages = Math.max(
+    1,
+    Math.ceil(total / pageSize)
+);
+
+const safePage = Math.min(page, totalPages);
+
+const start = (safePage - 1) * pageSize;
+const end = start + pageSize;
+
+const paginatedResult = filteredResult.slice(start, end);
+
+return NextResponse.json({
+    tasks: paginatedResult,
     pagination: {
-        page,
+        page: safePage,
         pageSize,
-        total: count ?? 0,
-        totalPages: Math.max(
-            1,
-            Math.ceil((count ?? 0) / pageSize)
-        ),
+        total,
+        totalPages,
     },
 });
 }

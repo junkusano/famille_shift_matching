@@ -391,60 +391,35 @@ const [pagination, setPagination] = useState<Pagination>({
 const canUse = true;
 
 const displayTasks = useMemo(() => {
-    let list = [...tasks];
+    const list = [...tasks];
 
-    if (userFilter) {
-        const selectedUser = (meta?.users ?? []).find(
-            (u) => u.user_id === userFilter
-        );
+    if (sortColumn === "client") {
+        list.sort((a, b) => {
+            const av = a.client_name ?? "";
+            const bv = b.client_name ?? "";
 
-        if (selectedUser) {
-            const selectedName = selectedUser.name;
-
-            list = list.filter((task) => {
-                if (task.user_id === userFilter) {
-                    return true;
-                }
-
-                return task.assigned_user_name === selectedName;
-            });
-        }
+            return sortOrder === "asc"
+                ? av.localeCompare(bv, "ja")
+                : bv.localeCompare(av, "ja");
+        });
     }
 
-    // ↓ここから今あるソート処理はそのまま残す
+    if (sortColumn === "user") {
+        list.sort((a, b) => {
+            const av = a.assigned_user_name ?? "";
+            const bv = b.assigned_user_name ?? "";
+
+            return sortOrder === "asc"
+                ? av.localeCompare(bv, "ja")
+                : bv.localeCompare(av, "ja");
+        });
+    }
 
     return list;
-}, [
-    tasks,
-    userFilter,
-    meta,
-    sortColumn,
-    sortOrder,
-]);
-
-if (sortColumn === "client") {
-    displayTasks.sort((a, b) => {
-        const av = a.client_name ?? "";
-        const bv = b.client_name ?? "";
-
-        return sortOrder === "asc"
-            ? av.localeCompare(bv, "ja")
-            : bv.localeCompare(av, "ja");
-    });
-}
-
-if (sortColumn === "user") {
-    displayTasks.sort((a, b) => {
-        const av = a.assigned_user_name ?? "";
-        const bv = b.assigned_user_name ?? "";
-
-        return sortOrder === "asc"
-            ? av.localeCompare(bv, "ja")
-            : bv.localeCompare(av, "ja");
-    });
-}
+}, [tasks, sortColumn, sortOrder]);
 
 return (
+    
         <div className="p-6 space-y-6">
 <div className="space-y-4">
     {/* タイトル行 */}
