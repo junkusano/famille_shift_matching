@@ -198,7 +198,6 @@ async function findExistingRequest(
         "id, template_id, status, created_at, request_details"
       )
       .in("status", [
-        "test",
         "waiting_approval",
         "approved",
         "running",
@@ -253,13 +252,13 @@ async function createRpaRequest(
     await supabaseAdmin
       .from("rpa_command_requests")
       .insert({
-        template_id: TEMPLATE_ID,
-        requester_id: REQUESTER_ID,
-        approver_id: APPROVER_ID,
-        status: "test",
-        approved_at: requestedAt,
-        request_details: requestDetails,
-      })
+  template_id: TEMPLATE_ID,
+  requester_id: REQUESTER_ID,
+  approver_id: APPROVER_ID,
+  status: "approved",
+  approved_at: requestedAt,
+  request_details: requestDetails,
+})
       .select(
         "id, template_id, status, created_at, request_details"
       )
