@@ -220,9 +220,9 @@ async function findExistingRequest(
     .select("id, status, created_at, request_details")
 
     .eq(
-      "rpa_command_template_id",
-      RPA_COMMAND_TEMPLATE_ID
-    )
+  "template_id",
+  RPA_COMMAND_TEMPLATE_ID
+)
     .in("status", ["pending", "processing", "done"])
     .contains("request_details", {
   action: ACTION,
@@ -295,21 +295,13 @@ async function createRpaRequest(
   const { data, error } = await supabaseAdmin
     .from("rpa_command_requests")
     .insert({
-      rpa_command_template_id:
-        RPA_COMMAND_TEMPLATE_ID,
+  template_id: RPA_COMMAND_TEMPLATE_ID,
 
-      /**
-       * DB側のstatusはpendingにします。
-       *
-       * ここをtestにすると、PADがpendingのみを
-       * 取得している場合に処理されません。
-       */
-      status: "pending",
-
-      request_details: requestDetails,
-    })
+  status: "pending",
+  request_details: requestDetails,
+})
     .select(
-  "id, status, created_at, rpa_command_template_id, request_details"
+  "id, status, created_at, template_id, request_details"
 )
     .single();
 
