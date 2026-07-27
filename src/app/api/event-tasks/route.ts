@@ -112,8 +112,6 @@ const sort =
         ascending: order === "asc",
     });
 
-    if (status) q = q.eq("status", status);
-
     if (clientFilter) {
     q = q.eq(
         "kaipoke_cs_id",
@@ -353,17 +351,15 @@ for (const ids of chunkArray(csIds, 100)) {
      clients.push(...(data ?? []));
 }
 
+/*
 const assignedOrgIds = Array.from(
     new Set(
         clients
-            .map((client) => client.asigned_org)
-            .filter(
-                (id): id is string =>
-                    typeof id === "string" &&
-                    id.trim().length > 0
-            )
+            .map((c) => c.asigned_org)
+            .filter(Boolean)
     )
 );
+*/
 
 // 担当者を100件ずつ取得
 for (const ids of chunkArray(userIds, 100)) {
@@ -387,7 +383,7 @@ for (const ids of chunkArray(userIds, 100)) {
         users.push(...(data ?? []));
 }
 
-// 担当チームのマネジャーを取得
+/*// 担当チームのマネジャーを取得
 for (const ids of chunkArray(assignedOrgIds, 100)) {
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
@@ -416,7 +412,8 @@ for (const ids of chunkArray(assignedOrgIds, 100)) {
     }
 
     managers.push(...(data ?? []));
-}
+}*/
+
 
 // doc master 名称
 const docTypeIds = Array.from(new Set(reqDocsRows.map((d) => d.doc_type_id)));
@@ -559,27 +556,10 @@ for (const client of clients) {
     ),
 }));
 
-// 担当フィルター
 const filteredResult = userFilter
-    ? result.filter((task) => {
-          // event_tasks.user_id に直接担当者が設定されている場合
-          if (task.user_id === userFilter) {
-              return true;
-          }
-
-          // user_id が未設定の場合は、
-          // 利用者の所属チームのマネジャーIDで判定する
-          if (!task.user_id) {
-              const managerUserId =
-                  managerUserIdByClientId.get(
-                      task.kaipoke_cs_id
-                  );
-
-              return managerUserId === userFilter;
-          }
-
-          return false;
-      })
+    ? result.filter(
+          (task) => task.user_id === userFilter
+      )
     : result;
 
 // ここでページング
