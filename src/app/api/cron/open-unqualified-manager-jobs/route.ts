@@ -10,6 +10,12 @@ export const runtime = "nodejs";
 const RPA_COMMAND_TEMPLATE_ID =
   "160b2b7f-f816-4713-bc76-f89fec654911";
 
+  const CRON_REQUESTER_ID =
+  "7ed354ed-5363-4721-a056-e58c39f8f9d7";
+
+const CRON_APPROVER_ID =
+  "7ed354ed-5363-4721-a056-e58c39f8f9d7";
+
 /**
  * 求人の固定条件
  */
@@ -253,6 +259,9 @@ async function createRpaRequest(
     action: ACTION,
     command: COMMAND,
 
+    requester_id: CRON_REQUESTER_ID,
+    approver_id: CRON_APPROVER_ID,
+
     /**
      * 現在はテスト実行です。
      *
@@ -295,14 +304,23 @@ async function createRpaRequest(
   const { data, error } = await supabaseAdmin
     .from("rpa_command_requests")
     .insert({
-  template_id: RPA_COMMAND_TEMPLATE_ID,
-
-  status: "pending",
-  request_details: requestDetails,
-})
+      template_id: RPA_COMMAND_TEMPLATE_ID,
+      requester_id: CRON_REQUESTER_ID,
+      approver_id: CRON_APPROVER_ID,
+      status: "pending",
+      request_details: requestDetails,
+    })
     .select(
-  "id, status, created_at, template_id, request_details"
-)
+      `
+        id,
+        status,
+        created_at,
+        template_id,
+        requester_id,
+        approver_id,
+        request_details
+      `
+    )
     .single();
 
   if (error) {
