@@ -256,9 +256,6 @@ const [pagination, setPagination] = useState<Pagination>({
     qs.set("client_id", clientFilter);
 }
 
-if (userFilter) {
-    qs.set("user_id", userFilter);
-}
 
         const res = await fetchWithAuth(
             `/api/event-tasks?${qs.toString()}`,
@@ -394,12 +391,36 @@ if (userFilter) {
 const canUse = true;
 
 const displayTasks = useMemo(() => {
-    const list = [...tasks];
+    let list = [...tasks];
 
-    // 利用者・担当だけ画面側でソート
+    if (userFilter) {
+        const selectedUser = (meta?.users ?? []).find(
+            (u) => u.user_id === userFilter
+        );
+
+        if (selectedUser) {
+            const selectedName = selectedUser.name;
+
+            list = list.filter((task) => {
+                if (task.user_id === userFilter) {
+                    return true;
+                }
+
+                return task.assigned_user_name === selectedName;
+            });
+        }
+    }
+
+    // ↓ここから今あるソート処理はそのまま残す
 
     return list;
-}, [tasks, sortColumn, sortOrder]);
+}, [
+    tasks,
+    userFilter,
+    meta,
+    sortColumn,
+    sortOrder,
+]);
 
 if (sortColumn === "client") {
     displayTasks.sort((a, b) => {
@@ -547,30 +568,14 @@ return (
             すべて
         </SelectItem>
 
-        {Array.from(
-            new Map(
-                (tasks ?? [])
-                    .filter((t) => t.assigned_user_name)
-                    .map((t) => [
-                        t.user_id ??
-                            t.assigned_user_name!,
-                        {
-                            id:
-                                t.user_id ??
-                                t.assigned_user_name!,
-                            name:
-                                t.assigned_user_name!,
-                        },
-                    ])
-            ).values()
-        ).map((user) => (
-            <SelectItem
-                key={user.id}
-                value={user.id}
-            >
-                {user.name}
-            </SelectItem>
-        ))}
+        {(meta?.users ?? []).map((user) => (
+    <SelectItem
+        key={user.user_id}
+        value={user.user_id}
+    >
+        {user.name}
+    </SelectItem>
+))}
     </Select>
 </div>
         </div>

@@ -58,9 +58,6 @@ const dueFilter = searchParams.get("due");
 const clientFilter =
     searchParams.get("client_id");
 
-const userFilter =
-    searchParams.get("user_id");
-
 const from = (page - 1) * pageSize;
 const to = from + pageSize - 1;
 
@@ -100,13 +97,6 @@ const to = from + pageSize - 1;
     q = q.eq(
         "kaipoke_cs_id",
         clientFilter
-    );
-}
-
-if (userFilter) {
-    q = q.eq(
-        "user_id",
-        userFilter
     );
 }
 
