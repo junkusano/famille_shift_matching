@@ -226,50 +226,80 @@ const [pagination, setPagination] = useState<Pagination>({
 
     try {
         if (!meta) {
-            const m = await fetchWithAuth(
+            const metaResponse = await fetchWithAuth(
                 "/api/event-tasks/meta",
                 { method: "GET" }
-            ).then(
-                (r) =>
-                    r.json() as Promise<EventTaskMetaResponse>
             );
 
-            setMeta(m);
+            const metaJson =
+                (await metaResponse.json()) as EventTaskMetaResponse;
+
+            setMeta(metaJson);
         }
 
         const qs = new URLSearchParams();
 
-qs.set("page", String(page));
-qs.set("pageSize", "50");
-qs.set("sort", sortColumn);
-qs.set("order", sortOrder);
+        qs.set("page", String(page));
+        qs.set("pageSize", "50");
+        qs.set("sort", sortColumn);
+        qs.set("order", sortOrder);
 
-if (statusFilter) {
-    qs.set("status", statusFilter);
-}
+        if (statusFilter) {
+            qs.set("status", statusFilter);
+        }
 
-if (dueFilter) {
-    qs.set("due", dueFilter);
-}
+        if (dueFilter) {
+            qs.set("due", dueFilter);
+        }
 
-if (clientFilter) {
-    qs.set("client_id", clientFilter);
-}
+        if (clientFilter) {
+            qs.set("client_id", clientFilter);
+        }
 
-if (userFilter) {
-    qs.set("user_id", userFilter);
-}
+        if (userFilter) {
+            qs.set("user_id", userFilter);
+        }
 
-const res = await fetchWithAuth(
-    `/api/event-tasks?${qs.toString()}`,
-    { method: "GET" }
-);
+        const res = await fetchWithAuth(
+            `/api/event-tasks?${qs.toString()}`,
+            { method: "GET" }
+        );
 
-const j = (await res.json()) as ApiTasksResponse;
+        const json = (await res.json()) as Partial<ApiTasksResponse>;
 
-setTasks(j.tasks ?? []);
-setPagination(j.pagination);
+        const nextTasks = Array.isArray(json.tasks)
+            ? json.tasks
+            : [];
+
+        const nextPagination: Pagination = {
+            page:
+                typeof json.pagination?.page === "number"
+                    ? json.pagination.page
+                    : 1,
+            pageSize:
+                typeof json.pagination?.pageSize === "number"
+                    ? json.pagination.pageSize
+                    : 50,
+            total:
+                typeof json.pagination?.total === "number"
+                    ? json.pagination.total
+                    : nextTasks.length,
+            totalPages:
+                typeof json.pagination?.totalPages === "number"
+                    ? json.pagination.totalPages
+                    : 1,
+        };
+
+        setTasks(nextTasks);
+        setPagination(nextPagination);
     } catch (e: unknown) {
+        setTasks([]);
+        setPagination({
+            page: 1,
+            pageSize: 50,
+            total: 0,
+            totalPages: 1,
+        });
         setError(errMsg(e));
     } finally {
         setLoading(false);

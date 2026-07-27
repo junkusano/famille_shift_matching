@@ -54,6 +54,7 @@ const pageSize = Math.min(
         Number(searchParams.get("pageSize") ?? "50")
     )
 );
+const safePage = Math.max(1, page);
 
 
     //const admin = await isAdminByAuthUserId(supabaseAdmin, user.id);
@@ -564,16 +565,24 @@ const filteredResult = userFilter
 
 const total = filteredResult.length;
 
+const totalPages = Math.max(
+    1,
+    Math.ceil(total / pageSize)
+);
+
 const start = (page - 1) * pageSize;
 const end = start + pageSize;
 
 const paginatedResult = filteredResult.slice(start, end);
 
 return NextResponse.json({
-    data: paginatedResult,
-    total,
-    page,
-    pageSize,
+    tasks: paginatedResult,
+    pagination: {
+        page: safePage,
+        pageSize,
+        total,
+        totalPages,
+    },
 });
 }
 
