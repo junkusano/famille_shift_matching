@@ -562,28 +562,18 @@ const filteredResult = userFilter
       )
     : result;
 
-// ここでページング
 const total = filteredResult.length;
-const totalPages = Math.max(
-    1,
-    Math.ceil(total / pageSize)
-);
 
-const safePage = Math.min(page, totalPages);
-
-const start = (safePage - 1) * pageSize;
+const start = (page - 1) * pageSize;
 const end = start + pageSize;
 
 const paginatedResult = filteredResult.slice(start, end);
 
 return NextResponse.json({
-    tasks: paginatedResult,
-    pagination: {
-        page: safePage,
-        pageSize,
-        total,
-        totalPages,
-    },
+    data: paginatedResult,
+    total,
+    page,
+    pageSize,
 });
 }
 

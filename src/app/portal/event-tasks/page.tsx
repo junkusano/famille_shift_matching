@@ -239,41 +239,36 @@ const [pagination, setPagination] = useState<Pagination>({
 
         const qs = new URLSearchParams();
 
-    qs.set("page", String(page));
-    qs.set("pageSize", "50");
-    qs.set("sort", sortColumn);
-    qs.set("order", sortOrder);
+qs.set("page", String(page));
+qs.set("pageSize", "50");
+qs.set("sort", sortColumn);
+qs.set("order", sortOrder);
 
-    if (statusFilter) {
-        qs.set("status", statusFilter);
-    }
+if (statusFilter) {
+    qs.set("status", statusFilter);
+}
 
-        if (dueFilter) {
-            qs.set("due", dueFilter);
-        }
+if (dueFilter) {
+    qs.set("due", dueFilter);
+}
 
-        if (clientFilter) {
-    qs.set("client_id", clientFilter);
-
-    if (clientFilter) {
+if (clientFilter) {
     qs.set("client_id", clientFilter);
 }
 
 if (userFilter) {
     qs.set("user_id", userFilter);
 }
-}
 
+const res = await fetchWithAuth(
+    `/api/event-tasks?${qs.toString()}`,
+    { method: "GET" }
+);
 
-        const res = await fetchWithAuth(
-            `/api/event-tasks?${qs.toString()}`,
-            { method: "GET" }
-        );
+const j = (await res.json()) as ApiTasksResponse;
 
-        const j = (await res.json()) as ApiTasksResponse;
-
-        setTasks(j.tasks ?? []);
-        setPagination(j.pagination);
+setTasks(j.tasks ?? []);
+setPagination(j.pagination);
     } catch (e: unknown) {
         setError(errMsg(e));
     } finally {
