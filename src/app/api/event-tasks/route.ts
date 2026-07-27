@@ -352,15 +352,17 @@ for (const ids of chunkArray(csIds, 100)) {
      clients.push(...(data ?? []));
 }
 
-/*
 const assignedOrgIds = Array.from(
     new Set(
         clients
-            .map((c) => c.asigned_org)
-            .filter(Boolean)
+            .map((client) => client.asigned_org)
+            .filter(
+                (orgId): orgId is string =>
+                    typeof orgId === "string" &&
+                    orgId.trim().length > 0
+            )
     )
 );
-*/
 
 // 担当者を100件ずつ取得
 for (const ids of chunkArray(userIds, 100)) {
@@ -384,7 +386,7 @@ for (const ids of chunkArray(userIds, 100)) {
         users.push(...(data ?? []));
 }
 
-/*// 担当チームのマネジャーを取得
+// 担当チームのマネジャーを取得
 for (const ids of chunkArray(assignedOrgIds, 100)) {
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
@@ -413,7 +415,7 @@ for (const ids of chunkArray(assignedOrgIds, 100)) {
     }
 
     managers.push(...(data ?? []));
-}*/
+}
 
 
 // doc master 名称
@@ -558,9 +560,18 @@ for (const client of clients) {
 }));
 
 const filteredResult = userFilter
-    ? result.filter(
-          (task) => task.user_id === userFilter
-      )
+    ? result.filter((task) => {
+          if (task.user_id) {
+              return task.user_id === userFilter;
+          }
+
+          const managerUserId =
+              managerUserIdByClientId.get(
+                  task.kaipoke_cs_id
+              );
+
+          return managerUserId === userFilter;
+      })
     : result;
 
 const total = filteredResult.length;
