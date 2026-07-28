@@ -915,9 +915,51 @@ function ClaimDetailDialog({
                         </DetailSection>
                     )}
 
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                        振込完了・却下ボタンは、次の工程で追加します。現在は申請内容の閲覧のみ可能です。
-                    </div>
+                    {claim.status !== "振込済" &&
+                        claim.status !== "却下" ? (
+                        <DetailSection title="申請処理">
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                                <p className="text-sm leading-6 text-slate-600">
+                                    申請内容を確認し、「振込完了」または「却下」を選択してください。
+                                </p>
+
+                                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            window.alert(
+                                                "却下処理は現在準備中です。"
+                                            );
+                                        }}
+                                        className="rounded-lg border border-red-600 bg-white px-5 py-2.5 font-semibold text-red-700 hover:bg-red-50"
+                                    >
+                                        却下
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            window.alert(
+                                                "振込完了処理は現在準備中です。"
+                                            );
+                                        }}
+                                        className="rounded-lg bg-green-700 px-5 py-2.5 font-semibold text-white hover:bg-green-800"
+                                    >
+                                        振込完了
+                                    </button>
+                                </div>
+                            </div>
+                        </DetailSection>
+                    ) : (
+                        <div
+                            className={`rounded-xl border p-4 text-sm font-semibold ${claim.status === "振込済"
+                                    ? "border-green-200 bg-green-50 text-green-800"
+                                    : "border-red-200 bg-red-50 text-red-800"
+                                }`}
+                        >
+                            この申請は「{claim.status}」として処理されています。
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
