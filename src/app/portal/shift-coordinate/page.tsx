@@ -157,39 +157,157 @@ document_summary:
                 .select("kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko")
                 .in("kaipoke_cs_id", formatted.map(f => f.kaipoke_cs_id));
 
-            const { data: shiftDetailData } = await supabase
-  .from("cs_kaipoke_info_shift_detail_view")
-  .select("kaipoke_cs_id, shift_detail_information")
-  .in(
-    "kaipoke_cs_id",
-    formatted.map((f) => f.kaipoke_cs_id)
-  );
-
-const shiftDetailMap = new Map(
-  shiftDetailData?.map((info) => [
-    info.kaipoke_cs_id,
-    info.shift_detail_information,
-  ]) ?? []
+            const targetKaipokeCsIds = Array.from(
+  new Set(
+    formatted
+      .map((f) => String(f.kaipoke_cs_id ?? "").trim())
+      .filter(Boolean)
+  )
 );
+
+// cs_kaipoke_info側に保存されているシフト詳細情報
+const { data: shiftDetailData, error: shiftDetailError } =
+  await supabase
+    .from("cs_kaipoke_info_shift_detail_view")
+    .select("kaipoke_cs_id, shift_detail_information")
+    .in("kaipoke_cs_id", targetKaipokeCsIds);
+
+if (shiftDetailError) {
+  console.error(
+    "[shift-coordinate] shift detail fetch error:",
+    shiftDetailError
+  );
+}
+
+// cs_docs側に保存されている文書要約
+const { data: csDocsData, error: csDocsError } =
+  await supabase
+    .from("cs_docs")
+    .select(
+      "id, kaipoke_cs_id, doc_name, summary, applicable_date, created_at"
+    )
+    .in("kaipoke_cs_id", targetKaipokeCsIds)
+    .not("summary", "is", null)
+    .order("applicable_date", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
+
+if (csDocsError) {
+  console.error(
+    "[shift-coordinate] cs_docs fetch error:",
+    csDocsError
+  );
+}
+
+const shiftDetailMap = new Map<string, string>(
+  (shiftDetailData ?? []).map((info) => [
+    String(info.kaipoke_cs_id),
+    typeof info.shift_detail_information === "string"
+      ? info.shift_detail_information.trim()
+      : "",
+  ])
+);
+
+type CsDocRow = {
+  id: string;
+  kaipoke_cs_id: string | null;
+  doc_name: string | null;
+  summary: string | null;
+  applicable_date: string | null;
+  created_at: string | null;
+};
+
+function isBasicInformationDocument(doc: CsDocRow): boolean {
+  const docName = String(doc.doc_name ?? "");
+  const summary = String(doc.summary ?? "");
+
+  // 基本情報・支援内容・アセスメントを含みやすい文書
+  const targetDocNamePattern =
+    /基本情報|アセスメント|計画書|ケアプラン|障害プラン|個別援助計画|サービス等利用計画|看護サマリー|情報連携/;
+
+  // OCR要約の基本情報・計画・アセスメント欄に
+  // 実際の情報があるもの
+  const hasUsefulSummarySection =
+    /【4】|【5】/.test(summary) &&
+    !(
+      summary.includes("【4】ケアプランまたは個別援助計画") &&
+      summary.includes("【5】基本情報やアセスメント項目") &&
+      summary.match(/読み取れる内容はなし/g)?.length === 2
+    );
+
+  return (
+    targetDocNamePattern.test(docName) ||
+    hasUsefulSummarySection
+  );
+}
+
+const csDocsMap = new Map<string, string>();
+
+for (const rawDoc of (csDocsData ?? []) as CsDocRow[]) {
+  const kaipokeCsId = String(rawDoc.kaipoke_cs_id ?? "").trim();
+  const summary = String(rawDoc.summary ?? "").trim();
+
+  if (!kaipokeCsId || !summary) continue;
+  if (!isBasicInformationDocument(rawDoc)) continue;
+
+  const current = csDocsMap.get(kaipokeCsId) ?? "";
+
+  // 同じ利用者について、最大3文書まで表示する
+  const currentDocumentCount = (
+    current.match(/■ cs_docs/g) ?? []
+  ).length;
+
+  if (currentDocumentCount >= 3) continue;
+
+  const date =
+    rawDoc.applicable_date ??
+    rawDoc.created_at?.slice(0, 10) ??
+    "";
+
+  const title = rawDoc.doc_name || "文書情報";
+
+  const block = [
+    `■ cs_docs：${title}${date ? `（${date}）` : ""}`,
+    summary,
+  ].join("\n");
+
+  csDocsMap.set(
+    kaipokeCsId,
+    current ? `${current}\n\n${block}` : block
+  );
+}
 
             const csInfoMap = new Map(csInfoData?.map(info => [info.kaipoke_cs_id, info]) ?? []);
 
-            const merged = formatted.map((shift) => {
-    const csInfo = csInfoMap.get(shift.kaipoke_cs_id);
+           const merged = formatted.map((shift) => {
+  const kaipokeCsId = String(shift.kaipoke_cs_id ?? "").trim();
+  const csInfo = csInfoMap.get(shift.kaipoke_cs_id);
 
-    return {
-        ...shift,
-        cs_name: csInfo?.name ?? "",
-        commuting_flg: csInfo?.commuting_flg ?? false,
-        standard_route: csInfo?.standard_route ?? "",
-        standard_trans_ways: csInfo?.standard_trans_ways ?? "",
-        standard_purpose: csInfo?.standard_purpose ?? "",
-        biko: csInfo?.biko ?? "",
+  const kaipokeShiftDetail =
+    shiftDetailMap.get(kaipokeCsId)?.trim() ?? "";
 
-        // ★追加
-        shift_detail_information:
-            shiftDetailMap.get(shift.kaipoke_cs_id) ?? "",
-    };
+  const csDocsDetail =
+    csDocsMap.get(kaipokeCsId)?.trim() ?? "";
+
+  const combinedShiftDetail = [
+    kaipokeShiftDetail
+      ? `■ 登録済みシフト詳細\n${kaipokeShiftDetail}`
+      : "",
+    csDocsDetail,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  return {
+    ...shift,
+    cs_name: csInfo?.name ?? "",
+    commuting_flg: csInfo?.commuting_flg ?? false,
+    standard_route: csInfo?.standard_route ?? "",
+    standard_trans_ways: csInfo?.standard_trans_ways ?? "",
+    standard_purpose: csInfo?.standard_purpose ?? "",
+    biko: csInfo?.biko ?? "",
+
+    shift_detail_information: combinedShiftDetail,
+  };
 });
             setShifts(merged);
             setFilteredShifts(merged);
