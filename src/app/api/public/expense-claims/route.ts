@@ -6,6 +6,16 @@ export const dynamic = "force-dynamic";
 const MAX_EXPENSE_COUNT = 5;
 const MAX_RECEIPT_COUNT = 10;
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+const ALLOWED_RECEIPT_TYPES = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "application/pdf",
+]);
+
 function json(message: unknown, status = 200) {
     return NextResponse.json(message, { status });
 }
@@ -52,6 +62,28 @@ function isValidAccountType(
     value: string
 ): value is "普通" | "当座" {
     return value === "普通" || value === "当座";
+}
+
+function getExtensionFromMimeType(type: string) {
+    switch (type) {
+        case "image/jpeg":
+            return "jpg";
+
+        case "image/png":
+            return "png";
+
+        case "image/webp":
+            return "webp";
+
+        case "image/gif":
+            return "gif";
+
+        case "application/pdf":
+            return "pdf";
+
+        default:
+            return "bin";
+    }
 }
 
 export async function POST(req: NextRequest) {
@@ -258,11 +290,6 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        /*
-         * 現段階では添付ファイルの実体保存処理はまだありません。
-         * ファイルを選択した状態で送信すると、保存されない事故を防ぐため
-         * エラーにします。
-         */
         const receiptFiles = formData
             .getAll("receipt_files")
             .filter(
@@ -280,45 +307,57 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        if (receiptFiles.length > 0) {
-            return json(
-                {
-                    ok: false,
-                    message:
-                        "レシート添付機能は現在準備中です。動作確認時はレシートを添付せずに送信してください。",
-                },
-                400
-            );
+        for (const file of receiptFiles) {
+            if (!ALLOWED_RECEIPT_TYPES.has(file.type)) {
+                return json(
+                    {
+                        ok: false,
+                        message: `「${file.name}」は添付できません。画像またはPDFを選択してください。`,
+                    },
+                    400
+                );
+            }
+
+            if (file.size > MAX_FILE_SIZE) {
+                return json(
+                    {
+                        ok: false,
+                        message: `「${file.name}」は10MBを超えています。`,
+                    },
+                    400
+                );
+            }
         }
 
-        const { data, error } = await supabaseAdmin
-            .from("external_expense_claims")
-            .insert({
-                name,
-                phone,
-                email,
-                work_date: workDate,
+        const { data: claim, error: insertError } =
+            await supabaseAdmin
+                .from("external_expense_claims")
+                .insert({
+                    name,
+                    phone,
+                    email,
+                    work_date: workDate,
 
-                ...expenseData,
+                    ...expenseData,
 
-                total_amount: calculatedTotalAmount,
-                receipt_files: [],
+                    total_amount: calculatedTotalAmount,
+                    receipt_files: [],
 
-                bank_name: bankName,
-                branch_name: branchName,
-                account_type: accountType,
-                account_number: accountNumber,
-                account_holder: accountHolder,
+                    bank_name: bankName,
+                    branch_name: branchName,
+                    account_type: accountType,
+                    account_number: accountNumber,
+                    account_holder: accountHolder,
 
-                status: "申請中",
-            })
-            .select("id, created_at, status")
-            .single();
+                    status: "申請中",
+                })
+                .select("id, created_at, status")
+                .single();
 
-        if (error) {
+        if (insertError || !claim) {
             console.error(
                 "[public-expense-claims] insert failed",
-                error
+                insertError
             );
 
             return json(
@@ -331,17 +370,139 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        type ReceiptFileRecord = {
+            name: string;
+            path: string;
+            size: number;
+            type: string;
+        };
+
+        const uploadedReceipts: ReceiptFileRecord[] = [];
+
+        try {
+            for (
+                let index = 0;
+                index < receiptFiles.length;
+                index += 1
+            ) {
+                const file = receiptFiles[index];
+
+                const originalExtension =
+                    file.name.includes(".")
+                        ? file.name
+                            .split(".")
+                            .pop()
+                            ?.toLowerCase()
+                        : "";
+
+                const extension =
+                    originalExtension?.replace(
+                        /[^a-z0-9]/g,
+                        ""
+                    ) ||
+                    getExtensionFromMimeType(file.type);
+
+                const storagePath =
+                    `${claim.id}/` +
+                    `${String(index + 1).padStart(2, "0")}_` +
+                    `${crypto.randomUUID()}.${extension}`;
+
+                const fileBuffer = Buffer.from(
+                    await file.arrayBuffer()
+                );
+
+                const { error: uploadError } =
+                    await supabaseAdmin.storage
+                        .from("expense-receipts")
+                        .upload(storagePath, fileBuffer, {
+                            contentType:
+                                file.type ||
+                                "application/octet-stream",
+                            upsert: false,
+                        });
+
+                if (uploadError) {
+                    throw uploadError;
+                }
+
+                uploadedReceipts.push({
+                    name: file.name,
+                    path: storagePath,
+                    size: file.size,
+                    type: file.type,
+                });
+            }
+
+            const { error: updateError } =
+                await supabaseAdmin
+                    .from("external_expense_claims")
+                    .update({
+                        receipt_files: uploadedReceipts,
+                    })
+                    .eq("id", claim.id);
+
+            if (updateError) {
+                throw updateError;
+            }
+        } catch (uploadError) {
+            console.error(
+                "[public-expense-claims] receipt upload failed",
+                uploadError
+            );
+
+            const uploadedPaths = uploadedReceipts.map(
+                (receipt) => receipt.path
+            );
+
+            if (uploadedPaths.length > 0) {
+                const { error: removeError } =
+                    await supabaseAdmin.storage
+                        .from("expense-receipts")
+                        .remove(uploadedPaths);
+
+                if (removeError) {
+                    console.error(
+                        "[public-expense-claims] receipt cleanup failed",
+                        removeError
+                    );
+                }
+            }
+
+            const { error: deleteClaimError } =
+                await supabaseAdmin
+                    .from("external_expense_claims")
+                    .delete()
+                    .eq("id", claim.id);
+
+            if (deleteClaimError) {
+                console.error(
+                    "[public-expense-claims] claim cleanup failed",
+                    deleteClaimError
+                );
+            }
+
+            return json(
+                {
+                    ok: false,
+                    message:
+                        "レシート画像の保存に失敗しました。画像サイズをご確認のうえ、再度お試しください。",
+                },
+                500
+            );
+        }
+
         console.log("[public-expense-claims] created", {
-            claimId: data.id,
-            createdAt: data.created_at,
+            claimId: claim.id,
+            createdAt: claim.created_at,
+            receiptCount: uploadedReceipts.length,
         });
 
         return json(
             {
                 ok: true,
                 message: "経費精算を受け付けました。",
-                claimId: data.id,
-                status: data.status,
+                claimId: claim.id,
+                status: claim.status,
             },
             201
         );
