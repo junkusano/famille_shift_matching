@@ -12,7 +12,9 @@ import { supabase } from "@/lib/supabase";
 type ReceiptFile = {
     name?: string;
     path?: string;
-    url?: string;
+    size?: number;
+    type?: string;
+    url?: string | null;
 };
 
 type ExpenseClaim = {
@@ -840,19 +842,64 @@ function ClaimDetailDialog({
                     <DetailSection title="レシート">
                         {Array.isArray(claim.receipt_files) &&
                             claim.receipt_files.length > 0 ? (
-                            <ul className="space-y-2">
+                            <div className="grid gap-4 sm:grid-cols-2">
                                 {claim.receipt_files.map(
-                                    (file, index) => (
-                                        <li
-                                            key={`${file.path ?? file.name}-${index}`}
-                                            className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"
-                                        >
-                                            {file.name ??
-                                                `レシート${index + 1}`}
-                                        </li>
-                                    )
+                                    (file, index) => {
+                                        const fileName =
+                                            file.name ??
+                                            `レシート${index + 1}`;
+
+                                        const isImage =
+                                            file.type?.startsWith(
+                                                "image/"
+                                            ) ?? false;
+
+                                        return (
+                                            <div
+                                                key={`${file.path ?? file.name}-${index}`}
+                                                className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                                            >
+                                                {file.url &&
+                                                    isImage ? (
+                                                    <a
+                                                        href={file.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="block bg-white"
+                                                    >
+                                                        <img
+                                                            src={file.url}
+                                                            alt={fileName}
+                                                            className="h-64 w-full object-contain"
+                                                        />
+                                                    </a>
+                                                ) : null}
+
+                                                <div className="p-4">
+                                                    <p className="break-all font-medium text-slate-800">
+                                                        {fileName}
+                                                    </p>
+
+                                                    {file.url ? (
+                                                        <a
+                                                            href={file.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="mt-3 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                                                        >
+                                                            レシートを開く
+                                                        </a>
+                                                    ) : (
+                                                        <p className="mt-2 text-sm text-red-600">
+                                                            ファイルを開けません。
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    }
                                 )}
-                            </ul>
+                            </div>
                         ) : (
                             <p className="text-sm text-slate-500">
                                 添付ファイルはありません。

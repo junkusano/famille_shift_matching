@@ -203,9 +203,78 @@ export async function GET(req: NextRequest) {
             );
         }
 
+        type ReceiptFile = {
+            name?: string;
+            path?: string;
+            size?: number;
+            type?: string;
+            url?: string | null;
+        };
+
+        const claimsWithReceiptUrls = await Promise.all(
+            (data ?? []).map(async (claim) => {
+                const receiptFiles = Array.isArray(
+                    claim.receipt_files
+                )
+                    ? (claim.receipt_files as ReceiptFile[])
+                    : [];
+
+                const receiptFilesWithUrls =
+                    await Promise.all(
+                        receiptFiles.map(async (file) => {
+                            if (!file.path) {
+                                return {
+                                    ...file,
+                                    url: null,
+                                };
+                            }
+
+                            const {
+                                data: signedUrlData,
+                                error: signedUrlError,
+                            } = await supabaseAdmin.storage
+                                .from("expense-receipts")
+                                .createSignedUrl(
+                                    file.path,
+                                    60 * 60
+                                );
+
+                            if (signedUrlError) {
+                                console.error(
+                                    "[admin-expense-claims] signed URL creation failed",
+                                    {
+                                        claimId: claim.id,
+                                        path: file.path,
+                                        error: signedUrlError,
+                                    }
+                                );
+
+                                return {
+                                    ...file,
+                                    url: null,
+                                };
+                            }
+
+                            return {
+                                ...file,
+                                url:
+                                    signedUrlData.signedUrl ??
+                                    null,
+                            };
+                        })
+                    );
+
+                return {
+                    ...claim,
+                    receipt_files:
+                        receiptFilesWithUrls,
+                };
+            })
+        );
+
         return json({
             ok: true,
-            data: data ?? [],
+            data: claimsWithReceiptUrls,
         });
     } catch (error) {
         console.error(
