@@ -386,15 +386,14 @@ for (const ids of chunkArray(userIds, 100)) {
         users.push(...(data ?? []));
 }
 
-// 担当チームのマネジャーを取得
+// 担当チームの職員を取得
 for (const ids of chunkArray(assignedOrgIds, 100)) {
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
         .select(
-            "user_id,org_unit_id,last_name_kanji,first_name_kanji,system_role"
+            "user_id,org_unit_id,last_name_kanji,first_name_kanji"
         )
-        .in("org_unit_id", ids)
-        .ilike("system_role", "manager");
+        .in("org_unit_id", ids);
 
     if (error) {
         console.error(
