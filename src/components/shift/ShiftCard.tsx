@@ -848,6 +848,9 @@ const MiniInfo = () => {
   const shiftDetailInformation = pickNonEmptyString(shift, [
     "shift_detail_information",
   ]);
+  const basicInformation = pickNonEmptyString(shift, [
+  "basic_information",
+]);
 
   return (
     <>
@@ -921,10 +924,22 @@ const MiniInfo = () => {
   </div>
 )}
 
-{shiftDetailInformation && (
+{basicInformation && (
   <div className={biko ? "border-t pt-4" : ""}>
     <strong className="block text-base">
-      基本情報サマリ
+      基本情報
+    </strong>
+
+    <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+      {basicInformation}
+    </p>
+  </div>
+)}
+
+{shiftDetailInformation && (
+  <div className={(biko || basicInformation) ? "border-t pt-4" : ""}>
+    <strong className="block text-base">
+      詳細情報
     </strong>
 
     <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">

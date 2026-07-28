@@ -285,9 +285,16 @@ const merged = formatted.map((shift) => {
     shift_detail_information:
       kaipokeShiftDetail,
 
+      
+
     // cs_docsの【5】基本情報だけ
     document_summary:
-      csDocsBasicInformation,
+  typeof shift.document_summary === "string"
+    ? shift.document_summary.trim()
+    : "",
+
+basic_information:
+  csDocsBasicInformation,
   };
 });
 
