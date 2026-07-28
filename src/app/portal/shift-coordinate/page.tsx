@@ -184,6 +184,27 @@ const targetKaipokeCsIds = Array.from(
       .filter(Boolean)
   )
 );
+
+const { data: shiftDetailData, error: shiftDetailError } =
+  await supabase
+    .from("cs_kaipoke_info_shift_detail_view")
+    .select("kaipoke_cs_id, shift_detail_information")
+    .in("kaipoke_cs_id", targetKaipokeCsIds);
+
+if (shiftDetailError) {
+  console.error(
+    "[shift-coordinate] shift detail fetch error:",
+    shiftDetailError
+  );
+}
+
+const shiftDetailMap = new Map(
+  (shiftDetailData ?? []).map((row) => [
+    String(row.kaipoke_cs_id),
+    row.shift_detail_information ?? "",
+  ])
+);
+
 // cs_docs側に保存されている文書要約
 const { data: csDocsData, error: csDocsError } =
   await supabase
@@ -241,9 +262,7 @@ const merged = formatted.map((shift) => {
   const csInfo = csInfoMap.get(kaipokeCsId);
 
   const kaipokeShiftDetail =
-    typeof csInfo?.shift_detail_information === "string"
-      ? csInfo.shift_detail_information.trim()
-      : "";
+  shiftDetailMap.get(kaipokeCsId)?.trim() ?? "";
 
   const csDocsBasicInformation =
     csDocsMap.get(kaipokeCsId)?.trim() ?? "";
