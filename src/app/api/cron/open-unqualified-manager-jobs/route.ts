@@ -28,9 +28,8 @@ const HEADCOUNT = 3;
  *
  * PAD側では、この値で通常のタイミー募集と切り分けます。
  */
-const ACTION = "open_unqualified_manager_job";
+const ACTION = "create_taimee_job";
 const COMMAND = "create_job";
-const JOB_TYPE = "unqualified_manager";
 const EXECUTION_MODE = "test";
 
 /**
@@ -204,39 +203,33 @@ function isAuthorized(req: NextRequest): boolean {
 /**
  * 同一開催日のリクエストが既に存在するか確認します。
  *
- * pending:
- *   PAD処理待ち
- *
- * processing:
- *   PAD処理中
- *
- * done:
- *   処理完了済み
- *
- * testで失敗したリクエストを再実行できるように、
- * failedは重複判定から除外しています。
+ * failedは重複判定から除外します。
  */
 async function findExistingRequest(
   shiftStartDate: string
 ) {
-  
-
   const { data, error } = await supabaseAdmin
     .from("rpa_command_requests")
-    .select("id, status, created_at, request_details")
-
+    .select(
+      "id, status, created_at, request_details"
+    )
     .eq(
-  "template_id",
-  RPA_COMMAND_TEMPLATE_ID
-)
-    .in("status", ["pending", "processing", "done"])
+      "template_id",
+      RPA_COMMAND_TEMPLATE_ID
+    )
+    .in(
+      "status",
+      ["pending", "processing", "done"]
+    )
     .contains("request_details", {
-  action: ACTION,
-  shift_start_date: shiftStartDate,
-  shift_start_time: JOB_START_TIME,
-  shift_end_time: JOB_END_TIME,
-})
-    .order("created_at", { ascending: false })
+      action: ACTION,
+      shift_start_date: shiftStartDate,
+      shift_start_time: JOB_START_TIME,
+      shift_end_time: JOB_END_TIME,
+    })
+    .order("created_at", {
+      ascending: false,
+    })
     .limit(1)
     .maybeSingle();
 
@@ -255,50 +248,22 @@ async function findExistingRequest(
 async function createRpaRequest(
   shiftStartDate: string
 ) {
+  const requestedAt = new Date().toISOString();
+
   const requestDetails = {
     action: ACTION,
     command: COMMAND,
 
-    requester_id: CRON_REQUESTER_ID,
-    approver_id: CRON_APPROVER_ID,
-
-    /**
-     * 現在はテスト実行です。
-     *
-     * PAD側でこの値を確認し、
-     * テスト用の処理に分岐してください。
-     *
-     * 本番移行時は "production" などに変更します。
-     */
-    execution_mode: EXECUTION_MODE,
-
-    /**
-     * PAD側の処理切り分け用
-     */
-    job_type: JOB_TYPE,
-
-    /**
-     * 募集人数
-     *
-     * PAD側では固定値を使用せず、
-     * このheadcountをタイミーの募集人数へ設定します。
-     */
-    headcount: HEADCOUNT,
-    headcount_type: "fixed_cron_headcount",
-    headcount_source:
-      "open_unqualified_manager_jobs_cron",
-
+    target_date: shiftStartDate,
     shift_start_date: shiftStartDate,
     shift_start_time: JOB_START_TIME,
     shift_end_time: JOB_END_TIME,
 
+    template_name:
+      "タイミー募集（無資格マネージャー）",
+    requester_user_id: "junkusano",
     created_from: CREATED_FROM,
-
-    /**
-     * 調査用情報
-     */
-    requested_at: new Date().toISOString(),
-    timezone: "Asia/Tokyo",
+    requested_at: requestedAt,
   };
 
   const { data, error } = await supabaseAdmin
