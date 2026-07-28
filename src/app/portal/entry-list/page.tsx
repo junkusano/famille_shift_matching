@@ -191,7 +191,6 @@ function calculateAge(entry: EntryData): number | null {
 
   return age;
 }
-const DELETE_AFTER_DAYS = 14;
 
 function canDeleteEntry(entry: EntryData): boolean {
   // usersとの紐づけがある場合は削除不可
@@ -219,19 +218,7 @@ function canDeleteEntry(entry: EntryData): boolean {
     return false;
   }
 
-  const createdAt = new Date(entry.created_at);
-
-  if (Number.isNaN(createdAt.getTime())) {
-    return false;
-  }
-
-  const deletableDate = new Date(createdAt);
-
-  deletableDate.setDate(
-    deletableDate.getDate() + DELETE_AFTER_DAYS
-  );
-
-  return new Date() >= deletableDate;
+  return true;
 }
 
 export default function EntryListPage() {
