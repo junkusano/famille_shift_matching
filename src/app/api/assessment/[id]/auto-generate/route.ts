@@ -232,9 +232,19 @@ function normalizeByTemplate(
             ? (gen.sheets as GeneratedSheetPartial[])
             : [];
 
-    const allGeneratedRows: GeneratedRowPartial[] = [];
+    type GeneratedRowWithSheet = {
+        sheetKey: string;
+        row: GeneratedRowPartial;
+    };
+
+    const generatedRowsWithSheet: GeneratedRowWithSheet[] = [];
 
     for (const sheet of genSheets) {
+        const sheetKey =
+            typeof sheet?.key === "string"
+                ? sheet.key
+                : "";
+
         const rows: GeneratedRowPartial[] =
             Array.isArray(sheet?.rows)
                 ? (sheet.rows as GeneratedRowPartial[])
@@ -245,7 +255,10 @@ function normalizeByTemplate(
                 row &&
                 typeof row === "object"
             ) {
-                allGeneratedRows.push(row);
+                generatedRowsWithSheet.push({
+                    sheetKey,
+                    row,
+                });
             }
         }
     }
@@ -265,21 +278,59 @@ function normalizeByTemplate(
 
                 rows: templateSheet.rows.map(
                     (templateRow) => {
-                        const generatedRow =
-                            allGeneratedRows.find(
-                                (row) =>
-                                    typeof row.key ===
+                        const sameSheetRows =
+                            generatedRowsWithSheet.filter(
+                                (item) =>
+                                    item.sheetKey ===
+                                    templateSheet.key,
+                            );
+
+                        const sameSheetKeyMatches =
+                            sameSheetRows.filter(
+                                (item) =>
+                                    typeof item.row.key ===
                                     "string" &&
-                                    row.key ===
+                                    item.row.key ===
                                     templateRow.key,
-                            ) ??
-                            allGeneratedRows.find(
-                                (row) =>
-                                    typeof row.label ===
+                            );
+
+                        const sameSheetLabelMatches =
+                            sameSheetRows.filter(
+                                (item) =>
+                                    typeof item.row.label ===
                                     "string" &&
-                                    row.label ===
+                                    item.row.label ===
                                     templateRow.label,
                             );
+
+                        const globalKeyMatches =
+                            generatedRowsWithSheet.filter(
+                                (item) =>
+                                    typeof item.row.key ===
+                                    "string" &&
+                                    item.row.key ===
+                                    templateRow.key,
+                            );
+
+                        const globalLabelMatches =
+                            generatedRowsWithSheet.filter(
+                                (item) =>
+                                    typeof item.row.label ===
+                                    "string" &&
+                                    item.row.label ===
+                                    templateRow.label,
+                            );
+
+                        const generatedRow =
+                            sameSheetKeyMatches.length === 1
+                                ? sameSheetKeyMatches[0].row
+                                : sameSheetLabelMatches.length === 1
+                                    ? sameSheetLabelMatches[0].row
+                                    : globalKeyMatches.length === 1
+                                        ? globalKeyMatches[0].row
+                                        : globalLabelMatches.length === 1
+                                            ? globalLabelMatches[0].row
+                                            : undefined;
 
                         const generatedRemark =
                             typeof generatedRow?.remark ===
@@ -626,45 +677,153 @@ export async function POST(req: NextRequest, { params }: Ctx) {
                 (shifts ?? []).length,
         });
 
+        // テンプレート内の重複row keyを確認
+        const templateKeyLocations = new Map<string, string[]>();
+
+        for (const sheet of templateContent.sheets) {
+            for (const row of sheet.rows) {
+                const locations =
+                    templateKeyLocations.get(row.key) ?? [];
+
+                locations.push(
+                    `${sheet.key}:${row.label}`,
+                );
+
+                templateKeyLocations.set(
+                    row.key,
+                    locations,
+                );
+            }
+        }
+
+        const duplicateTemplateKeys = [
+            ...templateKeyLocations.entries(),
+        ]
+            .filter(
+                ([, locations]) =>
+                    locations.length > 1,
+            )
+            .map(([key, locations]) => ({
+                key,
+                locations,
+            }));
+
+        console.log(
+            "[assessment:auto-generate] duplicate template row keys",
+            {
+                assessment_id: id,
+                service_kind: serviceKind,
+                duplicate_count:
+                    duplicateTemplateKeys.length,
+                duplicates:
+                    duplicateTemplateKeys,
+            },
+        );
+
         // 4) OpenAI生成
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY,
+        });
 
         const system = `
-あなたは介護/障害福祉のアセスメント作成補助AIです。
-与えられた資料だけを根拠に、アセスメント票の各項目を埋めます。
+あなたは、介護保険および障害福祉サービスの実務に精通した
+アセスメント作成補助AIです。
+
+入力された資料を根拠として、template_content に含まれる
+すべてのシート・すべての行を確認し、
+該当する項目へ具体的な情報を反映してください。
 
 重要ルール:
-- 出力は JSONのみ。説明文は禁止。
-- 返すJSONは template_content と同じ階層構造を目標にしてください。
-- sheets[].key は、入力テンプレートの sheets[].key と完全一致させてください。
-- rows[].key は、入力テンプレートの rows[].key と完全一致させてください。
-- key を日本語名、ラベル名、別名に変更してはいけません。
-- label は変更してはいけません。
-- rows[].check は "CIRCLE" または "NONE"。
-- 資料に明確な根拠がある項目のみ check="CIRCLE" にしてください。
-- remark または hope を入れる場合は、原則 check も "CIRCLE" にしてください。
-- 資料から読み取れる現状、観察、留意点がある場合のみ remark に短く記載してください。
-- 資料から読み取れる本人・家族の希望や要望がある場合のみ hope に短く記載してください。
-- 推測、創作、一般論による補完は禁止です。
-- 空欄を避けるために一般的な介護文を作ることは禁止です。
-- 資料から読み取れない項目は check="NONE", remark:"", hope:"" のままにしてください。
-- 利用者本人の氏名、家族氏名、職員名は remark や hope に入れないでください。
-- 「困難である」「できない」だけで終わる記述は避け、資料にある内容を現状・留意点として簡潔に要約してください。
-- 担当者会議議事録がある場合は、基本情報やサービス等利用計画がなくても、議事録の内容だけを根拠に生成してよいです。
-- 医療判断、診断、過度な断定は禁止です。
-- inputType="radio" の行は、資料に明確な根拠がある場合、options内のvalueを rows[].value に設定してください。
-- rows[].value は、必ず入力テンプレートのoptionsに存在する値を使用してください。
-- 判断できない場合は、入力テンプレートのdefaultValueまたはvalueを変更しないでください。
-- inputType、defaultValue、options、unit、placeholder、group、widthは出力内容を変更しないでください。
+- 出力はJSONのみとし、JSON以外の説明文を出力してはいけません。
+- template_contentと同じ階層構造で返してください。
+- template_contentにある全sheets・全rowsを出力してください。
+- sheets[].keyは入力テンプレートと完全一致させてください。
+- rows[].keyは入力テンプレートと完全一致させてください。
+- keyを日本語名、ラベル名、別名へ変更してはいけません。
+- labelは変更してはいけません。
+- inputType、defaultValue、options、unit、placeholder、group、widthは変更してはいけません。
+- rows[].checkは"CIRCLE"または"NONE"のどちらかにしてください。
 
-remark: 資料から読み取れる現状/観察/留意点
-hope: 資料から読み取れる本人・家族の希望/要望
+アセスメントへの反映方法:
+- 資料全体を確認し、各事実が該当するすべてのアセスメント項目へ反映してください。
+- 同じ事実を、関連する複数の項目へ記載して構いません。
+- 1つの事実を1つの項目だけに記載して終了してはいけません。
+- 各rows[].labelの意味を確認し、その項目に関連する事実が資料内にないか必ず探してください。
+- 資料内の情報を単に要約するのではなく、アセスメント票の各項目へ振り分けてください。
+- 疾病名だけを記載せず、資料に明記された治療、通院頻度、医療機関、服薬、健康管理、介護サービス、生活上の対応も関連項目へ反映してください。
+- サービス利用内容は、現在利用しているサービス、通院支援、訪問介護、入浴介助、送迎、生活支援などの関連項目へ個別に反映してください。
+- 本人・家族の希望は、該当するhopeへ反映してください。
+- 現状、観察事項、支援内容、留意事項はremarkへ反映してください。
+
+特に見落としてはいけない情報:
+- 疾病名、既往歴、合併症
+- 定期受診、通院先、通院頻度
+- 人工透析、酸素療法、インスリン、経管栄養などの継続的医療
+- 服薬、健康管理、血圧管理、食事・水分に関する資料上の指示
+- 訪問介護、通所介護、訪問看護、配食、送迎などの利用サービス
+- 入浴、排泄、移動、食事、整容、服薬などの介助内容
+- 独居、家族支援の有無、緊急連絡先
+- 本人・家族が希望する生活
+- ケアプランの長期目標、短期目標
+- 訪問記録に記載された実際の状態や支援内容
+
+医療情報の反映:
+- 資料に「慢性腎不全」「血液透析」「週3回通院」などの記載がある場合は、
+  疾病・健康状態だけでなく、治療状況、定期通院、医療機関の利用、
+  通院支援、現在利用しているサービスなど、該当するすべての項目へ反映してください。
+- 資料に通院頻度が記載されている場合は、その頻度を省略してはいけません。
+- 資料に医療機関名が記載されている場合は、該当する医療・通院項目へ記載してください。
+- 資料に透析日の疲労、血圧低下、食事制限、水分制限などが明記されている場合は、
+  その内容を該当する健康管理・生活上の留意事項へ反映してください。
+- 資料に記載されていない症状や制限を、一般的な医学知識だけで追加してはいけません。
+
+根拠に関するルール:
+- 資料に明確な根拠がある項目はcheck="CIRCLE"にしてください。
+- remarkまたはhopeを記載する場合は、原則としてcheck="CIRCLE"にしてください。
+- 資料から直接確認できる事実は、複数の関連項目に反映して構いません。
+- 資料に記載されていない具体的な症状、介助量、リスク、本人の状態を創作してはいけません。
+- 医学的な診断、将来予測、資料にない因果関係を断定してはいけません。
+- 空欄を埋める目的で一般的な介護文を作ってはいけません。
+- 資料から読み取れない項目はcheck="NONE", remark="", hope=""としてください。
+- 「不明」「記載なし」という文章を大量にremarkへ記載せず、根拠がなければ空欄にしてください。
+
+文章の書き方:
+- remarkには、資料から確認できる現状、治療状況、支援内容、観察事項、留意事項を具体的に記載してください。
+- hopeには、資料から確認できる本人または家族の希望・要望を記載してください。
+- 疾病名だけ、サービス名だけで終わらず、資料にある頻度や支援内容も併記してください。
+- 「困難である」「できない」だけで終わらず、資料にある具体的な状況を記載してください。
+- 利用者本人、家族、職員の氏名はremarkやhopeに入れないでください。
+- 同じ内容を関連する複数項目に記載する場合も、各項目のlabelに合う表現へ調整してください。
+
+radio項目:
+- inputType="radio"の行は、資料に明確な根拠がある場合のみ、
+  options内に存在するvalueをrows[].valueへ設定してください。
+- rows[].valueは、必ず入力テンプレートのoptions内に存在する値を使用してください。
+- 判断できない場合は、入力テンプレートのdefaultValueまたはvalueを変更しないでください。
+
+出力前の確認:
+1. template_contentの全行を確認したか。
+2. 疾病、医療処置、通院、利用サービスを見落としていないか。
+3. 同じ根拠を、関連する複数項目へ適切に反映したか。
+4. 資料にある頻度、医療機関、具体的な支援内容を省略していないか。
+5. 資料にない症状やリスクを創作していないか。
+6. key、label、inputType、optionsなどのテンプレート定義を変更していないか。
+
+remark: 資料から確認できる現状、治療状況、支援内容、観察事項、留意点
+hope: 資料から確認できる本人・家族の希望、要望
 `.trim();
         const user = {
+            service_kind: serviceKind,
             materials,
             template_content: templateContent,
-            assessed_on: assessment.assessed_on ?? null,
+            assessed_on:
+                assessment.assessed_on ?? null,
             kaipoke_cs_id: kaipokeCsId,
+
+            generation_instruction:
+                isElderCareKind(serviceKind)
+                    ? "介護保険のアセスメントとして、疾病、継続的医療、定期通院、利用サービス、ADL・IADL、本人の希望を関連する全項目へ振り分けてください。"
+                    : "障害福祉のアセスメントとして、障害特性、生活状況、支援内容、本人の希望を関連する全項目へ振り分けてください。",
         };
 
         console.log("[assessment:auto-generate] calling openai", {
