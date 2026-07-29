@@ -141,19 +141,21 @@ function getNextEventDate() {
 
   let daysToAdd: number;
 
-  if (nowJst.weekday === 1) {
-    // 月曜日 → 次の木曜日
-    daysToAdd = 3;
-  } else if (nowJst.weekday === 4) {
-    // 木曜日 → 次の月曜日
-    daysToAdd = 4;
-  } else {
-    return {
-      ok: false as const,
-      reason: "not_target_weekday",
-      nowJst,
-    };
-  }
+  // if (nowJst.weekday === 1) {
+//   // 月曜日 → 木曜日
+//   daysToAdd = 3;
+// } else
+
+if (nowJst.weekday === 3) {
+  // 水曜日（テスト）
+  daysToAdd = 2;
+
+// } else if (nowJst.weekday === 4) {
+//   // 木曜日 → 翌週月曜日
+//   daysToAdd = 4;
+} else {
+  return null;
+}
 
   const nextDate = addDaysToDate(
     nowJst.year,
@@ -332,7 +334,8 @@ async function handler(req: NextRequest) {
       console.info(
         "[open-unqualified-manager-jobs] skipped",
         {
-          reason: nextEvent.reason,
+          //reason: nextEvent.reason,
+          reason: "skip",
           nowJst: nextEvent.nowJst,
         }
       );
@@ -340,7 +343,8 @@ async function handler(req: NextRequest) {
       return json({
         ok: true,
         skipped: true,
-        reason: nextEvent.reason,
+        //reason: nextEvent.reason,
+        reason: "skip",
         message:
           "本日は対象曜日ではないため、処理をスキップしました。",
         now_jst: nextEvent.nowJst,
