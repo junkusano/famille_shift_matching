@@ -30,7 +30,7 @@ const HEADCOUNT = 3;
  */
 const ACTION = "create_taimee_job";
 const COMMAND = "create_job";
-const EXECUTION_MODE = "test";
+const EXECUTION_MODE = "production";
 
 /**
  * このCron APIの識別子
@@ -141,20 +141,18 @@ function getNextEventDate() {
 
   let daysToAdd: number;
 
-  // if (nowJst.weekday === 1) {
-//   // 月曜日 → 木曜日
-//   daysToAdd = 3;
-// } else
-
-if (nowJst.weekday === 3) {
-  // 水曜日（テスト）
-  daysToAdd = 2;
-
-// } else if (nowJst.weekday === 4) {
-//   // 木曜日 → 翌週月曜日
-//   daysToAdd = 4;
+if (nowJst.weekday === 1) {
+  // 月曜日 → 同じ週の木曜日
+  daysToAdd = 3;
+} else if (nowJst.weekday === 4) {
+  // 木曜日 → 翌週の月曜日
+  daysToAdd = 4;
 } else {
-  return null;
+  return {
+    ok: false,
+    reason: "not_target_weekday",
+    nowJst,
+  };
 }
 
   const nextDate = addDaysToDate(
@@ -269,14 +267,15 @@ async function createRpaRequest(
   };
 
   const { data, error } = await supabaseAdmin
-    .from("rpa_command_requests")
-    .insert({
-      template_id: RPA_COMMAND_TEMPLATE_ID,
-      requester_id: CRON_REQUESTER_ID,
-      approver_id: CRON_APPROVER_ID,
-      status: "pending",
-      request_details: requestDetails,
-    })
+  .from("rpa_command_requests")
+  .insert({
+    template_id: RPA_COMMAND_TEMPLATE_ID,
+    requester_id: CRON_REQUESTER_ID,
+    approver_id: CRON_APPROVER_ID,
+    status: "approved",
+    approved_at: requestedAt,
+    request_details: requestDetails,
+  })
     .select(
       `
         id,
@@ -334,8 +333,7 @@ async function handler(req: NextRequest) {
       console.info(
         "[open-unqualified-manager-jobs] skipped",
         {
-          //reason: nextEvent.reason,
-          reason: "skip",
+          reason: nextEvent.reason,
           nowJst: nextEvent.nowJst,
         }
       );
@@ -343,8 +341,7 @@ async function handler(req: NextRequest) {
       return json({
         ok: true,
         skipped: true,
-        //reason: nextEvent.reason,
-        reason: "skip",
+        reason: nextEvent.reason,
         message:
           "本日は対象曜日ではないため、処理をスキップしました。",
         now_jst: nextEvent.nowJst,
