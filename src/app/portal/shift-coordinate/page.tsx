@@ -152,70 +152,48 @@ document_summary:
 
             //alert("sorted length:" + sorted.length);
 
-            const { data: csInfoData, error: csInfoError } = await supabase
-  .from("cs_kaipoke_info")
-  .select(
-    `
-      kaipoke_cs_id,
-      name,
-      commuting_flg,
-      standard_route,
-      standard_trans_ways,
-      standard_purpose,
-      biko,
-      shift_detail_information
-    `
-  )
+            const { data: csInfoData } = await supabase
+                .from("cs_kaipoke_info")
+                .select("kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko")
+                .in("kaipoke_cs_id", formatted.map(f => f.kaipoke_cs_id));
+
+            const { data: shiftDetailData } = await supabase
+  .from("cs_kaipoke_info_shift_detail_view")
+  .select("kaipoke_cs_id, shift_detail_information")
   .in(
     "kaipoke_cs_id",
     formatted.map((f) => f.kaipoke_cs_id)
   );
 
-if (csInfoError) {
-  console.error(
-    "[shift-coordinate] cs_kaipoke_info fetch error:",
-    csInfoError
-  );
-}
+const shiftDetailMap = new Map(
+  shiftDetailData?.map((info) => [
+    info.kaipoke_cs_id,
+    info.shift_detail_information,
+  ]) ?? []
+);
 const targetKaipokeCsIds = Array.from(
   new Set(
     formatted
-      .map((f) => String(f.kaipoke_cs_id ?? "").trim())
+      .map((shift) => String(shift.kaipoke_cs_id ?? "").trim())
       .filter(Boolean)
   )
 );
 
-const { data: shiftDetailData, error: shiftDetailError } =
-  await supabase
-    .from("cs_kaipoke_info_shift_detail_view")
-    .select("kaipoke_cs_id, shift_detail_information")
-    .in("kaipoke_cs_id", targetKaipokeCsIds);
-
-if (shiftDetailError) {
-  console.error(
-    "[shift-coordinate] shift detail fetch error:",
-    shiftDetailError
-  );
-}
-
-const shiftDetailMap = new Map(
-  (shiftDetailData ?? []).map((row) => [
-    String(row.kaipoke_cs_id),
-    row.shift_detail_information ?? "",
-  ])
-);
-
-// cs_docs側に保存されている文書要約
-const { data: csDocsData, error: csDocsError } =
-  await supabase
-    .from("cs_docs")
-    .select(
-      "id, kaipoke_cs_id, doc_name, summary, applicable_date, created_at"
-    )
-    .in("kaipoke_cs_id", targetKaipokeCsIds)
-    .not("summary", "is", null)
-    .order("applicable_date", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+const { data: csDocsData, error: csDocsError } = await supabase
+  .from("cs_docs")
+  .select(
+    "id, kaipoke_cs_id, summary, applicable_date, created_at"
+  )
+  .in("kaipoke_cs_id", targetKaipokeCsIds)
+  .not("summary", "is", null)
+  .order("applicable_date", {
+    ascending: false,
+    nullsFirst: false,
+  })
+  .order("created_at", {
+    ascending: false,
+    nullsFirst: false,
+  });
 
 if (csDocsError) {
   console.error(
@@ -224,101 +202,64 @@ if (csDocsError) {
   );
 }
 
-type CsDocRow = {
-  id: string;
-  kaipoke_cs_id: string | null;
-  doc_name: string | null;
-  summary: string | null;
-  applicable_date: string | null;
-  created_at: string | null;
-};
-
 const csDocsMap = new Map<string, string>();
 
-for (const rawDoc of (csDocsData ?? []) as CsDocRow[]) {
-  const kaipokeCsId = String(rawDoc.kaipoke_cs_id ?? "").trim();
-  const summary = String(rawDoc.summary ?? "").trim();
+for (const row of csDocsData ?? []) {
+  const kaipokeCsId = String(row.kaipoke_cs_id ?? "").trim();
 
-  if (!kaipokeCsId || !summary) continue;
+  if (!kaipokeCsId || csDocsMap.has(kaipokeCsId)) {
+    continue;
+  }
+
+  const summary =
+    typeof row.summary === "string"
+      ? row.summary.trim()
+      : "";
 
   const basicInformation = extractBasicInformation(summary);
 
-  if (!basicInformation) continue;
-
-  // cs_docsは新しい順で取得しているため、
-  // 利用者ごとに最初に見つかった基本情報だけを採用
-  if (csDocsMap.has(kaipokeCsId)) continue;
-
-  csDocsMap.set(kaipokeCsId, basicInformation);
+  if (basicInformation) {
+    csDocsMap.set(kaipokeCsId, basicInformation);
+  }
 }
 
             const csInfoMap = new Map(csInfoData?.map(info => [info.kaipoke_cs_id, info]) ?? []);
 
-const merged = formatted.map((shift) => {
-  const kaipokeCsId = String(
-    shift.kaipoke_cs_id ?? ""
-  ).trim();
-
-  const csInfo = csInfoMap.get(kaipokeCsId);
-
-  const kaipokeShiftDetail =
-  shiftDetailMap.get(kaipokeCsId)?.trim() ?? "";
-
-  const csDocsBasicInformation =
-    csDocsMap.get(kaipokeCsId)?.trim() ?? "";
+            const merged = formatted.map((shift) => {
+  const kaipokeCsId = String(shift.kaipoke_cs_id ?? "").trim();
+  const csInfo = csInfoMap.get(shift.kaipoke_cs_id);
 
   return {
     ...shift,
 
     cs_name: csInfo?.name ?? "",
-    commuting_flg:
-      csInfo?.commuting_flg ?? false,
-    standard_route:
-      csInfo?.standard_route ?? "",
-    standard_trans_ways:
-      csInfo?.standard_trans_ways ?? "",
-    standard_purpose:
-      csInfo?.standard_purpose ?? "",
-    biko: csInfo?.biko ?? "",
+    commuting_flg: csInfo?.commuting_flg ?? false,
+    standard_route: csInfo?.standard_route ?? "",
+    standard_trans_ways: csInfo?.standard_trans_ways ?? "",
+    standard_purpose: csInfo?.standard_purpose ?? "",
 
-    // cs_kaipoke_infoの情報だけ
+    // 備考
+    biko:
+      typeof csInfo?.biko === "string"
+        ? csInfo.biko.trim()
+        : "",
+
+    // cs_docsの【5】基本情報
+    basic_information:
+      csDocsMap.get(kaipokeCsId) ?? "",
+
+    // 従来の詳細情報
     shift_detail_information:
-      kaipokeShiftDetail,
+      shiftDetailMap.get(shift.kaipoke_cs_id) ?? "",
 
-      
-
-    // cs_docsの【5】基本情報だけ
+    // shift_self_coordinate_card_viewの文書情報は維持
     document_summary:
-  typeof shift.document_summary === "string"
-    ? shift.document_summary.trim()
-    : "",
-
-basic_information:
-  csDocsBasicInformation,
+      typeof shift.document_summary === "string"
+        ? shift.document_summary.trim()
+        : "",
   };
 });
 
-function extractBasicInformation(summary: string): string {
-  const normalized = summary.replace(/\r\n/g, "\n").trim();
-
-  const match = normalized.match(
-    /【5】基本情報やアセスメント項目\s*([\s\S]*?)(?=\n【\d+】|$)/
-  );
-
-  if (!match) return "";
-
-  const basicInformation = match[1].trim();
-
-  if (
-    !basicInformation ||
-    basicInformation === "読み取れる内容はなし" ||
-    basicInformation.includes("読み取れる内容はなし")
-  ) {
-    return "";
-  }
-
-  return basicInformation;
-}
             setShifts(merged);
             setFilteredShifts(merged);
 
@@ -823,4 +764,14 @@ function ShiftWishWidget({
             </div>
         </div>
     );
+}
+
+function extractBasicInformation(summary: string): string {
+  const normalized = summary.replace(/\r\n/g, "\n").trim();
+
+  const match = normalized.match(
+    /【5】基本情報やアセスメント項目\s*([\s\S]*?)(?=\n【\d+】|$)/
+  );
+
+  return match?.[1]?.trim() ?? "";
 }
