@@ -20,11 +20,28 @@ function hasRows(content: unknown): boolean {
     return Array.isArray(c?.sheets) && c.sheets.some((s) => Array.isArray(s.rows) && s.rows.length > 0);
 }
 
-function ensureAssessmentContent(serviceKind: string, content: unknown) {
-    if (hasRows(content)) return content;
-
+function ensureAssessmentContent(
+    serviceKind: string,
+    content: unknown,
+): AssessmentContent | unknown {
+    /*
+     * 要介護・要支援の場合は、既存contentの構造にかかわらず
+     * 必ず介護用（カイポケライク）のテンプレートを使う。
+     *
+     * 既存contentが障害形式だった場合に、その構造へ戻ることを防ぐ。
+     */
     if (isElderCareKind(serviceKind)) {
-        return getDefaultElderCareAssessmentContent(serviceKind);
+        return getDefaultElderCareAssessmentContent(
+            serviceKind,
+        );
+    }
+
+    /*
+     * 障害・移動支援などは、現在のcontentに行がある場合、
+     * その構造をテンプレートとして使用する。
+     */
+    if (hasRows(content)) {
+        return content;
     }
 
     return content;
@@ -255,12 +272,25 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         const kaipokeCsId = trimOrEmpty(assessment.kaipoke_cs_id);
         if (!kaipokeCsId) return json({ ok: false, error: "kaipoke_cs_id is empty" }, 400);
 
-        const serviceKind = trimOrEmpty(assessment.service_kind);
+        const serviceKind =
+            trimOrEmpty(assessment.service_kind);
 
-        const baseContent = ensureAssessmentContent(
-            serviceKind,
-            assessment.content
-        );
+        if (!serviceKind) {
+            return json(
+                {
+                    ok: false,
+                    error:
+                        "assessment.service_kind が設定されていません",
+                },
+                400,
+            );
+        }
+
+        const baseContent =
+            ensureAssessmentContent(
+                serviceKind,
+                assessment.content,
+            );
 
         const templateUnknown: unknown = baseContent ?? null;
         if (!isAssessmentContent(templateUnknown)) {
@@ -406,13 +436,50 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         console.log("[assessment:auto-generate] start", {
             assessment_id: id,
             kaipoke_cs_id: kaipokeCsId,
-            docs_used: selectedDocs.map((d) => d.doc_name),
-            missing_optional: missingOptional,
-            has_meeting_minutes: hasMeetingMinutes,
-            meeting_minutes_chars: meetingMinutes.length,
-            materials_chars: materialsChars,
-            shift_range: { from: ymd(fromDate), to: ymd(baseDate) },
-            shifts_total: (shifts ?? []).length,
+
+            service_kind: serviceKind,
+            is_elder_care:
+                isElderCareKind(serviceKind),
+
+            template_sheet_count:
+                templateContent.sheets.length,
+
+            template_sheet_keys:
+                templateContent.sheets.map(
+                    (sheet) => sheet.key,
+                ),
+
+            template_row_count:
+                templateContent.sheets.reduce(
+                    (total, sheet) =>
+                        total + sheet.rows.length,
+                    0,
+                ),
+
+            docs_used:
+                selectedDocs.map(
+                    (d) => d.doc_name,
+                ),
+
+            missing_optional:
+                missingOptional,
+
+            has_meeting_minutes:
+                hasMeetingMinutes,
+
+            meeting_minutes_chars:
+                meetingMinutes.length,
+
+            materials_chars:
+                materialsChars,
+
+            shift_range: {
+                from: ymd(fromDate),
+                to: ymd(baseDate),
+            },
+
+            shifts_total:
+                (shifts ?? []).length,
         });
 
         // 4) OpenAI生成
@@ -522,12 +589,20 @@ hope: 資料から読み取れる本人・家族の希望/要望
         }
 
         // 5) 更新
-        const { data: updated, error: uErr } = await supabaseAdmin
-            .from("assessments_records")
-            .update({ content: normalized })
-            .eq("assessment_id", id)
-            .select("*")
-            .single();
+        const { data: updated, error: uErr } =
+            await supabaseAdmin
+                .from("assessments_records")
+                .update({
+                    content: normalized,
+
+                    /*
+                     * 自動生成後も、現在のアセスメント種別を維持する。
+                     */
+                    service_kind: serviceKind,
+                })
+                .eq("assessment_id", id)
+                .select("*")
+                .single();
 
         if (uErr) throw uErr;
 
