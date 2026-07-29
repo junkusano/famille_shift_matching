@@ -845,11 +845,12 @@ const MiniInfo = () => {
 
   const biko = pickNonEmptyString(shift, ["biko"]);
 
-  const shiftDetailInformation = pickNonEmptyString(shift, [
-    "shift_detail_information",
-  ]);
-  const basicInformation = pickNonEmptyString(shift, [
+const basicInformation = pickNonEmptyString(shift, [
   "basic_information",
+]);
+
+const shiftDetailInformation = pickNonEmptyString(shift, [
+  "shift_detail_information",
 ]);
 
   return (
@@ -899,59 +900,63 @@ const MiniInfo = () => {
         >
           性別希望: {shift.gender_request_name ?? "—"}
 
-          {(shiftDetailInformation || biko) && (
-            <Dialog>
-              <DialogTrigger asChild>
-                <button className="ml-2 text-xs text-blue-500 underline">
-                  詳細情報
-                </button>
-              </DialogTrigger>
+          {(biko || basicInformation || shiftDetailInformation) && (
+  <Dialog>
+    <DialogTrigger asChild>
+      <button className="ml-2 text-xs text-blue-500 underline">
+        詳細情報
+      </button>
+    </DialogTrigger>
 
-              <DialogPortal>
-                <DialogOverlay className="overlay-avoid-sidebar" />
+    <DialogPortal>
+      <DialogOverlay className="overlay-avoid-sidebar" />
 
-                <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[640px] ml-4 mr-0 modal-avoid-sidebar max-h-[85vh] overflow-hidden">
-                  <div className="max-h-[70vh] overflow-y-auto pr-2 text-sm space-y-4">
-                   {biko && (
-  <div>
-    <strong className="block text-base">
-      シフト詳細情報
-    </strong>
+      <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[640px] ml-4 mr-0 modal-avoid-sidebar max-h-[85vh] overflow-hidden">
+        <div className="max-h-[70vh] overflow-y-auto pr-2 text-sm space-y-4">
+          {biko && (
+            <div>
+              <strong className="block text-base">
+                備考
+              </strong>
 
-    <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
-      {biko}
-    </p>
-  </div>
-)}
-
-{basicInformation && (
-  <div className={biko ? "border-t pt-4" : ""}>
-    <strong className="block text-base">
-      基本情報
-    </strong>
-
-    <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
-      {basicInformation}
-    </p>
-  </div>
-)}
-
-{shiftDetailInformation && (
-  <div className={(biko || basicInformation) ? "border-t pt-4" : ""}>
-    <strong className="block text-base">
-      詳細情報
-    </strong>
-
-    <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
-      {shiftDetailInformation}
-    </p>
-  </div>
-)}
-                  </div>
-                </DialogContent>
-              </DialogPortal>
-            </Dialog>
+              <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+                {biko}
+              </p>
+            </div>
           )}
+
+          {basicInformation && (
+            <div className={biko ? "border-t pt-4" : ""}>
+              <strong className="block text-base">
+                基本情報
+              </strong>
+
+              <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+                {basicInformation}
+              </p>
+            </div>
+          )}
+
+          {shiftDetailInformation && (
+            <div
+              className={
+                biko || basicInformation ? "border-t pt-4" : ""
+              }
+            >
+              <strong className="block text-base">
+                詳細情報
+              </strong>
+
+              <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+                {shiftDetailInformation}
+              </p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </DialogPortal>
+  </Dialog>
+)}
         </div>
       )}
     </>
