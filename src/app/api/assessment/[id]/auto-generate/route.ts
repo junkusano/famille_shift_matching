@@ -65,12 +65,34 @@ type ShiftRow = {
     tokutei_comment: string | null;
 };
 
+type AssessmentChoiceOption = {
+    value: string;
+    label: string;
+};
+
 type AssessmentRow = {
     key: string;
     label: string;
     check: "NONE" | "CIRCLE";
     remark: string;
     hope: string;
+
+    inputType?:
+    | "text"
+    | "textarea"
+    | "radio"
+    | "checkbox"
+    | "number"
+    | "date";
+
+    value?: string;
+    defaultValue?: string;
+    options?: AssessmentChoiceOption[];
+
+    unit?: string;
+    placeholder?: string;
+    group?: string;
+    width?: "full" | "half" | "third" | "quarter";
 };
 
 type AssessmentSheet = {
@@ -78,8 +100,16 @@ type AssessmentSheet = {
     title: string;
     printTarget: boolean;
     rows: AssessmentRow[];
-};
 
+    layout?:
+    | "basic-information"
+    | "service-frequency"
+    | "housing"
+    | "health"
+    | "special"
+    | "adl"
+    | "cognition";
+};
 type AssessmentContent = {
     version: number;
     sheets: AssessmentSheet[];
@@ -92,6 +122,7 @@ type GeneratedRowPartial = {
     check?: unknown;
     remark?: unknown;
     hope?: unknown;
+    value?: unknown;
 };
 
 type GeneratedSheetPartial = {
@@ -168,8 +199,19 @@ function isAssessmentContent(v: unknown): v is AssessmentContent {
             if (typeof row.key !== "string") return false;
             if (typeof row.label !== "string") return false;
             if (row.check !== "NONE" && row.check !== "CIRCLE") return false;
-            if (typeof row.remark !== "string") return false;
-            if (typeof row.hope !== "string") return false;
+            if (
+                row.remark !== undefined &&
+                typeof row.remark !== "string"
+            ) {
+                return false;
+            }
+
+            if (
+                row.hope !== undefined &&
+                typeof row.hope !== "string"
+            ) {
+                return false;
+            }
         }
     }
     return true;
@@ -178,62 +220,164 @@ function isAssessmentContent(v: unknown): v is AssessmentContent {
 // OpenAIの “部分JSON” を読み取り、templateにマージして正規化
 // OpenAIの “部分JSON” を読み取り、templateにマージして正規化
 // key完全一致を優先し、失敗した場合は label 一致でも拾う
-function normalizeByTemplate(template: AssessmentContent, generatedUnknown: unknown): AssessmentContent {
-    const gen = generatedUnknown as GeneratedContentPartial;
+function normalizeByTemplate(
+    template: AssessmentContent,
+    generatedUnknown: unknown,
+): AssessmentContent {
+    const gen =
+        generatedUnknown as GeneratedContentPartial;
 
-    const genSheets: GeneratedSheetPartial[] = Array.isArray(gen?.sheets)
-        ? (gen.sheets as GeneratedSheetPartial[])
-        : [];
+    const genSheets: GeneratedSheetPartial[] =
+        Array.isArray(gen?.sheets)
+            ? (gen.sheets as GeneratedSheetPartial[])
+            : [];
 
     const allGeneratedRows: GeneratedRowPartial[] = [];
 
-    for (const s of genSheets) {
-        const rowsUnknown = s?.rows;
-        const rows: GeneratedRowPartial[] = Array.isArray(rowsUnknown)
-            ? (rowsUnknown as GeneratedRowPartial[])
-            : [];
+    for (const sheet of genSheets) {
+        const rows: GeneratedRowPartial[] =
+            Array.isArray(sheet?.rows)
+                ? (sheet.rows as GeneratedRowPartial[])
+                : [];
 
-        for (const r of rows) {
-            if (r && typeof r === "object") {
-                allGeneratedRows.push(r);
+        for (const row of rows) {
+            if (
+                row &&
+                typeof row === "object"
+            ) {
+                allGeneratedRows.push(row);
             }
         }
     }
 
     const merged: AssessmentContent = {
-        version: template.version,
-        sheets: template.sheets.map((ts) => {
-            return {
-                key: ts.key,
-                title: ts.title,
-                printTarget: ts.printTarget,
-                rows: ts.rows.map((tr) => {
-                    const hit =
-                        allGeneratedRows.find((r) => typeof r.key === "string" && r.key === tr.key) ??
-                        allGeneratedRows.find((r) => typeof r.label === "string" && r.label === tr.label);
+        /*
+         * versionを含め、テンプレート側のトップレベル情報を維持する。
+         */
+        ...template,
 
-                    const remark = typeof hit?.remark === "string" ? hit.remark.trim() : "";
-                    const hope = typeof hit?.hope === "string" ? hit.hope.trim() : "";
+        sheets: template.sheets.map(
+            (templateSheet) => ({
+                /*
+                 * layoutなど、介護用テンプレート固有の情報を維持する。
+                 */
+                ...templateSheet,
 
-                    const generatedCheck =
-                        hit?.check === "CIRCLE" || hit?.check === "NONE"
-                            ? hit.check
-                            : "NONE";
+                rows: templateSheet.rows.map(
+                    (templateRow) => {
+                        const generatedRow =
+                            allGeneratedRows.find(
+                                (row) =>
+                                    typeof row.key ===
+                                    "string" &&
+                                    row.key ===
+                                    templateRow.key,
+                            ) ??
+                            allGeneratedRows.find(
+                                (row) =>
+                                    typeof row.label ===
+                                    "string" &&
+                                    row.label ===
+                                    templateRow.label,
+                            );
 
-                    // remark / hope があるなら check=CIRCLE に補正
-                    const check: "NONE" | "CIRCLE" =
-                        remark || hope ? "CIRCLE" : generatedCheck;
+                        const generatedRemark =
+                            typeof generatedRow?.remark ===
+                                "string"
+                                ? generatedRow.remark.trim()
+                                : "";
 
-                    return {
-                        key: tr.key,
-                        label: tr.label,
-                        check,
-                        remark,
-                        hope,
-                    };
-                }),
-            };
-        }),
+                        const generatedHope =
+                            typeof generatedRow?.hope ===
+                                "string"
+                                ? generatedRow.hope.trim()
+                                : "";
+
+                        const generatedValue =
+                            typeof generatedRow?.value ===
+                                "string"
+                                ? generatedRow.value.trim()
+                                : "";
+
+                        const templateRemark =
+                            typeof templateRow.remark ===
+                                "string"
+                                ? templateRow.remark
+                                : "";
+
+                        const templateHope =
+                            typeof templateRow.hope ===
+                                "string"
+                                ? templateRow.hope
+                                : "";
+
+                        const templateValue =
+                            typeof templateRow.value ===
+                                "string"
+                                ? templateRow.value
+                                : "";
+
+                        const remark =
+                            generatedRemark ||
+                            templateRemark;
+
+                        const hope =
+                            generatedHope ||
+                            templateHope;
+
+                        /*
+                         * AIがvalueを返していれば採用。
+                         * 返していなければテンプレート初期値を維持する。
+                         */
+                        const value =
+                            generatedValue ||
+                            templateValue ||
+                            templateRow.defaultValue ||
+                            "";
+
+                        const generatedCheck =
+                            generatedRow?.check ===
+                                "CIRCLE" ||
+                                generatedRow?.check ===
+                                "NONE"
+                                ? generatedRow.check
+                                : null;
+
+                        const hasSelectedValue =
+                            value !== "" &&
+                            value !== "00";
+
+                        const check:
+                            | "NONE"
+                            | "CIRCLE" =
+                            remark ||
+                                hope ||
+                                hasSelectedValue
+                                ? "CIRCLE"
+                                : generatedCheck ??
+                                templateRow.check ??
+                                "NONE";
+
+                        return {
+                            /*
+                             * 最重要：
+                             * inputType・options・group・widthなどを
+                             * すべて残す。
+                             */
+                            ...templateRow,
+
+                            check,
+                            remark,
+                            hope,
+
+                            ...(templateRow.inputType
+                                ? { value }
+                                : {}),
+                        };
+                    },
+                ),
+            }),
+        ),
     };
 
     return merged;
@@ -508,6 +652,10 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 - 「困難である」「できない」だけで終わる記述は避け、資料にある内容を現状・留意点として簡潔に要約してください。
 - 担当者会議議事録がある場合は、基本情報やサービス等利用計画がなくても、議事録の内容だけを根拠に生成してよいです。
 - 医療判断、診断、過度な断定は禁止です。
+- inputType="radio" の行は、資料に明確な根拠がある場合、options内のvalueを rows[].value に設定してください。
+- rows[].value は、必ず入力テンプレートのoptionsに存在する値を使用してください。
+- 判断できない場合は、入力テンプレートのdefaultValueまたはvalueを変更しないでください。
+- inputType、defaultValue、options、unit、placeholder、group、widthは出力内容を変更しないでください。
 
 remark: 資料から読み取れる現状/観察/留意点
 hope: 資料から読み取れる本人・家族の希望/要望
@@ -564,6 +712,33 @@ hope: 資料から読み取れる本人・家族の希望/要望
             assessment_id: id,
             filled_rows: filled,
         });
+
+        const firstRadioRow = normalized.sheets
+            .flatMap((sheet) => sheet.rows)
+            .find((row) => row.inputType === "radio");
+
+        console.log(
+            "[assessment:auto-generate] normalized format check",
+            {
+                assessment_id: id,
+                first_radio_row: firstRadioRow
+                    ? {
+                        key: firstRadioRow.key,
+                        inputType:
+                            firstRadioRow.inputType,
+                        value:
+                            firstRadioRow.value,
+                        defaultValue:
+                            firstRadioRow.defaultValue,
+                        options_count:
+                            firstRadioRow.options?.length ??
+                            0,
+                        group:
+                            firstRadioRow.group,
+                    }
+                    : null,
+            },
+        );
 
         // 全部空は弾く（原因調査用metaつき）
         if (filled === 0) {
