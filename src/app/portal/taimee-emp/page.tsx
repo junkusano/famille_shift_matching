@@ -16,25 +16,50 @@ const notify = {
 }
 
 // ===== Types =====
-type Status = 'all' | 'in' | 'not'
+type Status =
+  | 'all'
+  | 'linked'
+  | 'candidate'
+  | 'unlinked'
 type BlackFilter = 'all' | 'only' | 'exclude'
 type ExcludeFilter = 'all' | 'only' | 'exclude'
 
+type LinkStatus =
+  | 'unlinked'
+  | 'candidate'
+  | 'linked'
+
 interface TaimeeEmployeeWithEntry {
-  period_month: string
+  applicant_id: string
   taimee_user_id: string
+
+  period_month: string | null
+
   normalized_phone: string | null
   entry_id: string | null
-  in_entry: boolean | null
+  link_status: LinkStatus
+
   black_list?: boolean | null
   send_disabled?: boolean | null
   memo?: string | null
   last_sent_at?: string | null
+
   姓?: string | null
   名?: string | null
   住所?: string | null
   性別?: string | null
   電話番号?: string | null
+
+  latest_job_id?: string | null
+  latest_job_name?: string | null
+  latest_work_date?: string | null
+  applicant_control_url?: string | null
+
+  employment_contract_count: number
+  qualification_certificate_count: number
+
+  last_fetched_at?: string | null
+  fetch_status?: 'pending' | 'success' | 'partial' | 'error'
 }
 
 interface RowEditState {
@@ -145,8 +170,12 @@ https://www.shi-on.net/column?page=17
     const memo = fMemo.trim().toLowerCase()
 
     return items.filter((it) => {
-      if (fEntry === 'in' && !it.in_entry) return false
-      if (fEntry === 'not' && it.in_entry) return false
+      if (
+  fEntry !== 'all' &&
+  it.link_status !== fEntry
+) {
+  return false
+}
 
       const isBlack = !!it.black_list
       if (fBlack === 'only' && !isBlack) return false
@@ -180,7 +209,9 @@ https://www.shi-on.net/column?page=17
     })
   }, [filtered, drafts, includeBlack])
 
-  function rowKey(it: TaimeeEmployeeWithEntry) { return `${it.period_month}__${it.taimee_user_id}` }
+  function rowKey(it: TaimeeEmployeeWithEntry) {
+  return it.applicant_id
+}
 
   function renderPreview(count: number) {
     const sample = recipientsForSend[0]
@@ -233,7 +264,9 @@ https://www.shi-on.net/column?page=17
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">タイミー従業員（全期間）アップロード＆一覧／一斉SMS</h1>
+      <h1 className="text-2xl font-bold">
+  タイミー応募者・就業者管理
+</h1>
 
       {/* アップロード */}
       <Card>
@@ -272,20 +305,54 @@ https://www.shi-on.net/column?page=17
       <Card>
         <CardContent className="p-4 space-y-4">
           <div className="overflow-auto border rounded-xl">
-            <table className="min-w-[1150px] text-sm">
+            <table className="min-w-[1750px] text-sm">
               <thead className="bg-muted">
                 <tr>
-                  <th className="text-left p-2">就業月</th>
-                  <th className="text-left p-2 w-[100px]">姓</th>
-                  <th className="text-left p-2 w-[100px]">名</th>
-                  <th className="text-left p-2">電話</th>
-                  <th className="text-left p-2">在籍</th>
-                  <th className="text-left p-2 w-[72px]">ブラック</th>
-                  <th className="text-left p-2 w-[360px]">メモ</th>
-                  <th className="text-left p-2 w-[72px]">除外</th>
-                  <th className="text-left p-2">前回</th>
-                  <th className="text-left p-2 w-[160px]">操作</th>
-                </tr>
+  <th className="text-left p-2">最新就業月</th>
+  <th className="text-left p-2 w-[100px]">姓</th>
+  <th className="text-left p-2 w-[100px]">名</th>
+  <th className="text-left p-2">電話</th>
+
+  <th className="text-left p-2">
+    エントリー連携
+  </th>
+
+  <th className="text-left p-2">
+    最新応募案件
+  </th>
+
+  <th className="text-left p-2">
+    雇用契約書
+  </th>
+
+  <th className="text-left p-2">
+    資格証
+  </th>
+
+  <th className="text-left p-2">
+    RPA取得
+  </th>
+
+  <th className="text-left p-2 w-[72px]">
+    ブラック
+  </th>
+
+  <th className="text-left p-2 w-[360px]">
+    メモ
+  </th>
+
+  <th className="text-left p-2 w-[72px]">
+    除外
+  </th>
+
+  <th className="text-left p-2">
+    前回SMS
+  </th>
+
+  <th className="text-left p-2 w-[260px]">
+    操作
+  </th>
+</tr>
                 <tr className="border-t">
                   <th className="p-2 w-[110px]"><Input placeholder="YYYYMM" value={fPeriod} onChange={(e) => setFPeriod(e.target.value)} /></th>
                   <th className="p-2 w-[100px]"><Input placeholder="姓" value={fLast} onChange={(e) => setFLast(e.target.value)} /></th>
@@ -294,11 +361,25 @@ https://www.shi-on.net/column?page=17
                   <th className="p-2">
                     <div className="w-[72px]">
                       <Select value={fEntry} onValueChange={(v: Status) => setFEntry(v)}>
-                        <SelectTrigger><SelectValue placeholder="在籍" /></SelectTrigger>
+                        <SelectTrigger>
+  <SelectValue placeholder="連携状態" />
+</SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">全て</SelectItem>
-                          <SelectItem value="in">該当</SelectItem>
-                          <SelectItem value="not">非該当</SelectItem>
+                          <SelectItem value="all">
+  全て
+</SelectItem>
+
+<SelectItem value="linked">
+  連携済み
+</SelectItem>
+
+<SelectItem value="candidate">
+  候補あり
+</SelectItem>
+
+<SelectItem value="unlinked">
+  未連携
+</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -341,7 +422,12 @@ https://www.shi-on.net/column?page=17
                 {filtered.map((it) => {
                   const key = rowKey(it)
                   const draft = drafts[key]
-                  const inEntry = !!it.in_entry
+                  const isLinked =
+  it.link_status === 'linked' &&
+  !!it.entry_id
+
+const isCandidate =
+  it.link_status === 'candidate'
                   const black = draft?.black_list ?? !!it.black_list
                   const sendDisabled = draft?.send_disabled ?? !!it.send_disabled
                   const ym = String(it.period_month).slice(0, 7).replace('-', '')
@@ -351,27 +437,167 @@ https://www.shi-on.net/column?page=17
                       <td className="p-2">{it['姓']}</td>
                       <td className="p-2">{it['名']}</td>
                       <td className="p-2">{it['電話番号']}</td>
-                      <td className="p-2">{inEntry ? <span className="px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs">該当</span> : <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-800 text-xs">非該当</span>}</td>
+                      <td className="p-2">
+  {isLinked ? (
+    <span className="px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs">
+      連携済み
+    </span>
+  ) : isCandidate ? (
+    <span className="px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs">
+      候補あり
+    </span>
+  ) : (
+    <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-800 text-xs">
+      未連携
+    </span>
+  )}
+</td>
+<td className="p-2">
+  <div className="max-w-[240px]">
+    <div className="font-medium">
+      {it.latest_job_name || '—'}
+    </div>
+
+    {it.latest_work_date && (
+      <div className="text-xs text-muted-foreground">
+        {new Date(
+          `${it.latest_work_date}T00:00:00`
+        ).toLocaleDateString('ja-JP')}
+      </div>
+    )}
+  </div>
+</td>
+<td className="p-2">
+  {it.employment_contract_count > 0 ? (
+    <span className="px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs">
+      取得済み
+    </span>
+  ) : (
+    <span className="text-xs text-muted-foreground">
+      未取得
+    </span>
+  )}
+</td>
+
+<td className="p-2">
+  {it.qualification_certificate_count > 0 ? (
+    <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-xs">
+      {it.qualification_certificate_count}件
+    </span>
+  ) : (
+    <span className="text-xs text-muted-foreground">
+      なし
+    </span>
+  )}
+</td>
+<td className="p-2 text-xs">
+  <div>
+    {it.fetch_status === 'success'
+      ? '取得済み'
+      : it.fetch_status === 'partial'
+        ? '一部取得'
+        : it.fetch_status === 'error'
+          ? 'エラー'
+          : '未取得'}
+  </div>
+
+  {it.last_fetched_at && (
+    <div className="text-muted-foreground">
+      {new Date(
+        it.last_fetched_at
+      ).toLocaleString('ja-JP')}
+    </div>
+  )}
+</td>
                       <td className="p-2"><Checkbox checked={black} onCheckedChange={(v) => updateDraft(key, { black_list: !!v })} /></td>
                       <td className="p-2 w-[360px]"><Input value={draft?.memo ?? (it.memo ?? '')} onChange={(e) => updateDraft(key, { memo: e.target.value })} placeholder="メモ" /></td>
                       <td className="p-2"><Checkbox checked={sendDisabled} onCheckedChange={(v) => updateDraft(key, { send_disabled: !!v })} /></td>
                       <td className="p-2 text-xs text-muted-foreground">{it.last_sent_at ? new Date(it.last_sent_at).toLocaleString() : ''}</td>
-                      <td className="p-2 space-x-2">
-                        {inEntry && it.entry_id
-                          ? <Button variant="secondary" size="sm" onClick={() => router.push(`/portal/entry-detail/${it.entry_id}`)}>entry</Button>
-                          : <Button variant="outline" size="sm" disabled>entry</Button>}
-                        <Button variant="outline" size="sm" onClick={onSaveEdits}>保存</Button>
-                      </td>
+                      <td className="p-2">
+  <div className="flex flex-wrap gap-2">
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() =>
+        router.push(
+          `/portal/taimee-applicants/${it.applicant_id}`
+        )
+      }
+    >
+      詳細
+    </Button>
+
+    {isLinked && it.entry_id ? (
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() =>
+          router.push(
+            `/portal/entry-detail/${it.entry_id}`
+          )
+        }
+      >
+        エントリー
+      </Button>
+    ) : (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() =>
+          router.push(
+            `/portal/taimee-applicants/${it.applicant_id}?tab=link`
+          )
+        }
+      >
+        {isCandidate ? '候補確認' : '連携'}
+      </Button>
+    )}
+
+    {it.applicant_control_url && (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() =>
+          window.open(
+            it.applicant_control_url!,
+            '_blank',
+            'noopener,noreferrer'
+          )
+        }
+      >
+        タイミー
+      </Button>
+    )}
+
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onSaveEdits}
+    >
+      保存
+    </Button>
+  </div>
+</td>   
                     </tr>
                   )
                 })}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={10} className="p-6 text-center text-muted-foreground">データがありません</td></tr>
+                 <tr>
+  <td
+    colSpan={14}
+    className="p-6 text-center text-muted-foreground"
+  >
+    データがありません
+  </td>
+</tr>
                 )}
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-muted-foreground">※ 在籍判定は form_entries.phone と正規化済み電話番号で突合。ブラックはCSV/DBの black_list を尊重します。</p>
+          <p className="text-xs text-muted-foreground">
+  ※ 電話番号一致は「候補あり」として表示します。
+  管理者が確認して連携した場合のみ「連携済み」になります。
+</p>
         </CardContent>
       </Card>
     </div>
