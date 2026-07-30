@@ -302,7 +302,7 @@ export default function WeeklyRosterPage() {
   void loading
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<PreviewRow[] | null>(null);
-  const [useRecurrence, setUseRecurrence] = useState(false);
+  const [useRecurrence, setUseRecurrence] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // ==== Derived ====
@@ -627,15 +627,30 @@ export default function WeeklyRosterPage() {
 
   }, []);
 
-  async function apiDeployMonth(month: string, cs: string, policy: DeployPolicy) {
-    const res = await fetch("/api/roster/weekly/deploy", { // 新規APIエンドポイント
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ month, kaipoke_cs_id: cs, policy }),
-    });
-    if (!res.ok) throw new Error(await summarizeHTTP(res));
-    return res.json();
+  async function apiDeployMonth(
+  month: string,
+  cs: string,
+  policy: DeployPolicy,
+  recurrence: boolean,
+) {
+  const res = await fetch("/api/roster/weekly/deploy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      month,
+      kaipoke_cs_id: cs,
+      policy,
+      recurrence,
+      mode: "add",
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(await summarizeHTTP(res));
   }
+
+  return res.json();
+}
 
   // page.tsx の apiDeployMonth 関数の近くに追記
 
@@ -662,7 +677,12 @@ export default function WeeklyRosterPage() {
     setPreview(null); // 展開後はプレビューをリフレッシュ（自動で再生成される想定）
 
     try {
-      const result = await apiDeployMonth(selectedMonth, selectedKaipokeCS, deployPolicy);
+     const result = await apiDeployMonth(
+  selectedMonth,
+  selectedKaipokeCS,
+  deployPolicy,
+  useRecurrence,
+);
       alert(`シフト展開が完了しました。\n挿入: ${result.inserted_count || 0}件, 更新: ${result.updated_count || 0}件, 削除: ${result.deleted_count || 0}件`);
       // 展開後、プレビューを強制更新
       apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy)

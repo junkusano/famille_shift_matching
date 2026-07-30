@@ -4,10 +4,14 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 
 type DeployPolicy = "skip_conflict" | "overwrite_only" | "delete_month_insert";
 
+type DeployMode = "add";
+
 interface DeployRequestBody {
   month?: string;
   kaipoke_cs_id?: string;
   policy?: DeployPolicy;
+  recurrence?: boolean;
+  mode?: DeployMode;
 }
 
 interface ShiftWeeklyTemplate {
@@ -32,20 +36,30 @@ interface TmplInfo {
   nthWeeks: number[];
 }
 
+function normalizeTime(value: string): string {
+  const [hour = "00", minute = "00"] = value.split(":");
+
+  return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
+}
 export async function POST(req: Request) {
   const tAllStart = Date.now();
   try {
     const body = (await req.json()) as DeployRequestBody;
-    const month = body.month;
-    const kaipoke_cs_id = body.kaipoke_cs_id;
-    const policy: DeployPolicy = body.policy ?? "overwrite_only";
 
-    console.log("[deploy] START", {
-      month,
-      kaipoke_cs_id,
-      policy,
-      at: new Date().toISOString(),
-    });
+const month = body.month;
+const kaipoke_cs_id = body.kaipoke_cs_id;
+const policy: DeployPolicy = body.policy ?? "overwrite_only";
+const recurrence = body.recurrence ?? true;
+const mode: DeployMode = body.mode ?? "add";
+
+console.log("[deploy] START", {
+  month,
+  kaipoke_cs_id,
+  policy,
+  recurrence,
+  mode,
+  at: new Date().toISOString(),
+});
 
     if (!month || !kaipoke_cs_id) {
       console.warn("[deploy] missing params", { month, kaipoke_cs_id });
@@ -54,6 +68,21 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    if (mode !== "add") {
+  console.warn("[deploy] unsupported mode", {
+    mode,
+    month,
+    kaipoke_cs_id,
+  });
+
+  return NextResponse.json(
+    {
+      error: `未対応の展開モードです: ${mode}`,
+    },
+    { status: 400 }
+  );
+}
 
     // ① DB側でシフト展開（ここが timeout しているかを確認したい）
     const tDeployStart = Date.now();
@@ -84,10 +113,40 @@ export async function POST(req: Request) {
       );
     }
 
-    const inserted_count = Number(dep.data ?? 0);
-    console.log("[deploy] step1: inserted_count", { inserted_count });
+const inserted_count = Number(dep.data ?? 0);
 
-    // ② 隔週テンプレート取得（is_biweekly=true & nth_weeksあり）
+console.log("[deploy] step1: inserted_count", {
+  inserted_count,
+  recurrence,
+  mode,
+});
+
+/*
+ * recurrence=false の場合は、
+ * 隔週・第n週による削除処理を行わない。
+ */
+if (!recurrence) {
+  const tEnd = Date.now();
+
+  console.log("[deploy] END (recurrence disabled)", {
+    inserted_count,
+    pruned_count: 0,
+    mode,
+    elapsed_ms: tEnd - tAllStart,
+  });
+
+  return NextResponse.json(
+    {
+      inserted_count,
+      pruned_count: 0,
+      mode,
+      status: "ok(recurrence-disabled)",
+    },
+    { status: 200 }
+  );
+}
+
+// ② 隔週テンプレート取得（is_biweekly=true & nth_weeksあり）
     const tTmplStart = Date.now();
     console.log("[deploy] step2: fetch biweekly templates");
 
@@ -127,7 +186,6 @@ export async function POST(req: Request) {
     for (const t of templates) {
       const weekday = Number(t.weekday);
       const start_time = t.start_time;
-      const required_staff_count = Number(t.required_staff_count);
 
       const rawNth = t.nth_weeks;
       const nthArray: number[] = Array.isArray(rawNth)
@@ -141,7 +199,8 @@ export async function POST(req: Request) {
         continue;
       }
 
-      const key: TmplKey = `${weekday}|${start_time}|${required_staff_count}`;
+      const key: TmplKey =
+  `${weekday}|${normalizeTime(start_time)}`;
       const existing = tmplMap.get(key);
 
       if (existing) {
@@ -221,7 +280,6 @@ export async function POST(req: Request) {
     for (const s of shifts) {
       const dateStr = s.shift_start_date; // 'YYYY-MM-DD'
       const timeStr = s.shift_start_time; // 'HH:MM:SS'
-      const reqStaff = Number(s.required_staff_count);
 
       const date = new Date(`${dateStr}T00:00:00Z`);
       const day = date.getUTCDate(); // 1..31
@@ -230,7 +288,8 @@ export async function POST(req: Request) {
       // 第n◯曜日（1..5）: 1-7:1, 8-14:2, 15-21:3, 22-28:4, 29-末:5
       const nthWeek = Math.floor((day - 1) / 7) + 1;
 
-      const key: TmplKey = `${dow}|${timeStr}|${reqStaff}`;
+      const key: TmplKey =
+  `${dow}|${normalizeTime(timeStr)}`;
       const tmpl = tmplMap.get(key);
       if (!tmpl) {
         continue; // 対応テンプレ無し → 削除対象外
