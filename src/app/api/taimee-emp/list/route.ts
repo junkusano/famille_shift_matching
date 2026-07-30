@@ -1,21 +1,27 @@
-import { NextResponse } from 'next/server'
+import {
+  NextRequest,
+  NextResponse,
+} from 'next/server'
+
 import { supabaseAdmin } from '@/lib/supabase/service'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-type UpdateItem = {
-  key: string
-  black_list?: boolean
-  send_disabled?: boolean
-  memo?: string
-}
+type LinkStatus =
+  | 'all'
+  | 'linked'
+  | 'candidate'
+  | 'unlinked'
 
-type RequestBody = {
-  updates?: UpdateItem[]
-}
+type BlackFilter =
+  | 'all'
+  | 'only'
+  | 'exclude'
 
-function getErrorMessage(error: unknown): string {
+function getErrorMessage(
+  error: unknown
+): string {
   if (error instanceof Error) {
     return error.message
   }
@@ -31,7 +37,7 @@ function getErrorMessage(error: unknown): string {
       code?: unknown
     }
 
-    const parts = [
+    return [
       typeof value.message === 'string'
         ? value.message
         : null,
@@ -44,130 +50,133 @@ function getErrorMessage(error: unknown): string {
       typeof value.code === 'string'
         ? `code=${value.code}`
         : null,
-    ].filter(Boolean)
-
-    if (parts.length > 0) {
-      return parts.join(' / ')
-    }
+    ]
+      .filter(Boolean)
+      .join(' / ') || 'unknown error'
   }
 
   return String(error)
 }
 
-export async function POST(req: Request) {
+export async function GET(
+  req: NextRequest
+) {
   try {
-    const body =
-      (await req.json()) as RequestBody
+    const status =
+      (req.nextUrl.searchParams.get(
+        'status'
+      ) || 'all') as LinkStatus
 
-    const updates = body.updates
+    const black =
+      (req.nextUrl.searchParams.get(
+        'black'
+      ) || 'all') as BlackFilter
 
-    if (!Array.isArray(updates)) {
+    const memo =
+      (
+        req.nextUrl.searchParams.get(
+          'memo'
+        ) || ''
+      ).trim()
+
+    const validStatuses: LinkStatus[] = [
+      'all',
+      'linked',
+      'candidate',
+      'unlinked',
+    ]
+
+    if (!validStatuses.includes(status)) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            'updates must be an array',
+            `不正な連携状態です: ${status}`,
         },
         { status: 400 }
       )
     }
 
-    if (updates.length === 0) {
-      return NextResponse.json({
-        ok: true,
-        updated: 0,
+    let query = supabaseAdmin
+      .from(
+        'taimee_applicants_with_entry'
+      )
+      .select('*')
+      .order('last_fetched_at', {
+        ascending: false,
+        nullsFirst: false,
       })
+      .order('updated_at', {
+        ascending: false,
+      })
+
+    if (status !== 'all') {
+      query = query.eq(
+        'link_status',
+        status
+      )
     }
 
-    let updated = 0
-
-    for (const item of updates) {
-      const applicantId =
-        typeof item.key === 'string'
-          ? item.key.trim()
-          : ''
-
-      if (!applicantId) {
-        throw new Error(
-          '応募者IDが指定されていません'
-        )
-      }
-
-      const updateData: {
-        black_list?: boolean
-        send_disabled?: boolean
-        memo?: string
-      } = {}
-
-      if (
-        typeof item.black_list ===
-        'boolean'
-      ) {
-        updateData.black_list =
-          item.black_list
-      }
-
-      if (
-        typeof item.send_disabled ===
-        'boolean'
-      ) {
-        updateData.send_disabled =
-          item.send_disabled
-      }
-
-      if (
-        typeof item.memo === 'string'
-      ) {
-        updateData.memo = item.memo
-      }
-
-      if (
-        Object.keys(updateData).length ===
-        0
-      ) {
-        continue
-      }
-
-      const { data, error } =
-        await supabaseAdmin
-          .from('taimee_applicants')
-          .update(updateData)
-          .eq('id', applicantId)
-          .select('id')
-          .maybeSingle()
-
-      if (error) {
-        console.error(
-          '[taimee-emp/save] update failed',
-          {
-            applicantId,
-            updateData,
-            error,
-          }
-        )
-
-        throw error
-      }
-
-      if (!data) {
-        throw new Error(
-          `対象のタイミー応募者が見つかりません: ${applicantId}`
-        )
-      }
-
-      updated += 1
+    if (black === 'only') {
+      query = query.eq(
+        'black_list',
+        true
+      )
     }
 
-    return NextResponse.json({
-      ok: true,
-      updated,
-    })
+    if (black === 'exclude') {
+      query = query.or(
+        'black_list.is.null,black_list.eq.false'
+      )
+    }
+
+    if (memo) {
+      query = query.ilike(
+        'memo',
+        `%${memo}%`
+      )
+    }
+
+    const {
+      data,
+      error,
+    } = await query
+
+    if (error) {
+      console.error(
+        '[taimee-emp/list] Supabase error',
+        error
+      )
+
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            getErrorMessage(error),
+        },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json(
+      {
+        ok: true,
+        items: data ?? [],
+      },
+      {
+        status: 200,
+        headers: {
+          'Cache-Control':
+            'no-store, max-age=0',
+        },
+      }
+    )
   } catch (error: unknown) {
     const message =
       getErrorMessage(error)
 
     console.error(
-      '[taimee-emp/save] failed',
+      '[taimee-emp/list] failed',
       error
     )
 

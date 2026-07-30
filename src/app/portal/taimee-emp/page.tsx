@@ -113,19 +113,75 @@ https://www.shi-on.net/column?page=17
   const [includeBlack, setIncludeBlack] = useState(false)
 
   async function fetchList() {
-    setLoading(true)
+  setLoading(true)
+  setMessage(null)
+
+  try {
+    const params = new URLSearchParams({
+      status: fEntry,
+      black: fBlack,
+      memo: fMemo,
+    })
+
+    const response = await fetch(
+      `/api/taimee-emp/list?${params.toString()}`,
+      {
+        cache: 'no-store',
+      }
+    )
+
+    const responseText =
+      await response.text()
+
+    if (!responseText.trim()) {
+      throw new Error(
+        `一覧APIから空のレスポンスが返されました。HTTP ${response.status}`
+      )
+    }
+
+    let result: {
+      ok?: boolean
+      items?: TaimeeEmployeeWithEntry[]
+      error?: string
+    }
+
     try {
-      const params = new URLSearchParams({ status: fEntry, black: fBlack, memo: fMemo })
-      const r = await fetch(`/api/taimee-emp/list?${params}`, { cache: 'no-store' })
-      const j = await r.json()
-      if (!j.ok) throw new Error(j.error || 'Failed to load')
-      setItems(j.items as TaimeeEmployeeWithEntry[])
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : '読み込みに失敗しました'
-      setMessage(msg)
-      notify.error(msg)
-    } finally { setLoading(false) }
+      result = JSON.parse(responseText)
+    } catch {
+      throw new Error(
+        `一覧APIがJSON以外を返しました。HTTP ${response.status}: ${responseText.slice(0, 300)}`
+      )
+    }
+
+    if (!response.ok || !result.ok) {
+      throw new Error(
+        result.error ||
+          `一覧の取得に失敗しました。HTTP ${response.status}`
+      )
+    }
+
+    setItems(
+      Array.isArray(result.items)
+        ? result.items
+        : []
+    )
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : '読み込みに失敗しました'
+
+    console.error(
+      '[taimee-emp] fetchList failed',
+      error
+    )
+
+    setMessage(message)
+    notify.error(message)
+  } finally {
+    setLoading(false)
   }
+}
 
   useEffect(() => { fetchList() }, [fEntry, fBlack, fMemo])
 
