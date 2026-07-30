@@ -209,7 +209,9 @@ https://www.shi-on.net/column?page=17
     })
   }, [filtered, drafts, includeBlack])
 
-  function rowKey(it: TaimeeEmployeeWithEntry) {
+function rowKey(
+  it: TaimeeEmployeeWithEntry
+) {
   return it.applicant_id
 }
 
