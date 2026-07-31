@@ -497,20 +497,16 @@ function normalizeByTemplate(
                         }
 
                         /*
-                         * remarkをvalueへ昇格した場合、
-                         * 同じ内容をremarkへ重複保存しない。
-                         */
-                        const promotedRemarkToValue =
-                            !rawGeneratedValue &&
-                            canPromoteRemarkToValue &&
-                            Boolean(
-                                rawGeneratedRemark,
-                            );
+ * AIが回答をremarkへ返した場合は、
+ * valueへも反映するが、remarkの内容も残す。
+ *
+ * 画面上の回答欄とアセスメントコメントの
+ * 両方で内容を確認できるようにする。
+ */
+
 
                         const generatedRemark =
-                            promotedRemarkToValue
-                                ? ""
-                                : rawGeneratedRemark;
+                            rawGeneratedRemark;
 
                         const value =
                             generatedValue ||
@@ -587,43 +583,29 @@ function applyDeterministicEvidenceRules(
         materials.replace(/\s+/g, " ");
 
     const hasWheelchair =
-        /車いす|車イス|車椅子/.test(
-            normalizedMaterials,
-        );
-
-    if (!hasWheelchair) {
-        return content;
-    }
-
-    const hasIndoorWheelchair =
-        /(?:室内|屋内)[^。]{0,50}(?:車いす|車イス|車椅子)|(?:車いす|車イス|車椅子)[^。]{0,50}(?:室内|屋内)/
-            .test(normalizedMaterials);
-
-    const hasOutdoorWheelchair =
-        /(?:室外|屋外|外出|通院)[^。]{0,50}(?:車いす|車イス|車椅子)|(?:車いす|車イス|車椅子)[^。]{0,50}(?:室外|屋外|外出|通院)/
+        /車いす|車イス|車椅子|車椅子使用|車椅子移動/
             .test(normalizedMaterials);
 
     const explicitlyCannotWalk =
         /歩行(?:は|が)?(?:できない|不可|困難)|自力歩行(?:不可|困難)|歩けない/
             .test(normalizedMaterials);
 
-    /*
-     * 室内・室外の区別が資料にない場合は、
-     * 両方の移動手段へ「車いす」を設定する。
-     */
-    const applyIndoor =
-        hasIndoorWheelchair ||
-        (
-            !hasIndoorWheelchair &&
-            !hasOutdoorWheelchair
-        );
+    console.log(
+        "[assessment:auto-generate] evidence rules",
+        {
+            has_wheelchair: hasWheelchair,
+            explicitly_cannot_walk:
+                explicitlyCannotWalk,
+            wheelchair_matches:
+                normalizedMaterials.match(
+                    /.{0,30}(?:車いす|車イス|車椅子).{0,50}/g,
+                )?.slice(0, 5) ?? [],
+        },
+    );
 
-    const applyOutdoor =
-        hasOutdoorWheelchair ||
-        (
-            !hasIndoorWheelchair &&
-            !hasOutdoorWheelchair
-        );
+    if (!hasWheelchair) {
+        return content;
+    }
 
     return {
         ...content,
@@ -633,36 +615,41 @@ function applyDeterministicEvidenceRules(
                 ...sheet,
 
                 rows: sheet.rows.map((row) => {
+                    /*
+                     * 車いすの記載があれば、
+                     * 室内・室外の両方へ反映する。
+                     *
+                     * 室内または室外だけと明記されていない限り、
+                     * 片方だけ空欄になることを防ぐ。
+                     */
                     if (
                         row.key ===
-                        "moving_tools_indoor" &&
-                        applyIndoor
+                        "moving_tools_indoor" ||
+                        row.key ===
+                        "moving_tools_outdoor"
                     ) {
                         return {
                             ...row,
                             value: "車いす",
-                            check: "CIRCLE",
-                        };
-                    }
-
-                    if (
-                        row.key ===
-                        "moving_tools_outdoor" &&
-                        applyOutdoor
-                    ) {
-                        return {
-                            ...row,
-                            value: "車いす",
+                            remark:
+                                trimOrEmpty(
+                                    row.remark,
+                                ) ||
+                                "資料に車いす使用の記載あり。",
                             check: "CIRCLE",
                         };
                     }
 
                     /*
-                     * 車いす使用だけでは歩行不能としない。
-                     * 明確な歩行不可の記載がある場合だけ変更する。
+                     * 車いす使用だけでは、
+                     * 歩行不能とは断定しない。
+                     *
+                     * 歩行不可等の明記がある場合だけ
+                     * 「できない」へ変更する。
                      */
                     if (
-                        row.key === "mobable07" &&
+                        row.key ===
+                        "mobable07" &&
                         explicitlyCannotWalk
                     ) {
                         return {
@@ -670,8 +657,10 @@ function applyDeterministicEvidenceRules(
                             value: "03",
                             check: "CIRCLE",
                             remark:
-                                trimOrEmpty(row.remark) ||
-                                "資料に歩行困難または歩行不可の記載がある。",
+                                trimOrEmpty(
+                                    row.remark,
+                                ) ||
+                                "資料に歩行困難または歩行不可の記載あり。",
                         };
                     }
 
@@ -683,19 +672,36 @@ function applyDeterministicEvidenceRules(
                             "移動には車いすを使用している。";
 
                         const currentValue =
-                            trimOrEmpty(row.value);
+                            trimOrEmpty(
+                                row.value,
+                            );
 
-                        if (
-                            currentValue.includes(note)
-                        ) {
-                            return row;
-                        }
+                        const currentRemark =
+                            trimOrEmpty(
+                                row.remark,
+                            );
 
                         return {
                             ...row,
-                            value: currentValue
-                                ? `${currentValue}\n${note}`
-                                : note,
+
+                            value:
+                                currentValue.includes(
+                                    note,
+                                )
+                                    ? currentValue
+                                    : currentValue
+                                        ? `${currentValue}\n${note}`
+                                        : note,
+
+                            remark:
+                                currentRemark.includes(
+                                    note,
+                                )
+                                    ? currentRemark
+                                    : currentRemark
+                                        ? `${currentRemark}\n${note}`
+                                        : note,
+
                             check: "CIRCLE",
                         };
                     }
@@ -1402,7 +1408,7 @@ rows[].remarkは、
             );
 
         const filled = countFilled(normalized);
-        
+
         const valueFilledRows = normalized.sheets
             .flatMap((sheet) =>
                 sheet.rows.map((row) => ({
