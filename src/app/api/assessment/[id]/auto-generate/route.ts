@@ -575,6 +575,138 @@ function normalizeByTemplate(
     return merged;
 }
 
+/**
+ * 資料に明確に書かれている情報を、
+ * AIの出力漏れに左右されず確実に反映する。
+ */
+function applyDeterministicEvidenceRules(
+    content: AssessmentContent,
+    materials: string,
+): AssessmentContent {
+    const normalizedMaterials =
+        materials.replace(/\s+/g, " ");
+
+    const hasWheelchair =
+        /車いす|車イス|車椅子/.test(
+            normalizedMaterials,
+        );
+
+    if (!hasWheelchair) {
+        return content;
+    }
+
+    const hasIndoorWheelchair =
+        /(?:室内|屋内)[^。]{0,50}(?:車いす|車イス|車椅子)|(?:車いす|車イス|車椅子)[^。]{0,50}(?:室内|屋内)/
+            .test(normalizedMaterials);
+
+    const hasOutdoorWheelchair =
+        /(?:室外|屋外|外出|通院)[^。]{0,50}(?:車いす|車イス|車椅子)|(?:車いす|車イス|車椅子)[^。]{0,50}(?:室外|屋外|外出|通院)/
+            .test(normalizedMaterials);
+
+    const explicitlyCannotWalk =
+        /歩行(?:は|が)?(?:できない|不可|困難)|自力歩行(?:不可|困難)|歩けない/
+            .test(normalizedMaterials);
+
+    /*
+     * 室内・室外の区別が資料にない場合は、
+     * 両方の移動手段へ「車いす」を設定する。
+     */
+    const applyIndoor =
+        hasIndoorWheelchair ||
+        (
+            !hasIndoorWheelchair &&
+            !hasOutdoorWheelchair
+        );
+
+    const applyOutdoor =
+        hasOutdoorWheelchair ||
+        (
+            !hasIndoorWheelchair &&
+            !hasOutdoorWheelchair
+        );
+
+    return {
+        ...content,
+
+        sheets: content.sheets.map(
+            (sheet) => ({
+                ...sheet,
+
+                rows: sheet.rows.map((row) => {
+                    if (
+                        row.key ===
+                        "moving_tools_indoor" &&
+                        applyIndoor
+                    ) {
+                        return {
+                            ...row,
+                            value: "車いす",
+                            check: "CIRCLE",
+                        };
+                    }
+
+                    if (
+                        row.key ===
+                        "moving_tools_outdoor" &&
+                        applyOutdoor
+                    ) {
+                        return {
+                            ...row,
+                            value: "車いす",
+                            check: "CIRCLE",
+                        };
+                    }
+
+                    /*
+                     * 車いす使用だけでは歩行不能としない。
+                     * 明確な歩行不可の記載がある場合だけ変更する。
+                     */
+                    if (
+                        row.key === "mobable07" &&
+                        explicitlyCannotWalk
+                    ) {
+                        return {
+                            ...row,
+                            value: "03",
+                            check: "CIRCLE",
+                            remark:
+                                trimOrEmpty(row.remark) ||
+                                "資料に歩行困難または歩行不可の記載がある。",
+                        };
+                    }
+
+                    if (
+                        row.key ===
+                        "move_meal_note"
+                    ) {
+                        const note =
+                            "移動には車いすを使用している。";
+
+                        const currentValue =
+                            trimOrEmpty(row.value);
+
+                        if (
+                            currentValue.includes(note)
+                        ) {
+                            return row;
+                        }
+
+                        return {
+                            ...row,
+                            value: currentValue
+                                ? `${currentValue}\n${note}`
+                                : note,
+                            check: "CIRCLE",
+                        };
+                    }
+
+                    return row;
+                }),
+            }),
+        ),
+    };
+}
+
 function countFilled(
     content: AssessmentContent,
 ): number {
@@ -945,7 +1077,10 @@ inputType="number":
 inputType="radio":
 - 資料に明確な根拠がある場合のみ、options内に存在するvalueを設定してください。
 - labelではなく、options[].valueを設定してください。
-- 判断できない場合はdefaultValueまたは現在のvalueを変更しないでください。
+- 判断できない場合は、template_contentの現在のvalueまたはdefaultValueを維持してください。
+- ADL・認知項目のdefaultValue="01"は、未選択の"00"へ変更してはいけません。
+- 車いす使用が判明しても、それだけを理由に「歩行できない」へ変更してはいけません。
+- 「歩行不可」「歩けない」「自力歩行困難」などの明確な記載がある場合のみ、歩行項目を変更してください。
 
 【資料の読み取り方】
 
@@ -956,7 +1091,10 @@ inputType="radio":
 - 各rows[].labelの意味を理解し、関連資料がないか必ず確認してください。
 - 資料に明確な根拠がある項目はcheck="CIRCLE"にしてください。
 - value、remark、hopeのいずれかを設定する場合は、原則check="CIRCLE"にしてください。
-- 根拠がない項目はcheck="NONE"とし、value、remark、hopeを空欄にしてください。
+- 資料から判断できないradio項目は、template_contentの現在のvalueまたはdefaultValueを維持してください。
+- 特にADL・認知項目のdefaultValue="01"は、未選択の"00"へ変更してはいけません。
+- 資料に明確な根拠がある場合のみ、defaultValueを別の選択肢へ変更してください。
+- text、textarea、date、number項目は、根拠がない場合は空欄にしてください。
 
 【基本情報】
 
@@ -1246,10 +1384,25 @@ rows[].remarkは、
         }
 
         // ★重要：ここで template にマージして “必ず正しい shape” にする
-        const normalized: AssessmentContent = normalizeByTemplate(templateContent, generatedUnknown);
+        // ★重要：ここで template にマージして “必ず正しい shape” にする
+        const aiNormalized: AssessmentContent =
+            normalizeByTemplate(
+                templateContent,
+                generatedUnknown,
+            );
+
+        /*
+         * 車いすなど、資料に明記されている事実を
+         * AIの抽出漏れに関係なく確実に反映する。
+         */
+        const normalized: AssessmentContent =
+            applyDeterministicEvidenceRules(
+                aiNormalized,
+                materials,
+            );
 
         const filled = countFilled(normalized);
-
+        
         const valueFilledRows = normalized.sheets
             .flatMap((sheet) =>
                 sheet.rows.map((row) => ({
