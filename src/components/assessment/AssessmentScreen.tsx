@@ -686,10 +686,17 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                 ) : null}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div
+                className={[
+                    "grid grid-cols-1 gap-3",
+                    detail
+                        ? "xl:grid-cols-[240px_minmax(0,1fr)]"
+                        : "md:grid-cols-2",
+                ].join(" ")}
+            >
                 {/* 左：一覧 */}
-                <div className="border rounded p-3">
-                    <div className="font-semibold mb-2">アセスメント履歴</div>
+                <div className="min-w-0 border border-gray-300 bg-white p-3">
+                    <div className="mb-2 border-b border-gray-300 pb-2 font-semibold">アセスメント履歴</div>
                     {!clientId ? (
                         <div className="text-sm text-gray-600">上で利用者を選択してください</div>
                     ) : list.length === 0 ? (
@@ -718,8 +725,8 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                 </div>
 
                 {/* 右：詳細 */}
-                <div className="border rounded p-3">
-                    <div className="font-semibold mb-2">詳細</div>
+                <div className="min-w-0 border border-gray-300 bg-white p-3">
+                    <div className="mb-2 border-b border-gray-300 pb-2 font-semibold">詳細</div>
 
                     {!detail ? (
                         <div className="text-sm text-gray-600">左の履歴から選択するか「新規作成」を押してください</div>

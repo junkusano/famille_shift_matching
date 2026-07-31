@@ -247,3 +247,383 @@ input[type="file"] {
   @apply underline;
   opacity: 0.9;
 }
+
+
+/* =========================================
+   アセスメント画面
+   カイポケ帳票風レイアウト
+========================================= */
+
+.assessment-page {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  background: #ffffff;
+  color: #222222;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "Yu Gothic",
+    "YuGothic",
+    "Hiragino Kaku Gothic ProN",
+    Meiryo,
+    sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.assessment-page *,
+.assessment-page *::before,
+.assessment-page *::after {
+  box-sizing: border-box;
+}
+
+/* 画面上部 */
+.assessment-header {
+  border-top: 3px solid #f4a300;
+  border-bottom: 1px solid #cfcfcf;
+  padding: 10px 12px 8px;
+  margin-bottom: 12px;
+}
+
+.assessment-header__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #333333;
+}
+
+.assessment-header__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 6px;
+  color: #555555;
+  font-size: 12px;
+}
+
+/* 左ナビ + 本文 */
+.assessment-layout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+/* PDF左側の見出しメニューに近づける */
+.assessment-sidebar {
+  position: sticky;
+  top: 12px;
+  border: 1px solid #d8d8d8;
+  background: #ffffff;
+}
+
+.assessment-sidebar__title {
+  padding: 8px 10px;
+  border-bottom: 1px solid #d8d8d8;
+  background: #f5f5f5;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.assessment-sidebar__item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid #e4e4e4;
+  background: #ffffff;
+  color: #333333;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.assessment-sidebar__item:hover {
+  background: #fff8df;
+}
+
+.assessment-sidebar__item.is-active {
+  background: #fff1b8;
+  border-left: 4px solid #f4a300;
+  padding-left: 6px;
+  font-weight: 700;
+}
+
+/* 本文 */
+.assessment-content {
+  min-width: 0;
+}
+
+/* 各シート */
+.assessment-sheet {
+  margin-bottom: 18px;
+  border: 1px solid #bfbfbf;
+  background: #ffffff;
+  break-inside: avoid;
+}
+
+.assessment-sheet__title {
+  margin: 0;
+  padding: 6px 9px;
+  border-bottom: 1px solid #9f9f9f;
+  background: #f1f1f1;
+  color: #111111;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.assessment-sheet__description {
+  padding: 5px 9px;
+  border-bottom: 1px solid #d7d7d7;
+  color: #555555;
+  font-size: 11px;
+}
+
+/* カード型ではなく表組みにする */
+.assessment-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.assessment-table th,
+.assessment-table td {
+  border-right: 1px solid #cfcfcf;
+  border-bottom: 1px solid #cfcfcf;
+  padding: 5px 6px;
+  vertical-align: middle;
+}
+
+.assessment-table tr:last-child th,
+.assessment-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.assessment-table th:last-child,
+.assessment-table td:last-child {
+  border-right: 0;
+}
+
+.assessment-table__label {
+  width: 190px;
+  background: #fafafa;
+  font-weight: 600;
+  color: #222222;
+  text-align: left;
+}
+
+.assessment-table__field {
+  background: #ffffff;
+}
+
+.assessment-table__note {
+  width: 220px;
+  background: #fffef7;
+}
+
+/* 入力欄 */
+.assessment-page input[type="text"],
+.assessment-page input[type="email"],
+.assessment-page input[type="tel"],
+.assessment-page input[type="number"],
+.assessment-page input[type="date"],
+.assessment-page select,
+.assessment-page textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #9e9e9e;
+  border-radius: 0;
+  background: #ffffff;
+  color: #111111;
+  padding: 4px 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: none;
+}
+
+.assessment-page input[type="text"],
+.assessment-page input[type="email"],
+.assessment-page input[type="tel"],
+.assessment-page input[type="number"],
+.assessment-page input[type="date"],
+.assessment-page select {
+  min-height: 30px;
+}
+
+.assessment-page textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.assessment-page input:focus,
+.assessment-page select:focus,
+.assessment-page textarea:focus {
+  outline: 2px solid rgba(244, 163, 0, 0.3);
+  border-color: #d89200;
+}
+
+/* ラジオボタン */
+.assessment-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.assessment-radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.assessment-radio-option input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #2675d8;
+}
+
+/* チェック済み・AI入力済み表示 */
+.assessment-generated {
+  position: relative;
+}
+
+.assessment-generated::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2784dd;
+}
+
+/* 特記事項 */
+.assessment-special-note {
+  padding: 7px;
+  background: #fffdf3;
+}
+
+.assessment-special-note__label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+/* ボタン行 */
+.assessment-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 9px 12px;
+  border-top: 1px solid #cfcfcf;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.assessment-action-button {
+  min-width: 110px;
+  border: 1px solid #c88800;
+  border-radius: 2px;
+  padding: 7px 14px;
+  background: #ffc928;
+  color: #222222;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.assessment-action-button:hover {
+  background: #ffbd00;
+}
+
+.assessment-action-button--secondary {
+  border-color: #a6a6a6;
+  background: #f5f5f5;
+}
+
+.assessment-action-button--secondary:hover {
+  background: #e9e9e9;
+}
+
+/* スマートフォン */
+@media (max-width: 767px) {
+  .assessment-page {
+    font-size: 14px;
+  }
+
+  .assessment-layout {
+    display: block;
+  }
+
+  .assessment-sidebar {
+    position: static;
+    display: flex;
+    overflow-x: auto;
+    margin-bottom: 10px;
+    border: 0;
+    border-bottom: 1px solid #d0d0d0;
+  }
+
+  .assessment-sidebar__title {
+    display: none;
+  }
+
+  .assessment-sidebar__item {
+    width: auto;
+    flex: 0 0 auto;
+    border: 1px solid #d0d0d0;
+    border-right: 0;
+    white-space: nowrap;
+  }
+
+  .assessment-sidebar__item:last-child {
+    border-right: 1px solid #d0d0d0;
+  }
+
+  .assessment-table,
+  .assessment-table tbody,
+  .assessment-table tr,
+  .assessment-table th,
+  .assessment-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .assessment-table__label,
+  .assessment-table__note {
+    width: 100%;
+  }
+
+  .assessment-table__label {
+    border-right: 0 !important;
+    background: #f3f3f3;
+  }
+
+  .assessment-table__field,
+  .assessment-table__note {
+    border-right: 0 !important;
+  }
+
+  .assessment-radio-group {
+    gap: 8px 14px;
+  }
+
+  .assessment-actions {
+    justify-content: stretch;
+  }
+
+  .assessment-action-button {
+    flex: 1;
+    min-width: 0;
+  }
+}

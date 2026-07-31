@@ -71,6 +71,11 @@
     /* ← 超重要 */
 }
 
+.content--assessment {
+    padding: 12px;
+    background: #f5f5f5;
+}
+
 .user-profile {
     text-align: center;
     padding: 20px;
