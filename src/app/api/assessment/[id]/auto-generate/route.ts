@@ -571,148 +571,6 @@ function normalizeByTemplate(
     return merged;
 }
 
-/**
- * 資料に明確に書かれている情報を、
- * AIの出力漏れに左右されず確実に反映する。
- */
-function applyDeterministicEvidenceRules(
-    content: AssessmentContent,
-    materials: string,
-): AssessmentContent {
-    const normalizedMaterials =
-        materials.replace(/\s+/g, " ");
-
-    const hasWheelchair =
-        /車いす|車イス|車椅子|車椅子使用|車椅子移動/
-            .test(normalizedMaterials);
-
-    const explicitlyCannotWalk =
-        /歩行(?:は|が)?(?:できない|不可|困難)|自力歩行(?:不可|困難)|歩けない/
-            .test(normalizedMaterials);
-
-    console.log(
-        "[assessment:auto-generate] evidence rules",
-        {
-            has_wheelchair: hasWheelchair,
-            explicitly_cannot_walk:
-                explicitlyCannotWalk,
-            wheelchair_matches:
-                normalizedMaterials.match(
-                    /.{0,30}(?:車いす|車イス|車椅子).{0,50}/g,
-                )?.slice(0, 5) ?? [],
-        },
-    );
-
-    if (!hasWheelchair) {
-        return content;
-    }
-
-    return {
-        ...content,
-
-        sheets: content.sheets.map(
-            (sheet) => ({
-                ...sheet,
-
-                rows: sheet.rows.map((row) => {
-                    /*
-                     * 車いすの記載があれば、
-                     * 室内・室外の両方へ反映する。
-                     *
-                     * 室内または室外だけと明記されていない限り、
-                     * 片方だけ空欄になることを防ぐ。
-                     */
-                    if (
-                        row.key ===
-                        "moving_tools_indoor" ||
-                        row.key ===
-                        "moving_tools_outdoor"
-                    ) {
-                        return {
-                            ...row,
-                            value: "車いす",
-                            remark:
-                                trimOrEmpty(
-                                    row.remark,
-                                ) ||
-                                "資料に車いす使用の記載あり。",
-                            check: "CIRCLE",
-                        };
-                    }
-
-                    /*
-                     * 車いす使用だけでは、
-                     * 歩行不能とは断定しない。
-                     *
-                     * 歩行不可等の明記がある場合だけ
-                     * 「できない」へ変更する。
-                     */
-                    if (
-                        row.key ===
-                        "mobable07" &&
-                        explicitlyCannotWalk
-                    ) {
-                        return {
-                            ...row,
-                            value: "03",
-                            check: "CIRCLE",
-                            remark:
-                                trimOrEmpty(
-                                    row.remark,
-                                ) ||
-                                "資料に歩行困難または歩行不可の記載あり。",
-                        };
-                    }
-
-                    if (
-                        row.key ===
-                        "move_meal_note"
-                    ) {
-                        const note =
-                            "移動には車いすを使用している。";
-
-                        const currentValue =
-                            trimOrEmpty(
-                                row.value,
-                            );
-
-                        const currentRemark =
-                            trimOrEmpty(
-                                row.remark,
-                            );
-
-                        return {
-                            ...row,
-
-                            value:
-                                currentValue.includes(
-                                    note,
-                                )
-                                    ? currentValue
-                                    : currentValue
-                                        ? `${currentValue}\n${note}`
-                                        : note,
-
-                            remark:
-                                currentRemark.includes(
-                                    note,
-                                )
-                                    ? currentRemark
-                                    : currentRemark
-                                        ? `${currentRemark}\n${note}`
-                                        : note,
-
-                            check: "CIRCLE",
-                        };
-                    }
-
-                    return row;
-                }),
-            }),
-        ),
-    };
-}
-
 function countFilled(
     content: AssessmentContent,
 ): number {
@@ -1102,6 +960,82 @@ inputType="radio":
 - 資料に明確な根拠がある場合のみ、defaultValueを別の選択肢へ変更してください。
 - text、textarea、date、number項目は、根拠がない場合は空欄にしてください。
 
+【最重要：文脈からアセスメント項目へ対応付ける】
+
+資料中にアセスメント項目名と同じ単語が書かれているかどうかだけで
+振り分けてはいけません。
+
+資料全体の文脈から、利用者の状態、生活動作、支援の必要性、
+介助の状況、制限、リスク、本人の希望を理解し、
+意味的に対応するアセスメント項目へ反映してください。
+
+例えば、資料に「歩行」という単語がなくても、
+
+- 一人で移動できない
+- 外出時に付き添いが必要
+- 通院時に送迎を利用する
+- 乗車や降車に介助が必要
+- 移動時に職員がそばにつく
+- 長距離の移動が難しい
+- 疲労により移動能力が低下する
+- 転倒のおそれがある
+- 自宅内で支えが必要
+
+などの記載があれば、内容に応じて次の項目を検討してください。
+
+- mobable07
+- lifefunction01_1
+- moving_tools_indoor
+- moving_tools_outdoor
+- move_meal_note
+- doctor_opinion_mobility
+- risk_and_policy
+- safety_necessity
+- social_activity
+- social_note
+- summary
+
+ただし、資料から明確に判断できないradio項目は、
+template_contentの現在のvalueまたはdefaultValueを維持してください。
+
+radio項目の選択肢を変更するほどの根拠が弱い場合でも、
+移動、歩行、付き添い、送迎、見守り、介助、疲労、転倒リスクなどの
+具体的情報は、関連する特記事項のvalueへ記載してください。
+
+特に次の特記事項は、関連情報があれば空欄のままにしないでください。
+
+- bath_note
+- move_meal_note
+- toilet_clean_cloth_note
+- cognition_note
+- communication_note
+- social_note
+- health_special_note
+- risk_and_policy
+- medical_management_need
+- medical_caution
+- summary
+
+一つの事実が複数のアセスメント領域に関係する場合は、
+各項目の目的に応じて、それぞれ適切な表現で反映してください。
+
+例えば、
+
+「透析通院には送迎と付き添いが必要で、透析後は疲労が強い」
+
+という情報がある場合は、必要に応じて以下へ反映してください。
+
+- current_servicesの該当項目
+- move_meal_note
+- health_special_note
+- medical_management_need
+- medical_caution
+- risk_and_policy
+- social_activity
+- summary
+
+単純に一つの項目へ転記して終了してはいけません。
+
 【基本情報】
 
 次の情報は、資料に記載があれば必ず対応するvalueへ設定してください。
@@ -1325,32 +1259,62 @@ template_contentの構造を維持し、
                     ? `
 介護保険のアセスメントとして作成してください。
 
-資料から抽出した通常の回答は、
-必ずrows[].valueへ設定してください。
+資料中の文言と項目名の一致だけで判断せず、
+資料全体の文脈から利用者の状態を理解してください。
+
+氏名、住所、電話番号、生年月日、要介護度などの基本情報だけでなく、
+以下の領域を必ず評価してください。
+
+- ADL
+- IADL
+- 歩行および移動
+- 移乗
+- 入浴
+- 排泄
+- 更衣
+- 服薬
+- 買い物
+- 調理
+- 認知
+- コミュニケーション
+- 医療管理
+- 住環境
+- 社会活動
+- 安全上のリスク
+- 本人および家族の希望
+
+資料中の具体的な行動、支援内容、制限、見守り、介助、
+付き添い、送迎、疲労、転倒リスクなどを解釈し、
+意味的に対応するアセスメント項目へ反映してください。
+
+一つの情報が複数項目に関係する場合は、
+最も直接的な項目だけでなく、関連項目にも反映してください。
+
+radio項目は、資料に十分な根拠がある場合のみ変更してください。
+根拠が弱い場合は現在のvalueまたはdefaultValueを維持してください。
+
+ただし、radio項目を変更できない場合でも、
+関連する具体的な事実や支援上の注意点は、
+対応するtextarea項目のvalueへ必ず記載してください。
+
+特に次の項目は、資料に関連情報があれば積極的に記載してください。
+
+- move_meal_note
+- bath_note
+- toilet_clean_cloth_note
+- health_special_note
+- risk_and_policy
+- medical_management_need
+- medical_caution
+- social_activity
+- social_note
+- summary
+
+通常の回答はrows[].valueへ設定してください。
 
 rows[].remarkは、
-資料間の矛盾、採用理由、補足情報だけに使用してください。
-
-氏名、住所、電話番号、生年月日、要介護度、
-生活状況、本人希望、既往歴、医療管理、
-サービス内容、支援上の課題などを、
-関連するすべての項目へ振り分けてください。
-
-特にtextarea項目は、
-資料を横断して具体的な文章をvalueへ設定してください。
+資料間の矛盾、採用理由、根拠、補足情報に使用してください。
 `.trim()
-                    : `
-障害福祉のアセスメントとして作成してください。
-
-資料から抽出した通常の回答は、
-必ずrows[].valueへ設定してください。
-
-rows[].remarkは、
-資料間の矛盾、採用理由、補足情報だけに使用してください。
-
-障害特性、生活状況、支援内容、
-本人の希望を関連するすべての項目へ反映してください。
-`.trim(),
         };
 
         console.log("[assessment:auto-generate] calling openai", {
@@ -1389,22 +1353,10 @@ rows[].remarkは、
             throw new Error("OpenAI response is not valid JSON");
         }
 
-        // ★重要：ここで template にマージして “必ず正しい shape” にする
-        // ★重要：ここで template にマージして “必ず正しい shape” にする
-        const aiNormalized: AssessmentContent =
+        const normalized: AssessmentContent =
             normalizeByTemplate(
                 templateContent,
                 generatedUnknown,
-            );
-
-        /*
-         * 車いすなど、資料に明記されている事実を
-         * AIの抽出漏れに関係なく確実に反映する。
-         */
-        const normalized: AssessmentContent =
-            applyDeterministicEvidenceRules(
-                aiNormalized,
-                materials,
             );
 
         const filled = countFilled(normalized);
