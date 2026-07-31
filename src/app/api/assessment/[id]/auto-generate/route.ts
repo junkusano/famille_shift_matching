@@ -237,7 +237,8 @@ function normalizeByTemplate(
         row: GeneratedRowPartial;
     };
 
-    const generatedRowsWithSheet: GeneratedRowWithSheet[] = [];
+    const generatedRowsWithSheet: GeneratedRowWithSheet[] =
+        [];
 
     for (const sheet of genSheets) {
         const sheetKey =
@@ -251,10 +252,7 @@ function normalizeByTemplate(
                 : [];
 
         for (const row of rows) {
-            if (
-                row &&
-                typeof row === "object"
-            ) {
+            if (row && typeof row === "object") {
                 generatedRowsWithSheet.push({
                     sheetKey,
                     row,
@@ -263,17 +261,99 @@ function normalizeByTemplate(
         }
     }
 
-    const merged: AssessmentContent = {
+    function normalizeText(value: unknown): string {
+        if (typeof value === "string") {
+            return value.trim();
+        }
+
+        if (
+            typeof value === "number" ||
+            typeof value === "boolean"
+        ) {
+            return String(value);
+        }
+
+        return "";
+    }
+
+    function normalizeRadioValue(
+        templateRow: AssessmentRow,
+        rawValue: string,
+    ): string {
+        if (templateRow.inputType !== "radio") {
+            return rawValue;
+        }
+
+        if (!rawValue) {
+            return "";
+        }
+
+        const options =
+            Array.isArray(templateRow.options)
+                ? templateRow.options
+                : [];
+
         /*
-         * versionを含め、テンプレート側のトップレベル情報を維持する。
+         * AIがoptionのvalueを返した場合
          */
+        const matchedByValue = options.find(
+            (option) =>
+                option.value === rawValue,
+        );
+
+        if (matchedByValue) {
+            return matchedByValue.value;
+        }
+
+        /*
+         * AIが「要介護1」などlabelを返した場合
+         */
+        const matchedByLabel = options.find(
+            (option) =>
+                option.label.trim() ===
+                rawValue.trim(),
+        );
+
+        if (matchedByLabel) {
+            return matchedByLabel.value;
+        }
+
+        /*
+         * 「1.自立」のようなlabelと
+         * 「自立」のような回答を照合する。
+         */
+        const matchedByPartialLabel =
+            options.find((option) => {
+                const label =
+                    option.label
+                        .replace(
+                            /^\d+[.．、\s]*/,
+                            "",
+                        )
+                        .trim();
+
+                return (
+                    label === rawValue ||
+                    label.includes(rawValue) ||
+                    rawValue.includes(label)
+                );
+            });
+
+        if (matchedByPartialLabel) {
+            return matchedByPartialLabel.value;
+        }
+
+        /*
+         * 不正な値をradioへ保存しない。
+         */
+        return "";
+    }
+
+    const merged: AssessmentContent = {
         ...template,
 
         sheets: template.sheets.map(
             (templateSheet) => ({
-                /*
-                 * layoutなど、介護用テンプレート固有の情報を維持する。
-                 */
                 ...templateSheet,
 
                 rows: templateSheet.rows.map(
@@ -322,51 +402,121 @@ function normalizeByTemplate(
                             );
 
                         const generatedRow =
-                            sameSheetKeyMatches.length === 1
-                                ? sameSheetKeyMatches[0].row
-                                : sameSheetLabelMatches.length === 1
-                                    ? sameSheetLabelMatches[0].row
-                                    : globalKeyMatches.length === 1
-                                        ? globalKeyMatches[0].row
-                                        : globalLabelMatches.length === 1
-                                            ? globalLabelMatches[0].row
+                            sameSheetKeyMatches.length ===
+                                1
+                                ? sameSheetKeyMatches[0]
+                                    .row
+                                : sameSheetLabelMatches.length ===
+                                    1
+                                    ? sameSheetLabelMatches[0]
+                                        .row
+                                    : globalKeyMatches.length ===
+                                        1
+                                        ? globalKeyMatches[0]
+                                            .row
+                                        : globalLabelMatches.length ===
+                                            1
+                                            ? globalLabelMatches[0]
+                                                .row
                                             : undefined;
 
-                        const generatedRemark =
-                            typeof generatedRow?.remark ===
-                                "string"
-                                ? generatedRow.remark.trim()
-                                : "";
+                        const rawGeneratedValue =
+                            normalizeText(
+                                generatedRow?.value,
+                            );
+
+                        const rawGeneratedRemark =
+                            normalizeText(
+                                generatedRow?.remark,
+                            );
 
                         const generatedHope =
-                            typeof generatedRow?.hope ===
-                                "string"
-                                ? generatedRow.hope.trim()
-                                : "";
-
-                        const generatedValue =
-                            typeof generatedRow?.value ===
-                                "string"
-                                ? generatedRow.value.trim()
-                                : "";
-
-                        const templateRemark =
-                            typeof templateRow.remark ===
-                                "string"
-                                ? templateRow.remark
-                                : "";
-
-                        const templateHope =
-                            typeof templateRow.hope ===
-                                "string"
-                                ? templateRow.hope
-                                : "";
+                            normalizeText(
+                                generatedRow?.hope,
+                            );
 
                         const templateValue =
-                            typeof templateRow.value ===
-                                "string"
-                                ? templateRow.value
-                                : "";
+                            normalizeText(
+                                templateRow.value,
+                            );
+
+                        const templateRemark =
+                            normalizeText(
+                                templateRow.remark,
+                            );
+
+                        const templateHope =
+                            normalizeText(
+                                templateRow.hope,
+                            );
+
+                        /*
+                         * 既存AIレスポンスとの互換処理。
+                         *
+                         * text、textarea、date、numberで
+                         * valueが空かつremarkだけに内容が
+                         * 入っている場合は、remarkをvalueへ移す。
+                         */
+                        const canPromoteRemarkToValue =
+                            templateRow.inputType ===
+                            "text" ||
+                            templateRow.inputType ===
+                            "textarea" ||
+                            templateRow.inputType ===
+                            "date" ||
+                            templateRow.inputType ===
+                            "number";
+
+                        const rawValueSource =
+                            rawGeneratedValue ||
+                            (canPromoteRemarkToValue
+                                ? rawGeneratedRemark
+                                : "");
+
+                        let generatedValue =
+                            normalizeRadioValue(
+                                templateRow,
+                                rawValueSource,
+                            );
+
+                        /*
+                         * number項目は数値だけを保存する。
+                         */
+                        if (
+                            templateRow.inputType ===
+                            "number" &&
+                            generatedValue
+                        ) {
+                            const numberMatch =
+                                generatedValue.match(
+                                    /-?\d+(?:\.\d+)?/,
+                                );
+
+                            generatedValue =
+                                numberMatch?.[0] ?? "";
+                        }
+
+                        /*
+                         * remarkをvalueへ昇格した場合、
+                         * 同じ内容をremarkへ重複保存しない。
+                         */
+                        const promotedRemarkToValue =
+                            !rawGeneratedValue &&
+                            canPromoteRemarkToValue &&
+                            Boolean(
+                                rawGeneratedRemark,
+                            );
+
+                        const generatedRemark =
+                            promotedRemarkToValue
+                                ? ""
+                                : rawGeneratedRemark;
+
+                        const value =
+                            generatedValue ||
+                            templateValue ||
+                            templateRow.defaultValue ||
+                            "";
 
                         const remark =
                             generatedRemark ||
@@ -375,16 +525,6 @@ function normalizeByTemplate(
                         const hope =
                             generatedHope ||
                             templateHope;
-
-                        /*
-                         * AIがvalueを返していれば採用。
-                         * 返していなければテンプレート初期値を維持する。
-                         */
-                        const value =
-                            generatedValue ||
-                            templateValue ||
-                            templateRow.defaultValue ||
-                            "";
 
                         const generatedCheck =
                             generatedRow?.check ===
@@ -398,11 +538,17 @@ function normalizeByTemplate(
                             value !== "" &&
                             value !== "00";
 
+                        const hasGeneratedContent =
+                            Boolean(
+                                generatedValue ||
+                                generatedRemark ||
+                                generatedHope,
+                            );
+
                         const check:
                             | "NONE"
                             | "CIRCLE" =
-                            remark ||
-                                hope ||
+                            hasGeneratedContent ||
                                 hasSelectedValue
                                 ? "CIRCLE"
                                 : generatedCheck ??
@@ -410,11 +556,6 @@ function normalizeByTemplate(
                                 "NONE";
 
                         return {
-                            /*
-                             * 最重要：
-                             * inputType・options・group・widthなどを
-                             * すべて残す。
-                             */
                             ...templateRow,
 
                             check,
@@ -434,15 +575,37 @@ function normalizeByTemplate(
     return merged;
 }
 
-function countFilled(content: AssessmentContent): number {
+function countFilled(
+    content: AssessmentContent,
+): number {
     let n = 0;
-    for (const s of content.sheets) {
-        for (const r of s.rows) {
-            const remark = trimOrEmpty(r.remark);
-            const hope = trimOrEmpty(r.hope);
-            if (remark || hope || r.check === "CIRCLE") n++;
+
+    for (const sheet of content.sheets) {
+        for (const row of sheet.rows) {
+            const value =
+                trimOrEmpty(row.value);
+
+            const remark =
+                trimOrEmpty(row.remark);
+
+            const hope =
+                trimOrEmpty(row.hope);
+
+            const hasValue =
+                value !== "" &&
+                value !== "00";
+
+            if (
+                hasValue ||
+                remark ||
+                hope ||
+                row.check === "CIRCLE"
+            ) {
+                n++;
+            }
         }
     }
+
     return n;
 }
 
@@ -729,89 +892,282 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 あなたは、介護保険および障害福祉サービスの実務に精通した
 アセスメント作成補助AIです。
 
-入力された資料を根拠として、template_content に含まれる
-すべてのシート・すべての行を確認し、
-該当する項目へ具体的な情報を反映してください。
+入力された複数の資料を横断的に読み取り、
+template_contentに含まれるすべてのシート・すべての行について、
+該当する情報を具体的に抽出・統合・要約してください。
 
-重要ルール:
-- 出力はJSONのみとし、JSON以外の説明文を出力してはいけません。
+【最重要ルール】
+
+- 出力はJSONのみです。
+- JSON以外の説明文やMarkdownを出力してはいけません。
 - template_contentと同じ階層構造で返してください。
 - template_contentにある全sheets・全rowsを出力してください。
 - sheets[].keyは入力テンプレートと完全一致させてください。
 - rows[].keyは入力テンプレートと完全一致させてください。
-- keyを日本語名、ラベル名、別名へ変更してはいけません。
 - labelは変更してはいけません。
-- inputType、defaultValue、options、unit、placeholder、group、widthは変更してはいけません。
-- rows[].checkは"CIRCLE"または"NONE"のどちらかにしてください。
+- inputType、defaultValue、options、unit、placeholder、group、widthを変更してはいけません。
+- rows[].checkは"CIRCLE"または"NONE"にしてください。
 
-アセスメントへの反映方法:
-- 資料全体を確認し、各事実が該当するすべてのアセスメント項目へ反映してください。
-- 同じ事実を、関連する複数の項目へ記載して構いません。
-- 1つの事実を1つの項目だけに記載して終了してはいけません。
-- 各rows[].labelの意味を確認し、その項目に関連する事実が資料内にないか必ず探してください。
-- 資料内の情報を単に要約するのではなく、アセスメント票の各項目へ振り分けてください。
-- 疾病名だけを記載せず、資料に明記された治療、通院頻度、医療機関、服薬、健康管理、介護サービス、生活上の対応も関連項目へ反映してください。
-- サービス利用内容は、現在利用しているサービス、通院支援、訪問介護、入浴介助、送迎、生活支援などの関連項目へ個別に反映してください。
-- 本人・家族の希望は、該当するhopeへ反映してください。
-- 現状、観察事項、支援内容、留意事項はremarkへ反映してください。
+【value・remark・hopeの役割】
 
-特に見落としてはいけない情報:
-- 疾病名、既往歴、合併症
-- 定期受診、通院先、通院頻度
-- 人工透析、酸素療法、インスリン、経管栄養などの継続的医療
-- 服薬、健康管理、血圧管理、食事・水分に関する資料上の指示
-- 訪問介護、通所介護、訪問看護、配食、送迎などの利用サービス
-- 入浴、排泄、移動、食事、整容、服薬などの介助内容
-- 独居、家族支援の有無、緊急連絡先
-- 本人・家族が希望する生活
-- ケアプランの長期目標、短期目標
-- 訪問記録に記載された実際の状態や支援内容
+value:
+- 画面の入力欄へ表示する実際の回答です。
+- text、textarea、date、number、radioの回答は必ずvalueへ設定してください。
+- 回答をremarkだけに入れてはいけません。
 
-医療情報の反映:
-- 資料に「慢性腎不全」「血液透析」「週3回通院」などの記載がある場合は、
-  疾病・健康状態だけでなく、治療状況、定期通院、医療機関の利用、
-  通院支援、現在利用しているサービスなど、該当するすべての項目へ反映してください。
-- 資料に通院頻度が記載されている場合は、その頻度を省略してはいけません。
-- 資料に医療機関名が記載されている場合は、該当する医療・通院項目へ記載してください。
-- 資料に透析日の疲労、血圧低下、食事制限、水分制限などが明記されている場合は、
-  その内容を該当する健康管理・生活上の留意事項へ反映してください。
-- 資料に記載されていない症状や制限を、一般的な医学知識だけで追加してはいけません。
+remark:
+- 資料間の矛盾
+- 採用した情報の根拠
+- valueだけでは表現できない補足
+- 判断時の注意事項
 
-根拠に関するルール:
+hope:
+- 本人または家族の希望・要望
+
+通常の回答はvalueへ設定してください。
+remarkは補足欄であり、回答欄の代わりではありません。
+
+【入力形式別ルール】
+
+inputType="text":
+- 抽出した文字列をvalueへ設定してください。
+
+inputType="textarea":
+- 複数資料の情報を統合・要約した具体的な文章をvalueへ設定してください。
+
+inputType="date":
+- 日付が明確な場合はYYYY-MM-DD形式でvalueへ設定してください。
+- 和暦は西暦へ変換してください。
+
+inputType="number":
+- 資料に明確な数値がある場合のみ、数値をvalueへ設定してください。
+
+inputType="radio":
+- 資料に明確な根拠がある場合のみ、options内に存在するvalueを設定してください。
+- labelではなく、options[].valueを設定してください。
+- 判断できない場合はdefaultValueまたは現在のvalueを変更しないでください。
+
+【資料の読み取り方】
+
+- 単純な完全一致検索だけで判断してはいけません。
+- 複数資料に散在する事実を統合してください。
+- 同じ事実を関連する複数項目へ反映して構いません。
+- 1つの情報を1つの項目だけに記載して終了してはいけません。
+- 各rows[].labelの意味を理解し、関連資料がないか必ず確認してください。
 - 資料に明確な根拠がある項目はcheck="CIRCLE"にしてください。
-- remarkまたはhopeを記載する場合は、原則としてcheck="CIRCLE"にしてください。
-- 資料から直接確認できる事実は、複数の関連項目に反映して構いません。
-- 資料に記載されていない具体的な症状、介助量、リスク、本人の状態を創作してはいけません。
-- 医学的な診断、将来予測、資料にない因果関係を断定してはいけません。
-- 空欄を埋める目的で一般的な介護文を作ってはいけません。
-- 資料から読み取れない項目はcheck="NONE", remark="", hope=""としてください。
-- 「不明」「記載なし」という文章を大量にremarkへ記載せず、根拠がなければ空欄にしてください。
+- value、remark、hopeのいずれかを設定する場合は、原則check="CIRCLE"にしてください。
+- 根拠がない項目はcheck="NONE"とし、value、remark、hopeを空欄にしてください。
 
-文章の書き方:
-- remarkには、資料から確認できる現状、治療状況、支援内容、観察事項、留意事項を具体的に記載してください。
-- hopeには、資料から確認できる本人または家族の希望・要望を記載してください。
-- 疾病名だけ、サービス名だけで終わらず、資料にある頻度や支援内容も併記してください。
-- 「困難である」「できない」だけで終わらず、資料にある具体的な状況を記載してください。
-- 利用者本人、家族、職員の氏名はremarkやhopeに入れないでください。
-- 同じ内容を関連する複数項目に記載する場合も、各項目のlabelに合う表現へ調整してください。
+【基本情報】
 
-radio項目:
-- inputType="radio"の行は、資料に明確な根拠がある場合のみ、
-  options内に存在するvalueをrows[].valueへ設定してください。
-- rows[].valueは、必ず入力テンプレートのoptions内に存在する値を使用してください。
-- 判断できない場合は、入力テンプレートのdefaultValueまたはvalueを変更しないでください。
+次の情報は、資料に記載があれば必ず対応するvalueへ設定してください。
 
-出力前の確認:
-1. template_contentの全行を確認したか。
-2. 疾病、医療処置、通院、利用サービスを見落としていないか。
-3. 同じ根拠を、関連する複数項目へ適切に反映したか。
-4. 資料にある頻度、医療機関、具体的な支援内容を省略していないか。
-5. 資料にない症状やリスクを創作していないか。
-6. key、label、inputType、optionsなどのテンプレート定義を変更していないか。
+- 本人氏名
+- 性別
+- 年齢
+- 生年月日
+- 住所
+- 電話番号
+- 携帯電話番号
+- 介護保険被保険者番号
+- 要介護度
+- 認定日
+- 認定有効期間
+- 家族情報
+- 緊急連絡先
+- 生活状況
+- 本人の希望
+- 家族の希望
 
-remark: 資料から確認できる現状、治療状況、支援内容、観察事項、留意点
-hope: 資料から確認できる本人・家族の希望、要望
+利用者本人、家族、担当者の氏名を一律に除外してはいけません。
+本人氏名、家族氏名、担当者名など、
+テンプレート上で氏名を求める項目には必要な氏名をvalueへ設定してください。
+
+【医療・健康情報】
+
+以下の情報を見落としてはいけません。
+
+- 疾病名
+- 既往歴
+- 合併症
+- 人工透析
+- 定期受診
+- 通院先
+- 通院頻度
+- 服薬
+- 血圧管理
+- 糖尿病管理
+- 食事管理
+- 水分管理
+- 体調変化
+- 医療的管理
+- サービス提供時の医学的留意事項
+
+例えば資料に、
+
+- 慢性腎不全
+- 血液透析
+- 週3回通院
+- 体調不良になることがある
+- 定期的な体調管理が必要
+
+という記載がある場合は、
+単に既往歴へ記載するだけではなく、
+関連する以下の項目にも資料の範囲内で反映してください。
+
+- medical_history
+- health_special_note
+- risk_and_policy
+- medical_management_need
+- medical_caution
+- life_function_outlook
+- summary
+
+資料にない症状や制限を、
+一般的な医学知識だけで追加してはいけません。
+
+【生活状況・支援上の課題】
+
+以下の事実がある場合は、
+関連する各項目へ具体的に反映してください。
+
+- 独居
+- 配偶者の死亡
+- 家族支援が得にくい
+- 緊急連絡先がある
+- 自宅生活の継続を希望している
+- 通院支援が必要
+- 入浴介助が必要
+- 生活支援が必要
+- 手続き支援が必要
+- 配食サービスを利用している
+
+例えば、
+
+- 5年前に夫が他界
+- 家族からの支援が得られない
+- 病気の心配なく自宅生活を続けたい
+
+という情報がある場合は、
+以下の関連項目へ適切に要約してください。
+
+- living_situation
+- person_hope
+- risk_and_policy
+- safety_necessity
+- rights_protection_necessity
+- summary
+- social_activity
+- social_note
+
+【サービス情報】
+
+資料に記載された次のサービスを、
+関連する各項目へ反映してください。
+
+- 訪問介護
+- 訪問入浴
+- 訪問看護
+- 通所介護
+- 通所リハビリ
+- 通院送迎
+- 入浴介助
+- 身体介護
+- 生活援助
+- 配食サービス
+- 手続き支援
+
+利用頻度が明確な場合のみ、
+number項目のvalueへ月回数または日数を設定してください。
+
+週1回は月4回として機械的に変換せず、
+資料の表現を補足説明へ記載するか、
+月回数が明確な場合のみnumberへ設定してください。
+
+【総合記述項目】
+
+以下のtextarea項目は、
+資料内に関連情報がある場合、
+単語だけではなく具体的な文章をvalueへ設定してください。
+
+- summary
+- living_situation
+- person_hope
+- family_hope
+- health_special_note
+- doctor_opinion_mobility
+- doctor_opinion_nutrition
+- risk_and_policy
+- medical_management_need
+- medical_caution
+- bath_note
+- move_meal_note
+- toilet_clean_cloth_note
+- cognition_note
+- communication_method
+- communication_note
+- social_activity
+- social_note
+
+ただし、医師の意見として明記されていない内容を、
+doctor_opinion系項目へ推測で記載してはいけません。
+
+【資料間の矛盾】
+
+資料間に内容の相違がある場合は、
+次の優先順位で判断してください。
+
+1. 介護保険証、認定結果、受給者証などの公的資料
+2. 日付が新しい資料
+3. 居宅サービス計画書、ケアプラン
+4. サービス担当者会議録
+5. 情報連携資料、看護サマリー
+6. その他の文書
+
+判断可能な場合:
+- 最も確度が高い内容をvalueへ設定してください。
+- 相違内容と採用理由をremarkへ記載してください。
+
+判断できない場合:
+- 無理に確定せず、valueは変更しないでください。
+- 相違内容をremarkへ記載してください。
+
+【禁止事項】
+
+- 資料にない具体的な介助量を作らないでください。
+- 資料にないADL状態を作らないでください。
+- 資料にない認知症状を作らないでください。
+- 資料にない家族構成を作らないでください。
+- 資料にない医学的リスクを断定しないでください。
+- 一般的な介護文章だけで空欄を埋めないでください。
+- 「不明」「記載なし」を大量にvalueやremarkへ記載しないでください。
+- 回答内容をremarkだけに入れないでください。
+
+【出力形式】
+
+template_contentの構造を維持し、
+各rowを次の考え方で出力してください。
+
+{
+  "key": "テンプレートと完全一致するkey",
+  "label": "テンプレートと完全一致するlabel",
+  "check": "CIRCLEまたはNONE",
+  "value": "画面へ表示する回答",
+  "remark": "矛盾・根拠・補足",
+  "hope": "本人または家族の希望"
+}
+
+出力前に必ず確認してください。
+
+1. text、textarea、date、numberの回答をvalueへ設定したか。
+2. 回答をremarkだけに格納していないか。
+3. 基本情報をvalueへ設定したか。
+4. 疾病、透析、通院頻度、利用サービスを見落としていないか。
+5. 同じ根拠を関連する複数項目へ適切に反映したか。
+6. 資料にない情報を創作していないか。
+7. key、label、inputType、optionsを変更していないか。
 `.trim();
+
         const user = {
             service_kind: serviceKind,
             materials,
@@ -822,8 +1178,35 @@ hope: 資料から確認できる本人・家族の希望、要望
 
             generation_instruction:
                 isElderCareKind(serviceKind)
-                    ? "介護保険のアセスメントとして、疾病、継続的医療、定期通院、利用サービス、ADL・IADL、本人の希望を関連する全項目へ振り分けてください。"
-                    : "障害福祉のアセスメントとして、障害特性、生活状況、支援内容、本人の希望を関連する全項目へ振り分けてください。",
+                    ? `
+介護保険のアセスメントとして作成してください。
+
+資料から抽出した通常の回答は、
+必ずrows[].valueへ設定してください。
+
+rows[].remarkは、
+資料間の矛盾、採用理由、補足情報だけに使用してください。
+
+氏名、住所、電話番号、生年月日、要介護度、
+生活状況、本人希望、既往歴、医療管理、
+サービス内容、支援上の課題などを、
+関連するすべての項目へ振り分けてください。
+
+特にtextarea項目は、
+資料を横断して具体的な文章をvalueへ設定してください。
+`.trim()
+                    : `
+障害福祉のアセスメントとして作成してください。
+
+資料から抽出した通常の回答は、
+必ずrows[].valueへ設定してください。
+
+rows[].remarkは、
+資料間の矛盾、採用理由、補足情報だけに使用してください。
+
+障害特性、生活状況、支援内容、
+本人の希望を関連するすべての項目へ反映してください。
+`.trim(),
         };
 
         console.log("[assessment:auto-generate] calling openai", {
@@ -866,6 +1249,61 @@ hope: 資料から確認できる本人・家族の希望、要望
         const normalized: AssessmentContent = normalizeByTemplate(templateContent, generatedUnknown);
 
         const filled = countFilled(normalized);
+
+        const valueFilledRows = normalized.sheets
+            .flatMap((sheet) =>
+                sheet.rows.map((row) => ({
+                    sheet_key: sheet.key,
+                    key: row.key,
+                    label: row.label,
+                    value: trimOrEmpty(row.value),
+                    remark: trimOrEmpty(row.remark),
+                    hope: trimOrEmpty(row.hope),
+                    check: row.check,
+                })),
+            )
+            .filter(
+                (row) =>
+                    row.value !== "" &&
+                    row.value !== "00",
+            );
+
+        const remarkOnlyRows = normalized.sheets
+            .flatMap((sheet) =>
+                sheet.rows.map((row) => ({
+                    sheet_key: sheet.key,
+                    key: row.key,
+                    label: row.label,
+                    value: trimOrEmpty(row.value),
+                    remark: trimOrEmpty(row.remark),
+                    hope: trimOrEmpty(row.hope),
+                    check: row.check,
+                })),
+            )
+            .filter(
+                (row) =>
+                    !row.value &&
+                    Boolean(row.remark),
+            );
+
+        console.log(
+            "[assessment:auto-generate] value/remark check",
+            {
+                assessment_id: id,
+
+                value_filled_count:
+                    valueFilledRows.length,
+
+                value_filled_preview:
+                    valueFilledRows.slice(0, 20),
+
+                remark_only_count:
+                    remarkOnlyRows.length,
+
+                remark_only_preview:
+                    remarkOnlyRows.slice(0, 20),
+            },
+        );
 
         console.log("[assessment:auto-generate] normalized", {
             assessment_id: id,
