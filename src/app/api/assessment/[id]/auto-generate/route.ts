@@ -1254,9 +1254,8 @@ template_contentの構造を維持し、
                 assessment.assessed_on ?? null,
             kaipoke_cs_id: kaipokeCsId,
 
-            generation_instruction:
-                isElderCareKind(serviceKind)
-                    ? `
+            generation_instruction: `
+介護保険のアセスメントとして作成してください。
 介護保険のアセスメントとして作成してください。
 
 資料中の文言と項目名の一致だけで判断せず、
@@ -1314,7 +1313,7 @@ radio項目は、資料に十分な根拠がある場合のみ変更してくだ
 
 rows[].remarkは、
 資料間の矛盾、採用理由、根拠、補足情報に使用してください。
-`.trim()
+`.trim(),
         };
 
         console.log("[assessment:auto-generate] calling openai", {
