@@ -224,12 +224,48 @@ function normalizeByTemplate(
     template: AssessmentContent,
     generatedUnknown: unknown,
 ): AssessmentContent {
+    const raw =
+        generatedUnknown as Record<string, unknown> | null;
+
+    /*
+     * OpenAIが次のいずれかで返しても処理できるようにする。
+     *
+     * { sheets: [...] }
+     * { content: { sheets: [...] } }
+     * { template_content: { sheets: [...] } }
+     * { assessment: { sheets: [...] } }
+     * { result: { sheets: [...] } }
+     */
+    const candidate =
+        raw &&
+            typeof raw === "object"
+            ? (
+                Array.isArray(raw.sheets)
+                    ? raw
+                    : raw.content &&
+                        typeof raw.content === "object"
+                        ? raw.content
+                        : raw.template_content &&
+                            typeof raw.template_content === "object"
+                            ? raw.template_content
+                            : raw.assessment &&
+                                typeof raw.assessment === "object"
+                                ? raw.assessment
+                                : raw.result &&
+                                    typeof raw.result === "object"
+                                    ? raw.result
+                                    : raw
+            )
+            : null;
+
     const gen =
-        generatedUnknown as GeneratedContentPartial;
+        candidate as GeneratedContentPartial | null;
 
     const genSheets: GeneratedSheetPartial[] =
         Array.isArray(gen?.sheets)
-            ? (gen.sheets as GeneratedSheetPartial[])
+            ? (
+                gen.sheets as GeneratedSheetPartial[]
+            )
             : [];
 
     type GeneratedRowWithSheet = {
@@ -569,16 +605,21 @@ function normalizeByTemplate(
                                 templateRow.check ??
                                 "NONE";
 
+                        if (!templateRow.inputType) {
+                            return {
+                                ...templateRow,
+                                check,
+                                remark,
+                                hope,
+                            };
+                        }
+
                         return {
                             ...templateRow,
-
                             check,
                             remark,
                             hope,
-
-                            ...(templateRow.inputType
-                                ? { value }
-                                : {}),
+                            value,
                         };
                     },
                 ),
@@ -924,22 +965,19 @@ template_contentに含まれるすべてのシート・すべての行につい�
 
 【value・remark・hopeの役割】
 
-value:
-- 画面の入力欄へ表示する実際の回答です。
-- text、textarea、date、number、radioの回答は必ずvalueへ設定してください。
-- 回答をremarkだけに入れてはいけません。
+介護テンプレート:
+- inputTypeとvalueが存在します。
+- 通常の回答はrows[].valueへ設定してください。
+- rows[].remarkは資料間の矛盾、判断根拠、補足に使用してください。
 
-remark:
-- 資料間の矛盾
-- 採用した情報の根拠
-- valueだけでは表現できない補足
-- 判断時の注意事項
+障害テンプレート:
+- inputTypeとvalueが存在しないrowがあります。
+- inputTypeがないrowでは、通常のアセスメント回答をrows[].remarkへ設定してください。
+- 障害テンプレートではremarkが実際の回答欄です。
 
 hope:
-- 本人または家族の希望・要望
+- 本人または家族の希望・要望を設定してください。
 
-通常の回答はvalueへ設定してください。
-remarkは補足欄であり、回答欄の代わりではありません。
 
 【入力形式別ルール】
 
@@ -1237,12 +1275,15 @@ doctor_opinion系項目へ推測で記載してはいけません。
 - 資料にない医学的リスクを断定しないでください。
 - 一般的な介護文章だけで空欄を埋めないでください。
 - 「不明」「記載なし」を大量にvalueやremarkへ記載しないでください。
-- 回答内容をremarkだけに入れないでください。
+- 介護テンプレートでは、通常の回答をremarkだけに入れないでください。
+- 障害テンプレートでは、inputTypeがないrowの通常回答をremarkへ設定してください。
 
 【出力形式】
 
 template_contentの構造を維持し、
 各rowを次の考え方で出力してください。
+
+介護テンプレートのrow:
 
 {
   "key": "テンプレートと完全一致するkey",
@@ -1253,10 +1294,20 @@ template_contentの構造を維持し、
   "hope": "本人または家族の希望"
 }
 
+障害テンプレートのinputTypeがないrow:
+
+{
+  "key": "テンプレートと完全一致するkey",
+  "label": "テンプレートと完全一致するlabel",
+  "check": "CIRCLEまたはNONE",
+  "remark": "通常のアセスメント回答",
+  "hope": "本人または家族の希望"
+}
+
 出力前に必ず確認してください。
 
-1. text、textarea、date、numberの回答をvalueへ設定したか。
-2. 回答をremarkだけに格納していないか。
+1. 介護テンプレートの回答をvalueへ設定したか。
+2. 障害テンプレートのinputTypeがないrowでは、回答をremarkへ設定したか。
 3. 基本情報をvalueへ設定したか。
 4. 疾病、透析、通院頻度、利用サービスを見落としていないか。
 5. 同じ根拠を関連する複数項目へ適切に反映したか。
@@ -1275,7 +1326,6 @@ template_contentの構造を維持し、
             generation_instruction:
                 isElderCareKind(serviceKind)
                     ? `
-介護保険のアセスメントとして作成してください。
 介護保険のアセスメントとして作成してください。
 
 資料中の文言と項目名の一致だけで判断せず、
@@ -1387,12 +1437,29 @@ textarea項目には、
 利用者の生活像が伝わるよう、
 具体的な状況・支援内容・課題・強みを記載してください。
 
-rows[].valueへ通常の回答を設定してください。
+【障害テンプレートの回答方法】
 
-rows[].remarkは、
-資料間の矛盾、
-判断理由、
-補足説明のみ記載してください。
+template_contentの各rowにinputTypeがない場合は、
+通常のアセスメント回答をrows[].remarkへ設定してください。
+
+rows[].remarkには、
+現在の状態、本人ができること、難しいこと、
+必要な支援、支援上の注意点、本人の強みを
+具体的な文章で記載してください。
+
+rows[].hopeには、
+本人または家族の希望がその項目に明確に関係する場合のみ
+記載してください。
+
+rows[].checkは、
+remarkまたはhopeに内容を設定した場合は"CIRCLE"、
+情報がない場合は"NONE"にしてください。
+
+inputTypeとvalueが存在するrowの場合のみ、
+通常の回答をrows[].valueへ設定してください。
+
+出力JSONの直下には必ずsheetsを置いてください。
+content、template_content、assessment等で包まないでください。
 `.trim(),
         };
 
@@ -1428,6 +1495,40 @@ rows[].remarkは、
         let generatedUnknown: unknown;
         try {
             generatedUnknown = JSON.parse(txt);
+            console.log(
+                "[assessment:auto-generate] parsed response shape",
+                {
+                    assessment_id: id,
+
+                    root_keys:
+                        generatedUnknown &&
+                            typeof generatedUnknown === "object"
+                            ? Object.keys(
+                                generatedUnknown as Record<
+                                    string,
+                                    unknown
+                                >,
+                            )
+                            : [],
+
+                    has_root_sheets:
+                        Boolean(
+                            generatedUnknown &&
+                            typeof generatedUnknown ===
+                            "object" &&
+                            Array.isArray(
+                                (
+                                    generatedUnknown as {
+                                        sheets?: unknown;
+                                    }
+                                ).sheets,
+                            ),
+                        ),
+
+                    raw_preview:
+                        txt.slice(0, 800),
+                },
+            );
         } catch {
             throw new Error("OpenAI response is not valid JSON");
         }
