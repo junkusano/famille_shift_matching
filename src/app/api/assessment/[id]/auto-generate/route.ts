@@ -514,9 +514,27 @@ function normalizeByTemplate(
                             templateRow.defaultValue ||
                             "";
 
+                        /*
+ * 介護テンプレートはinputTypeがあり、
+ * 通常回答をvalueへ保存する。
+ *
+ * 障害テンプレートはinputTypeがないため、
+ * GPTがvalueへ返した回答をremarkへ保存する。
+ */
+                        const isDisabilityLegacyRow =
+                            !templateRow.inputType;
+
                         const remark =
-                            generatedRemark ||
-                            templateRemark;
+                            isDisabilityLegacyRow
+                                ? (
+                                    generatedRemark ||
+                                    generatedValue ||
+                                    templateRemark
+                                )
+                                : (
+                                    generatedRemark ||
+                                    templateRemark
+                                );
 
                         const hope =
                             generatedHope ||
