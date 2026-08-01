@@ -136,11 +136,19 @@ type GeneratedContentPartial = {
 };
 
 const CORE_DOC_NAMES = [
+    // 共通・障害
     "基本情報(ステップ２）",
     "基本情報",
     "サービス等利用計画",
     "障害福祉サービス等利用計画",
     "サービス等利用計画案",
+
+    // 介護保険
+    "ケアプラン(居宅介護支援計画書）",
+    "ケアプラン（居宅介護支援計画書）",
+    "ケアプラン(居宅介護支援計画書)",
+    "ケアプラン（居宅介護支援計画書）",
+    "サ担会要点・議事録",
 ] as const;
 
 const OPTIONAL_DOC_NAMES = ["情報連携・看護サマリー等"] as const;
@@ -773,13 +781,17 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 
         const hasCoreDoc = selectedDocs.some((d) => {
             const name = d.doc_name ?? "";
+
             return (
                 name.includes("基本情報") ||
                 name.includes("サービス等利用計画") ||
-                name.includes("利用計画")
+                name.includes("利用計画") ||
+                name.includes("ケアプラン") ||
+                name.includes("居宅介護支援計画書") ||
+                name.includes("サ担会要点") ||
+                name.includes("議事録")
             );
         });
-
         const hasMeetingMinutes = !!meetingMinutes;
 
         // 基本情報・サービス等利用計画がなくても、議事録があれば生成OK
@@ -788,7 +800,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
                 {
                     ok: false,
                     error:
-                        "基本情報、サービス等利用計画、担当者会議議事録のいずれも無いため、アセスメントを自動生成できません。",
+                        "基本情報、サービス等利用計画、ケアプラン、サービス担当者会議資料のいずれも無いため、アセスメントを自動生成できません。",
                     source_labels: selectedDocs.map((d) => d.doc_name),
                     core_doc_names: CORE_DOC_NAMES,
                     optional_doc_names: OPTIONAL_DOC_NAMES,
@@ -835,8 +847,8 @@ export async function POST(req: NextRequest, { params }: Ctx) {
             meetingMinutes ? "## 担当者会議議事録" : "",
             meetingMinutes ? meetingMinutes : "",
             meetingMinutes ? "" : "",
-            "## 基本情報・サービス等利用計画等(cs_docs)",
-            docsText || "(基本情報・サービス等利用計画等の資料はありません)",
+            "## 基本情報・計画書・会議資料等(cs_docs)",
+            docsText || "(基本情報、計画書、会議資料等はありません)",
             "",
             "## 直近1か月の訪問記録(shift.tokutei_comment)",
             visitNotes,
