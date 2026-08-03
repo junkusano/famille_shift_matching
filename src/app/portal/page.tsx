@@ -270,149 +270,101 @@ export default function PortalHome() {
       </div>
 
       {/* LINE WORKS 利用ガイド */}
-      <div className="mt-8 rounded-xl border border-green-200 bg-green-50 p-6 shadow-sm">
-        <h2 className="text-2xl font-bold text-green-800 mb-4">
-          Myファミーユ × LINE WORKS 活用ガイド
-        </h2>
+      <div className="mt-6 rounded-xl border border-green-200 bg-white p-4 shadow-sm">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-green-800">
+            Myファミーユ × LINE WORKS 活用ガイド
+          </h2>
+          <p className="mt-1 text-sm text-gray-600">
+            シフトから利用者様グループへ参加し、詳細情報や手順書を確認できます。
+          </p>
+        </div>
 
-        <div className="space-y-8">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
 
           {/* ① */}
-          <section>
-            <h3 className="font-bold text-lg text-green-700 mb-2">
-              ① 自分をLINE WORKSの利用者様グループへ追加する方法
+          <section className="rounded-lg border border-green-100 bg-green-50 p-3">
+            <h3 className="text-sm font-bold text-green-800">
+              ① 利用者様グループへ追加
             </h3>
 
-            <p className="mb-3">
-              Myファミーユのシフト画面から簡単に追加できます。
+            <p className="mt-2 text-sm text-gray-700">
+              シフト詳細から
+              <strong>「LINE WORKSグループ追加」</strong>
+              をタップします。
             </p>
 
-            <ol className="list-decimal ml-6 space-y-1">
-              <li>シフト詳細を開く</li>
-              <li>「LINE WORKSグループ追加」をタップ</li>
-              <li>AIエージェントが利用者様グループへ自動追加</li>
-            </ol>
-
-            <div className="mt-3 rounded-lg bg-white p-4 border">
-              <div className="font-semibold mb-2">追加すると確認できる情報</div>
-              <ul className="grid md:grid-cols-2 gap-y-1 list-disc ml-6">
-                <li>利用者様の詳細情報</li>
-                <li>手順書</li>
-                <li>ノート</li>
-                <li>過去のやり取り</li>
-                <li>写真・ファイル</li>
-                <li>タイムライン</li>
-              </ul>
-            </div>
+            <p className="mt-2 text-xs text-gray-600">
+              AIエージェントが自動でグループへ追加します。
+            </p>
           </section>
 
           {/* ② */}
-          <section>
-            <h3 className="font-bold text-lg text-green-700 mb-2">
-              ② ノート（基本情報・手順書）の確認方法
+          <section className="rounded-lg border border-green-100 bg-green-50 p-3">
+            <h3 className="text-sm font-bold text-green-800">
+              ② ノートを確認
             </h3>
 
-            <ol className="list-decimal ml-6 space-y-1">
-              <li>利用者様グループを開く</li>
-              <li>右上の「≡（メニュー）」を開く</li>
-              <li>「ノート」を選択</li>
-            </ol>
+            <p className="mt-2 text-sm text-gray-700">
+              グループ右上の
+              <strong>「≡」→「ノート」</strong>
+              を開きます。
+            </p>
 
-            <div className="mt-3 rounded-lg bg-white p-4 border">
-              <div className="font-semibold mb-2">
-                ノートで確認できる内容
-              </div>
-
-              <ul className="grid md:grid-cols-2 gap-y-1 list-disc ml-6">
-                <li>基本情報</li>
-                <li>手順書</li>
-                <li>注意事項</li>
-                <li>サービス提供時のポイント</li>
-              </ul>
-
-              <p className="mt-3 text-red-600 font-semibold">
-                訪問前には必ず確認しましょう。
-              </p>
-            </div>
+            <p className="mt-2 text-xs text-gray-600">
+              基本情報・手順書・注意事項を訪問前に確認してください。
+            </p>
           </section>
 
           {/* ③ */}
-          <section>
-            <h3 className="font-bold text-lg text-green-700 mb-2">
-              ③ ★部屋（外部トークルーム）について
+          <section className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <h3 className="text-sm font-bold text-amber-800">
+              ③ ★部屋・LINEマークの部屋
             </h3>
 
-            <div className="rounded-lg border bg-white p-4">
-              <p>
-                ★マークやLINEマークが付いている部屋は、
-                <strong>利用者様・相談員など外部の方とのトークルーム</strong>
-                です。
-              </p>
+            <p className="mt-2 text-sm text-gray-700">
+              利用者様や相談員など、
+              <strong>外部の方とのトークルーム</strong>
+              です。
+            </p>
 
-              <p className="mt-3 font-bold text-red-600">
-                この部屋にはAIエージェントはいません。
-              </p>
-
-              <div className="mt-4 rounded-lg bg-red-50 border border-red-200 p-3">
-                <div className="font-bold mb-2">
-                  投稿しないでください
-                </div>
-
-                <ul className="list-disc ml-6">
-                  <li>「私を退出させてください」</li>
-                  <li>「グループから外してください」</li>
-                </ul>
-
-                <p className="mt-2">
-                  このようなコメントは書き込まないようにしてください。
-                </p>
-              </div>
-            </div>
+            <p className="mt-2 text-xs font-semibold text-red-600">
+              AIエージェントはいません。退出依頼を書き込まないでください。
+            </p>
           </section>
 
           {/* ④ */}
-          <section>
-            <h3 className="font-bold text-lg text-green-700 mb-2">
-              ④ 外部グループから退出する方法
+          <section className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <h3 className="text-sm font-bold text-amber-800">
+              ④ 外部グループから退出
             </h3>
 
-            <ol className="list-decimal ml-6 space-y-1">
-              <li>グループ右上のメニュー</li>
-              <li>「退出」を選択</li>
-              <li>確認</li>
-            </ol>
+            <p className="mt-2 text-sm text-gray-700">
+              右上のメニューから
+              <strong>「退出」→「確認」</strong>
+              を選択します。
+            </p>
 
-            <p className="mt-3 font-semibold">
+            <p className="mt-2 text-xs text-gray-600">
               外部トークルームは自分で退出できます。
             </p>
-
-            <p className="text-red-600 font-bold">
-              AIへ依頼する必要はありません。
-            </p>
           </section>
+        </div>
 
-          {/* 関連機能 */}
-          <section className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-            <h3 className="font-bold text-blue-700 mb-2">
+        {/* 関連機能 */}
+        <div className="mt-3 flex flex-col gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 md:flex-row md:items-center md:justify-between">
+          <div className="text-sm">
+            <strong className="text-blue-800">
               関連機能：「このシフトには入れない」
-            </h3>
+            </strong>
+            <span className="ml-1 text-gray-700">
+              急な予定変更時は、このボタンから連絡してください。
+            </span>
+          </div>
 
-            <p>
-              急な予定変更などで訪問できなくなった場合は、
-              <strong>「このシフトには入れない」</strong>
-              ボタンをご利用ください。
-            </p>
-
-            <ul className="list-disc ml-6 mt-3">
-              <li>マネジャーへ通知</li>
-              <li>代替スタッフの調整開始</li>
-            </ul>
-
-            <p className="mt-3 font-semibold text-red-600">
-              無断で欠勤せず、この機能から連絡してください。
-            </p>
-          </section>
-
+          <div className="text-xs font-semibold text-blue-700">
+            マネジャーへ通知・代替スタッフを調整
+          </div>
         </div>
       </div>
 
