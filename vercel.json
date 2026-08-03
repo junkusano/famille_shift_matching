@@ -206,7 +206,7 @@
     },
     {
       "path": "/api/cron/spot-offer-sync-check",
-       "schedule": "31 * * * *"
+      "schedule": "31 * * * *"
     },
     {
       "path": "/api/cron/spot-offer-auto-request",
@@ -221,8 +221,12 @@
       "schedule": "5 6 * * 0-4"
     },
     {
-  "path": "/api/cron/open-unqualified-manager-jobs",
-   "schedule": "10 4 * * 1,4"
-}
+      "path": "/api/cron/open-unqualified-manager-jobs",
+      "schedule": "10 4 * * 1,4"
+    },
+    {
+      "path": "/api/cron/training-goal-reminder",
+      "schedule": "37 1 1 * *"
+    }
   ]
 }
