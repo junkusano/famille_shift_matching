@@ -551,6 +551,65 @@ export async function PATCH(req: NextRequest) {
             );
         }
 
+        /*
+         * アンケートの回答締切日時を取得
+         */
+        const { data: survey, error: surveyError } =
+            await supabaseAdmin
+                .from("bento_surveys")
+                .select("id,response_deadline,status,is_active")
+                .eq("id", surveyId)
+                .eq("is_active", true)
+                .maybeSingle<{
+                    id: string;
+                    response_deadline: string;
+                    status: string;
+                    is_active: boolean;
+                }>();
+
+        if (surveyError) {
+            throw surveyError;
+        }
+
+        if (!survey) {
+            return json(
+                {
+                    ok: false,
+                    error: "アンケートが見つかりません。",
+                },
+                404,
+            );
+        }
+
+        /*
+         * 回答締切から7日間だけ受取確認を許可
+         */
+        const deadlineTime =
+            new Date(survey.response_deadline).getTime();
+
+        if (!Number.isFinite(deadlineTime)) {
+            return json(
+                {
+                    ok: false,
+                    error: "回答締切日時が正しく設定されていません。",
+                },
+                500,
+            );
+        }
+
+        const receiptLimitTime =
+            deadlineTime + 7 * 24 * 60 * 60 * 1000;
+
+        if (Date.now() >= receiptLimitTime) {
+            return json(
+                {
+                    ok: false,
+                    error: "受取確認期間を過ぎています。",
+                },
+                400,
+            );
+        }
+
         const { data: existingResponse, error: responseError } =
             await supabaseAdmin
                 .from("bento_survey_responses")

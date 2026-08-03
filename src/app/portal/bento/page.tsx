@@ -316,6 +316,37 @@ export default function BentoSurveyPage() {
     const canEdit = data.can_edit === true;
     const alreadySubmitted = Boolean(data.response);
 
+    const deadlineTime = new Date(survey.response_deadline).getTime();
+    const receiptDisplayEndTime =
+        deadlineTime + 7 * 24 * 60 * 60 * 1000;
+
+    const nowTime = Date.now();
+    const deadlinePassed = nowTime >= deadlineTime;
+    const receiptDisplayEnded = nowTime >= receiptDisplayEndTime;
+
+    const canShowReceiptAfterDeadline =
+        deadlinePassed &&
+        !receiptDisplayEnded &&
+        alreadySubmitted &&
+        data.response?.wants_bento === true;
+
+    if (
+        deadlinePassed &&
+        !canShowReceiptAfterDeadline
+    ) {
+        return (
+            <div className="mx-auto max-w-4xl p-6">
+                <h1 className="mb-4 text-2xl font-bold">
+                    お弁当アンケート
+                </h1>
+
+                <div className="rounded-lg border bg-white p-6 text-gray-700">
+                    現在回答できるアンケートはありません。
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
             <div>
@@ -554,7 +585,8 @@ export default function BentoSurveyPage() {
             </button>
 
             {alreadySubmitted &&
-                data.response?.wants_bento === true && (
+                data.response?.wants_bento === true &&
+                !receiptDisplayEnded && (
                     <div className="mt-4 space-y-2">
                         {data.response?.received_at ? (
                             <div className="rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-center font-semibold text-green-800">
