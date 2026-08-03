@@ -96,7 +96,7 @@ export async function GET() {
             .select(
                 "entry_id,user_id,last_name_kanji,first_name_kanji,channel_id,status,orgunitname"
             )
-            .eq("user_id", "saratsubasagunshi") // テスト送信用
+            //.eq("user_id", "saratsubasagunshi") // テスト送信用
             .neq("status", "removed_from_lineworks_kaipoke");
 
         if (usersError) throw usersError;

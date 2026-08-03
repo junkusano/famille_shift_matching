@@ -252,14 +252,13 @@ export async function GET(req: NextRequest) {
                 "id,title,description,notes,event_date,response_deadline,allow_edit_after_submit,status",
             )
             .eq("is_active", true)
-            .eq("status", "published");
+            .in("status", ["published", "closed"]);
 
         if (surveyId) {
             surveyQuery = surveyQuery.eq("id", surveyId);
         } else {
             surveyQuery = surveyQuery
-                .gte("response_deadline", new Date().toISOString())
-                .order("event_date", { ascending: true })
+                .order("event_date", { ascending: false })
                 .limit(1);
         }
 
@@ -307,6 +306,7 @@ export async function GET(req: NextRequest) {
             new Date(surveyData.response_deadline).getTime() <= Date.now();
         const response = responseResult.data;
         const canEdit =
+            surveyData.status === "published" &&
             eligibility.eligible &&
             !deadlinePassed &&
             (!response || surveyData.allow_edit_after_submit);
