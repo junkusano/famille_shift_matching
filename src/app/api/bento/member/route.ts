@@ -258,6 +258,7 @@ export async function GET(req: NextRequest) {
             surveyQuery = surveyQuery.eq("id", surveyId);
         } else {
             surveyQuery = surveyQuery
+                .order("status", { ascending: false })
                 .order("event_date", { ascending: false })
                 .limit(1);
         }
