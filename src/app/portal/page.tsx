@@ -269,6 +269,153 @@ export default function PortalHome() {
 
       </div>
 
+      {/* LINE WORKS 利用ガイド */}
+      <div className="mt-8 rounded-xl border border-green-200 bg-green-50 p-6 shadow-sm">
+        <h2 className="text-2xl font-bold text-green-800 mb-4">
+          Myファミーユ × LINE WORKS 活用ガイド
+        </h2>
+
+        <div className="space-y-8">
+
+          {/* ① */}
+          <section>
+            <h3 className="font-bold text-lg text-green-700 mb-2">
+              ① 自分をLINE WORKSの利用者様グループへ追加する方法
+            </h3>
+
+            <p className="mb-3">
+              Myファミーユのシフト画面から簡単に追加できます。
+            </p>
+
+            <ol className="list-decimal ml-6 space-y-1">
+              <li>シフト詳細を開く</li>
+              <li>「LINE WORKSグループ追加」をタップ</li>
+              <li>AIエージェントが利用者様グループへ自動追加</li>
+            </ol>
+
+            <div className="mt-3 rounded-lg bg-white p-4 border">
+              <div className="font-semibold mb-2">追加すると確認できる情報</div>
+              <ul className="grid md:grid-cols-2 gap-y-1 list-disc ml-6">
+                <li>利用者様の詳細情報</li>
+                <li>手順書</li>
+                <li>ノート</li>
+                <li>過去のやり取り</li>
+                <li>写真・ファイル</li>
+                <li>タイムライン</li>
+              </ul>
+            </div>
+          </section>
+
+          {/* ② */}
+          <section>
+            <h3 className="font-bold text-lg text-green-700 mb-2">
+              ② ノート（基本情報・手順書）の確認方法
+            </h3>
+
+            <ol className="list-decimal ml-6 space-y-1">
+              <li>利用者様グループを開く</li>
+              <li>右上の「≡（メニュー）」を開く</li>
+              <li>「ノート」を選択</li>
+            </ol>
+
+            <div className="mt-3 rounded-lg bg-white p-4 border">
+              <div className="font-semibold mb-2">
+                ノートで確認できる内容
+              </div>
+
+              <ul className="grid md:grid-cols-2 gap-y-1 list-disc ml-6">
+                <li>基本情報</li>
+                <li>手順書</li>
+                <li>注意事項</li>
+                <li>サービス提供時のポイント</li>
+              </ul>
+
+              <p className="mt-3 text-red-600 font-semibold">
+                訪問前には必ず確認しましょう。
+              </p>
+            </div>
+          </section>
+
+          {/* ③ */}
+          <section>
+            <h3 className="font-bold text-lg text-green-700 mb-2">
+              ③ ★部屋（外部トークルーム）について
+            </h3>
+
+            <div className="rounded-lg border bg-white p-4">
+              <p>
+                ★マークやLINEマークが付いている部屋は、
+                <strong>利用者様・相談員など外部の方とのトークルーム</strong>
+                です。
+              </p>
+
+              <p className="mt-3 font-bold text-red-600">
+                この部屋にはAIエージェントはいません。
+              </p>
+
+              <div className="mt-4 rounded-lg bg-red-50 border border-red-200 p-3">
+                <div className="font-bold mb-2">
+                  投稿しないでください
+                </div>
+
+                <ul className="list-disc ml-6">
+                  <li>「私を退出させてください」</li>
+                  <li>「グループから外してください」</li>
+                </ul>
+
+                <p className="mt-2">
+                  このようなコメントは書き込まないようにしてください。
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* ④ */}
+          <section>
+            <h3 className="font-bold text-lg text-green-700 mb-2">
+              ④ 外部グループから退出する方法
+            </h3>
+
+            <ol className="list-decimal ml-6 space-y-1">
+              <li>グループ右上のメニュー</li>
+              <li>「退出」を選択</li>
+              <li>確認</li>
+            </ol>
+
+            <p className="mt-3 font-semibold">
+              外部トークルームは自分で退出できます。
+            </p>
+
+            <p className="text-red-600 font-bold">
+              AIへ依頼する必要はありません。
+            </p>
+          </section>
+
+          {/* 関連機能 */}
+          <section className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <h3 className="font-bold text-blue-700 mb-2">
+              関連機能：「このシフトには入れない」
+            </h3>
+
+            <p>
+              急な予定変更などで訪問できなくなった場合は、
+              <strong>「このシフトには入れない」</strong>
+              ボタンをご利用ください。
+            </p>
+
+            <ul className="list-disc ml-6 mt-3">
+              <li>マネジャーへ通知</li>
+              <li>代替スタッフの調整開始</li>
+            </ul>
+
+            <p className="mt-3 font-semibold text-red-600">
+              無断で欠勤せず、この機能から連絡してください。
+            </p>
+          </section>
+
+        </div>
+      </div>
+
       <div className="mt-8">
         <PerformanceScoreCard />
       </div>
