@@ -11,20 +11,47 @@ const CRON_NAME = "open-unqualified-taimee-jobs";
 const CREATED_FROM =
   "/api/cron/open-unqualified-taimee-jobs";
 
-const TEMPLATE_ID =
-  "70e7f7f4-7478-482c-9ff0-8c23269337b3";
-
-const TEMPLATE_NAME =
-  "タイミー募集（無資格）";
-
 const REQUESTER_ID =
   "7ed354ed-5363-4721-a056-e58c39f8f9d7";
 
 const APPROVER_ID =
   "7ed354ed-5363-4721-a056-e58c39f8f9d7";
 
-const SHIFT_START_TIME = "10:00:00";
-const SHIFT_END_TIME = "11:00:00";
+const JOB_SETTING_KEY = "unqualified_taimee";
+
+type TaimeeJobSetting = {
+  id: string;
+  setting_key: string;
+  setting_name: string;
+  offer_id: string;
+  work_weekday: number;
+  work_start_time: string;
+  work_end_time: string;
+  open_weekday: number;
+  open_time: string;
+  hourly_wage: number;
+  headcount: number;
+  environment: string;
+  is_enabled: boolean;
+};
+
+async function getJobSetting(): Promise<TaimeeJobSetting> {
+  const { data, error } = await supabaseAdmin
+    .from("taimee_job_settings")
+    .select("*")
+    .eq("setting_key", JOB_SETTING_KEY)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("タイミー求人設定が見つかりません。");
+  }
+
+  return data as TaimeeJobSetting;
+}
 
 type JsonRecord = Record<string, unknown>;
 
@@ -160,7 +187,8 @@ function toText(value: unknown): string {
 
 function isSameRequest(
   row: RpaRequestRow,
-  targetDate: string
+  targetDate: string,
+  setting: TaimeeJobSetting
 ): boolean {
   if (!isRecord(row.request_details)) {
     return false;
@@ -178,12 +206,13 @@ function isSameRequest(
     action === "create_taimee_job" &&
     command === "create_job" &&
     requestTargetDate === targetDate &&
-    templateId === TEMPLATE_ID
+    templateId === setting.offer_id
   );
 }
 
 async function findExistingRequest(
-  targetDate: string
+  targetDate: string,
+  setting: TaimeeJobSetting
 ): Promise<RpaRequestRow | null> {
   const createdAfter = new Date();
 
@@ -218,18 +247,23 @@ async function findExistingRequest(
     );
   }
 
-  const rows =
-    (data ?? []) as RpaRequestRow[];
+const rows =
+  (data ?? []) as RpaRequestRow[];
 
-  return (
-    rows.find((row) =>
-      isSameRequest(row, targetDate)
-    ) ?? null
-  );
+return (
+  rows.find((row) =>
+    isSameRequest(
+      row,
+      targetDate,
+      setting
+    )
+  ) ?? null
+);
 }
 
 async function createRpaRequest(
-  targetDate: string
+  targetDate: string,
+  setting: TaimeeJobSetting
 ): Promise<RpaRequestRow> {
   const requestedAt = new Date().toISOString();
 
@@ -239,30 +273,35 @@ async function createRpaRequest(
 
     target_date: targetDate,
     shift_start_date: targetDate,
-    shift_start_time: SHIFT_START_TIME,
-    shift_end_time: SHIFT_END_TIME,
+    shift_start_time: setting.work_start_time,
+    shift_end_time: setting.work_end_time,
 
-    template_name: TEMPLATE_NAME,
+    hourly_wage: setting.hourly_wage,
+    headcount: setting.headcount,
+    execution_mode: setting.environment,
+    job_setting_key: setting.setting_key,
+    job_setting_id: setting.id,
+
+    template_name: setting.setting_name,
     requester_user_id: "junkusano",
     created_from: CREATED_FROM,
     requested_at: requestedAt,
   };
 
-  const { data, error } =
-    await supabaseAdmin
-      .from("rpa_command_requests")
-      .insert({
-  template_id: TEMPLATE_ID,
-  requester_id: REQUESTER_ID,
-  approver_id: APPROVER_ID,
-  status: "approved",
-  approved_at: requestedAt,
-  request_details: requestDetails,
-})
-      .select(
-        "id, template_id, status, created_at, request_details"
-      )
-      .single();
+  const { data, error } = await supabaseAdmin
+    .from("rpa_command_requests")
+    .insert({
+      template_id: setting.offer_id,
+      requester_id: REQUESTER_ID,
+      approver_id: APPROVER_ID,
+      status: "approved",
+      approved_at: requestedAt,
+      request_details: requestDetails,
+    })
+    .select(
+      "id, template_id, status, created_at, request_details"
+    )
+    .single();
 
   if (error) {
     throw new Error(
@@ -288,6 +327,16 @@ export async function GET(
         }
       );
     }
+
+    const setting = await getJobSetting();
+
+if (!setting.is_enabled) {
+  return NextResponse.json({
+    ok: true,
+    skipped: true,
+    reason: "setting_disabled",
+  });
+}
 
     const todayJst = getTodayJst();
     const targetDate = getTomorrowJst();
@@ -317,7 +366,10 @@ export async function GET(
     }
 
     const existingRequest =
-      await findExistingRequest(targetDate);
+      await findExistingRequest(
+  targetDate,
+  setting
+);
 
     if (existingRequest) {
       console.log(
@@ -344,36 +396,58 @@ export async function GET(
     }
 
     const createdRequest =
-      await createRpaRequest(targetDate);
+  await createRpaRequest(
+    targetDate,
+    setting
+  );
 
-    console.log(
-      `[${CRON_NAME}] request created`,
-      {
-        id: createdRequest.id,
-        status: createdRequest.status,
-        targetDate,
-        templateName: TEMPLATE_NAME,
-        shiftStartTime: SHIFT_START_TIME,
-        shiftEndTime: SHIFT_END_TIME,
-      }
-    );
+console.log(
+  `[${CRON_NAME}] request created`,
+  {
+    id: createdRequest.id,
+    status: createdRequest.status,
+    targetDate,
+    settingKey: setting.setting_key,
+    templateName: setting.setting_name,
+    shiftStartTime:
+      setting.work_start_time,
+    shiftEndTime:
+      setting.work_end_time,
+    hourlyWage:
+      setting.hourly_wage,
+    headcount:
+      setting.headcount,
+    executionMode:
+      setting.environment,
+  }
+);
 
-    return NextResponse.json({
-      ok: true,
-      skipped: false,
-      message:
-        "翌日分のタイミー募集RPAリクエストを作成しました。",
-      targetDate,
-      templateName: TEMPLATE_NAME,
-      shiftStartTime: SHIFT_START_TIME,
-      shiftEndTime: SHIFT_END_TIME,
-      request: {
-        id: createdRequest.id,
-        status: createdRequest.status,
-        createdAt:
-          createdRequest.created_at,
-      },
-    });
+return NextResponse.json({
+  ok: true,
+  skipped: false,
+  message:
+    "翌日分のタイミー募集RPAリクエストを作成しました。",
+  targetDate,
+  settingKey: setting.setting_key,
+  templateName: setting.setting_name,
+  shiftStartTime:
+    setting.work_start_time,
+  shiftEndTime:
+    setting.work_end_time,
+  hourlyWage:
+    setting.hourly_wage,
+  headcount:
+    setting.headcount,
+  executionMode:
+    setting.environment,
+  request: {
+    id: createdRequest.id,
+    status: createdRequest.status,
+    createdAt:
+      createdRequest.created_at,
+  },
+});
+
   } catch (error) {
     const message =
       error instanceof Error

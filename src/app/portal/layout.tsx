@@ -119,7 +119,17 @@ function NavLinks({ role }: { role: string | null }) {
           <li><Link href="/portal/fax-history" className="text-blue-300 hover:underline">fax送信履歴</Link></li>
           <li><Link href="/portal/fax" className="text-blue-300 hover:underline">fax電話帳</Link></li>
           <li><Link href="/portal/rpa_requests" className="text-blue-300 hover:underline">RPAリクエスト管理</Link></li>
-          <li><Link href="/portal/rpa_temp/list" className="text-blue-300 hover:underline">RPAテンプレ管理</Link></li>
+
+<li>
+  <Link
+    href="/portal/admin/taimee-job-settings"
+    className="text-blue-300 hover:underline"
+  >
+    タイミー求人設定
+  </Link>
+</li>
+
+<li><Link href="/portal/rpa_temp/list" className="text-blue-300 hover:underline">RPAテンプレ管理</Link></li>
           <li><Link href="/portal/shift-service-code" className="text-blue-300 hover:underline">サービスコード管理</Link></li>
           <li><Link href="/portal/shift-record-def" className="text-blue-300 hover:underline">訪問記録定義</Link></li>
           <li><Link href="/portal/roster/weekly" className="text-blue-300 hover:underline">週間シフト</Link></li>
