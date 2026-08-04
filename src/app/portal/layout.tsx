@@ -129,7 +129,7 @@ function NavLinks({ role }: { role: string | null }) {
           <li><Link href="/portal/audit_log" className="text-blue-300 hover:underline">監査ログ</Link></li>
           <li>
             <Link
-              href="/portal/admin/expense-claims"
+              href="/portal/expense-claims"
               className="text-blue-300 hover:underline"
             >
               経費精算【管理用】
