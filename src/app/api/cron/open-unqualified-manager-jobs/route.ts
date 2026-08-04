@@ -4,24 +4,67 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/**
- * タイミー募集（無資格マネージャー）
- */
-const RPA_COMMAND_TEMPLATE_ID =
-  "160b2b7f-f816-4713-bc76-f89fec654911";
-
-  const CRON_REQUESTER_ID =
+const CRON_REQUESTER_ID =
   "7ed354ed-5363-4721-a056-e58c39f8f9d7";
 
 const CRON_APPROVER_ID =
   "7ed354ed-5363-4721-a056-e58c39f8f9d7";
 
-/**
- * 求人の固定条件
- */
-const JOB_START_TIME = "11:00:00";
-const JOB_END_TIME = "13:00:00";
-const HEADCOUNT = 3;
+const JOB_SETTING_KEY = "unqualified_manager";
+
+type TaimeeJobSetting = {
+  id: string;
+  setting_key: string;
+  setting_name: string;
+  offer_id: string;
+  work_weekday: number;
+  work_start_time: string;
+  work_end_time: string;
+  open_weekday: number;
+  open_time: string;
+  hourly_wage: number;
+  headcount: number;
+  environment: string;
+  is_enabled: boolean;
+};
+
+async function getJobSetting(): Promise<TaimeeJobSetting> {
+  const { data, error } = await supabaseAdmin
+    .from("taimee_job_settings")
+    .select(
+      `
+        id,
+        setting_key,
+        setting_name,
+        offer_id,
+        work_weekday,
+        work_start_time,
+        work_end_time,
+        open_weekday,
+        open_time,
+        hourly_wage,
+        headcount,
+        environment,
+        is_enabled
+      `
+    )
+    .eq("setting_key", JOB_SETTING_KEY)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `タイミー求人設定の取得に失敗しました: ${error.message}`
+    );
+  }
+
+  if (!data) {
+    throw new Error(
+      `タイミー求人設定が見つかりません: ${JOB_SETTING_KEY}`
+    );
+  }
+
+  return data as TaimeeJobSetting;
+}
 
 /**
  * RPAリクエスト内で使用する識別子
@@ -30,7 +73,6 @@ const HEADCOUNT = 3;
  */
 const ACTION = "create_taimee_job";
 const COMMAND = "create_job";
-const EXECUTION_MODE = "production";
 
 /**
  * このCron APIの識別子
@@ -206,7 +248,8 @@ function isAuthorized(req: NextRequest): boolean {
  * failedは重複判定から除外します。
  */
 async function findExistingRequest(
-  shiftStartDate: string
+  shiftStartDate: string,
+  setting: TaimeeJobSetting
 ) {
   const { data, error } = await supabaseAdmin
     .from("rpa_command_requests")
@@ -215,7 +258,7 @@ async function findExistingRequest(
     )
     .eq(
       "template_id",
-      RPA_COMMAND_TEMPLATE_ID
+      setting.offer_id
     )
     .in(
       "status",
@@ -224,8 +267,8 @@ async function findExistingRequest(
     .contains("request_details", {
       action: ACTION,
       shift_start_date: shiftStartDate,
-      shift_start_time: JOB_START_TIME,
-      shift_end_time: JOB_END_TIME,
+      shift_start_time: setting.work_start_time,
+      shift_end_time: setting.work_end_time,
     })
     .order("created_at", {
       ascending: false,
@@ -246,7 +289,8 @@ async function findExistingRequest(
  * RPAリクエストを作成します。
  */
 async function createRpaRequest(
-  shiftStartDate: string
+  shiftStartDate: string,
+  setting: TaimeeJobSetting
 ) {
   const requestedAt = new Date().toISOString();
 
@@ -254,28 +298,35 @@ async function createRpaRequest(
     action: ACTION,
     command: COMMAND,
 
+    job_setting_id: setting.id,
+    job_setting_key: setting.setting_key,
+
     target_date: shiftStartDate,
     shift_start_date: shiftStartDate,
-    shift_start_time: JOB_START_TIME,
-    shift_end_time: JOB_END_TIME,
+    shift_start_time: setting.work_start_time,
+    shift_end_time: setting.work_end_time,
 
-    template_name:
-      "タイミー募集（無資格マネージャー）",
+    hourly_wage: setting.hourly_wage,
+    headcount: setting.headcount,
+
+    template_name: setting.setting_name,
+    execution_mode: setting.environment,
+
     requester_user_id: "junkusano",
     created_from: CREATED_FROM,
     requested_at: requestedAt,
   };
 
   const { data, error } = await supabaseAdmin
-  .from("rpa_command_requests")
-  .insert({
-    template_id: RPA_COMMAND_TEMPLATE_ID,
-    requester_id: CRON_REQUESTER_ID,
-    approver_id: CRON_APPROVER_ID,
-    status: "approved",
-    approved_at: requestedAt,
-    request_details: requestDetails,
-  })
+    .from("rpa_command_requests")
+    .insert({
+      template_id: setting.offer_id,
+      requester_id: CRON_REQUESTER_ID,
+      approver_id: CRON_APPROVER_ID,
+      status: "approved",
+      approved_at: requestedAt,
+      request_details: requestDetails,
+    })
     .select(
       `
         id,
@@ -310,21 +361,39 @@ async function handler(req: NextRequest) {
 
   try {
     if (!isAuthorized(req)) {
-      console.warn(
-        "[open-unqualified-manager-jobs] unauthorized"
-      );
+  console.warn(
+    "[open-unqualified-manager-jobs] unauthorized"
+  );
 
-      return json(
-        {
-          ok: false,
-          message: "Unauthorized",
-        },
-        401
-      );
+  return json(
+    {
+      ok: false,
+      message: "Unauthorized",
+    },
+    401
+  );
+}
+
+const setting = await getJobSetting();
+
+if (!setting.is_enabled) {
+  console.info(
+    "[open-unqualified-manager-jobs] disabled",
+    {
+      settingKey: setting.setting_key,
     }
+  );
 
-    const nextEvent = getNextEventDate();
+  return json({
+    ok: true,
+    skipped: true,
+    reason: "setting_disabled",
+    message:
+      "無資格マネージャー求人設定が無効のため、処理をスキップしました。",
+  });
+}
 
+const nextEvent = getNextEventDate();
     /**
      * vercel.jsonでは月・木のみ実行しますが、
      * 手動実行や設定ミスに備えてAPI側でも曜日を確認します。
@@ -351,22 +420,27 @@ async function handler(req: NextRequest) {
     const { nowJst, shiftStartDate } = nextEvent;
 
     console.info(
-      "[open-unqualified-manager-jobs] target",
-      {
-        nowJst,
-        shiftStartDate,
-        shiftStartTime: JOB_START_TIME,
-        shiftEndTime: JOB_END_TIME,
-        headcount: HEADCOUNT,
-        executionMode: EXECUTION_MODE,
-      }
-    );
-
+  "[open-unqualified-manager-jobs] target",
+  {
+    nowJst,
+    settingId: setting.id,
+    settingKey: setting.setting_key,
+    shiftStartDate,
+    shiftStartTime: setting.work_start_time,
+    shiftEndTime: setting.work_end_time,
+    hourlyWage: setting.hourly_wage,
+    headcount: setting.headcount,
+    executionMode: setting.environment,
+  }
+);
     /**
      * 重複登録防止
      */
     const existingRequest =
-      await findExistingRequest(shiftStartDate);
+  await findExistingRequest(
+    shiftStartDate,
+    setting
+  );
 
     if (existingRequest) {
       console.info(
@@ -387,11 +461,13 @@ async function handler(req: NextRequest) {
         message:
           "同じ開催日のRPAリクエストが既に存在するため、作成をスキップしました。",
         target: {
-          shift_start_date: shiftStartDate,
-          shift_start_time: JOB_START_TIME,
-          shift_end_time: JOB_END_TIME,
-          headcount: HEADCOUNT,
-        },
+  setting_key: setting.setting_key,
+  shift_start_date: shiftStartDate,
+  shift_start_time: setting.work_start_time,
+  shift_end_time: setting.work_end_time,
+  hourly_wage: setting.hourly_wage,
+  headcount: setting.headcount,
+},
         existing_request: {
           id: existingRequest.id,
           status: existingRequest.status,
@@ -402,7 +478,10 @@ async function handler(req: NextRequest) {
     }
 
     const createdRequest =
-      await createRpaRequest(shiftStartDate);
+  await createRpaRequest(
+    shiftStartDate,
+    setting
+  );
 
     console.info(
       "[open-unqualified-manager-jobs] created",
@@ -420,12 +499,16 @@ async function handler(req: NextRequest) {
         "タイミー募集用のRPAリクエストを作成しました。",
       request: createdRequest,
       target: {
-        shift_start_date: shiftStartDate,
-        shift_start_time: JOB_START_TIME,
-        shift_end_time: JOB_END_TIME,
-        headcount: HEADCOUNT,
-        execution_mode: EXECUTION_MODE,
-      },
+  setting_id: setting.id,
+  setting_key: setting.setting_key,
+  setting_name: setting.setting_name,
+  shift_start_date: shiftStartDate,
+  shift_start_time: setting.work_start_time,
+  shift_end_time: setting.work_end_time,
+  hourly_wage: setting.hourly_wage,
+  headcount: setting.headcount,
+  execution_mode: setting.environment,
+},
     });
   } catch (error) {
     const message =
