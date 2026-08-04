@@ -19,24 +19,32 @@ export async function POST(req: Request) {
     let updated = 0
     for (const u of updates) {
       if (!u?.key) continue
-      const [period_month, taimee_user_id] = u.key.split('__')
+      const applicantId = u.key
       const patch: Partial<Pick<UpdateRowPayload, 'memo' | 'black_list' | 'send_disabled'>> = {}
       if (typeof u.memo !== 'undefined') patch.memo = u.memo
       if (typeof u.black_list !== 'undefined') patch.black_list = u.black_list
       if (typeof u.send_disabled !== 'undefined') patch.send_disabled = u.send_disabled
       if (Object.keys(patch).length === 0) continue
       const { error } = await supabase
-        .from('taimee_employees_monthly')
-        .update(patch)
-        .eq('period_month', period_month)
-        .eq('taimee_user_id', taimee_user_id)
+.from("taimee_applicants")
+.update(patch)
+.eq("id", applicantId)
       if (error) throw error
       updated++
     }
 
     return Next.json({ ok: true, updated })
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'unknown error'
+    console.error(e)
+
+const msg =
+  typeof e === "object" &&
+  e &&
+  "message" in e
+    ? String(
+        (e as { message?: unknown }).message
+      )
+    : String(e)
     return Next.json({ ok: false, error: msg }, { status: 500 })
   }
 }
