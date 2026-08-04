@@ -193,6 +193,17 @@ export default function PortalHome() {
 
   if (!me) return <div className="p-4">読み込み中...</div>;
 
+  // 資格証明書以外の添付ファイルを「提出書類」として表示する
+  const submittedDocs = (me.attachments ?? []).filter((attachment) => {
+    if (!attachment?.url) return false;
+
+    return ![
+      '資格証明書',
+      'certificate',
+      'certification',
+    ].includes(attachment.type ?? '');
+  });
+
   return (
     <div className="content p-6 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold flex items-center gap-3">
@@ -447,6 +458,70 @@ export default function PortalHome() {
 
       <div className="mt-8">
         <PerformanceScoreCard />
+      </div>
+
+      {/* 提出書類 */}
+      <div className="mt-8 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <FileText className="h-6 w-6 text-gray-700" />
+
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">
+              提出書類
+            </h2>
+
+            <p className="text-sm text-gray-500">
+              入社時などに提出した書類を確認できます。
+            </p>
+          </div>
+        </div>
+
+        {submittedDocs.length === 0 ? (
+          <div className="mt-4 rounded-lg bg-gray-50 px-4 py-5 text-sm text-gray-500">
+            現在、確認できる提出書類はありません。
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {submittedDocs.map((document, index) => (
+              <div
+                key={document.id ?? `${document.url}-${index}`}
+                className="flex flex-col gap-3 rounded-lg border border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900">
+                    {document.label ||
+                      document.type ||
+                      `提出書類 ${index + 1}`}
+                  </div>
+
+                  {document.type && document.label !== document.type && (
+                    <div className="mt-1 text-xs text-gray-500">
+                      書類区分：{document.type}
+                    </div>
+                  )}
+
+                  {document.uploaded_at && (
+                    <div className="mt-1 text-xs text-gray-500">
+                      提出日：
+                      {new Date(document.uploaded_at).toLocaleDateString(
+                        'ja-JP',
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <a
+                  href={document.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex shrink-0 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                >
+                  書類を見る
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mt-8">
