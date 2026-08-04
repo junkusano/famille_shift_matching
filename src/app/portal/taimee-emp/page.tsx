@@ -621,16 +621,13 @@ const isCandidate =
                       <td className="p-2">
   <div className="flex flex-wrap gap-2">
     <Button
-      variant="outline"
-      size="sm"
-      onClick={() =>
-        router.push(
-          `/portal/taimee-applicants/${it.applicant_id}`
-        )
-      }
-    >
-      詳細
-    </Button>
+  variant="outline"
+  size="sm"
+  disabled
+  title="準備中"
+>
+  詳細
+</Button>
 
     {isLinked && it.entry_id ? (
       <Button
