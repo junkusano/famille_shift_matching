@@ -278,146 +278,169 @@ export default function PortalHome() {
                 Myファミーユ × LINE WORKS 活用ガイド
               </h2>
               <p className="mt-0.5 text-xs text-gray-500">
-                グループへの参加方法・ノート確認・退出方法
+                グループへの追加方法・ノート確認・外部トークルームの利用方法
               </p>
             </div>
 
             <span className="shrink-0 text-sm font-semibold text-green-700 group-open:hidden">
               開く ▼
             </span>
+
             <span className="hidden shrink-0 text-sm font-semibold text-green-700 group-open:inline">
               閉じる ▲
             </span>
           </summary>
 
           <div className="border-t border-green-100 bg-green-50/40 p-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-4">
 
-              {/* ① 利用者様グループへ追加 */}
-              <section className="rounded-lg border border-green-100 bg-white p-3">
+              {/* ① */}
+              <section className="rounded-lg border border-green-100 bg-white p-4">
                 <h3 className="text-sm font-bold text-green-800">
-                  ① 利用者様グループへ追加
+                  ① 自分をLINE WORKSの利用者様グループへ追加する方法
                 </h3>
 
                 <p className="mt-2 text-sm text-gray-700">
-                  シフト詳細を開き、
-                  <strong>「LINE WORKSグループ追加」</strong>
-                  をタップします。
+                  Myファミーユのシフト画面から簡単に追加できます。
                 </p>
 
-                <p className="mt-1 text-xs text-gray-500">
-                  AIエージェントが利用者様グループへ自動追加します。
-                </p>
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
+                  <li>シフト詳細を開く</li>
+                  <li>
+                    <strong>「LINE WORKSグループ追加」</strong>
+                    をタップ
+                  </li>
+                  <li>
+                    AIエージェントが利用者様グループへ自動追加
+                  </li>
+                </ol>
 
-                <Image
-                  src="/guide/lineworks-group-add.png"
-                  alt="LINE WORKSグループ追加ボタン"
-                  width={700}
-                  height={420}
-                  className="mt-3 h-auto w-full rounded-lg border object-contain"
-                />
+                <div className="mt-3 rounded-md bg-green-50 p-3">
+                  <p className="text-sm font-semibold text-green-800">
+                    グループへ追加されると確認できる情報
+                  </p>
+
+                  <ul className="mt-2 grid list-disc grid-cols-1 gap-1 pl-5 text-sm text-gray-700 sm:grid-cols-2">
+                    <li>利用者様の詳細情報</li>
+                    <li>手順書</li>
+                    <li>ノート</li>
+                    <li>過去のやり取り</li>
+                    <li>写真・ファイル</li>
+                    <li>タイムライン</li>
+                  </ul>
+                </div>
               </section>
 
-              {/* ② ノート確認 */}
-              <section className="rounded-lg border border-green-100 bg-white p-3">
+              {/* ② */}
+              <section className="rounded-lg border border-green-100 bg-white p-4">
                 <h3 className="text-sm font-bold text-green-800">
-                  ② ノート（基本情報・手順書）を確認
+                  ② ノート（基本情報・手順書）の確認方法
                 </h3>
 
                 <p className="mt-2 text-sm text-gray-700">
-                  グループ右上の
-                  <strong>「≡」→「ノート」</strong>
-                  を開きます。
+                  利用者様グループに入ったら、次の手順で確認します。
                 </p>
 
-                <p className="mt-1 text-xs font-semibold text-red-600">
-                  訪問前に、基本情報・手順書・注意事項を確認してください。
-                </p>
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
+                  <li>利用者様グループを開く</li>
+                  <li>右上の「≡（メニュー）」を開く</li>
+                  <li>「ノート」を選択</li>
+                </ol>
 
-                <Image
-                  src="/guide/lineworks-note.png"
-                  alt="LINE WORKSのノートを開く方法"
-                  width={700}
-                  height={420}
-                  className="mt-3 h-auto w-full rounded-lg border object-contain"
-                />
+                <div className="mt-3 rounded-md bg-green-50 p-3">
+                  <p className="text-sm font-semibold text-green-800">
+                    ノートで確認できる内容
+                  </p>
+
+                  <ul className="mt-2 grid list-disc grid-cols-1 gap-1 pl-5 text-sm text-gray-700 sm:grid-cols-2">
+                    <li>基本情報</li>
+                    <li>手順書</li>
+                    <li>注意事項</li>
+                    <li>サービス提供時のポイント</li>
+                  </ul>
+
+                  <p className="mt-2 text-sm font-bold text-red-600">
+                    訪問前には必ず確認しましょう。
+                  </p>
+                </div>
               </section>
 
-              {/* ③ 外部トークルーム */}
-              <section className="rounded-lg border border-amber-200 bg-white p-3">
+              {/* ③ */}
+              <section className="rounded-lg border border-amber-200 bg-white p-4">
                 <h3 className="text-sm font-bold text-amber-800">
-                  ③ ★部屋・LINEマークの部屋
+                  ③ ★部屋（外部トークルーム）について
                 </h3>
 
                 <p className="mt-2 text-sm text-gray-700">
-                  利用者様や相談員など、
-                  <strong>外部の方とつながっているトークルーム</strong>
+                  ★マークやLINEマークが付いている部屋は、利用者様・相談員など
+                  <strong>外部の方とのトークルーム</strong>
                   です。
                 </p>
 
-                <p className="mt-1 text-xs font-semibold text-red-600">
-                  この部屋にAIエージェントはいません。退出依頼を投稿しないでください。
+                <p className="mt-2 text-sm text-gray-700">
+                  トーク一覧から、対象の部屋をタップすると入れます。
                 </p>
 
-                <Image
-                  src="/guide/lineworks-external-room.png"
-                  alt="外部トークルームの見分け方"
-                  width={700}
-                  height={420}
-                  className="mt-3 h-auto w-full rounded-lg border object-contain"
-                />
+                <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm font-bold text-red-700">
+                    この部屋にはAIエージェントはいません。
+                  </p>
+
+                  <p className="mt-2 text-sm text-gray-700">
+                    そのため、次のようなコメントを書き込まないでください。
+                  </p>
+
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
+                    <li>「私を退出させてください」</li>
+                    <li>「グループから外してください」</li>
+                  </ul>
+                </div>
               </section>
 
-              {/* ④ 外部グループから退出 */}
-              <section className="rounded-lg border border-amber-200 bg-white p-3">
+              {/* ④ */}
+              <section className="rounded-lg border border-amber-200 bg-white p-4">
                 <h3 className="text-sm font-bold text-amber-800">
-                  ④ 外部グループから退出
+                  ④ 外部グループから退出する方法
                 </h3>
 
                 <p className="mt-2 text-sm text-gray-700">
-                  右上のメニューから
-                  <strong>「退出」→「確認」</strong>
-                  を選択します。
+                  外部トークルームは、自分で退出できます。
                 </p>
 
-                <p className="mt-1 text-xs text-gray-500">
-                  外部トークルームは自分で退出できます。
-                </p>
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
+                  <li>グループ右上のメニューを開く</li>
+                  <li>「退出」を選択</li>
+                  <li>確認する</li>
+                </ol>
 
-                <Image
-                  src="/guide/lineworks-leave.png"
-                  alt="LINE WORKSの外部グループから退出する方法"
-                  width={700}
-                  height={420}
-                  className="mt-3 h-auto w-full rounded-lg border object-contain"
-                />
+                <p className="mt-3 text-sm font-bold text-red-600">
+                  AIエージェントへ退出を依頼する必要はありません。
+                </p>
               </section>
+
+              {/* 関連機能 */}
+              <section className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <h3 className="text-sm font-bold text-blue-800">
+                  関連機能：「このシフトには入れない」
+                </h3>
+
+                <p className="mt-2 text-sm text-gray-700">
+                  急な予定変更などで訪問できなくなった場合は、
+                  <strong>「このシフトには入れない」</strong>
+                  ボタンをご利用ください。
+                </p>
+
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
+                  <li>マネジャーへ通知</li>
+                  <li>代替スタッフの調整開始</li>
+                </ul>
+
+                <p className="mt-3 text-sm font-bold text-red-600">
+                  無断で欠勤せず、この機能から連絡してください。
+                </p>
+              </section>
+
             </div>
-
-            {/* 関連機能 */}
-            <section className="mt-4 rounded-lg border border-blue-200 bg-white p-3">
-              <h3 className="text-sm font-bold text-blue-800">
-                関連機能：「このシフトには入れない」
-              </h3>
-
-              <p className="mt-2 text-sm text-gray-700">
-                急な予定変更などで訪問できない場合は、
-                <strong>「このシフトには入れない」</strong>
-                ボタンから連絡してください。
-              </p>
-
-              <p className="mt-1 text-xs text-gray-500">
-                マネジャーへ通知され、代替スタッフの調整が始まります。
-              </p>
-
-              <Image
-                src="/guide/shift-unavailable.png"
-                alt="このシフトには入れないボタン"
-                width={700}
-                height={420}
-                className="mt-3 h-auto w-full rounded-lg border object-contain md:max-w-md"
-              />
-            </section>
           </div>
         </details>
       </div>
