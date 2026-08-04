@@ -631,6 +631,10 @@ export default function ExpenseClaimsAdminPage() {
                 <ClaimDetailDialog
                     claim={selectedClaim}
                     onClose={() => setSelectedClaim(null)}
+                    onUpdated={async () => {
+                        setSelectedClaim(null);
+                        await fetchClaims();
+                    }}
                 />
             )}
         </main>
@@ -660,10 +664,17 @@ function SummaryCard({
 function ClaimDetailDialog({
     claim,
     onClose,
+    onUpdated,
 }: {
     claim: ExpenseClaim;
     onClose: () => void;
+    onUpdated: () => Promise<void>;
 }) {
+    const [rejectionReason, setRejectionReason] =
+        useState("");
+
+    const [isUpdating, setIsUpdating] =
+        useState(false);
     const expenseRows = [
         {
             description: claim.expense1_description,
@@ -690,6 +701,118 @@ function ClaimDetailDialog({
             Boolean(expense.description) ||
             Number(expense.amount ?? 0) > 0
     );
+
+    async function updateClaim(
+        action: "paid" | "rejected"
+    ) {
+        if (
+            action === "rejected" &&
+            !rejectionReason.trim()
+        ) {
+            window.alert(
+                "却下理由を入力してください。"
+            );
+            return;
+        }
+
+        const confirmMessage =
+            action === "paid"
+                ? [
+                    "この申請を振込完了にしますか？",
+                    "",
+                    "申請者と塩澤さんへメールが送信されます。",
+                ].join("\n")
+                : [
+                    "この申請を却下しますか？",
+                    "",
+                    `却下理由：${rejectionReason.trim()}`,
+                    "",
+                    "申請者と塩澤さんへメールが送信されます。",
+                ].join("\n");
+
+        if (!window.confirm(confirmMessage)) {
+            return;
+        }
+
+        setIsUpdating(true);
+
+        try {
+            const {
+                data: { session },
+                error: sessionError,
+            } = await supabase.auth.getSession();
+
+            if (sessionError) {
+                throw sessionError;
+            }
+
+            if (!session?.access_token) {
+                throw new Error(
+                    "ログイン情報を取得できませんでした。"
+                );
+            }
+
+            const response = await fetch(
+                `/api/admin/expense-claims/${claim.id}`,
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                        Authorization:
+                            `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({
+                        action,
+                        rejectionReason:
+                            action === "rejected"
+                                ? rejectionReason.trim()
+                                : undefined,
+                    }),
+                }
+            );
+
+            const result = (await response
+                .json()
+                .catch(() => null)) as
+                | {
+                    ok?: boolean;
+                    message?: string;
+                }
+                | null;
+
+            if (!response.ok || !result?.ok) {
+                throw new Error(
+                    result?.message ??
+                    "申請処理に失敗しました。"
+                );
+            }
+
+            window.alert(
+                result.message ??
+                (
+                    action === "paid"
+                        ? "振込完了として更新しました。"
+                        : "申請を却下しました。"
+                )
+            );
+
+            await onUpdated();
+        } catch (error) {
+            console.error(
+                "[expense-claims-admin] update failed",
+                error
+            );
+
+            window.alert(
+                error instanceof Error
+                    ? error.message
+                    : "申請処理に失敗しました。"
+            );
+        } finally {
+            setIsUpdating(false);
+        }
+    }
 
     return (
         <div
@@ -983,29 +1106,61 @@ function ClaimDetailDialog({
                                     申請内容を確認し、「振込完了」または「却下」を選択してください。
                                 </p>
 
+                                <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4">
+                                    <label
+                                        htmlFor="rejection-reason"
+                                        className="block text-sm font-semibold text-red-900"
+                                    >
+                                        却下理由
+                                    </label>
+
+                                    <textarea
+                                        id="rejection-reason"
+                                        value={rejectionReason}
+                                        onChange={(event) =>
+                                            setRejectionReason(
+                                                event.target.value
+                                            )
+                                        }
+                                        rows={4}
+                                        disabled={isUpdating}
+                                        placeholder="申請者へ伝える却下理由を入力してください。"
+                                        className="mt-2 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:opacity-60"
+                                    />
+
+                                    <p className="mt-2 text-xs text-red-700">
+                                        入力した内容は、申請者と塩澤さんへのメールに記載されます。
+                                    </p>
+                                </div>
+
                                 <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            window.alert(
-                                                "却下処理は現在準備中です。"
-                                            );
-                                        }}
-                                        className="rounded-lg border border-red-600 bg-white px-5 py-2.5 font-semibold text-red-700 hover:bg-red-50"
+                                        onClick={() =>
+                                            void updateClaim("rejected")
+                                        }
+                                        disabled={
+                                            isUpdating ||
+                                            !rejectionReason.trim()
+                                        }
+                                        className="rounded-lg border border-red-600 bg-white px-5 py-2.5 font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
-                                        却下
+                                        {isUpdating
+                                            ? "処理中..."
+                                            : "却下"}
                                     </button>
 
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            window.alert(
-                                                "振込完了処理は現在準備中です。"
-                                            );
-                                        }}
-                                        className="rounded-lg bg-green-700 px-5 py-2.5 font-semibold text-white hover:bg-green-800"
+                                        onClick={() =>
+                                            void updateClaim("paid")
+                                        }
+                                        disabled={isUpdating}
+                                        className="rounded-lg bg-green-700 px-5 py-2.5 font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
-                                        振込完了
+                                        {isUpdating
+                                            ? "処理中..."
+                                            : "振込完了"}
                                     </button>
                                 </div>
                             </div>
