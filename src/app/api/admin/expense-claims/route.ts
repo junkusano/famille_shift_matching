@@ -204,11 +204,23 @@ export async function GET(req: NextRequest) {
         }
 
         type ReceiptFile = {
+            // 共通項目
             name?: string;
-            path?: string;
-            size?: number;
-            type?: string;
+            size?: number | string;
             url?: string | null;
+
+            // 旧Supabase Storage形式
+            path?: string;
+            type?: string;
+
+            // 新Google Drive形式
+            id?: string;
+            originalName?: string;
+            mimeType?: string | null;
+            directUrl?: string | null;
+            viewUrl?: string | null;
+            webViewLink?: string | null;
+            createdTime?: string | null;
         };
 
         const claimsWithReceiptUrls = await Promise.all(
@@ -222,10 +234,53 @@ export async function GET(req: NextRequest) {
                 const receiptFilesWithUrls =
                     await Promise.all(
                         receiptFiles.map(async (file) => {
+                            /*
+                             * Google Drive形式の場合は、
+                             * 保存済みのURLをそのまま使用します。
+                             */
+                            if (
+                                file.id ||
+                                file.webViewLink ||
+                                file.viewUrl ||
+                                file.directUrl
+                            ) {
+                                const openUrl =
+                                    file.webViewLink ??
+                                    file.viewUrl ??
+                                    file.url ??
+                                    file.directUrl ??
+                                    null;
+
+                                const imageUrl =
+                                    file.id &&
+                                        (
+                                            file.mimeType ??
+                                            file.type ??
+                                            ""
+                                        ).startsWith("image/")
+                                        ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(
+                                            file.id
+                                        )}&sz=w1600`
+                                        : file.directUrl ??
+                                        file.url ??
+                                        null;
+
+                                return {
+                                    ...file,
+                                    url: imageUrl,
+                                    openUrl,
+                                };
+                            }
+
+                            /*
+                             * 過去のSupabase Storage形式は、
+                             * 従来どおり署名URLを発行します。
+                             */
                             if (!file.path) {
                                 return {
                                     ...file,
-                                    url: null,
+                                    url: file.url ?? null,
+                                    openUrl: file.url ?? null,
                                 };
                             }
 
@@ -252,14 +307,18 @@ export async function GET(req: NextRequest) {
                                 return {
                                     ...file,
                                     url: null,
+                                    openUrl: null,
                                 };
                             }
 
+                            const signedUrl =
+                                signedUrlData.signedUrl ??
+                                null;
+
                             return {
                                 ...file,
-                                url:
-                                    signedUrlData.signedUrl ??
-                                    null,
+                                url: signedUrl,
+                                openUrl: signedUrl,
                             };
                         })
                     );

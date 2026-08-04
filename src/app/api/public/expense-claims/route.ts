@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { sendEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
 const MAX_EXPENSE_COUNT = 5;
 const MAX_RECEIPT_COUNT = 10;
+
+const EXPENSE_CLAIM_ADMIN_EMAIL =
+    "satominishio@shi-on.net";
+
+function formatAmount(value: number) {
+    return new Intl.NumberFormat("ja-JP").format(value);
+}
+
+function formatDate(value: string) {
+    const [year, month, day] = value.split("-");
+
+    if (!year || !month || !day) {
+        return value;
+    }
+
+    return `${year}年${Number(month)}月${Number(day)}日`;
+}
 
 type GoogleDriveReceiptFile = {
     id: string;
@@ -398,6 +416,194 @@ export async function POST(req: NextRequest) {
             createdAt: claim.created_at,
             receiptCount: receiptFiles.length,
         });
+
+        /*
+         * 経費精算申請のメール通知
+         *
+         * メール送信に失敗しても、
+         * 申請データの登録自体は成功として扱います。
+         */
+        const formattedWorkDate = formatDate(workDate);
+        const formattedAmount = formatAmount(
+            calculatedTotalAmount
+        );
+
+        const applicantSubject =
+            "【Myファミーユ】経費精算申請を受け付けました";
+
+        const adminSubject =
+            `【経費精算】${name}様から申請がありました`;
+
+        const applicantHtml = `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+</head>
+<body style="font-family: sans-serif; line-height: 1.7; color: #333;">
+    <p>${name} 様</p>
+
+    <p>経費精算申請を受け付けました。</p>
+
+    <h3>申請内容</h3>
+
+    <table style="border-collapse: collapse;">
+        <tbody>
+            <tr>
+                <th style="text-align: left; padding: 6px 12px 6px 0;">
+                    申請番号
+                </th>
+                <td>${claim.id}</td>
+            </tr>
+            <tr>
+                <th style="text-align: left; padding: 6px 12px 6px 0;">
+                    勤務日
+                </th>
+                <td>${formattedWorkDate}</td>
+            </tr>
+            <tr>
+                <th style="text-align: left; padding: 6px 12px 6px 0;">
+                    申請金額
+                </th>
+                <td>${formattedAmount}円</td>
+            </tr>
+            <tr>
+                <th style="text-align: left; padding: 6px 12px 6px 0;">
+                    申請状況
+                </th>
+                <td>申請中</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>内容を確認後、振込処理を行います。</p>
+
+    <p style="font-size: 12px; color: #666;">
+        このメールは自動送信されています。
+    </p>
+</body>
+</html>
+`;
+
+        const adminHtml = `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+</head>
+<body style="font-family: sans-serif; line-height: 1.7; color: #333;">
+    <p>経費精算の新規申請がありました。</p>
+
+    <h3>申請内容</h3>
+
+    <table style="border-collapse: collapse;">
+        <tbody>
+            <tr>
+                <th style="text-align: left; padding: 6px 12px 6px 0;">
+                    申請番号
+                </th>
+                <td>${claim.id}</td>
+            </tr>
+            <tr>
+                <th style="text-align: left; padding: 6px 12px 6px 0;">
+                    申請者
+                </th>
+                <td>${name}</td>
+            </tr>
+            <tr>
+                <th style="text-align: left; padding: 6px 12px 6px 0;">
+                    勤務日
+                </th>
+                <td>${formattedWorkDate}</td>
+            </tr>
+            <tr>
+                <th style="text-align: left; padding: 6px 12px 6px 0;">
+                    申請金額
+                </th>
+                <td>${formattedAmount}円</td>
+            </tr>
+            <tr>
+                <th style="text-align: left; padding: 6px 12px 6px 0;">
+                    電話番号
+                </th>
+                <td>${phone}</td>
+            </tr>
+            <tr>
+                <th style="text-align: left; padding: 6px 12px 6px 0;">
+                    メールアドレス
+                </th>
+                <td>${email}</td>
+            </tr>
+            <tr>
+                <th style="text-align: left; padding: 6px 12px 6px 0;">
+                    レシート添付数
+                </th>
+                <td>${receiptFiles.length}件</td>
+            </tr>
+            <tr>
+                <th style="text-align: left; padding: 6px 12px 6px 0;">
+                    申請状況
+                </th>
+                <td>申請中</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>管理画面から内容をご確認ください。</p>
+
+    <p style="font-size: 12px; color: #666;">
+        このメールは自動送信されています。
+    </p>
+</body>
+</html>
+`;
+
+        try {
+            const [applicantEmailResult, adminEmailResult] =
+                await Promise.all([
+                    sendEmail({
+                        to: email,
+                        subject: applicantSubject,
+                        html: applicantHtml,
+                    }),
+                    sendEmail({
+                        to: EXPENSE_CLAIM_ADMIN_EMAIL,
+                        subject: adminSubject,
+                        html: adminHtml,
+                    }),
+                ]);
+
+            if (applicantEmailResult.status === "error") {
+                console.error(
+                    "[public-expense-claims] applicant email failed",
+                    {
+                        claimId: claim.id,
+                        recipient: email,
+                        error: applicantEmailResult.error,
+                    }
+                );
+            }
+
+            if (adminEmailResult.status === "error") {
+                console.error(
+                    "[public-expense-claims] admin email failed",
+                    {
+                        claimId: claim.id,
+                        recipient:
+                            EXPENSE_CLAIM_ADMIN_EMAIL,
+                        error: adminEmailResult.error,
+                    }
+                );
+            }
+        } catch (emailError) {
+            console.error(
+                "[public-expense-claims] email notification threw",
+                {
+                    claimId: claim.id,
+                    error: emailError,
+                }
+            );
+        }
 
         return json(
             {
