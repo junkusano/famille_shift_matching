@@ -764,7 +764,15 @@ console.log(
     rowIndexByStaff.get(event.user_id);
 
   const eventTime =
-    getGoogleEventTimeForDate(event, date);
+  event.is_all_day
+    ? {
+        start: "00:00",
+        end: "24:00",
+      }
+    : getGoogleEventTimeForDate(
+        event,
+        date,
+      );
 
   const googleEventHeight = 32;
 const googleEventBottomMargin = 3;
@@ -1117,7 +1125,10 @@ const topPx =
   );
 
   const displayTitle =
-    event.title?.trim() || "予定あり";
+  event.title?.trim() ||
+  (event.is_all_day
+    ? "終日予定"
+    : "予定あり");
 
   return (
     <div
