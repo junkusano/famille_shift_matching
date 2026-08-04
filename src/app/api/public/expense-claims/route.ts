@@ -6,15 +6,18 @@ export const dynamic = "force-dynamic";
 const MAX_EXPENSE_COUNT = 5;
 const MAX_RECEIPT_COUNT = 10;
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
-const ALLOWED_RECEIPT_TYPES = new Set([
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "image/gif",
-    "application/pdf",
-]);
+type GoogleDriveReceiptFile = {
+    id: string;
+    name: string;
+    originalName: string;
+    mimeType: string | null;
+    size: string;
+    url: string;
+    directUrl: string;
+    viewUrl: string;
+    webViewLink: string;
+    createdTime: string | null;
+};
 
 function json(message: unknown, status = 200) {
     return NextResponse.json(message, { status });
@@ -62,28 +65,6 @@ function isValidAccountType(
     value: string
 ): value is "普通" | "当座" {
     return value === "普通" || value === "当座";
-}
-
-function getExtensionFromMimeType(type: string) {
-    switch (type) {
-        case "image/jpeg":
-            return "jpg";
-
-        case "image/png":
-            return "png";
-
-        case "image/webp":
-            return "webp";
-
-        case "image/gif":
-            return "gif";
-
-        case "application/pdf":
-            return "pdf";
-
-        default:
-            return "bin";
-    }
 }
 
 export async function POST(req: NextRequest) {
@@ -290,12 +271,76 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const receiptFiles = formData
-            .getAll("receipt_files")
-            .filter(
-                (value): value is File =>
-                    value instanceof File && value.size > 0
-            );
+        const receiptFilesJson = getText(
+            formData,
+            "receipt_files_json"
+        );
+
+        let receiptFiles: GoogleDriveReceiptFile[] = [];
+
+        if (receiptFilesJson) {
+            try {
+                const parsed = JSON.parse(receiptFilesJson);
+
+                if (!Array.isArray(parsed)) {
+                    return json(
+                        {
+                            ok: false,
+                            message:
+                                "レシートファイル情報の形式が正しくありません。",
+                        },
+                        400
+                    );
+                }
+
+                receiptFiles = parsed.filter(
+                    (
+                        value
+                    ): value is GoogleDriveReceiptFile => {
+                        if (
+                            typeof value !== "object" ||
+                            value === null
+                        ) {
+                            return false;
+                        }
+
+                        const file =
+                            value as Partial<GoogleDriveReceiptFile>;
+
+                        return (
+                            typeof file.id === "string" &&
+                            file.id.length > 0 &&
+                            typeof file.name === "string" &&
+                            file.name.length > 0 &&
+                            typeof file.url === "string" &&
+                            file.url.length > 0 &&
+                            typeof file.viewUrl === "string" &&
+                            file.viewUrl.length > 0
+                        );
+                    }
+                );
+
+                if (receiptFiles.length !== parsed.length) {
+                    return json(
+                        {
+                            ok: false,
+                            message:
+                                "レシートファイル情報に不正なデータが含まれています。",
+                        },
+                        400
+                    );
+                }
+            } catch {
+                return json(
+                    {
+                        ok: false,
+                        message:
+                            "レシートファイル情報を読み取れませんでした。",
+                    },
+                    400
+                );
+            }
+        }
 
         if (receiptFiles.length > MAX_RECEIPT_COUNT) {
             return json(
@@ -305,28 +350,6 @@ export async function POST(req: NextRequest) {
                 },
                 400
             );
-        }
-
-        for (const file of receiptFiles) {
-            if (!ALLOWED_RECEIPT_TYPES.has(file.type)) {
-                return json(
-                    {
-                        ok: false,
-                        message: `「${file.name}」は添付できません。画像またはPDFを選択してください。`,
-                    },
-                    400
-                );
-            }
-
-            if (file.size > MAX_FILE_SIZE) {
-                return json(
-                    {
-                        ok: false,
-                        message: `「${file.name}」は10MBを超えています。`,
-                    },
-                    400
-                );
-            }
         }
 
         const { data: claim, error: insertError } =
@@ -341,7 +364,7 @@ export async function POST(req: NextRequest) {
                     ...expenseData,
 
                     total_amount: calculatedTotalAmount,
-                    receipt_files: [],
+                    receipt_files: receiptFiles,
 
                     bank_name: bankName,
                     branch_name: branchName,
@@ -370,131 +393,10 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        type ReceiptFileRecord = {
-            name: string;
-            path: string;
-            size: number;
-            type: string;
-        };
-
-        const uploadedReceipts: ReceiptFileRecord[] = [];
-
-        try {
-            for (
-                let index = 0;
-                index < receiptFiles.length;
-                index += 1
-            ) {
-                const file = receiptFiles[index];
-
-                const originalExtension =
-                    file.name.includes(".")
-                        ? file.name
-                            .split(".")
-                            .pop()
-                            ?.toLowerCase()
-                        : "";
-
-                const extension =
-                    originalExtension?.replace(
-                        /[^a-z0-9]/g,
-                        ""
-                    ) ||
-                    getExtensionFromMimeType(file.type);
-
-                const storagePath =
-                    `${claim.id}/` +
-                    `${String(index + 1).padStart(2, "0")}_` +
-                    `${crypto.randomUUID()}.${extension}`;
-
-                const fileBuffer = Buffer.from(
-                    await file.arrayBuffer()
-                );
-
-                const { error: uploadError } =
-                    await supabaseAdmin.storage
-                        .from("expense-receipts")
-                        .upload(storagePath, fileBuffer, {
-                            contentType:
-                                file.type ||
-                                "application/octet-stream",
-                            upsert: false,
-                        });
-
-                if (uploadError) {
-                    throw uploadError;
-                }
-
-                uploadedReceipts.push({
-                    name: file.name,
-                    path: storagePath,
-                    size: file.size,
-                    type: file.type,
-                });
-            }
-
-            const { error: updateError } =
-                await supabaseAdmin
-                    .from("external_expense_claims")
-                    .update({
-                        receipt_files: uploadedReceipts,
-                    })
-                    .eq("id", claim.id);
-
-            if (updateError) {
-                throw updateError;
-            }
-        } catch (uploadError) {
-            console.error(
-                "[public-expense-claims] receipt upload failed",
-                uploadError
-            );
-
-            const uploadedPaths = uploadedReceipts.map(
-                (receipt) => receipt.path
-            );
-
-            if (uploadedPaths.length > 0) {
-                const { error: removeError } =
-                    await supabaseAdmin.storage
-                        .from("expense-receipts")
-                        .remove(uploadedPaths);
-
-                if (removeError) {
-                    console.error(
-                        "[public-expense-claims] receipt cleanup failed",
-                        removeError
-                    );
-                }
-            }
-
-            const { error: deleteClaimError } =
-                await supabaseAdmin
-                    .from("external_expense_claims")
-                    .delete()
-                    .eq("id", claim.id);
-
-            if (deleteClaimError) {
-                console.error(
-                    "[public-expense-claims] claim cleanup failed",
-                    deleteClaimError
-                );
-            }
-
-            return json(
-                {
-                    ok: false,
-                    message:
-                        "レシート画像の保存に失敗しました。画像サイズをご確認のうえ、再度お試しください。",
-                },
-                500
-            );
-        }
-
         console.log("[public-expense-claims] created", {
             claimId: claim.id,
             createdAt: claim.created_at,
-            receiptCount: uploadedReceipts.length,
+            receiptCount: receiptFiles.length,
         });
 
         return json(

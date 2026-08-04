@@ -14,6 +14,19 @@ type ExpenseRow = {
     amount: string;
 };
 
+type UploadedReceiptFile = {
+    id: string;
+    name: string;
+    originalName: string;
+    mimeType: string | null;
+    size: string;
+    url: string;
+    directUrl: string;
+    viewUrl: string;
+    webViewLink: string;
+    createdTime: string | null;
+};
+
 const MAX_EXPENSE_COUNT = 5;
 const MAX_RECEIPT_COUNT = 10;
 const MAX_FILE_SIZE_MB = 10;
@@ -32,6 +45,48 @@ function normalizeAmount(value: string) {
 
 function formatAmount(value: number) {
     return new Intl.NumberFormat("ja-JP").format(value);
+}
+
+async function uploadReceiptToGoogleDrive(
+    file: File,
+    index: number
+): Promise<UploadedReceiptFile> {
+    const uploadFormData = new FormData();
+
+    const timestamp = Date.now();
+
+    uploadFormData.append("file", file);
+    uploadFormData.append(
+        "filename",
+        `expense_claim_${timestamp}_${index + 1}_${file.name}`
+    );
+
+    const response = await fetch(
+        "/api/expense-claims/upload",
+        {
+            method: "POST",
+            body: uploadFormData,
+        }
+    );
+
+    const result = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean;
+            error?: string;
+            detail?: string;
+            file?: UploadedReceiptFile;
+        }
+        | null;
+
+    if (!response.ok || !result?.ok || !result.file) {
+        throw new Error(
+            result?.error ||
+            result?.detail ||
+            `「${file.name}」のアップロードに失敗しました。`
+        );
+    }
+
+    return result.file;
 }
 
 export default function ExpenseClaimPage() {
@@ -249,6 +304,31 @@ export default function ExpenseClaimPage() {
         setIsSubmitting(true);
 
         try {
+            /*
+             * 先に領収書をGoogle Driveへアップロードします。
+             */
+            const uploadedReceiptFiles: UploadedReceiptFile[] = [];
+
+            for (
+                let index = 0;
+                index < receiptFiles.length;
+                index += 1
+            ) {
+                const file = receiptFiles[index];
+
+                const uploadedFile =
+                    await uploadReceiptToGoogleDrive(
+                        file,
+                        index
+                    );
+
+                uploadedReceiptFiles.push(uploadedFile);
+            }
+
+            /*
+             * Google Driveへのアップロード完了後、
+             * 経費精算申請を登録します。
+             */
             const formData = new FormData();
 
             formData.append("name", name.trim());
@@ -270,11 +350,20 @@ export default function ExpenseClaimPage() {
                 );
             });
 
-            formData.append("total_amount", String(totalAmount));
+            formData.append(
+                "total_amount",
+                String(totalAmount)
+            );
 
             formData.append("bank_name", bankName.trim());
-            formData.append("branch_name", branchName.trim());
-            formData.append("account_type", accountType);
+            formData.append(
+                "branch_name",
+                branchName.trim()
+            );
+            formData.append(
+                "account_type",
+                accountType
+            );
             formData.append(
                 "account_number",
                 accountNumber.replace(/[^\d]/g, "")
@@ -284,9 +373,14 @@ export default function ExpenseClaimPage() {
                 accountHolder.trim().toUpperCase()
             );
 
-            receiptFiles.forEach((file) => {
-                formData.append("receipt_files", file);
-            });
+            /*
+             * ファイル本体ではなく、
+             * Google Driveの保存情報をJSONで送ります。
+             */
+            formData.append(
+                "receipt_files_json",
+                JSON.stringify(uploadedReceiptFiles)
+            );
 
             const response = await fetch(
                 "/api/public/expense-claims",
