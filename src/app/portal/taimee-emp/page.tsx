@@ -265,9 +265,7 @@ https://www.shi-on.net/column?page=17
     })
   }, [filtered, drafts, includeBlack])
 
-function rowKey(
-  it: TaimeeEmployeeWithEntry
-) {
+function rowKey(it: TaimeeEmployeeWithEntry) {
   return it.applicant_id
 }
 
@@ -279,46 +277,95 @@ function rowKey(
   }
 
   async function onSaveEdits() {
-    const payload = Object.entries(drafts).map(([key, v]) => ({ key, ...v }))
-    if (payload.length === 0) { notify.message('変更はありません'); return }
-    setLoading(true)
-    try {
-      const res = await fetch('/api/taimee-emp/save', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ updates: payload }),
-      })
-      const j = await res.json()
-      if (!j.ok) throw new Error(j.error || '保存に失敗しました')
-      notify.success(`保存しました（${j.updated}件）`)
-      setDrafts({})
-      await fetchList()
-    } catch (e) { notify.error(e instanceof Error ? e.message : '保存に失敗しました') }
-    finally { setLoading(false) }
+  const payload = Object.entries(
+    drafts
+  ).map(([key, value]) => ({
+    key,
+    ...value,
+  }))
+
+  if (payload.length === 0) {
+    notify.message('変更はありません')
+    return
   }
 
-  async function onBulkSend() {
-    if (recipientsForSend.length === 0) { notify.message('送信対象がありません'); return }
-    if (!confirm(`本当に ${recipientsForSend.length} 件へ送信しますか？`)) return
-    setLoading(true)
-    try {
-      const res = await fetch('/api/taimee-emp/send', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+  setLoading(true)
+
+  try {
+    console.log(
+      '[taimee-emp] save payload',
+      payload
+    )
+
+    const response = await fetch(
+      '/api/taimee-emp/save',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
         body: JSON.stringify({
-          message: smsBody,
-          recipients: recipientsForSend.map((it) => ({
-            key: rowKey(it),
-            phone: it.normalized_phone || it.電話番号,
-            last: it['姓'] ?? '', first: it['名'] ?? '',
-            period_month: it.period_month, taimee_user_id: it.taimee_user_id,
-          })),
+          updates: payload,
         }),
-      })
-      const j = await res.json()
-      if (!j.ok) throw new Error(j.error || '送信に失敗しました')
-      notify.success(`送信完了：成功 ${j.success} / 失敗 ${j.failed}`)
-      await fetchList()
-    } catch (e) { notify.error(e instanceof Error ? e.message : '送信に失敗しました') }
-    finally { setLoading(false) }
+      }
+    )
+
+    const responseText =
+      await response.text()
+
+    if (!responseText.trim()) {
+      throw new Error(
+        `保存APIから空のレスポンスが返されました。HTTP ${response.status}`
+      )
+    }
+
+    let result: {
+      ok?: boolean
+      updated?: number
+      error?: string
+    }
+
+    try {
+      result = JSON.parse(responseText)
+    } catch {
+      throw new Error(
+        `保存APIがJSON以外を返しました。HTTP ${response.status}: ${responseText.slice(0, 300)}`
+      )
+    }
+
+    if (!response.ok || !result.ok) {
+      throw new Error(
+        result.error ||
+          `保存に失敗しました。HTTP ${response.status}`
+      )
+    }
+
+    notify.success(
+      `保存しました（${result.updated ?? 0}件）`
+    )
+
+    setDrafts({})
+    await fetchList()
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : '保存に失敗しました'
+
+    console.error(
+      '[taimee-emp] save failed',
+      error
+    )
+
+    notify.error(message)
+  } finally {
+    setLoading(false)
   }
+}
+async function onBulkSend() {
+  alert("テスト");
+}
 
   return (
     <div className="p-6 space-y-6">

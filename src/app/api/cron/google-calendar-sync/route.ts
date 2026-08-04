@@ -263,17 +263,17 @@ async function syncGoogleCalendars() {
   const calendarApi = getGoogleCalendarApi();
 
   const { data: links, error: linksError } =
-    await supabase
-      .from("google_calendar_user_links")
-      .select(
-        [
-          "user_id",
-          "google_calendar_id",
-          "calendar_name",
-        ].join(","),
-      )
-      .eq("sync_enabled", true)
-      .order("user_id");
+  await supabase
+    .from("users")
+    .select(
+      [
+        "user_id",
+        "google_calendar_id",
+      ].join(","),
+    )
+    .eq("google_calendar_sync", true)
+    .not("google_calendar_id", "is", null)
+    .order("user_id");
 
   if (linksError) {
     throw new Error(
@@ -291,7 +291,7 @@ async function syncGoogleCalendars() {
   return {
     user_id: row.user_id,
     google_calendar_id: row.google_calendar_id,
-    calendar_name: row.calendar_name,
+    calendar_name: null,
   };
 });
 
@@ -429,14 +429,14 @@ async function syncGoogleCalendars() {
        */
       const { error: linkUpdateError } =
         await supabase
-          .from("google_calendar_user_links")
-          .update({
-            last_synced_at: syncedAt,
-          })
-          .eq(
-            "google_calendar_id",
-            link.google_calendar_id,
-          );
+  .from("users")
+  .update({
+    google_calendar_last_synced_at: syncedAt,
+  })
+  .eq(
+    "user_id",
+    link.user_id,
+  );
 
       if (linkUpdateError) {
         throw new Error(
