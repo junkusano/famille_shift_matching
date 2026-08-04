@@ -10,11 +10,23 @@ import {
 import { supabase } from "@/lib/supabase";
 
 type ReceiptFile = {
+    // 共通
     name?: string;
-    path?: string;
-    size?: number;
-    type?: string;
+    size?: number | string;
     url?: string | null;
+
+    // 旧Supabase Storage形式
+    path?: string;
+    type?: string;
+
+    // 新Google Drive形式
+    id?: string;
+    originalName?: string;
+    mimeType?: string | null;
+    directUrl?: string | null;
+    viewUrl?: string | null;
+    webViewLink?: string | null;
+    createdTime?: string | null;
 };
 
 type ExpenseClaim = {
@@ -846,33 +858,75 @@ function ClaimDetailDialog({
                                 {claim.receipt_files.map(
                                     (file, index) => {
                                         const fileName =
+                                            file.originalName ??
                                             file.name ??
                                             `レシート${index + 1}`;
 
+                                        const mimeType =
+                                            file.mimeType ??
+                                            file.type ??
+                                            "";
+
                                         const isImage =
-                                            file.type?.startsWith(
-                                                "image/"
-                                            ) ?? false;
+                                            mimeType.startsWith("image/");
+
+                                        const isPdf =
+                                            mimeType === "application/pdf";
+
+                                        /*
+                                         * 詳細画面で開くURL。
+                                         * Google DriveではwebViewLinkかviewUrlを優先します。
+                                         * 旧Supabase形式ではurlを使用します。
+                                         */
+                                        const openUrl =
+                                            file.webViewLink ??
+                                            file.viewUrl ??
+                                            file.url ??
+                                            file.directUrl ??
+                                            null;
+
+                                        /*
+                                         * Google Drive画像はthumbnail URLを使うと
+                                         * imgタグ内で安定して表示できます。
+                                         */
+                                        const imageUrl =
+                                            file.id && isImage
+                                                ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(
+                                                    file.id
+                                                )}&sz=w1600`
+                                                : file.directUrl ??
+                                                file.url ??
+                                                null;
+
+                                        const fileKey =
+                                            file.id ??
+                                            file.path ??
+                                            file.name ??
+                                            String(index);
 
                                         return (
                                             <div
-                                                key={`${file.path ?? file.name}-${index}`}
+                                                key={`${fileKey}-${index}`}
                                                 className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
                                             >
-                                                {file.url &&
-                                                    isImage ? (
+                                                {isImage && imageUrl ? (
                                                     <a
-                                                        href={file.url}
+                                                        href={openUrl ?? imageUrl}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="block bg-white"
                                                     >
                                                         <img
-                                                            src={file.url}
+                                                            src={imageUrl}
                                                             alt={fileName}
                                                             className="h-64 w-full object-contain"
+                                                            loading="lazy"
                                                         />
                                                     </a>
+                                                ) : isPdf ? (
+                                                    <div className="flex h-40 items-center justify-center bg-white px-4 text-center text-sm font-semibold text-slate-600">
+                                                        PDFファイル
+                                                    </div>
                                                 ) : null}
 
                                                 <div className="p-4">
@@ -880,9 +934,15 @@ function ClaimDetailDialog({
                                                         {fileName}
                                                     </p>
 
-                                                    {file.url ? (
+                                                    {mimeType && (
+                                                        <p className="mt-1 text-xs text-slate-500">
+                                                            {mimeType}
+                                                        </p>
+                                                    )}
+
+                                                    {openUrl ? (
                                                         <a
-                                                            href={file.url}
+                                                            href={openUrl}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="mt-3 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
@@ -953,8 +1013,8 @@ function ClaimDetailDialog({
                     ) : (
                         <div
                             className={`rounded-xl border p-4 text-sm font-semibold ${claim.status === "振込済"
-                                    ? "border-green-200 bg-green-50 text-green-800"
-                                    : "border-red-200 bg-red-50 text-red-800"
+                                ? "border-green-200 bg-green-50 text-green-800"
+                                : "border-red-200 bg-red-50 text-red-800"
                                 }`}
                         >
                             この申請は「{claim.status}」として処理されています。
