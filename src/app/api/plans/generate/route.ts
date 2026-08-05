@@ -100,9 +100,22 @@ type ServiceTextDraft = {
   family_action: string;
 };
 
+type CarePlanGoalDraft = {
+  long_term_goal: string;
+  short_term_goal: string;
+  source_text: string;
+};
+
+type ServiceGoalRelationDraft = {
+  service_no: number;
+  short_term_goal_index: number;
+  relation_note: string;
+};
+
 type PlanHeaderDraft = {
   person_family_hope: string;
   assistance_goal: string;
+  care_plan_goals: CarePlanGoalDraft[];
 };
 
 type PlanSourceTextResult = {
@@ -409,7 +422,12 @@ async function buildPlanHeaderDraft(params: {
 
     const prompt = `
 あなたは障害福祉サービス・訪問介護の計画書作成を補助する専門職です。
-以下の資料から、計画書に記載する「本人（家族）の希望」と「援助目標」を作成してください。
+
+以下の資料から、計画書に記載する次の内容を作成してください。
+
+1. 本人（家族）の希望
+2. 援助目標
+3. 選択された居宅介護支援計画書に記載された長期目標・短期目標
 
 重要ルール:
 - JSONのみ返してください。
@@ -422,6 +440,66 @@ async function buildPlanHeaderDraft(params: {
 - ただし、資料に根拠がない目標を創作しないでください。
 - 資料から目標が十分に読み取れない場合は、空文字にしてください。
 - 医療判断、診断、過度な断定は禁止です。
+
+【介護保険の長期目標・短期目標】
+
+資料内に
+「今回選択された基準ケアプラン」
+がある場合は、そのケアプランに記載された長期目標・短期目標を抽出してください。
+
+目標文は、原則としてケアプランの原文をそのまま使用してください。
+
+言い換え、要約、創作は行わないでください。
+
+長期目標と短期目標は、対応する組み合わせとして返してください。
+
+訪問介護と明らかに無関係な目標は除外して構いません。
+
+除外してよい例:
+
+- 福祉用具貸与だけに関する目標
+- 住宅改修だけに関する目標
+- 訪問介護が一切関与しない医療機関だけの目標
+- 訪問介護が一切関与しない専門職だけの目標
+
+ただし、除外は慎重に行ってください。
+
+例えば次の目標は、訪問介護と関係する可能性があります。
+
+- デイサービスへ継続して通う
+- 安全に通所する
+- 外出の機会を維持する
+- 自宅で安定した生活を続ける
+- 安全に入浴する
+- 清潔を保つ
+- 通院を継続する
+- 生活リズムを整える
+- 安全に外出する
+- 在宅生活を継続する
+
+デイサービス前後に訪問介護が、
+
+- 外出準備
+- 更衣
+- 持ち物確認
+- 送り出し
+- 迎え入れ
+- 帰宅後の受け入れ
+- 体調確認
+
+などを行う場合は、
+デイサービスに関する目標も訪問介護の目標として採用してください。
+
+ケアプラン内に訪問介護と関係する目標がある場合は、
+必ず1組以上の長期目標・短期目標を返してください。
+
+最大3組まで返してください。
+
+訪問介護との関係が判断できない場合でも、
+関係する可能性がある目標は安易に除外しないでください。
+
+source_textには、
+その目標を採用した根拠となるケアプラン原文を記載してください。
 
 悪い例:
 {
@@ -436,7 +514,14 @@ async function buildPlanHeaderDraft(params: {
 返却形式:
 {
   "person_family_hope": "",
-  "assistance_goal": ""
+  "assistance_goal": "",
+  "care_plan_goals": [
+    {
+      "long_term_goal": "",
+      "short_term_goal": "",
+      "source_text": ""
+    }
+  ]
 }
 
 資料:
@@ -463,23 +548,109 @@ ${params.sourceText}
 
     if (!parsed || typeof parsed !== "object") return fallback;
 
-    const obj = parsed as Record<string, unknown>;
+    const obj =
+      parsed as Record<string, unknown>;
+
+    const rawGoals =
+      Array.isArray(obj.care_plan_goals)
+        ? obj.care_plan_goals
+        : [];
+
+    const carePlanGoals =
+      rawGoals
+        .map((item) => {
+          if (
+            !item ||
+            typeof item !== "object"
+          ) {
+            return null;
+          }
+
+          const goal =
+            item as Record<
+              string,
+              unknown
+            >;
+
+          const longTermGoal =
+            typeof goal.long_term_goal ===
+              "string"
+              ? goal.long_term_goal.trim()
+              : "";
+
+          const shortTermGoal =
+            typeof goal.short_term_goal ===
+              "string"
+              ? goal.short_term_goal.trim()
+              : "";
+
+          const sourceText =
+            typeof goal.source_text ===
+              "string"
+              ? goal.source_text.trim()
+              : "";
+
+          /*
+           * 長期・短期の両方が揃ったものだけ採用する。
+           */
+          if (
+            !longTermGoal ||
+            !shortTermGoal
+          ) {
+            return null;
+          }
+
+          return {
+            long_term_goal:
+              limitJapaneseText(
+                longTermGoal,
+                300,
+              ),
+
+            short_term_goal:
+              limitJapaneseText(
+                shortTermGoal,
+                300,
+              ),
+
+            source_text:
+              limitJapaneseText(
+                sourceText,
+                600,
+              ),
+          };
+        })
+        .filter(
+          (
+            item,
+          ): item is CarePlanGoalDraft =>
+            item !== null,
+        )
+        .slice(0, 3);
 
     return {
-      person_family_hope: limitJapaneseText(
-        typeof obj.person_family_hope === "string"
-          ? obj.person_family_hope
-          : fallback.person_family_hope,
-        170,
-      ),
-      assistance_goal: normalizeGoalText(
+      person_family_hope:
         limitJapaneseText(
-          typeof obj.assistance_goal === "string"
-            ? obj.assistance_goal
-            : fallback.assistance_goal,
+          typeof obj.person_family_hope ===
+            "string"
+            ? obj.person_family_hope
+            : fallback.person_family_hope,
           170,
         ),
-      ),
+
+      assistance_goal:
+        normalizeGoalText(
+          limitJapaneseText(
+            typeof obj.assistance_goal ===
+              "string"
+              ? obj.assistance_goal
+              : fallback.assistance_goal,
+            170,
+          ),
+        ),
+
+      care_plan_goals:
+        carePlanGoals,
     };
   } catch (e) {
     console.warn("[plans/generate] header draft LLM failed", e);
@@ -493,13 +664,26 @@ function buildPlanHeaderFallback(extracted: {
 }): PlanHeaderDraft {
   return {
     person_family_hope: removePersonNames(
-      limitJapaneseText(extracted.person_family_hope?.trim() ?? "", 170),
-    ),
-    assistance_goal: normalizeGoalText(
-      removePersonNames(
-        limitJapaneseText(extracted.assistance_goal?.trim() ?? "", 170),
+      limitJapaneseText(
+        extracted.person_family_hope?.trim() ?? "",
+        170,
       ),
     ),
+
+    assistance_goal: normalizeGoalText(
+      removePersonNames(
+        limitJapaneseText(
+          extracted.assistance_goal?.trim() ?? "",
+          170,
+        ),
+      ),
+    ),
+
+    /*
+     * ケアプラン目標はAI抽出結果だけを採用する。
+     * フォールバックで創作しない。
+     */
+    care_plan_goals: [],
   };
 }
 
@@ -647,6 +831,302 @@ ${sourceText}
   } catch (e) {
     console.warn("[plans/generate] service draft LLM failed", e);
     return fallback;
+  }
+}
+
+async function buildServiceGoalRelations(params: {
+  sourceText: string;
+  planServices: Array<{
+    service_no: number;
+    plan_service_category: string | null;
+    service_title: string | null;
+    service_code: string | null;
+    service_detail: string | null;
+    procedure_notes: string | null;
+  }>;
+  carePlanGoals: CarePlanGoalDraft[];
+}): Promise<ServiceGoalRelationDraft[]> {
+  const {
+    sourceText,
+    planServices,
+    carePlanGoals,
+  } = params;
+
+  if (
+    planServices.length === 0 ||
+    carePlanGoals.length === 0
+  ) {
+    return [];
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    return [];
+  }
+
+  const serviceList =
+    planServices.map((service) => ({
+      service_no:
+        service.service_no,
+
+      plan_service_category:
+        service.plan_service_category,
+
+      service_title:
+        service.service_title,
+
+      service_code:
+        service.service_code,
+
+      service_detail:
+        service.service_detail,
+
+      procedure_notes:
+        service.procedure_notes,
+    }));
+
+  const goalList =
+    carePlanGoals.map(
+      (goal, index) => ({
+        short_term_goal_index:
+          index,
+
+        long_term_goal:
+          goal.long_term_goal,
+
+        short_term_goal:
+          goal.short_term_goal,
+      }),
+    );
+
+  try {
+    const openai =
+      new OpenAI({
+        apiKey:
+          process.env.OPENAI_API_KEY,
+      });
+
+    const prompt = `
+あなたは訪問介護計画書の作成を補助する専門職です。
+
+以下の訪問介護サービスと、
+ケアプランから抽出された短期目標の関連性を判定してください。
+
+重要ルール:
+- JSONのみ返してください。
+- 関連性がある組み合わせだけを返してください。
+- 全サービスを全目標へ機械的に紐づけてはいけません。
+- 資料、サービス内容、短期目標の文脈から判断してください。
+- 関連性が弱い場合は紐づけないでください。
+- 一つのサービスが複数の短期目標に関係する場合は、複数返して構いません。
+- 一つの短期目標に複数のサービスが関係する場合も、複数返して構いません。
+- relation_noteには、なぜそのサービスが短期目標に関係するのかを簡潔に記載してください。
+- service_noは指定された値をそのまま使ってください。
+- short_term_goal_indexは指定された0始まりの番号をそのまま使ってください。
+- 指定にないservice_noやshort_term_goal_indexを作らないでください。
+
+特に次のような関係を考慮してください。
+
+- デイサービスへ通う目標
+  → 外出準備、送り出し、迎え入れ、帰宅後の受け入れ、体調確認
+
+- 安全に入浴する目標
+  → 入浴介助、脱衣、更衣、洗身、見守り、体調確認
+
+- 清潔を保つ目標
+  → 入浴、清拭、更衣、洗濯、掃除
+
+- 在宅生活を継続する目標
+  → 掃除、洗濯、調理、買い物、服薬確認、排泄、入浴、見守り
+
+- 通院を継続する目標
+  → 外出準備、通院介助、乗降介助、移動介助、服薬確認
+
+返却形式:
+{
+  "relations": [
+    {
+      "service_no": 1,
+      "short_term_goal_index": 0,
+      "relation_note": ""
+    }
+  ]
+}
+
+【訪問介護サービス】
+${JSON.stringify(serviceList, null, 2)}
+
+【ケアプラン目標】
+${JSON.stringify(goalList, null, 2)}
+
+【資料】
+${sourceText}
+`;
+
+    const resp =
+      await openai.chat.completions.create({
+        model: "gpt-4.1-mini",
+        temperature: 0.1,
+        messages: [
+          {
+            role: "system",
+            content:
+              "返答はJSONのみ。説明文やMarkdownは禁止。",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+      });
+
+    const raw =
+      resp.choices[0]
+        ?.message?.content ?? "";
+
+    const parsed =
+      safeJsonParse(raw);
+
+    if (
+      !parsed ||
+      typeof parsed !== "object"
+    ) {
+      return [];
+    }
+
+    const obj =
+      parsed as Record<
+        string,
+        unknown
+      >;
+
+    const rawRelations =
+      Array.isArray(obj.relations)
+        ? obj.relations
+        : [];
+
+    const validServiceNos =
+      new Set(
+        planServices.map(
+          (service) =>
+            service.service_no,
+        ),
+      );
+
+    const validGoalIndexes =
+      new Set(
+        carePlanGoals.map(
+          (_, index) => index,
+        ),
+      );
+
+    const uniqueKeys =
+      new Set<string>();
+
+    const relations =
+      rawRelations
+        .map((item) => {
+          if (
+            !item ||
+            typeof item !== "object"
+          ) {
+            return null;
+          }
+
+          const relation =
+            item as Record<
+              string,
+              unknown
+            >;
+
+          const serviceNo =
+            typeof relation.service_no ===
+              "number"
+              ? relation.service_no
+              : Number(
+                relation.service_no,
+              );
+
+          const shortTermGoalIndex =
+            typeof relation
+              .short_term_goal_index ===
+              "number"
+              ? relation
+                .short_term_goal_index
+              : Number(
+                relation
+                  .short_term_goal_index,
+              );
+
+          const relationNote =
+            typeof relation
+              .relation_note ===
+              "string"
+              ? relation
+                .relation_note
+                .trim()
+              : "";
+
+          if (
+            !Number.isInteger(
+              serviceNo,
+            ) ||
+            !Number.isInteger(
+              shortTermGoalIndex,
+            ) ||
+            !validServiceNos.has(
+              serviceNo,
+            ) ||
+            !validGoalIndexes.has(
+              shortTermGoalIndex,
+            )
+          ) {
+            return null;
+          }
+
+          const uniqueKey =
+            `${serviceNo}:${shortTermGoalIndex}`;
+
+          if (
+            uniqueKeys.has(
+              uniqueKey,
+            )
+          ) {
+            return null;
+          }
+
+          uniqueKeys.add(
+            uniqueKey,
+          );
+
+          return {
+            service_no:
+              serviceNo,
+
+            short_term_goal_index:
+              shortTermGoalIndex,
+
+            relation_note:
+              limitJapaneseText(
+                relationNote,
+                300,
+              ),
+          };
+        })
+        .filter(
+          (
+            item,
+          ): item is ServiceGoalRelationDraft =>
+            item !== null,
+        );
+
+    return relations;
+  } catch (error) {
+    console.warn(
+      "[plans/generate] service goal relation LLM failed",
+      error,
+    );
+
+    return [];
   }
 }
 
@@ -1202,29 +1682,114 @@ export async function POST(req: NextRequest) {
 
     if (sErr) throw sErr;
 
-    const rows = ((sourceRows ?? []) as SourceRow[]).filter(
-      (r) =>
-        r.plan_document_kind === "障害福祉サービス" ||
-        r.plan_document_kind === "移動支援サービス"
-    );
+    /*
+     * アセスメントのサービス種別に応じて、
+     * 生成対象となる計画書種別を切り替える。
+     */
+    const targetDocumentKinds: PlanDocumentKind[] =
+      isElderCare
+        ? a.service_kind === "要支援"
+          ? [
+            "訪問介護予防サービス",
+            "訪問介護サービス",
+          ]
+          : [
+            "訪問介護サービス",
+            "訪問介護予防サービス",
+          ]
+        : [
+          "障害福祉サービス",
+          "移動支援サービス",
+        ];
+
+    const rows =
+      ((sourceRows ?? []) as SourceRow[]).filter(
+        (row) =>
+          row.plan_document_kind !== null &&
+          targetDocumentKinds.includes(
+            row.plan_document_kind,
+          ),
+      );
 
     if (rows.length === 0) {
       return json(
         {
           ok: false,
-          error: "対象週間シフトがありません。障害福祉サービス / 移動支援サービス の週間シフトを確認してください。",
+
+          error: isElderCare
+            ? "対象となる訪問介護の週間シフトがありません。訪問介護サービスまたは訪問介護予防サービスの週間シフトを確認してください。"
+            : "対象週間シフトがありません。障害福祉サービスまたは移動支援サービスの週間シフトを確認してください。",
+
+          error_code:
+            "PLAN_SOURCE_SHIFT_NOT_FOUND",
+
+          target_document_kinds:
+            targetDocumentKinds,
         },
-        400
+        422,
       );
     }
 
-    const grouped = {
-      障害福祉サービス: rows.filter((r) => r.plan_document_kind === "障害福祉サービス"),
-      移動支援サービス: rows.filter((r) => r.plan_document_kind === "移動支援サービス"),
-    };
+    const grouped =
+      targetDocumentKinds.reduce(
+        (
+          result,
+          documentKind,
+        ) => {
+          result[documentKind] =
+            rows.filter(
+              (row) =>
+                row.plan_document_kind ===
+                documentKind,
+            );
 
-    const targets = (Object.keys(grouped) as Array<"障害福祉サービス" | "移動支援サービス">).filter(
-      (k) => grouped[k].length > 0
+          return result;
+        },
+        {} as Record<
+          PlanDocumentKind,
+          SourceRow[]
+        >,
+      );
+
+    const targets =
+      targetDocumentKinds.filter(
+        (documentKind) =>
+          grouped[documentKind].length > 0,
+      );
+
+    console.info(
+      "[plans/generate] target shifts resolved",
+      {
+        assessment_id:
+          a.assessment_id,
+
+        service_kind:
+          a.service_kind,
+
+        is_elder_care:
+          isElderCare,
+
+        target_document_kinds:
+          targetDocumentKinds,
+
+        source_row_count:
+          sourceRows?.length ?? 0,
+
+        matched_row_count:
+          rows.length,
+
+        targets,
+
+        target_counts:
+          Object.fromEntries(
+            targets.map(
+              (documentKind) => [
+                documentKind,
+                grouped[documentKind].length,
+              ],
+            ),
+          ),
+      },
     );
 
     const extracted = extractAssessmentTexts(a.content ?? {});
@@ -1287,6 +1852,63 @@ export async function POST(req: NextRequest) {
       extracted,
     });
 
+    console.info(
+      "[plans/generate] care plan goals extracted",
+      {
+        assessment_id:
+          a.assessment_id,
+
+        base_care_plan_cs_doc_id:
+          selectedCarePlan?.id ??
+          null,
+
+        goal_count:
+          headerDraft
+            .care_plan_goals
+            .length,
+
+        goals:
+          headerDraft
+            .care_plan_goals
+            .map((goal, index) => ({
+              display_order:
+                index + 1,
+
+              long_term_goal:
+                goal.long_term_goal,
+
+              short_term_goal:
+                goal.short_term_goal,
+
+              source_text:
+                goal.source_text,
+            })),
+      },
+    );
+
+    /*
+     * 介護保険プランでは、
+     * ケアプラン由来の長期・短期目標が
+     * 必ず1組以上必要。
+     */
+    if (
+      isElderCare &&
+      headerDraft.care_plan_goals.length === 0
+    ) {
+      return json(
+        {
+          ok: false,
+          error:
+            "選択したケアプランから、訪問介護に関連する長期目標・短期目標を抽出できませんでした。ケアプランの内容を確認してください。",
+          error_code:
+            "CARE_PLAN_GOALS_NOT_FOUND",
+          base_care_plan_cs_doc_id:
+            selectedCarePlan?.id ?? null,
+        },
+        422,
+      );
+    }
+
     const results: unknown[] = [];
 
     for (const kind of targets) {
@@ -1302,21 +1924,146 @@ export async function POST(req: NextRequest) {
 
         if (oldErr) throw oldErr;
 
-        const oldIds = (oldPlans ?? []).map((x) => x.plan_id);
+        const oldIds =
+          (oldPlans ?? []).map(
+            (plan) => plan.plan_id,
+          );
+
         if (oldIds.length > 0) {
-          const { error: svcOffErr } = await supabaseAdmin
+          /*
+           * 旧プランに紐づく長期目標を取得する。
+           * 短期目標にはplan_idがないため、
+           * 長期目標IDを経由して無効化する。
+           */
+          const {
+            data: oldLongTermGoals,
+            error: oldLongTermGoalFetchError,
+          } = await supabaseAdmin
+            .from("plan_long_term_goals")
+            .select(
+              "plan_long_term_goal_id",
+            )
+            .in(
+              "plan_id",
+              oldIds,
+            )
+            .eq(
+              "active",
+              true,
+            );
+
+          if (oldLongTermGoalFetchError) {
+            throw oldLongTermGoalFetchError;
+          }
+
+          const oldLongTermGoalIds =
+            (oldLongTermGoals ?? []).map(
+              (goal) =>
+                goal.plan_long_term_goal_id,
+            );
+
+          /*
+           * 先に短期目標を無効化する。
+           */
+          if (
+            oldLongTermGoalIds.length > 0
+          ) {
+            const {
+              error:
+              shortTermGoalOffError,
+            } = await supabaseAdmin
+              .from(
+                "plan_short_term_goals",
+              )
+              .update({
+                active: false,
+              })
+              .in(
+                "plan_long_term_goal_id",
+                oldLongTermGoalIds,
+              );
+
+            if (shortTermGoalOffError) {
+              throw shortTermGoalOffError;
+            }
+          }
+
+          /*
+           * 長期目標を無効化する。
+           */
+          const {
+            error: longTermGoalOffError,
+          } = await supabaseAdmin
+            .from(
+              "plan_long_term_goals",
+            )
+            .update({
+              active: false,
+            })
+            .in(
+              "plan_id",
+              oldIds,
+            );
+
+          if (longTermGoalOffError) {
+            throw longTermGoalOffError;
+          }
+
+          /*
+           * 旧サービスを無効化する。
+           */
+          const {
+            error: serviceOffError,
+          } = await supabaseAdmin
             .from("plan_services")
-            .update({ active: false })
-            .in("plan_id", oldIds);
+            .update({
+              active: false,
+            })
+            .in(
+              "plan_id",
+              oldIds,
+            );
 
-          if (svcOffErr) throw svcOffErr;
+          if (serviceOffError) {
+            throw serviceOffError;
+          }
 
-          const { error: planOffErr } = await supabaseAdmin
+          /*
+           * 旧プラン本体をアーカイブする。
+           */
+          const {
+            error: planOffError,
+          } = await supabaseAdmin
             .from("plans")
-            .update({ is_deleted: true, status: "archived" })
-            .in("plan_id", oldIds);
+            .update({
+              is_deleted: true,
+              status: "archived",
+            })
+            .in(
+              "plan_id",
+              oldIds,
+            );
 
-          if (planOffErr) throw planOffErr;
+          if (planOffError) {
+            throw planOffError;
+          }
+
+          console.info(
+            "[plans/generate] old plans archived",
+            {
+              assessment_id:
+                a.assessment_id,
+
+              plan_document_kind:
+                kind,
+
+              old_plan_ids:
+                oldIds,
+
+              old_long_term_goal_ids:
+                oldLongTermGoalIds,
+            },
+          );
         }
       }
 
@@ -1355,6 +2102,15 @@ export async function POST(req: NextRequest) {
           client_info_id: a.client_info_id,
           kaipoke_cs_id: a.kaipoke_cs_id,
           plan_document_kind: kind,
+
+          /*
+           * 要介護・要支援の場合は、
+           * 選択した居宅介護支援計画書を保存する。
+           * 障害プランでは null。
+           */
+          base_care_plan_cs_doc_id:
+            selectedCarePlan?.id ?? null,
+
           title: TITLE_MAP[kind],
           version_no: 1,
           status: "generated",
@@ -1368,96 +2124,650 @@ export async function POST(req: NextRequest) {
           remarks: null,
           weekly_plan_comment: null,
           monthly_summary: monthlySummary,
+
           content: {
             assessment_content: a.content,
             source_count: targetRows.length,
+
+            /*
+             * 画面表示や将来の確認用として、
+             * 基準ケアプランの概要も保存する。
+             */
+            base_care_plan:
+              selectedCarePlan
+                ? {
+                  cs_doc_id:
+                    selectedCarePlan.id,
+
+                  doc_name:
+                    selectedCarePlan.doc_name,
+
+                  applicable_date:
+                    selectedCarePlan.applicable_date,
+
+                  doc_date_raw:
+                    selectedCarePlan.doc_date_raw,
+
+                  created_at:
+                    selectedCarePlan.created_at,
+                }
+                : null,
           },
+
           generation_meta: {
-            generated_at: new Date().toISOString(),
-            source: "plan_generation_source_view",
-            warnings: buildWarnings(targetRows),
+            generated_at:
+              new Date().toISOString(),
+
+            source:
+              "plan_generation_source_view",
+
+            warnings:
+              buildWarnings(targetRows),
+
+            base_care_plan_cs_doc_id:
+              selectedCarePlan?.id ?? null,
           },
+
           is_deleted: false,
         })
-        .select("plan_id, title, plan_document_kind, monthly_summary")
+        .select(
+          `
+      plan_id,
+      title,
+      plan_document_kind,
+      monthly_summary,
+      base_care_plan_cs_doc_id
+    `,
+        )
         .single();
 
       if (pErr) throw pErr;
-      if (!insertedPlan) throw new Error("plan insert failed");
-
-      const planServices = targetRows.map((row, index) => {
-        const duration = row.duration_minutes ?? 0;
-        const factor = calcFactor(row);
-        const monthlyMinutes = Math.round(duration * factor);
-
-        const draftKey = buildServiceDraftKey(row);
-        const draft = serviceDraftByCategory[draftKey] ?? fallbackServiceDraft();
-
-        return {
-          plan_id: insertedPlan.plan_id,
-          template_id: row.template_id ?? null,
-          shift_service_code_id: row.shift_service_code_id ?? null,
-          service_code: row.service_code ?? null,
-          plan_document_kind: kind,
-          plan_service_category: row.plan_service_category ?? null,
-          display_order: index + 1,
-          service_no: index + 1,
-          weekday: row.weekday ?? null,
-          weekday_jp: row.weekday_jp ?? null,
-          start_time: row.start_time ?? null,
-          end_time: row.end_time ?? null,
-          duration_minutes: duration,
-          is_biweekly: !!row.is_biweekly,
-          nth_weeks: row.nth_weeks ?? null,
-          monthly_occurrence_factor: factor,
-          monthly_minutes: monthlyMinutes,
-          monthly_hours: round2(monthlyMinutes / 60),
-          required_staff_count: row.required_staff_count ?? 1,
-          two_person_work_flg: !!row.two_person_work_flg,
-          service_title:
-            row.plan_display_name ??
-            row.plan_service_category ??
-            row.service_code ??
-            null,
-          service_detail: draft.service_detail,
-          procedure_notes: draft.procedure_notes,
-          observation_points: null,
-          family_action: draft.family_action,
-          schedule_note: buildScheduleNote(row),
-          source_snapshot: {
-            template_id: row.template_id,
-            service_code: row.service_code,
-            weekday: row.weekday,
-            start_time: row.start_time,
-            end_time: row.end_time,
-            duration_minutes: row.duration_minutes,
-            effective_from: row.effective_from,
-            effective_to: row.effective_to,
-          },
-          generation_meta: {
-            generated_at: new Date().toISOString(),
-            invalid_time: row.invalid_time ?? false,
-            overlaps_same_weekday: row.overlaps_same_weekday ?? false,
-            service_draft_key: draftKey,
-          },
-          active: true,
-        };
-      });
-
-      if (planServices.length > 0) {
-        const { error: psErr } = await supabaseAdmin
-          .from("plan_services")
-          .insert(planServices);
-
-        if (psErr) throw psErr;
+      if (!insertedPlan) {
+        throw new Error(
+          "plan insert failed",
+        );
       }
 
+      /*
+       * 選択されたケアプランから抽出した
+       * 長期目標・短期目標を保存する。
+       */
+      const insertedGoalResults: Array<{
+        plan_long_term_goal_id: string;
+        plan_short_term_goal_id: string;
+      }> = [];
+
+      const shortTermGoalIdMap =
+        new Map<number, string>();
+
+      for (
+        let goalIndex = 0;
+        goalIndex <
+        headerDraft.care_plan_goals.length;
+        goalIndex += 1
+      ) {
+        const goal =
+          headerDraft.care_plan_goals[
+          goalIndex
+          ];
+
+        const displayOrder =
+          goalIndex + 1;
+
+        const sourceGoalKey =
+          `care-plan-goal-${displayOrder}`;
+
+        const {
+          data: insertedLongTermGoal,
+          error: longTermGoalError,
+        } = await supabaseAdmin
+          .from("plan_long_term_goals")
+          .insert({
+            plan_id:
+              insertedPlan.plan_id,
+
+            display_order:
+              displayOrder,
+
+            goal_start_date:
+              null,
+
+            goal_end_date:
+              null,
+
+            goal_text:
+              goal.long_term_goal,
+
+            achievement_level:
+              "未選択",
+
+            effectiveness_satisfaction:
+              null,
+
+            source_cs_doc_id:
+              selectedCarePlan?.id ??
+              null,
+
+            source_goal_key:
+              `${sourceGoalKey}-long`,
+
+            source_goal_text:
+              goal.long_term_goal,
+
+            source_snapshot: {
+              base_care_plan_cs_doc_id:
+                selectedCarePlan?.id ??
+                null,
+
+              source_text:
+                goal.source_text,
+
+              extracted_long_term_goal:
+                goal.long_term_goal,
+
+              extracted_short_term_goal:
+                goal.short_term_goal,
+            },
+
+            generation_meta: {
+              generated_at:
+                new Date().toISOString(),
+
+              source:
+                "selected_care_plan",
+
+              extraction_model:
+                "gpt-4.1-mini",
+
+              display_order:
+                displayOrder,
+            },
+
+            active: true,
+          })
+          .select(
+            `
+        plan_long_term_goal_id
+      `,
+          )
+          .single();
+
+        if (longTermGoalError) {
+          throw longTermGoalError;
+        }
+
+        if (!insertedLongTermGoal) {
+          throw new Error(
+            "long term goal insert failed",
+          );
+        }
+
+        const {
+          data: insertedShortTermGoal,
+          error: shortTermGoalError,
+        } = await supabaseAdmin
+          .from("plan_short_term_goals")
+          .insert({
+            plan_long_term_goal_id:
+              insertedLongTermGoal
+                .plan_long_term_goal_id,
+
+            display_order: 1,
+
+            goal_start_date:
+              null,
+
+            goal_end_date:
+              null,
+
+            goal_text:
+              goal.short_term_goal,
+
+            achievement_level:
+              "未選択",
+
+            effectiveness_satisfaction:
+              null,
+
+            source_cs_doc_id:
+              selectedCarePlan?.id ??
+              null,
+
+            source_goal_key:
+              `${sourceGoalKey}-short`,
+
+            source_goal_text:
+              goal.short_term_goal,
+
+            source_snapshot: {
+              base_care_plan_cs_doc_id:
+                selectedCarePlan?.id ??
+                null,
+
+              source_text:
+                goal.source_text,
+
+              parent_long_term_goal:
+                goal.long_term_goal,
+
+              extracted_short_term_goal:
+                goal.short_term_goal,
+            },
+
+            generation_meta: {
+              generated_at:
+                new Date().toISOString(),
+
+              source:
+                "selected_care_plan",
+
+              extraction_model:
+                "gpt-4.1-mini",
+
+              display_order: 1,
+            },
+
+            active: true,
+          })
+          .select(
+            `
+        plan_short_term_goal_id
+      `,
+          )
+          .single();
+
+        if (shortTermGoalError) {
+          throw shortTermGoalError;
+        }
+
+        if (!insertedShortTermGoal) {
+          throw new Error(
+            "short term goal insert failed",
+          );
+        }
+
+        insertedGoalResults.push({
+          plan_long_term_goal_id:
+            insertedLongTermGoal
+              .plan_long_term_goal_id,
+
+          plan_short_term_goal_id:
+            insertedShortTermGoal
+              .plan_short_term_goal_id,
+        });
+
+        shortTermGoalIdMap.set(
+          goalIndex,
+          insertedShortTermGoal
+            .plan_short_term_goal_id,
+        );
+      }
+
+      console.info(
+        "[plans/generate] care plan goals saved",
+        {
+          plan_id:
+            insertedPlan.plan_id,
+
+          base_care_plan_cs_doc_id:
+            selectedCarePlan?.id ??
+            null,
+
+          saved_goal_count:
+            insertedGoalResults.length,
+
+          goal_ids:
+            insertedGoalResults,
+        },
+      );
+
+      const planServices =
+        targetRows.map(
+          (row, index) => {
+            const duration = row.duration_minutes ?? 0;
+            const factor = calcFactor(row);
+            const monthlyMinutes = Math.round(duration * factor);
+
+            const draftKey = buildServiceDraftKey(row);
+            const draft = serviceDraftByCategory[draftKey] ?? fallbackServiceDraft();
+
+            return {
+              plan_id: insertedPlan.plan_id,
+              template_id: row.template_id ?? null,
+              shift_service_code_id: row.shift_service_code_id ?? null,
+              service_code: row.service_code ?? null,
+              plan_document_kind: kind,
+              plan_service_category: row.plan_service_category ?? null,
+              display_order: index + 1,
+              service_no: index + 1,
+              weekday: row.weekday ?? null,
+              weekday_jp: row.weekday_jp ?? null,
+              start_time: row.start_time ?? null,
+              end_time: row.end_time ?? null,
+              duration_minutes: duration,
+              is_biweekly: !!row.is_biweekly,
+              nth_weeks: row.nth_weeks ?? null,
+              monthly_occurrence_factor: factor,
+              monthly_minutes: monthlyMinutes,
+              monthly_hours: round2(monthlyMinutes / 60),
+              required_staff_count: row.required_staff_count ?? 1,
+              two_person_work_flg: !!row.two_person_work_flg,
+              service_title:
+                row.plan_display_name ??
+                row.plan_service_category ??
+                row.service_code ??
+                null,
+              service_detail: draft.service_detail,
+              procedure_notes: draft.procedure_notes,
+              observation_points: null,
+              family_action: draft.family_action,
+              schedule_note: buildScheduleNote(row),
+              source_snapshot: {
+                template_id: row.template_id,
+                service_code: row.service_code,
+                weekday: row.weekday,
+                start_time: row.start_time,
+                end_time: row.end_time,
+                duration_minutes: row.duration_minutes,
+                effective_from: row.effective_from,
+                effective_to: row.effective_to,
+              },
+              generation_meta: {
+                generated_at: new Date().toISOString(),
+                invalid_time: row.invalid_time ?? false,
+                overlaps_same_weekday: row.overlaps_same_weekday ?? false,
+                service_draft_key: draftKey,
+              },
+              active: true,
+            };
+          });
+
+      type InsertedPlanServiceRow = {
+        plan_service_id: string;
+        service_no: number;
+        display_order: number;
+        plan_service_category: string | null;
+        service_title: string | null;
+        service_code: string | null;
+      };
+
+      let insertedPlanServices:
+        InsertedPlanServiceRow[] = [];
+
+      if (planServices.length > 0) {
+        const {
+          data: insertedServices,
+          error: psErr,
+        } = await supabaseAdmin
+          .from("plan_services")
+          .insert(planServices)
+          .select(
+            `
+        plan_service_id,
+        service_no,
+        display_order,
+        plan_service_category,
+        service_title,
+        service_code
+      `,
+          );
+
+        if (psErr) {
+          throw psErr;
+        }
+
+        insertedPlanServices =
+          (insertedServices ??
+            []) as InsertedPlanServiceRow[];
+
+        if (
+          insertedPlanServices.length !==
+          planServices.length
+        ) {
+          throw new Error(
+            `plan services insert count mismatch: expected=${planServices.length}, actual=${insertedPlanServices.length}`,
+          );
+        }
+      }
+
+      /*
+       * 登録済みサービスと短期目標の関連をAIで判定する。
+       */
+      const serviceGoalRelations =
+        await buildServiceGoalRelations({
+          sourceText:
+            source.text,
+
+          planServices:
+            insertedPlanServices.map(
+              (service) => {
+                const sourceService =
+                  planServices.find(
+                    (item) =>
+                      item.service_no ===
+                      service.service_no,
+                  );
+
+                return {
+                  service_no:
+                    service.service_no,
+
+                  plan_service_category:
+                    service.plan_service_category,
+
+                  service_title:
+                    service.service_title,
+
+                  service_code:
+                    service.service_code,
+
+                  service_detail:
+                    sourceService
+                      ?.service_detail ??
+                    null,
+
+                  procedure_notes:
+                    sourceService
+                      ?.procedure_notes ??
+                    null,
+                };
+              },
+            ),
+
+          carePlanGoals:
+            headerDraft.care_plan_goals,
+        });
+
+      /*
+       * AIの判定結果を、中間テーブルへ保存できる形に変換する。
+       */
+      const relationRows =
+        serviceGoalRelations
+          .map((relation) => {
+            const service =
+              insertedPlanServices.find(
+                (item) =>
+                  item.service_no ===
+                  relation.service_no,
+              );
+
+            const shortTermGoalId =
+              shortTermGoalIdMap.get(
+                relation.short_term_goal_index,
+              );
+
+            if (
+              !service ||
+              !shortTermGoalId
+            ) {
+              return null;
+            }
+
+            return {
+              plan_service_id:
+                service.plan_service_id,
+
+              plan_short_term_goal_id:
+                shortTermGoalId,
+
+              display_order: 1,
+
+              relation_note:
+                relation.relation_note,
+
+              source_snapshot: {
+                service_no:
+                  relation.service_no,
+
+                short_term_goal_index:
+                  relation.short_term_goal_index,
+              },
+
+              generation_meta: {
+                generated_at:
+                  new Date().toISOString(),
+
+                source:
+                  "gpt-4.1-mini",
+
+                extraction:
+                  "service_goal_relation",
+              },
+
+              active: true,
+            };
+          })
+          .filter(
+            (
+              item,
+            ): item is {
+              plan_service_id: string;
+              plan_short_term_goal_id: string;
+              display_order: number;
+              relation_note: string;
+              source_snapshot: {
+                service_no: number;
+                short_term_goal_index: number;
+              };
+              generation_meta: {
+                generated_at: string;
+                source: string;
+                extraction: string;
+              };
+              active: boolean;
+            } =>
+              item !== null,
+          );
+
+      /*
+       * 中間テーブルへ保存する。
+       */
+      if (relationRows.length > 0) {
+        const {
+          error:
+          relationInsertError,
+        } = await supabaseAdmin
+          .from(
+            "plan_service_short_term_goals",
+          )
+          .insert(
+            relationRows,
+          );
+
+        if (relationInsertError) {
+          throw relationInsertError;
+        }
+      }
+
+      console.info(
+        "[plans/generate] service goal relations saved",
+        {
+          plan_id:
+            insertedPlan.plan_id,
+
+          relation_count:
+            relationRows.length,
+
+          relations:
+            serviceGoalRelations,
+        },
+      );
+
+      console.info(
+        "[plans/generate] plan services saved",
+        {
+          plan_id:
+            insertedPlan.plan_id,
+
+          plan_document_kind:
+            kind,
+
+          service_count:
+            insertedPlanServices.length,
+
+          services:
+            insertedPlanServices.map(
+              (service) => ({
+                plan_service_id:
+                  service.plan_service_id,
+
+                service_no:
+                  service.service_no,
+
+                display_order:
+                  service.display_order,
+
+                plan_service_category:
+                  service.plan_service_category,
+
+                service_title:
+                  service.service_title,
+
+                service_code:
+                  service.service_code,
+              }),
+            ),
+        },
+      );
+
       results.push({
-        plan_id: insertedPlan.plan_id,
-        title: insertedPlan.title,
-        plan_document_kind: kind,
-        service_count: planServices.length,
-        monthly_summary: monthlySummary,
+        plan_id:
+          insertedPlan.plan_id,
+
+        title:
+          insertedPlan.title,
+
+        plan_document_kind:
+          kind,
+
+        base_care_plan_cs_doc_id:
+          insertedPlan
+            .base_care_plan_cs_doc_id ??
+          null,
+
+        care_plan_goal_count:
+          insertedGoalResults.length,
+
+        care_plan_goal_ids:
+          insertedGoalResults,
+
+        service_goal_relation_count:
+          serviceGoalRelations.length,
+
+        service_goal_relations:
+          serviceGoalRelations,
+
+        service_count:
+          insertedPlanServices.length,
+
+        plan_service_ids:
+          insertedPlanServices.map(
+            (service) =>
+              service.plan_service_id,
+          ),
+
+        monthly_summary:
+          monthlySummary,
       });
     }
 
