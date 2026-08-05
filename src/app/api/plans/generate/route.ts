@@ -13,6 +13,12 @@ function json(body: unknown, status = 200) {
 type GenerateBody = {
   assessment_id?: string;
   replace_existing?: boolean;
+
+  /*
+   * 介護保険プランの基準にする
+   * cs_docs.id
+   */
+  base_care_plan_cs_doc_id?: string;
 };
 
 type PlanDocumentKind =
@@ -63,9 +69,12 @@ type SourceRow = {
 };
 
 type CsDocRow = {
+  id: string;
   doc_name: string | null;
   summary: string | null;
   ocr_text: string | null;
+  applicable_date: string | null;
+  doc_date_raw: string | null;
   created_at: string | null;
 };
 
@@ -197,7 +206,10 @@ function buildWarnings(rows: SourceRow[]) {
   return warnings;
 }
 
-async function buildPlanSourceText(a: AssessmentRow): Promise<PlanSourceTextResult> {
+async function buildPlanSourceText(
+  a: AssessmentRow,
+  selectedCarePlan: CsDocRow | null = null,
+): Promise<PlanSourceTextResult> {
   const { data: docs, error } = await supabaseAdmin
     .from("cs_docs")
     .select("doc_name, summary, ocr_text, created_at")
@@ -220,6 +232,45 @@ async function buildPlanSourceText(a: AssessmentRow): Promise<PlanSourceTextResu
   }
 
   const sourceLabels: string[] = [];
+
+  const selectedCarePlanText =
+    selectedCarePlan
+      ? [
+        "【今回選択された基準ケアプラン】",
+
+        `文書ID: ${selectedCarePlan.id}`,
+
+        selectedCarePlan.doc_name
+          ? `文書名: ${selectedCarePlan.doc_name}`
+          : "",
+
+        selectedCarePlan.applicable_date
+          ? `適用日: ${selectedCarePlan.applicable_date}`
+          : "",
+
+        selectedCarePlan.doc_date_raw
+          ? `文書日付: ${selectedCarePlan.doc_date_raw}`
+          : "",
+
+        "【ケアプランサマリー】",
+        selectedCarePlan.summary ?? "",
+
+        "【ケアプランOCR本文】",
+        selectedCarePlan.ocr_text ?? "",
+      ]
+        .filter(
+          (value) =>
+            typeof value === "string" &&
+            value.trim() !== "",
+        )
+        .join("\n")
+      : "";
+
+  if (selectedCarePlan) {
+    sourceLabels.push(
+      `基準ケアプラン:${selectedCarePlan.id}`,
+    );
+  }
 
   const docText = ((docs ?? []) as CsDocRow[])
     .map((d) => {
@@ -263,12 +314,22 @@ async function buildPlanSourceText(a: AssessmentRow): Promise<PlanSourceTextResu
   }
 
   const text = [
+    /*
+     * 選択されたケアプランを最優先資料として
+     * 必ず先頭に置く。
+     */
+    selectedCarePlanText,
+
     meetingMinutes,
     docText,
     assessmentText,
     visitNotesText,
   ]
-    .filter(Boolean)
+    .filter(
+      (value) =>
+        typeof value === "string" &&
+        value.trim() !== "",
+    )
     .join("\n\n")
     .slice(0, 18000);
 
@@ -757,9 +818,9 @@ export async function GET(
 
     const isElderCare =
       assessment.service_kind ===
-        "要介護" ||
+      "要介護" ||
       assessment.service_kind ===
-        "要支援";
+      "要支援";
 
     /*
      * 障害アセスメントでは、
@@ -824,7 +885,7 @@ export async function GET(
     const candidates =
       (
         (carePlans ?? []) as
-          CarePlanCandidateRow[]
+        CarePlanCandidateRow[]
       ).map((plan) => ({
         id: plan.id,
 
@@ -919,9 +980,22 @@ export async function POST(req: NextRequest) {
   try {
     await getUserFromBearer(req);
 
-    const body = (await req.json()) as GenerateBody;
-    const assessmentId = String(body.assessment_id ?? "").trim();
-    const replaceExisting = !!body.replace_existing;
+    const body =
+      (await req.json()) as GenerateBody;
+
+    const assessmentId =
+      String(
+        body.assessment_id ?? "",
+      ).trim();
+
+    const replaceExisting =
+      body.replace_existing === true;
+
+    const baseCarePlanCsDocId =
+      String(
+        body.base_care_plan_cs_doc_id ??
+        "",
+      ).trim();
 
     if (!assessmentId) {
       return json({ ok: false, error: "assessment_id is required" }, 400);
@@ -937,11 +1011,166 @@ export async function POST(req: NextRequest) {
     if (aErr) throw aErr;
     if (!assessment) return json({ ok: false, error: "assessment not found" }, 404);
 
-    const a = assessment as AssessmentRow;
+    const a =
+      assessment as AssessmentRow;
 
-    const { data: sourceRows, error: sErr } = await supabaseAdmin
-      .from("plan_generation_source_view")
-      .select(`
+    const isElderCare =
+      a.service_kind === "要介護" ||
+      a.service_kind === "要支援";
+
+    if (
+      isElderCare &&
+      !baseCarePlanCsDocId
+    ) {
+      return json(
+        {
+          ok: false,
+          error:
+            "ベースとなるケアプランを選択してください。",
+          error_code:
+            "BASE_CARE_PLAN_REQUIRED",
+        },
+        422,
+      );
+    }
+
+    console.info(
+      "[plans/generate] selected base care plan",
+      {
+        assessment_id:
+          a.assessment_id,
+        service_kind:
+          a.service_kind,
+        base_care_plan_cs_doc_id:
+          baseCarePlanCsDocId || null,
+      },
+    );
+
+    let selectedCarePlan:
+      CsDocRow | null = null;
+
+    if (isElderCare) {
+      const {
+        data: carePlan,
+        error: carePlanError,
+      } = await supabaseAdmin
+        .from("cs_docs")
+        .select(
+          `
+        id,
+        doc_name,
+        summary,
+        ocr_text,
+        applicable_date,
+        doc_date_raw,
+        created_at
+      `,
+        )
+        .eq(
+          "id",
+          baseCarePlanCsDocId,
+        )
+        .eq(
+          "kaipoke_cs_id",
+          a.kaipoke_cs_id,
+        )
+        .maybeSingle();
+
+      if (carePlanError) {
+        throw carePlanError;
+      }
+
+      if (!carePlan) {
+        return json(
+          {
+            ok: false,
+            error:
+              "選択されたケアプランが見つかりません。",
+            error_code:
+              "BASE_CARE_PLAN_NOT_FOUND",
+          },
+          422,
+        );
+      }
+
+      const docName =
+        String(
+          carePlan.doc_name ?? "",
+        ).trim();
+
+      if (
+        !docName.includes(
+          "居宅介護支援計画書",
+        )
+      ) {
+        return json(
+          {
+            ok: false,
+            error:
+              "選択された文書はケアプラン（居宅介護支援計画書）ではありません。",
+            error_code:
+              "INVALID_BASE_CARE_PLAN",
+          },
+          422,
+        );
+      }
+
+      const hasCarePlanContent =
+        Boolean(
+          String(
+            carePlan.summary ?? "",
+          ).trim() ||
+          String(
+            carePlan.ocr_text ?? "",
+          ).trim(),
+        );
+
+      if (!hasCarePlanContent) {
+        return json(
+          {
+            ok: false,
+            error:
+              "選択されたケアプランにサマリーまたはOCR本文がありません。",
+            error_code:
+              "BASE_CARE_PLAN_CONTENT_EMPTY",
+          },
+          422,
+        );
+      }
+
+      selectedCarePlan =
+        carePlan as CsDocRow;
+
+      console.info(
+        "[plans/generate] base care plan loaded",
+        {
+          assessment_id:
+            a.assessment_id,
+
+          cs_doc_id:
+            selectedCarePlan.id,
+
+          doc_name:
+            selectedCarePlan.doc_name,
+
+          applicable_date:
+            selectedCarePlan.applicable_date,
+
+          summary_chars:
+            selectedCarePlan.summary?.length ??
+            0,
+
+          ocr_chars:
+            selectedCarePlan.ocr_text?.length ??
+            0,
+        },
+      );
+    }
+
+    const { data: sourceRows, error: sErr } =
+      await supabaseAdmin
+        .from("plan_generation_source_view")
+        .select(`
         template_id,
         kaipoke_cs_id,
         weekday,
@@ -966,10 +1195,10 @@ export async function POST(req: NextRequest) {
         plan_service_category,
         plan_display_name
       `)
-      .eq("kaipoke_cs_id", a.kaipoke_cs_id)
-      .order("plan_document_kind", { ascending: true })
-      .order("weekday", { ascending: true })
-      .order("start_time", { ascending: true });
+        .eq("kaipoke_cs_id", a.kaipoke_cs_id)
+        .order("plan_document_kind", { ascending: true })
+        .order("weekday", { ascending: true })
+        .order("start_time", { ascending: true });
 
     if (sErr) throw sErr;
 
@@ -999,7 +1228,40 @@ export async function POST(req: NextRequest) {
     );
 
     const extracted = extractAssessmentTexts(a.content ?? {});
-    const source = await buildPlanSourceText(a);
+    const source =
+      await buildPlanSourceText(
+        a,
+        selectedCarePlan,
+      );
+
+    console.info(
+      "[plans/generate] source prepared",
+      {
+        assessment_id:
+          a.assessment_id,
+
+        service_kind:
+          a.service_kind,
+
+        base_care_plan_cs_doc_id:
+          selectedCarePlan?.id ??
+          null,
+
+        source_labels:
+          source.sourceLabels,
+
+        source_chars:
+          source.text.length,
+
+        selected_care_plan_summary_chars:
+          selectedCarePlan?.summary
+            ?.length ?? 0,
+
+        selected_care_plan_ocr_chars:
+          selectedCarePlan?.ocr_text
+            ?.length ?? 0,
+      },
+    );
 
     console.info("[plans/generate] source built", {
       assessment_id: a.assessment_id,

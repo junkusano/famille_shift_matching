@@ -520,6 +520,20 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
     async function generatePlans() {
         if (!detail?.assessment_id) return;
 
+        const isElderCare =
+            detail.service_kind === "要介護" ||
+            detail.service_kind === "要支援";
+
+        if (
+            isElderCare &&
+            !selectedCarePlanId
+        ) {
+            window.alert(
+                "ベースとなるケアプランを選択してください。",
+            );
+            return;
+        }
+
         setPlanGenerating(true);
         try {
             const bearer = await getBearer();
@@ -561,8 +575,14 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                     ...(bearer ? { Authorization: bearer } : {}),
                 },
                 body: JSON.stringify({
-                    assessment_id: latestAssessmentId,
-                    replace_existing: false,
+                    assessment_id:
+                        latestAssessmentId,
+
+                    replace_existing:
+                        false,
+
+                    base_care_plan_cs_doc_id:
+                        selectedCarePlanId || null,
                 }),
             });
 
