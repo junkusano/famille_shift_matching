@@ -819,10 +819,49 @@ export default function MonthlyRosterPage() {
             }
         }
 
-        // バリデーション（保存前）
-        const dateOk = isValidDateStr(row.shift_start_date);
+        // Staff重複チェック
+const staffIds = [
+    row.staff_01_user_id,
+    row.staff_02_user_id,
+    row.staff_03_user_id,
+].filter((v): v is string => !!v);
+
+if (staffIds.length !== new Set(staffIds).size) {
+    alert("同じスタッフを複数のスタッフ欄に登録することはできません");
+    return;
+}
+
+// バリデーション（保存前）
+const dateOk = isValidDateStr(row.shift_start_date);
         const stOk = isValidTimeStr(row.shift_start_time);
         const etOk = isValidTimeStr(row.shift_end_time);
+        // 重訪移動時間 <= シフト時間
+if (
+    row.judo_ido &&
+    /^[0-2][0-9][0-5][0-9]$/.test(row.judo_ido)
+) {
+    const toMinutes = (time: string) => {
+        const [h, m] = time.split(":").map(Number);
+        return h * 60 + m;
+    };
+
+    let shiftMinutes =
+        toMinutes(row.shift_end_time) -
+        toMinutes(row.shift_start_time);
+
+    if (shiftMinutes < 0) {
+        shiftMinutes += 24 * 60;
+    }
+
+    const jh = Number(row.judo_ido.slice(0, 2));
+    const jm = Number(row.judo_ido.slice(2, 4));
+    const judoMinutes = jh * 60 + jm;
+
+    if (judoMinutes > shiftMinutes) {
+        alert("重訪移動時間がシフト時間を超えています");
+        return;
+    }
+}
         if (!dateOk || !stOk || !etOk) {
             alert('入力に不備があります（開始日/開始時間/終了時間/重度移動）');
             return;
