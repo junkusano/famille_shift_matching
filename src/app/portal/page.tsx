@@ -52,8 +52,11 @@ export default function PortalHome() {
 
   const [me, setMe] = useState<UserRow | null>(null);
 
-  const isServiceSupport =
-  me?.user_id === "servicesuport";
+  const SERVICE_SUPPORT_AUTH_UID =
+  "386e457a-5cb7-445d-9832-17cfd8ec0960";
+
+const isServiceSupport =
+  me?.auth_uid === SERVICE_SUPPORT_AUTH_UID;
 
 const isManagerOrAdmin =
   !isServiceSupport &&
@@ -61,6 +64,7 @@ const isManagerOrAdmin =
     normalizedRole === "manager" ||
     normalizedRole === "admin"
   );
+  
   const router = useRouter();
 
   const [certs, setCerts] = useState<DocItem[]>([]);
