@@ -3,7 +3,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter } from "next/navigation";
+import { useRoleContext } from "@/context/RoleContext";
 import {
   CalendarDays,
   FileText,
@@ -44,6 +45,13 @@ const getCurrentYearMonth = () => {
 };
 
 export default function PortalHome() {
+  const { role, loading: roleLoading } = useRoleContext();
+
+  const normalizedRole = (role ?? "").trim().toLowerCase();
+
+  const isManagerOrAdmin =
+    normalizedRole === "manager" ||
+    normalizedRole === "admin";
   const router = useRouter();
 
     const [me, setMe] = useState<UserRow | null>(null);
@@ -142,9 +150,9 @@ export default function PortalHome() {
   }, [load]);
 
   useEffect(() => {
-    if (!me?.id) return;
+  if (!me?.id || roleLoading || isManagerOrAdmin) return;
 
-    const loadSalarySummary = async () => {
+  const loadSalarySummary = async () => {
       setSalaryLoading(true);
       setSalaryError('');
 
@@ -194,7 +202,12 @@ export default function PortalHome() {
     };
 
     void loadSalarySummary();
-  }, [me?.id, selectedSalaryMonth]);
+  }, [
+  me?.id,
+  selectedSalaryMonth,
+  roleLoading,
+  isManagerOrAdmin,
+]);
 
 
   // マスタの読み込み（doc_group を alias で service_key として取得）
@@ -328,76 +341,79 @@ export default function PortalHome() {
           </div>
         </div>
 
-        {/* 給与概算 */}
-        <section className="rounded-xl border border-blue-200 bg-blue-50/40 px-5 py-4 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">
-                給与（概算）
-              </h2>
+        {/* 給与概算：一般スタッフのみ表示 */}
+{!roleLoading && !isManagerOrAdmin && (
+  <section className="rounded-xl border border-blue-200 bg-blue-50/40 px-5 py-4 shadow-sm">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 className="text-lg font-bold text-gray-900">
+          給与（概算）
+        </h2>
 
-              <p className="mt-1 text-xs text-gray-500">
-                シフト情報をもとにした概算金額です
-              </p>
-            </div>
+        <p className="mt-1 max-w-3xl text-xs leading-relaxed text-gray-600">
+          概算給与は、基本時給・サービス加算・回ごと単価・通勤費から算出した目安です。
+          実際の給与は、個人別時給、同日に複数サービスへ入る場合の移動時間加算等により変動します。
+        </p>
+      </div>
 
-            <label className="text-sm font-semibold text-gray-700">
-              表示する年月
+      <label className="text-sm font-semibold text-gray-700">
+        表示する年月
 
-              <input
-                type="month"
-                value={selectedSalaryMonth}
-                max={currentYearMonth}
-                onChange={(event) =>
-                  setSelectedSalaryMonth(event.target.value)
-                }
-                className="ml-2 rounded-lg border border-gray-300 bg-white px-3 py-2 font-normal"
-              />
-            </label>
+        <input
+          type="month"
+          value={selectedSalaryMonth}
+          max={currentYearMonth}
+          onChange={(event) =>
+            setSelectedSalaryMonth(event.target.value)
+          }
+          className="ml-2 rounded-lg border border-gray-300 bg-white px-3 py-2 font-normal"
+        />
+      </label>
+    </div>
+
+    {salaryLoading ? (
+      <div className="mt-5 text-sm text-gray-500">
+        給与情報を読み込み中です...
+      </div>
+    ) : salaryError ? (
+      <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        {salaryError}
+      </div>
+    ) : (
+      <div
+        className={`mt-4 grid gap-3 ${
+          isCurrentSalaryMonth
+            ? 'grid-cols-1 sm:grid-cols-2'
+            : 'grid-cols-1'
+        }`}
+      >
+        <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+          <div className="text-sm font-semibold text-gray-600">
+            {salaryMonthLabel} 勤務済み
           </div>
 
-          {salaryLoading ? (
-            <div className="mt-5 text-sm text-gray-500">
-              給与情報を読み込み中です...
-            </div>
-          ) : salaryError ? (
-            <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {salaryError}
-            </div>
-          ) : (
-            <div
-              className={`mt-4 grid gap-3 ${
-                isCurrentSalaryMonth
-                  ? 'grid-cols-1 sm:grid-cols-2'
-                  : 'grid-cols-1'
-              }`}
-            >
-              <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
-                <div className="text-sm font-semibold text-gray-600">
-                  {salaryMonthLabel} 勤務済み
-                </div>
+          <div className="mt-1 text-2xl font-bold text-gray-900">
+            {formatYen(salarySummary.worked)}
+            <span className="ml-1 text-base">円</span>
+          </div>
+        </div>
 
-                <div className="mt-1 text-2xl font-bold text-gray-900">
-                  {formatYen(salarySummary.worked)}
-                  <span className="ml-1 text-base">円</span>
-                </div>
-              </div>
-
-              {isCurrentSalaryMonth && (
-                <div className="rounded-lg border border-blue-200 bg-white px-4 py-3">
-                  <div className="text-sm font-semibold text-blue-700">
-                    今月見込み
-                  </div>
-
-                  <div className="mt-1 text-2xl font-bold text-blue-700">
-                    {formatYen(salarySummary.expected)}
-                    <span className="ml-1 text-base">円</span>
-                  </div>
-                </div>
-              )}
+        {isCurrentSalaryMonth && (
+          <div className="rounded-lg border border-blue-200 bg-white px-4 py-3">
+            <div className="text-sm font-semibold text-blue-700">
+              今月見込み
             </div>
-          )}
-        </section>
+
+            <div className="mt-1 text-2xl font-bold text-blue-700">
+              {formatYen(salarySummary.expected)}
+              <span className="ml-1 text-base">円</span>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+  </section>
+)}
       </div>
 
       {/* よく使う機能 */}
