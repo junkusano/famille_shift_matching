@@ -29,12 +29,42 @@ type UserRow = {
   attachments: Attachment[] | null;
 };
 
+type SalarySummary = {
+  worked: number;
+  expected: number;
+};
+
+const getCurrentYearMonth = () => {
+  const now = new Date();
+
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+    2,
+    '0',
+  )}`;
+};
+
 export default function PortalHome() {
   const router = useRouter();
 
-  const [me, setMe] = useState<UserRow | null>(null);
+    const [me, setMe] = useState<UserRow | null>(null);
   const [certs, setCerts] = useState<DocItem[]>([]);
-  const [docMaster, setDocMaster] = useState<{ certificate: string[]; other: string[] }>({
+
+  const [selectedSalaryMonth, setSelectedSalaryMonth] = useState(
+    getCurrentYearMonth,
+  );
+
+  const [salarySummary, setSalarySummary] = useState<SalarySummary>({
+    worked: 0,
+    expected: 0,
+  });
+
+  const [salaryLoading, setSalaryLoading] = useState(false);
+  const [salaryError, setSalaryError] = useState('');
+
+  const [docMaster, setDocMaster] = useState<{
+    certificate: string[];
+    other: string[];
+  }>({
     certificate: [],
     other: [],
   });
@@ -107,9 +137,65 @@ export default function PortalHome() {
     }
   }, [router]);
 
-  useEffect(() => {
+    useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!me?.id) return;
+
+    const loadSalarySummary = async () => {
+      setSalaryLoading(true);
+      setSalaryError('');
+
+      try {
+        const params = new URLSearchParams({
+          form_entry_id: me.id,
+          month: selectedSalaryMonth,
+        });
+
+        const response = await fetch(
+          `/api/portal/salary-summary?${params.toString()}`,
+          {
+            method: 'GET',
+            cache: 'no-store',
+          },
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            result?.error ??
+              '給与情報の取得に失敗しました。',
+          );
+        }
+
+        setSalarySummary({
+          worked: Number(result?.worked ?? 0),
+          expected: Number(result?.expected ?? 0),
+        });
+      } catch (error: unknown) {
+        console.error('salary summary load error:', error);
+
+        setSalarySummary({
+          worked: 0,
+          expected: 0,
+        });
+
+        setSalaryError(
+          error instanceof Error
+            ? error.message
+            : '給与情報の取得に失敗しました。',
+        );
+      } finally {
+        setSalaryLoading(false);
+      }
+    };
+
+    void loadSalarySummary();
+  }, [me?.id, selectedSalaryMonth]);
+
 
   // マスタの読み込み（doc_group を alias で service_key として取得）
   useEffect(() => {
@@ -191,7 +277,19 @@ export default function PortalHome() {
     }
   };
 
-  if (!me) return <div className="p-4">読み込み中...</div>;
+    if (!me) return <div className="p-4">読み込み中...</div>;
+
+  const currentYearMonth = getCurrentYearMonth();
+  const isCurrentSalaryMonth =
+    selectedSalaryMonth === currentYearMonth;
+
+  const formatYen = (amount: number) =>
+    new Intl.NumberFormat('ja-JP').format(amount);
+
+  const salaryMonthLabel = selectedSalaryMonth.replace(
+    /^(\d{4})-(\d{2})$/,
+    '$1年$2月',
+  );
 
   // 資格証明書以外の添付ファイルを「提出書類」として表示する
   const submittedDocs = (me.attachments ?? []).filter((attachment) => {
@@ -215,14 +313,91 @@ export default function PortalHome() {
         📱 各機能は左のオレンジ色のバーから利用できます。タップしてメニューを開いてください。
       </div>
 
-      <div className="mt-4">
-        <div className="text-lg font-semibold">氏名</div>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[160px_1fr] md:items-stretch">
+        {/* 氏名 */}
         <div>
-          {me.last_name_kanji ?? ''} {me.first_name_kanji ?? ''}
+          <div className="text-lg font-semibold">氏名</div>
+
+          <div className="mt-2 rounded border-4 border-gray-500 bg-white px-3 py-2 font-semibold">
+            {me.last_name_kanji ?? ''} {me.first_name_kanji ?? ''}
+          </div>
+
+          <div className="mt-1 text-sm text-gray-500">
+            ふりがな：{me.last_name_kana ?? ''}{' '}
+            {me.first_name_kana ?? ''}
+          </div>
         </div>
-        <div className="mt-1 text-sm text-gray-500">
-          ふりがな：{me.last_name_kana ?? ''} {me.first_name_kana ?? ''}
-        </div>
+
+        {/* 給与概算 */}
+        <section className="rounded-xl border border-blue-200 bg-blue-50/40 px-5 py-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">
+                給与（概算）
+              </h2>
+
+              <p className="mt-1 text-xs text-gray-500">
+                シフト情報をもとにした概算金額です
+              </p>
+            </div>
+
+            <label className="text-sm font-semibold text-gray-700">
+              表示する年月
+
+              <input
+                type="month"
+                value={selectedSalaryMonth}
+                max={currentYearMonth}
+                onChange={(event) =>
+                  setSelectedSalaryMonth(event.target.value)
+                }
+                className="ml-2 rounded-lg border border-gray-300 bg-white px-3 py-2 font-normal"
+              />
+            </label>
+          </div>
+
+          {salaryLoading ? (
+            <div className="mt-5 text-sm text-gray-500">
+              給与情報を読み込み中です...
+            </div>
+          ) : salaryError ? (
+            <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {salaryError}
+            </div>
+          ) : (
+            <div
+              className={`mt-4 grid gap-3 ${
+                isCurrentSalaryMonth
+                  ? 'grid-cols-1 sm:grid-cols-2'
+                  : 'grid-cols-1'
+              }`}
+            >
+              <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+                <div className="text-sm font-semibold text-gray-600">
+                  {salaryMonthLabel} 勤務済み
+                </div>
+
+                <div className="mt-1 text-2xl font-bold text-gray-900">
+                  {formatYen(salarySummary.worked)}
+                  <span className="ml-1 text-base">円</span>
+                </div>
+              </div>
+
+              {isCurrentSalaryMonth && (
+                <div className="rounded-lg border border-blue-200 bg-white px-4 py-3">
+                  <div className="text-sm font-semibold text-blue-700">
+                    今月見込み
+                  </div>
+
+                  <div className="mt-1 text-2xl font-bold text-blue-700">
+                    {formatYen(salarySummary.expected)}
+                    <span className="ml-1 text-base">円</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
       </div>
 
       {/* よく使う機能 */}
