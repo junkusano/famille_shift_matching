@@ -165,6 +165,80 @@ const getBreakValidationMessage = (
     return null;
 };
 
+// ↓ここから追加
+const timeTextToMinutes = (value: string): number | null => {
+    const text = value.trim();
+
+    if (!text) {
+        return null;
+    }
+
+    const match = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+
+    if (!match) {
+        return null;
+    }
+
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+
+    if (
+        !Number.isInteger(hour) ||
+        !Number.isInteger(minute) ||
+        hour < 0 ||
+        hour > 24 ||
+        minute < 0 ||
+        minute > 59 ||
+        (hour === 24 && minute !== 0)
+    ) {
+        return null;
+    }
+
+    return hour * 60 + minute;
+};
+
+const getShiftValidationMessage = (form: FormState): string | null => {
+    const selectedStaffIds = [
+        form.staff_01_user_id,
+        form.staff_02_user_id,
+        form.staff_03_user_id,
+    ].filter((staffId) => staffId.trim() !== "");
+
+    if (selectedStaffIds.length !== new Set(selectedStaffIds).size) {
+        return "同じスタッフを複数のスタッフ欄に登録することはできません";
+    }
+
+    const startMinutes = timeTextToMinutes(form.shift_start_time);
+    const endMinutes = timeTextToMinutes(form.shift_end_time);
+
+    if (startMinutes === null || endMinutes === null) {
+        return null;
+    }
+
+    let totalMinutes = endMinutes - startMinutes;
+
+    if (totalMinutes < 0) {
+        totalMinutes += 24 * 60;
+    }
+
+    const judoIdoText = form.judo_ido.trim();
+
+    if (judoIdoText) {
+        const judoIdoHours = Number(judoIdoText);
+
+        if (!Number.isFinite(judoIdoHours) || judoIdoHours < 0) {
+            return "重度移動時間は0以上の数値で入力してください";
+        }
+
+        if (judoIdoHours * 60 > totalMinutes) {
+            return "重度移動時間がシフトの総時間を超えています";
+        }
+    }
+
+    return null;
+};
+
+// この下に既存のコンポーネント本体が続く
 export default function ShiftDialog({
     open,
     onClose,
@@ -540,17 +614,25 @@ export default function ShiftDialog({
         }
     };
 
-    const saveShiftOnly = async () => {
-        if (!form.shift_id) {
-            setErrorMsg('shift_id がありません');
-            return;
-        }
+const saveShiftOnly = async () => {
+    if (!form.shift_id) {
+        setErrorMsg('shift_id がありません');
+        return;
+    }
 
-        setSaving(true);
-        setErrorMsg('');
-        setDoneMsg('');
+    setErrorMsg('');
+    setDoneMsg('');
 
-        try {
+    const validationMessage = getShiftValidationMessage(form);
+
+    if (validationMessage) {
+        setErrorMsg(validationMessage);
+        return;
+    }
+
+    setSaving(true);
+
+    try {
             const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
             if (sessErr) {
                 console.warn('[ShiftDialog] getSession error', sessErr);
@@ -902,13 +984,17 @@ export default function ShiftDialog({
                                 </label>
 
                                 <label className="block">
-                                    <div className="text-xs text-gray-500">重度移動</div>
-                                    <input
-                                        value={form.judo_ido}
-                                        onChange={(e) => setField('judo_ido', e.target.value)}
-                                        className="w-full rounded border p-2"
-                                    />
-                                </label>
+    <div className="text-xs text-gray-500">重度移動（時間）</div>
+    <input
+        type="number"
+        min="0"
+        step="0.25"
+        value={form.judo_ido}
+        onChange={(e) => setField('judo_ido', e.target.value)}
+        placeholder="例：1.5"
+        className="w-full rounded border p-2"
+    />
+</label>
                             </div>
                         </section>
                     </div>
