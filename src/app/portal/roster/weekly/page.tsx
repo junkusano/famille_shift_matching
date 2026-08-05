@@ -106,23 +106,90 @@ const cleanText = (v: string | null) => (v ? stripTags(decodeEntities(v)) : "");
 function validateRow(r: TemplateRow): string[] {
   const errs: string[] = [];
   const re = /^\d{2}:\d{2}$/;
-  if (!re.test(r.start_time)) errs.push("開始時刻の形式が不正です");
-  if (!re.test(r.end_time)) errs.push("終了時刻の形式が不正です");
+  const judoIdoPattern = /^([0-2][0-9][0-5][0-9])$/;
+
+  if (!re.test(r.start_time)) {
+    errs.push("開始時刻の形式が不正です");
+  }
+
+  if (!re.test(r.end_time)) {
+    errs.push("終了時刻の形式が不正です");
+  }
 
   const st = r.start_time;
   const et = r.end_time;
+
   if (re.test(st) && re.test(et) && et <= st) {
     errs.push("終了時刻は開始より後である必要があります");
   }
 
-  if (r.weekday < 0 || r.weekday > 6) errs.push("曜日が不正です");
-  if (!r.service_code) errs.push("サービス内容（service_code）を選択してください"); // 修正
-  if (r.required_staff_count < 1) errs.push("派遣人数は1以上にしてください");
-  if (r.nth_weeks && r.nth_weeks.some((n) => n < 1 || n > 5)) errs.push("第n週は1〜5で指定してください");
-  if (r.judo_ido && !/^([0-2][0-9][0-5][0-9])$/.test(r.judo_ido)) errs.push("重訪移動（judo_ido）はHHMM形式");
+  if (r.weekday < 0 || r.weekday > 6) {
+    errs.push("曜日が不正です");
+  }
+
+  if (!r.service_code) {
+    errs.push("サービス内容（service_code）を選択してください");
+  }
+
+  if (r.required_staff_count < 1) {
+    errs.push("派遣人数は1以上にしてください");
+  }
+
+  if (
+    r.nth_weeks &&
+    r.nth_weeks.some((n) => n < 1 || n > 5)
+  ) {
+    errs.push("第n週は1〜5で指定してください");
+  }
+
+  if (r.judo_ido && !judoIdoPattern.test(r.judo_ido)) {
+    errs.push("重訪移動（judo_ido）はHHMM形式");
+  }
+
+  // Staff_01・Staff_02・Staff_03の重複確認
+  const staffIds = [
+    r.staff_01_user_id,
+    r.staff_02_user_id,
+    r.staff_03_user_id,
+  ].filter((v): v is string => Boolean(v));
+
+  if (staffIds.length !== new Set(staffIds).size) {
+    errs.push(
+      "同じスタッフを複数のスタッフ欄に登録することはできません"
+    );
+  }
+
+  // 重訪移動時間がシフト時間を超えていないか確認
+  if (
+    re.test(r.start_time) &&
+    re.test(r.end_time) &&
+    r.end_time > r.start_time &&
+    r.judo_ido &&
+    judoIdoPattern.test(r.judo_ido)
+  ) {
+    const timeToMinutes = (value: string): number => {
+      const [hours, minutes] = value.split(":").map(Number);
+      return hours * 60 + minutes;
+    };
+
+    const startMinutes = timeToMinutes(r.start_time);
+    const endMinutes = timeToMinutes(r.end_time);
+    const totalShiftMinutes = endMinutes - startMinutes;
+
+    const judoHours = Number(r.judo_ido.slice(0, 2));
+    const judoMinutes = Number(r.judo_ido.slice(2, 4));
+    const totalJudoMinutes =
+      judoHours * 60 + judoMinutes;
+
+    if (totalJudoMinutes > totalShiftMinutes) {
+      errs.push(
+        "重訪移動時間がシフト時間を超えています"
+      );
+    }
+  }
+
   return errs;
 }
-
 
 function hasDuplicate(rows: TemplateRow[]): boolean {
   const key = (r: TemplateRow) => r.kaipoke_cs_id + "|" + r.weekday + "|" + r.start_time;
