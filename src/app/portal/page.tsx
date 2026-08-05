@@ -22,6 +22,7 @@ import {
 type UserRow = {
   id: string;
   auth_uid: string | null;
+  user_id: string | null;
   last_name_kanji: string | null;
   first_name_kanji: string | null;
   last_name_kana: string | null;
@@ -49,12 +50,19 @@ export default function PortalHome() {
 
   const normalizedRole = (role ?? "").trim().toLowerCase();
 
-  const isManagerOrAdmin =
+  const [me, setMe] = useState<UserRow | null>(null);
+
+  const isServiceSupport =
+  me?.user_id === "servicesuport";
+
+const isManagerOrAdmin =
+  !isServiceSupport &&
+  (
     normalizedRole === "manager" ||
-    normalizedRole === "admin";
+    normalizedRole === "admin"
+  );
   const router = useRouter();
 
-    const [me, setMe] = useState<UserRow | null>(null);
   const [certs, setCerts] = useState<DocItem[]>([]);
 
   const [selectedSalaryMonth, setSelectedSalaryMonth] = useState(
