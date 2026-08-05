@@ -69,6 +69,14 @@ type CsDocRow = {
   created_at: string | null;
 };
 
+type CarePlanCandidateRow = {
+  id: string;
+  doc_name: string | null;
+  summary: string | null;
+  applicable_date: string | null;
+  doc_date_raw: string | null;
+  created_at: string;
+};
 type VisitNoteRow = {
   shift_start_date: string | null;
   shift_start_time: string | null;
@@ -680,6 +688,231 @@ function buildScheduleNote(row: SourceRow) {
   if (row.nth_weeks?.length) notes.push(`第${row.nth_weeks.join("・")}週`);
   if (row.two_person_work_flg) notes.push("2名同時作業");
   return notes.length ? notes.join(" / ") : null;
+}
+
+/**
+ * 介護保険プラン生成時に選択する
+ * 基準ケアプラン候補を取得する。
+ *
+ * GET /api/plans/generate?assessment_id=...
+ */
+export async function GET(
+  req: NextRequest,
+) {
+  try {
+    await getUserFromBearer(req);
+
+    const assessmentId =
+      req.nextUrl.searchParams
+        .get("assessment_id")
+        ?.trim() ?? "";
+
+    if (!assessmentId) {
+      return json(
+        {
+          ok: false,
+          error:
+            "assessment_id is required",
+        },
+        400,
+      );
+    }
+
+    const {
+      data: assessment,
+      error: assessmentError,
+    } = await supabaseAdmin
+      .from("assessments_records")
+      .select(
+        `
+          assessment_id,
+          kaipoke_cs_id,
+          service_kind
+        `,
+      )
+      .eq(
+        "assessment_id",
+        assessmentId,
+      )
+      .eq(
+        "is_deleted",
+        false,
+      )
+      .maybeSingle();
+
+    if (assessmentError) {
+      throw assessmentError;
+    }
+
+    if (!assessment) {
+      return json(
+        {
+          ok: false,
+          error:
+            "assessment not found",
+        },
+        404,
+      );
+    }
+
+    const isElderCare =
+      assessment.service_kind ===
+        "要介護" ||
+      assessment.service_kind ===
+        "要支援";
+
+    /*
+     * 障害アセスメントでは、
+     * 基準ケアプランの選択は不要。
+     */
+    if (!isElderCare) {
+      return json({
+        ok: true,
+        service_kind:
+          assessment.service_kind,
+        requires_base_care_plan: false,
+        care_plans: [],
+      });
+    }
+
+    const {
+      data: carePlans,
+      error: carePlanError,
+    } = await supabaseAdmin
+      .from("cs_docs")
+      .select(
+        `
+          id,
+          doc_name,
+          summary,
+          applicable_date,
+          doc_date_raw,
+          created_at
+        `,
+      )
+      .eq(
+        "kaipoke_cs_id",
+        assessment.kaipoke_cs_id,
+      )
+      /*
+       * 全角・半角括弧や名称の微妙な違いを
+       * 吸収するため、完全一致ではなく
+       * 「居宅介護支援計画書」を含む文書を取得。
+       */
+      .ilike(
+        "doc_name",
+        "%居宅介護支援計画書%",
+      )
+      .order(
+        "applicable_date",
+        {
+          ascending: false,
+          nullsFirst: false,
+        },
+      )
+      .order(
+        "created_at",
+        {
+          ascending: false,
+        },
+      );
+
+    if (carePlanError) {
+      throw carePlanError;
+    }
+
+    const candidates =
+      (
+        (carePlans ?? []) as
+          CarePlanCandidateRow[]
+      ).map((plan) => ({
+        id: plan.id,
+
+        doc_name:
+          plan.doc_name ??
+          "ケアプラン（居宅介護支援計画書）",
+
+        applicable_date:
+          plan.applicable_date,
+
+        doc_date_raw:
+          plan.doc_date_raw,
+
+        created_at:
+          plan.created_at,
+
+        /*
+         * 選択欄で内容を判別できるよう、
+         * サマリーの冒頭だけ返す。
+         */
+        summary_preview:
+          plan.summary
+            ?.replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 180) ?? "",
+      }));
+
+    console.info(
+      "[plans/generate] care plan candidates",
+      {
+        assessment_id:
+          assessmentId,
+
+        kaipoke_cs_id:
+          assessment.kaipoke_cs_id,
+
+        service_kind:
+          assessment.service_kind,
+
+        candidate_count:
+          candidates.length,
+
+        candidate_ids:
+          candidates.map(
+            (candidate) =>
+              candidate.id,
+          ),
+      },
+    );
+
+    return json({
+      ok: true,
+
+      assessment_id:
+        assessmentId,
+
+      kaipoke_cs_id:
+        assessment.kaipoke_cs_id,
+
+      service_kind:
+        assessment.service_kind,
+
+      requires_base_care_plan: true,
+
+      care_plans:
+        candidates,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(error);
+
+    console.error(
+      "[plans/generate] GET failed",
+      {
+        message,
+      },
+    );
+
+    return json(
+      {
+        ok: false,
+        error: message,
+      },
+      500,
+    );
+  }
 }
 
 export async function POST(req: NextRequest) {
