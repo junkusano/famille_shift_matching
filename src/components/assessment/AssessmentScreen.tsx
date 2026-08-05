@@ -50,6 +50,15 @@ type PlanSummary = {
     updated_at: string;
 };
 
+type CarePlanCandidate = {
+    id: string;
+    doc_name: string;
+    applicable_date: string | null;
+    doc_date_raw: string | null;
+    created_at: string;
+    summary_preview: string;
+};
+
 type PlanDetail = PlanDetailForEditor;
 
 async function getBearer() {
@@ -84,6 +93,15 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
     const [generating, setGenerating] = useState(false);
 
     const [planGenerating, setPlanGenerating] = useState(false);
+
+    const [carePlanCandidates, setCarePlanCandidates] =
+        useState<CarePlanCandidate[]>([]);
+
+    const [carePlanCandidatesLoading, setCarePlanCandidatesLoading] =
+        useState(false);
+
+    const [selectedCarePlanId, setSelectedCarePlanId] =
+        useState("");
 
     const [plans, setPlans] = useState<PlanSummary[]>([]);
     const [plansLoading, setPlansLoading] = useState(false);
@@ -157,11 +175,31 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
             setPlans([]);
             setSelectedPlanId(null);
             setPlanDetail(null);
+
+            setCarePlanCandidates([]);
+            setSelectedCarePlanId("");
+
             return;
         }
 
         fetchPlans(detail.assessment_id);
-    }, [detail?.assessment_id]);
+
+        const isElderCare =
+            detail.service_kind === "要介護" ||
+            detail.service_kind === "要支援";
+
+        if (isElderCare) {
+            fetchCarePlanCandidates(
+                detail.assessment_id,
+            );
+        } else {
+            setCarePlanCandidates([]);
+            setSelectedCarePlanId("");
+        }
+    }, [
+        detail?.assessment_id,
+        detail?.service_kind,
+    ]);
 
     // URL→state同期
     useEffect(() => {
@@ -408,6 +446,74 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
             setDetail(null);
             setSelectedId(null);
             syncQuery(clientId, serviceKind, null);
+        }
+    }
+
+
+    async function fetchCarePlanCandidates(
+        assessmentId: string,
+    ) {
+        setCarePlanCandidatesLoading(true);
+
+        try {
+            const bearer = await getBearer();
+
+            const res = await fetch(
+                `/api/plans/generate?assessment_id=${encodeURIComponent(
+                    assessmentId,
+                )}`,
+                {
+                    headers: bearer
+                        ? {
+                            Authorization: bearer,
+                        }
+                        : {},
+                },
+            );
+
+            const j = await res.json();
+
+            if (!res.ok || !j?.ok) {
+                console.error(
+                    "care plan candidates error:",
+                    j,
+                );
+
+                setCarePlanCandidates([]);
+                setSelectedCarePlanId("");
+
+                return;
+            }
+
+            const candidates = Array.isArray(
+                j.care_plans,
+            )
+                ? (j.care_plans as CarePlanCandidate[])
+                : [];
+
+            setCarePlanCandidates(candidates);
+
+            /*
+             * 候補が1件だけなら自動選択する。
+             * 複数ある場合は利用者に選ばせる。
+             */
+            if (candidates.length === 1) {
+                setSelectedCarePlanId(
+                    candidates[0].id,
+                );
+            } else {
+                setSelectedCarePlanId("");
+            }
+        } catch (error) {
+            console.error(
+                "care plan candidates fetch failed:",
+                error,
+            );
+
+            setCarePlanCandidates([]);
+            setSelectedCarePlanId("");
+        } finally {
+            setCarePlanCandidatesLoading(false);
         }
     }
 
@@ -767,6 +873,84 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                             </div>
 
                             <div className="flex gap-2">
+                                {detail &&
+                                    (
+                                        detail.service_kind === "要介護" ||
+                                        detail.service_kind === "要支援"
+                                    ) && (
+                                        <div className="rounded border border-amber-300 bg-amber-50 p-3">
+                                            <div className="mb-1 text-sm font-semibold text-amber-900">
+                                                ベースとなるケアプラン
+                                            </div>
+
+                                            <div className="mb-2 text-xs text-amber-800">
+                                                訪問介護計画書の長期・短期目標は、
+                                                選択した居宅介護支援計画書を基準に生成します。
+                                            </div>
+
+                                            {carePlanCandidatesLoading ? (
+                                                <div className="text-sm text-gray-600">
+                                                    ケアプラン候補を取得中...
+                                                </div>
+                                            ) : carePlanCandidates.length === 0 ? (
+                                                <div className="text-sm font-semibold text-red-600">
+                                                    ケアプラン
+                                                    （居宅介護支援計画書）が見つかりません。
+                                                </div>
+                                            ) : (
+                                                <select
+                                                    className="w-full rounded border border-gray-400 bg-white px-2 py-2 text-sm"
+                                                    value={selectedCarePlanId}
+                                                    onChange={(event) =>
+                                                        setSelectedCarePlanId(
+                                                            event.target.value,
+                                                        )
+                                                    }
+                                                >
+                                                    <option value="">
+                                                        ベースとなるケアプランを選択
+                                                    </option>
+
+                                                    {carePlanCandidates.map(
+                                                        (candidate) => {
+                                                            const dateText =
+                                                                candidate.applicable_date ??
+                                                                candidate.doc_date_raw ??
+                                                                candidate.created_at;
+
+                                                            return (
+                                                                <option
+                                                                    key={candidate.id}
+                                                                    value={candidate.id}
+                                                                >
+                                                                    {candidate.doc_name}
+                                                                    {" / "}
+                                                                    {dateText
+                                                                        ? new Date(
+                                                                            dateText,
+                                                                        ).toLocaleDateString(
+                                                                            "ja-JP",
+                                                                        )
+                                                                        : "日付不明"}
+                                                                </option>
+                                                            );
+                                                        },
+                                                    )}
+                                                </select>
+                                            )}
+
+                                            {selectedCarePlanId && (
+                                                <div className="mt-2 rounded border border-gray-200 bg-white p-2 text-xs text-gray-700">
+                                                    {carePlanCandidates.find(
+                                                        (candidate) =>
+                                                            candidate.id ===
+                                                            selectedCarePlanId,
+                                                    )?.summary_preview ||
+                                                        "サマリーはありません。"}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 <button
                                     className="border rounded px-3 py-1 bg-black text-white disabled:opacity-40"
                                     disabled={saving || planGenerating}
@@ -774,10 +958,20 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                                 >
                                     保存
                                 </button>
-
                                 <button
                                     className="border rounded px-3 py-1 bg-green-600 text-white disabled:opacity-40"
-                                    disabled={planGenerating || saving || !detail}
+                                    disabled={
+                                        planGenerating ||
+                                        saving ||
+                                        !detail ||
+                                        (
+                                            (
+                                                detail.service_kind === "要介護" ||
+                                                detail.service_kind === "要支援"
+                                            ) &&
+                                            !selectedCarePlanId
+                                        )
+                                    }
                                     onClick={generatePlans}
                                 >
                                     {planGenerating ? "プラン生成中..." : "プラン生成"}
