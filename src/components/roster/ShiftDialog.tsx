@@ -83,22 +83,65 @@ const GENDER_OPTIONS = [
 const RPA_TEMPLATE_ID = "caf1a290-b9ac-4eeb-84eb-eb7fd9936c2f";
 
 const toNullableTime = (v: string): string | null => {
-    const s0 = v.trim();
-    if (!s0) return null;
+    const s = v.trim();
+    if (!s) return null;
 
-    if (/^\d{2}:\d{2}$/.test(s0)) {
-        return `${s0}:00`;
+    // 09:30
+    if (/^\d{1,2}:\d{2}$/.test(s)) {
+        const [h, m] = s.split(":").map(Number);
+
+        if (h > 23 || m > 59) {
+            throw new Error(`時間形式が不正です: ${s}`);
+        }
+
+        return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
     }
 
-    if (/^\d{2}:\d{2}:\d{2}$/.test(s0)) {
-        return s0;
+    // 09:30:00
+    if (/^\d{1,2}:\d{2}:\d{2}$/.test(s)) {
+        const [h, m, sec] = s.split(":").map(Number);
+
+        if (h > 23 || m > 59 || sec > 59) {
+            throw new Error(`時間形式が不正です: ${s}`);
+        }
+
+        return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
     }
 
-    if (/^\d{4}$/.test(s0)) {
-        return `${s0.slice(0, 2)}:${s0.slice(2, 4)}:00`;
+    // 数字だけ
+    if (/^\d{1,4}$/.test(s)) {
+        let hh = 0;
+        let mm = 0;
+
+        switch (s.length) {
+            case 1:
+            case 2:
+                // 9 → 09:00
+                // 10 → 10:00
+                hh = Number(s);
+                break;
+
+            case 3:
+                // 930 → 09:30
+                hh = Number(s.slice(0, 1));
+                mm = Number(s.slice(1));
+                break;
+
+            case 4:
+                // 1000 → 10:00
+                hh = Number(s.slice(0, 2));
+                mm = Number(s.slice(2));
+                break;
+        }
+
+        if (hh > 23 || mm > 59) {
+            throw new Error(`時間形式が不正です: ${s}`);
+        }
+
+        return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
     }
 
-    throw new Error(`時間形式が不正です: ${s0}`);
+    throw new Error(`時間形式が不正です: ${s}`);
 };
 
 const emptyForm: FormState = {
