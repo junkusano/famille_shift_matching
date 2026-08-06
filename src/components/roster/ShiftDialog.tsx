@@ -223,17 +223,32 @@ const getShiftValidationMessage = (form: FormState): string | null => {
 
     const judoIdoText = form.judo_ido.trim();
 
-    if (judoIdoText) {
-        const judoIdoHours = Number(judoIdoText);
+if (judoIdoText) {
+    const judoIdoPattern = /^\d{4}$/;
 
-        if (!Number.isFinite(judoIdoHours) || judoIdoHours < 0) {
-            return "重度移動時間は0以上の数値で入力してください";
-        }
-
-        if (judoIdoHours * 60 > totalMinutes) {
-            return "重度移動時間がシフトの総時間を超えています";
-        }
+    if (!judoIdoPattern.test(judoIdoText)) {
+        return "重度移動時間はHHMM形式で入力してください（例：0130）";
     }
+
+    const judoHours = Number(judoIdoText.slice(0, 2));
+    const judoMinutes = Number(judoIdoText.slice(2, 4));
+
+    if (
+        !Number.isInteger(judoHours) ||
+        !Number.isInteger(judoMinutes) ||
+        judoMinutes < 0 ||
+        judoMinutes > 59
+    ) {
+        return "重度移動時間はHHMM形式で入力してください（例：0130）";
+    }
+
+    const totalJudoMinutes =
+        judoHours * 60 + judoMinutes;
+
+    if (totalJudoMinutes > totalMinutes) {
+        return "重度移動時間がシフトの総時間を超えています";
+    }
+}
 
     return null;
 };
@@ -984,14 +999,21 @@ const saveShiftOnly = async () => {
                                 </label>
 
                                 <label className="block">
-    <div className="text-xs text-gray-500">重度移動（時間）</div>
+    <div className="text-xs text-gray-500">
+        重度移動（HHMM）
+    </div>
+
     <input
-        type="number"
-        min="0"
-        step="0.25"
         value={form.judo_ido}
-        onChange={(e) => setField('judo_ido', e.target.value)}
-        placeholder="例：1.5"
+        onChange={(e) =>
+            setField(
+                "judo_ido",
+                e.target.value.replace(/\D/g, "").slice(0, 4)
+            )
+        }
+        inputMode="numeric"
+        maxLength={4}
+        placeholder="例：0130"
         className="w-full rounded border p-2"
     />
 </label>
