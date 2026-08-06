@@ -29,7 +29,9 @@ export default function ShiftPage() {
         nameOptions: [],
         genderOptions: [],
     });
+    const [dateFilterType, setDateFilterType] = useState<"date" | "weekday">("date");
     const [filterDate, setFilterDate] = useState<string[]>([]);
+    const [filterWeekday, setFilterWeekday] = useState<string[]>([]);
     const [filterService, setFilterService] = useState<string[]>([]);
     const [filterPostal, setFilterPostal] = useState<string[]>([]);
     const [filterName, setFilterName] = useState<string[]>([]);
@@ -272,26 +274,48 @@ for (const row of csDocsData ?? []) {
     }, []);
 
     const applyFilters = () => {
-        const result = shifts.filter((s) =>
-            (!filterDate.length || filterDate.includes(s.shift_start_date)) &&
-            (!filterService.length || filterService.includes(s.service_code)) &&
-            (!filterPostal.length || filterPostal.includes(s.postal_code_3)) &&
-            (!filterName.length || filterName.includes(s.client_name)) &&
-            (!filterGender.length || filterGender.includes(s.gender_request_name))
+    const result = shifts.filter((s) => {
+        const shiftDate = parseISO(s.shift_start_date);
+
+        // date-fns の getDay と同じく、
+        // 0:日曜日 ～ 6:土曜日
+        const shiftWeekday = String(shiftDate.getDay());
+
+        const matchesDateFilter =
+            dateFilterType === "date"
+                ? !filterDate.length ||
+                  filterDate.includes(s.shift_start_date)
+                : !filterWeekday.length ||
+                  filterWeekday.includes(shiftWeekday);
+
+        return (
+            matchesDateFilter &&
+            (!filterService.length ||
+                filterService.includes(s.service_code)) &&
+            (!filterPostal.length ||
+                filterPostal.includes(s.postal_code_3)) &&
+            (!filterName.length ||
+                filterName.includes(s.client_name)) &&
+            (!filterGender.length ||
+                filterGender.includes(s.gender_request_name))
         );
-        setFilteredShifts(result);
-        setCurrentPage(1);
-    };
+    });
+
+    setFilteredShifts(result);
+    setCurrentPage(1);
+};
 
     const clearFilters = () => {
-        setFilterDate([]);
-        setFilterService([]);
-        setFilterPostal([]);
-        setFilterName([]);
-        setFilterGender([]);
-        setFilteredShifts(shifts);
-        setCurrentPage(1);
-    };
+    setDateFilterType("date");
+    setFilterDate([]);
+    setFilterWeekday([]);
+    setFilterService([]);
+    setFilterPostal([]);
+    setFilterName([]);
+    setFilterGender([]);
+    setFilteredShifts(shifts);
+    setCurrentPage(1);
+};
 
     const handleShiftRequest = async (
         shift: ShiftData,
@@ -473,19 +497,108 @@ for (const row of csDocsData ?? []) {
             <table style={{ width: '100%', borderSpacing: '1rem 0' }}>
                 <tbody>
                     <tr>
-                        <td style={{ width: '50%' }}>
-                            <label className="text-xs">日付（複数選択）</label>
-                            <select
-                                multiple
-                                value={filterDate}
-                                onChange={(e) => setFilterDate(Array.from(e.target.selectedOptions, (o) => o.value))}
-                                className="w-full border rounded p-1 h-[6rem]"
-                            >
-                                {filterOptions.dateOptions.map(opt => (
-                                    <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                            </select>
-                        </td>
+                        <td style={{ width: "50%" }}>
+    <div className="mb-1 flex items-center gap-3 text-xs">
+        <label>
+            <input
+                type="radio"
+                name="dateFilterType"
+                checked={dateFilterType === "date"}
+                onChange={() => {
+                    setDateFilterType("date");
+                    setFilterWeekday([]);
+                }}
+                className="mr-1"
+            />
+            日付
+        </label>
+
+        <label>
+            <input
+                type="radio"
+                name="dateFilterType"
+                checked={dateFilterType === "weekday"}
+                onChange={() => {
+                    setDateFilterType("weekday");
+                    setFilterDate([]);
+                }}
+                className="mr-1"
+            />
+            曜日
+        </label>
+    </div>
+
+    {dateFilterType === "date" ? (
+        <>
+            <label className="text-xs">
+                日付（複数選択）
+            </label>
+
+            <select
+                multiple
+                value={filterDate}
+                onChange={(e) =>
+                    setFilterDate(
+                        Array.from(
+                            e.target.selectedOptions,
+                            (o) => o.value
+                        )
+                    )
+                }
+                className="w-full border rounded p-1 h-[6rem]"
+            >
+                {filterOptions.dateOptions.map((dateStr) => {
+                    const weekday = format(
+                        parseISO(dateStr),
+                        "(E)",
+                        { locale: ja }
+                    );
+
+                    const display =
+                        format(parseISO(dateStr), "M/d") +
+                        weekday;
+
+                    return (
+                        <option
+                            key={dateStr}
+                            value={dateStr}
+                        >
+                            {display}
+                        </option>
+                    );
+                })}
+            </select>
+        </>
+    ) : (
+        <>
+            <label className="text-xs">
+                曜日（複数選択）
+            </label>
+
+            <select
+                multiple
+                value={filterWeekday}
+                onChange={(e) =>
+                    setFilterWeekday(
+                        Array.from(
+                            e.target.selectedOptions,
+                            (o) => o.value
+                        )
+                    )
+                }
+                className="w-full border rounded p-1 h-[6rem]"
+            >
+                <option value="0">日曜日</option>
+                <option value="1">月曜日</option>
+                <option value="2">火曜日</option>
+                <option value="3">水曜日</option>
+                <option value="4">木曜日</option>
+                <option value="5">金曜日</option>
+                <option value="6">土曜日</option>
+            </select>
+        </>
+    )}
+</td>
                         <td style={{ width: '50%' }}>
                             <label className="text-xs">種別（複数選択）</label>
                             <select
