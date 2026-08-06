@@ -48,6 +48,53 @@ type ServiceRow = {
     two_person_work_flg: boolean;
     active: boolean;
 };
+/*
+ * 長期目標
+ */
+type LongTermGoalRow = {
+    plan_long_term_goal_id: string;
+    plan_id: string;
+    display_order: number;
+
+    goal_start_date: string | null;
+    goal_end_date: string | null;
+    goal_text: string;
+
+    achievement_level: string | null;
+    effectiveness_satisfaction: string | null;
+
+    active: boolean;
+    created_at: string;
+    updated_at: string;
+};
+
+/*
+ * 短期目標
+ */
+type ShortTermGoalRow = {
+    plan_short_term_goal_id: string;
+    plan_long_term_goal_id: string;
+    display_order: number;
+
+    goal_start_date: string | null;
+    goal_end_date: string | null;
+    goal_text: string;
+
+    achievement_level: string | null;
+    effectiveness_satisfaction: string | null;
+
+    active: boolean;
+    created_at: string;
+    updated_at: string;
+};
+
+/*
+ * 長期目標と短期目標の組
+ */
+type GoalGroupRow = {
+    long_term_goal: LongTermGoalRow;
+    short_term_goals: ShortTermGoalRow[];
+};
 
 type ClientRow = {
     id: string;
@@ -78,6 +125,9 @@ type AuthorRow = {
 type ApiData = {
     plan: PlanRow;
     services: ServiceRow[];
+
+    goal_groups: GoalGroupRow[];
+
     client: ClientRow | null;
     author: AuthorRow;
 };
@@ -132,7 +182,12 @@ export default function PlanPrintView({ planId }: { planId: string }) {
         return <div className="p-6">計画書が見つかりません。</div>;
     }
 
-    const { plan, client, author } = data;
+    const {
+        plan,
+        client,
+        author,
+        goal_groups: goalGroups,
+    } = data;
 
     const handlePrint = () => {
         const originalTitle = document.title;
@@ -154,10 +209,27 @@ export default function PlanPrintView({ planId }: { planId: string }) {
         }, 500);
     };
 
-    const title =
-        plan.plan_document_kind === "移動支援サービス"
-            ? "移動支援サービス計画書"
-            : "居宅介護等計画書";
+    const title = (() => {
+        switch (plan.plan_document_kind) {
+            case "移動支援サービス":
+                return "移動支援サービス計画書";
+
+            case "訪問介護サービス":
+                return "訪問介護計画書";
+
+            case "訪問介護予防サービス":
+                return "介護予防訪問介護計画書";
+
+            case "障害福祉サービス":
+                return "居宅介護等計画書";
+
+            default:
+                return (
+                    plan.title ||
+                    "個別計画書"
+                );
+        }
+    })();
 
     return (
         <div className="print-root min-h-screen">
@@ -295,6 +367,19 @@ export default function PlanPrintView({ planId }: { planId: string }) {
     .screen-only-shadow {
       box-shadow: none !important;
     }
+
+    @media print {
+        .print-page-break-before {
+            break-before: page;
+            page-break-before: always;
+        }
+
+        .break-inside-avoid {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+    }
+
   }
 `}</style>
             <div className="no-print sticky top-0 z-10 bg-white border-b p-3 flex gap-2 items-center">
@@ -389,82 +474,6 @@ export default function PlanPrintView({ planId }: { planId: string }) {
                             </tbody>
                         </table>
 
-                        <table className="w-full border-collapse border border-black mt-2">
-                            <tbody>
-                                <tr>
-                                    <Th className="w-[18%]">サービス内容</Th>
-                                    <Td>
-                                        <div className="grid grid-cols-3 gap-x-4 gap-y-1">
-                                            {monthlySummary.length === 0 ? (
-                                                <>
-                                                    <div>□身体　時間</div>
-                                                    <div>□家事　時間</div>
-                                                    <div>□通院(伴う)　時間</div>
-                                                </>
-                                            ) : (
-                                                monthlySummary.map((m, idx) => (
-                                                    <div key={`${m.category}-${idx}`}>
-                                                        ■{m.category} {m.monthlyHours}時間
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-                                    </Td>
-                                </tr>
-                            </tbody>
-                        </table>
-
-                        <div className="font-bold text-base mt-3 mb-1">【計画予定表】</div>
-
-                        <table className="w-full border-collapse border border-black text-center">
-                            <thead>
-                                <tr>
-                                    <Th>時間</Th>
-                                    {["月", "火", "水", "木", "金", "土", "日"].map((w) => (
-                                        <Th key={w}>{w}</Th>
-                                    ))}
-                                    <Th className="w-[18%]">備考</Th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {[
-                                    "2:00",
-                                    "4:00",
-                                    "6:00",
-                                    "8:00",
-                                    "10:00",
-                                    "12:00",
-                                    "14:00",
-                                    "16:00",
-                                    "18:00",
-                                    "20:00",
-                                    "22:00",
-                                    "24:00",
-                                ].map((slot, idx) => (
-                                    <tr key={slot}>
-                                        <Th>{slot}</Th>
-                                        {["月", "火", "水", "木", "金", "土", "日"].map((w) => (
-                                            <Td key={w} className="h-[28px] text-center align-top">
-                                                {(data.services ?? [])
-                                                    .filter((s) => s.weekday_jp === w)
-                                                    .filter((s) => isSameSlot(s.start_time, slot))
-                                                    .map(
-                                                        (s) =>
-                                                            s.plan_service_category ??
-                                                            s.service_title ??
-                                                            s.service_code ??
-                                                            "",
-                                                    )
-                                                    .filter(Boolean)
-                                                    .join(" / ")}
-                                            </Td>
-                                        ))}
-                                        <Td>{idx === 0 ? plan.weekly_plan_comment ?? "" : ""}</Td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-
                         <div className="print-signature-spacer mt-2 flex-1 flex flex-col justify-end">
                             <div className="grid grid-cols-[90px_150px_110px_1fr] border border-black min-h-[72px]">
                                 <div className="border-r border-black p-2 text-center font-bold flex items-center justify-center">
@@ -491,12 +500,293 @@ export default function PlanPrintView({ planId }: { planId: string }) {
                 </section>
 
                 <section className="print-page">
-                    <div className="formBox screen-only-shadow text-[10.5px] leading-relaxed flex flex-col">
-                        <div className="font-bold text-base mb-2">
-                            【サービス内容】以下の方法で、居宅介護等サービスを提供していきます。
+                    <div className="border border-black p-2 bg-white text-xs overflow-x-auto print-page-break-before">
+                        {/* 利用目標 */}
+                        <div className="font-bold text-base mb-1">
+                            【利用目標】
                         </div>
 
-                        <table className="w-full border-collapse border border-black mb-2">
+                        {goalGroups.length === 0 ? (
+                            <div className="border border-black p-3 mb-3">
+                                長期目標・短期目標は登録されていません。
+                            </div>
+                        ) : (
+                            <div className="space-y-2 mb-3">
+                                {goalGroups.map(
+                                    (group, groupIndex) => {
+                                        const longGoal =
+                                            group.long_term_goal;
+
+                                        return (
+                                            <table
+                                                key={
+                                                    longGoal
+                                                        .plan_long_term_goal_id
+                                                }
+                                                className="w-full border-collapse border border-black break-inside-avoid"
+                                            >
+                                                <tbody>
+                                                    <tr>
+                                                        <Th className="w-[90px]">
+                                                            長期目標
+                                                            {goalGroups.length > 1
+                                                                ? ` ${groupIndex + 1}`
+                                                                : ""}
+                                                        </Th>
+
+                                                        <Td className="w-[105px] text-center">
+                                                            {formatDate(
+                                                                longGoal.goal_start_date,
+                                                            )}
+                                                        </Td>
+
+                                                        <Td className="w-[20px] text-center">
+                                                            ～
+                                                        </Td>
+
+                                                        <Td className="w-[105px] text-center">
+                                                            {formatDate(
+                                                                longGoal.goal_end_date,
+                                                            )}
+                                                        </Td>
+
+                                                        <Td className="whitespace-pre-wrap">
+                                                            {longGoal.goal_text}
+                                                        </Td>
+
+                                                        <Th className="w-[70px]">
+                                                            達成度
+                                                        </Th>
+
+                                                        <Td className="w-[65px] text-center">
+                                                            {longGoal.achievement_level ??
+                                                                "未選択"}
+                                                        </Td>
+                                                    </tr>
+
+                                                    {group.short_term_goals.length === 0 ? (
+                                                        <tr>
+                                                            <Th>
+                                                                短期目標
+                                                            </Th>
+
+                                                            <Td
+                                                                colSpan={6}
+                                                                className="text-gray-500"
+                                                            >
+                                                                短期目標は登録されていません。
+                                                            </Td>
+                                                        </tr>
+                                                    ) : (
+                                                        group.short_term_goals.map(
+                                                            (
+                                                                shortGoal,
+                                                                shortIndex,
+                                                            ) => (
+                                                                <tr
+                                                                    key={
+                                                                        shortGoal
+                                                                            .plan_short_term_goal_id
+                                                                    }
+                                                                >
+                                                                    <Th>
+                                                                        短期目標
+                                                                        {group
+                                                                            .short_term_goals
+                                                                            .length > 1
+                                                                            ? ` ${shortIndex + 1}`
+                                                                            : ""}
+                                                                    </Th>
+
+                                                                    <Td className="text-center">
+                                                                        {formatDate(
+                                                                            shortGoal
+                                                                                .goal_start_date,
+                                                                        )}
+                                                                    </Td>
+
+                                                                    <Td className="text-center">
+                                                                        ～
+                                                                    </Td>
+
+                                                                    <Td className="text-center">
+                                                                        {formatDate(
+                                                                            shortGoal
+                                                                                .goal_end_date,
+                                                                        )}
+                                                                    </Td>
+
+                                                                    <Td className="whitespace-pre-wrap">
+                                                                        {
+                                                                            shortGoal.goal_text
+                                                                        }
+                                                                    </Td>
+
+                                                                    <Th>
+                                                                        達成度
+                                                                    </Th>
+
+                                                                    <Td className="text-center">
+                                                                        {shortGoal
+                                                                            .achievement_level ??
+                                                                            "未選択"}
+                                                                    </Td>
+                                                                </tr>
+                                                            ),
+                                                        )
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        );
+                                    },
+                                )}
+                            </div>
+                        )}
+
+                        {/* 月間集計 */}
+                        <div className="font-bold text-base mt-3 mb-1">
+                            【サービス内容（月間集計）】
+                        </div>
+
+                        <table className="w-full border-collapse border border-black">
+                            <tbody>
+                                <tr>
+                                    <Th className="w-[18%]">
+                                        サービス内容
+                                    </Th>
+
+                                    <Td>
+                                        <div className="grid grid-cols-3 gap-x-4 gap-y-1">
+                                            {monthlySummary.length === 0 ? (
+                                                <>
+                                                    <div>□身体　時間</div>
+                                                    <div>□家事　時間</div>
+                                                    <div>□通院（伴う）　時間</div>
+                                                </>
+                                            ) : (
+                                                monthlySummary.map(
+                                                    (m, idx) => (
+                                                        <div
+                                                            key={`${m.category}-${idx}`}
+                                                        >
+                                                            ■{m.category}{" "}
+                                                            {m.monthlyHours}
+                                                            時間
+                                                        </div>
+                                                    ),
+                                                )
+                                            )}
+                                        </div>
+                                    </Td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        {/* 計画予定表 */}
+                        <div className="font-bold text-base mt-3 mb-1">
+                            【計画予定表】
+                        </div>
+
+                        <table className="w-full border-collapse border border-black text-center">
+                            <thead>
+                                <tr>
+                                    <Th>時間</Th>
+
+                                    {[
+                                        "月",
+                                        "火",
+                                        "水",
+                                        "木",
+                                        "金",
+                                        "土",
+                                        "日",
+                                    ].map((weekday) => (
+                                        <Th key={weekday}>
+                                            {weekday}
+                                        </Th>
+                                    ))}
+
+                                    <Th className="w-[18%]">
+                                        備考
+                                    </Th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                {[
+                                    "2:00",
+                                    "4:00",
+                                    "6:00",
+                                    "8:00",
+                                    "10:00",
+                                    "12:00",
+                                    "14:00",
+                                    "16:00",
+                                    "18:00",
+                                    "20:00",
+                                    "22:00",
+                                    "24:00",
+                                ].map((slot, index) => (
+                                    <tr key={slot}>
+                                        <Th>
+                                            {slot}
+                                        </Th>
+
+                                        {[
+                                            "月",
+                                            "火",
+                                            "水",
+                                            "木",
+                                            "金",
+                                            "土",
+                                            "日",
+                                        ].map((weekday) => (
+                                            <Td
+                                                key={weekday}
+                                                className="h-[28px] text-center align-top"
+                                            >
+                                                {(data.services ?? [])
+                                                    .filter(
+                                                        (service) =>
+                                                            service.weekday_jp ===
+                                                            weekday,
+                                                    )
+                                                    .filter((service) =>
+                                                        isSameSlot(
+                                                            service.start_time,
+                                                            slot,
+                                                        ),
+                                                    )
+                                                    .map(
+                                                        (service) =>
+                                                            service
+                                                                .plan_service_category ??
+                                                            service.service_title ??
+                                                            service.service_code ??
+                                                            "",
+                                                    )
+                                                    .filter(Boolean)
+                                                    .join(" / ")}
+                                            </Td>
+                                        ))}
+
+                                        <Td>
+                                            {index === 0
+                                                ? plan.weekly_plan_comment ??
+                                                ""
+                                                : ""}
+                                        </Td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        {/* 具体的なサービス内容 */}
+                        <div className="font-bold text-base mt-4 mb-2">
+                            【サービス内容】以下の方法で、訪問介護サービスを提供していきます。
+                        </div>
+
+                        <table className="w-full border-collapse border border-black">
                             <tbody>
                                 <tr>
                                     <Th className="w-[12%]">種類等</Th>

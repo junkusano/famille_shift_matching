@@ -78,9 +78,82 @@ export type PlanServiceForEditor = {
     updated_at: string;
 };
 
+
+
+/*
+ * 長期目標
+ */
+export type PlanLongTermGoalForEditor = {
+    plan_long_term_goal_id: string;
+    plan_id: string;
+    display_order: number;
+
+    goal_start_date: string | null;
+    goal_end_date: string | null;
+    goal_text: string;
+
+    achievement_level: string | null;
+    effectiveness_satisfaction: string | null;
+
+    active: boolean;
+    created_at: string;
+    updated_at: string;
+};
+
+/*
+ * 短期目標
+ */
+export type PlanShortTermGoalForEditor = {
+    plan_short_term_goal_id: string;
+    plan_long_term_goal_id: string;
+    display_order: number;
+
+    goal_start_date: string | null;
+    goal_end_date: string | null;
+    goal_text: string;
+
+    achievement_level: string | null;
+    effectiveness_satisfaction: string | null;
+
+    active: boolean;
+    created_at: string;
+    updated_at: string;
+};
+
+/*
+ * 長期目標と、それに属する短期目標を
+ * 画面で扱いやすい形にまとめる。
+ */
+export type PlanGoalGroupForEditor = {
+    long_term_goal: PlanLongTermGoalForEditor;
+    short_term_goals: PlanShortTermGoalForEditor[];
+};
+
+/*
+ * このプランで選択・保存された
+ * 基準ケアプラン
+ */
+export type BaseCarePlanForEditor = {
+    id: string;
+    kaipoke_cs_id: string | null;
+    doc_name: string | null;
+    summary: string | null;
+    url: string | null;
+    applicable_date: string | null;
+    doc_date_raw: string | null;
+    created_at: string | null;
+};
+
 export type PlanDetailForEditor = {
     plan: PlanSummaryForEditor;
     services: PlanServiceForEditor[];
+
+    goal_groups?: PlanGoalGroupForEditor[];
+
+    /*
+     * 選択済みの基準ケアプラン
+     */
+    base_care_plan?: BaseCarePlanForEditor | null;
 };
 
 type Props = {
@@ -101,16 +174,44 @@ type PlanDraft = {
 };
 
 export default function PlanEditor({ detail, onReload }: Props) {
-    const [planDraft, setPlanDraft] = useState<PlanDraft>(() => toPlanDraft(detail.plan));
-    const [serviceDrafts, setServiceDrafts] = useState<PlanServiceForEditor[]>(detail.services);
-    const [savingPlan, setSavingPlan] = useState(false);
-    const [savingServiceId, setSavingServiceId] = useState<string | null>(null);
-    //const [pdfGenerating, setPdfGenerating] = useState(false);
+    const [planDraft, setPlanDraft] =
+        useState<PlanDraft>(
+            () => toPlanDraft(detail.plan),
+        );
+
+    const [serviceDrafts, setServiceDrafts] =
+        useState<PlanServiceForEditor[]>(
+            detail.services,
+        );
+
+    const [goalGroupDrafts, setGoalGroupDrafts] =
+        useState<PlanGoalGroupForEditor[]>(
+            detail.goal_groups ?? [],
+        );
+
+    const [savingPlan, setSavingPlan] =
+        useState(false);
+
+    const [savingServiceId, setSavingServiceId] =
+        useState<string | null>(null);
 
     useEffect(() => {
-        setPlanDraft(toPlanDraft(detail.plan));
-        setServiceDrafts(detail.services);
-    }, [detail.plan.plan_id, detail.services]);
+        setPlanDraft(
+            toPlanDraft(detail.plan),
+        );
+
+        setServiceDrafts(
+            detail.services,
+        );
+
+        setGoalGroupDrafts(
+            detail.goal_groups ?? [],
+        );
+    }, [
+        detail.plan.plan_id,
+        detail.services,
+        detail.goal_groups,
+    ]);
 
     const monthlySummaryRows = useMemo(() => {
         if (!Array.isArray(detail.plan.monthly_summary)) return [];
@@ -134,16 +235,46 @@ export default function PlanEditor({ detail, onReload }: Props) {
                     ...(bearer ? { Authorization: bearer } : {}),
                 },
                 body: JSON.stringify({
-                    title: planDraft.title,
-                    issued_on: planDraft.issued_on,
-                    plan_start_date: planDraft.plan_start_date,
-                    plan_end_date: planDraft.plan_end_date,
-                    author_name: planDraft.author_name,
-                    person_family_hope: planDraft.person_family_hope,
-                    assistance_goal: planDraft.assistance_goal,
-                    remarks: planDraft.remarks,
-                    weekly_plan_comment: planDraft.weekly_plan_comment,
+                    title:
+                        planDraft.title,
+
+                    issued_on:
+                        planDraft.issued_on,
+
+                    plan_start_date:
+                        planDraft.plan_start_date,
+
+                    plan_end_date:
+                        planDraft.plan_end_date,
+
+                    author_name:
+                        planDraft.author_name,
+
+                    person_family_hope:
+                        planDraft.person_family_hope,
+
+                    assistance_goal:
+                        planDraft.assistance_goal,
+
+                    remarks:
+                        planDraft.remarks,
+
+                    weekly_plan_comment:
+                        planDraft.weekly_plan_comment,
+
+                    /*
+                     * 長期目標・短期目標
+                     */
+                    goal_groups:
+                        goalGroupDrafts,
+
+                    /*
+                     * 生成時に保存された
+                     * base_care_planやassessment_contentを
+                     * 消さないようにする。
+                     */
                     content: {
+                        ...(detail.plan.content ?? {}),
                         office_name: OFFICE_NAME,
                     },
                 }),
@@ -206,7 +337,62 @@ export default function PlanEditor({ detail, onReload }: Props) {
         patch: Partial<PlanServiceForEditor>,
     ) {
         setServiceDrafts((prev) =>
-            prev.map((s) => (s.plan_service_id === planServiceId ? { ...s, ...patch } : s)),
+            prev.map((s) =>
+                s.plan_service_id === planServiceId
+                    ? { ...s, ...patch }
+                    : s
+            ),
+        );
+    }
+
+    /*
+     * 長期目標を変更
+     */
+    function updateLongTermGoal(
+        planLongTermGoalId: string,
+        patch: Partial<PlanLongTermGoalForEditor>,
+    ) {
+        setGoalGroupDrafts((prev) =>
+            prev.map((group) =>
+                group.long_term_goal
+                    .plan_long_term_goal_id ===
+                    planLongTermGoalId
+                    ? {
+                        ...group,
+                        long_term_goal: {
+                            ...group.long_term_goal,
+                            ...patch,
+                        },
+                    }
+                    : group,
+            ),
+        );
+    }
+
+    /*
+     * 短期目標を変更
+     */
+    function updateShortTermGoal(
+        planShortTermGoalId: string,
+        patch: Partial<PlanShortTermGoalForEditor>,
+    ) {
+        setGoalGroupDrafts((prev) =>
+            prev.map((group) => ({
+                ...group,
+
+                short_term_goals:
+                    group.short_term_goals.map(
+                        (shortTermGoal) =>
+                            shortTermGoal
+                                .plan_short_term_goal_id ===
+                                planShortTermGoalId
+                                ? {
+                                    ...shortTermGoal,
+                                    ...patch,
+                                }
+                                : shortTermGoal,
+                    ),
+            })),
         );
     }
 
@@ -227,7 +413,9 @@ export default function PlanEditor({ detail, onReload }: Props) {
                             disabled={savingPlan}
                             onClick={savePlan}
                         >
-                            {savingPlan ? "保存中..." : "計画書ヘッダ保存"}
+                            {savingPlan
+                                ? "保存中..."
+                                : "計画書・目標を保存"}
                         </button>
                         <button
                             className="border rounded px-3 py-1 bg-green-700 text-white"
@@ -320,14 +508,416 @@ export default function PlanEditor({ detail, onReload }: Props) {
                     <textarea
                         className="border rounded px-2 py-1 w-full min-h-[70px]"
                         value={planDraft.remarks}
-                        onChange={(e) => setPlanDraft({ ...planDraft, remarks: e.target.value })}
+                        onChange={(e) =>
+                            setPlanDraft({
+                                ...planDraft,
+                                remarks: e.target.value,
+                            })
+                        }
                         placeholder="必要に応じて備考を入力(2名介助の場合にはその旨記載が必要です）"
                     />
                 </Field>
             </div>
 
+            {/* 選択済みケアプラン */}
             <div className="border rounded p-3 bg-white space-y-3">
-                <div className="font-bold text-lg">サービス詳細編集</div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <div className="font-bold text-lg">
+                            基準ケアプラン
+                        </div>
+
+                        <div className="text-sm text-gray-500">
+                            このプラン生成時に選択・保存されたケアプランです。
+                        </div>
+                    </div>
+
+                    {detail.base_care_plan?.url ? (
+                        <a
+                            href={detail.base_care_plan.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="border rounded px-3 py-1 bg-blue-600 text-white"
+                        >
+                            ケアプラン原本を別タブで開く
+                        </a>
+                    ) : null}
+                </div>
+
+                {detail.base_care_plan ? (
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <Field label="文書名">
+                                <div className="border rounded px-2 py-1 min-h-[34px] bg-gray-50">
+                                    {detail.base_care_plan.doc_name ?? ""}
+                                </div>
+                            </Field>
+
+                            <Field label="適用日">
+                                <div className="border rounded px-2 py-1 min-h-[34px] bg-gray-50">
+                                    {formatDate(
+                                        detail.base_care_plan
+                                            .applicable_date,
+                                    )}
+                                </div>
+                            </Field>
+
+                            <Field label="文書ID">
+                                <div className="border rounded px-2 py-1 min-h-[34px] bg-gray-50 break-all">
+                                    {detail.base_care_plan.id}
+                                </div>
+                            </Field>
+                        </div>
+
+                        <Field label="ケアプラン要約（全文）">
+                            <div className="border rounded px-3 py-2 min-h-[120px] bg-gray-50 whitespace-pre-wrap break-words">
+                                {detail.base_care_plan.summary?.trim() ||
+                                    "要約は登録されていません。"}
+                            </div>
+                        </Field>
+                    </>
+                ) : (
+                    <div className="rounded border border-dashed p-4 text-sm text-gray-500">
+                        このプランには基準ケアプランが保存されていません。
+                    </div>
+                )}
+            </div>
+
+            {/* 長期目標・短期目標 */}
+            <div className="border rounded p-3 bg-white space-y-4">
+                <div>
+                    <div className="font-bold text-lg">
+                        利用目標編集
+                    </div>
+
+                    <div className="text-sm text-gray-500">
+                        ケアプランから抽出した目標と期間です。
+                        原文と照合し、必要な場合のみ修正してください。
+                    </div>
+                </div>
+
+                {goalGroupDrafts.length === 0 ? (
+                    <div className="rounded border border-dashed p-4 text-sm text-gray-500">
+                        長期目標・短期目標が登録されていません。
+                    </div>
+                ) : (
+                    <div className="space-y-5">
+                        {goalGroupDrafts.map(
+                            (group, groupIndex) => {
+                                const longGoal =
+                                    group.long_term_goal;
+
+                                return (
+                                    <div
+                                        key={
+                                            longGoal
+                                                .plan_long_term_goal_id
+                                        }
+                                        className="rounded border p-4 space-y-4 bg-gray-50"
+                                    >
+                                        <div className="font-semibold text-base">
+                                            目標組
+                                            {groupIndex + 1}
+                                        </div>
+
+                                        {/* 長期目標 */}
+                                        <div className="rounded border bg-white p-3 space-y-3">
+                                            <div className="font-bold">
+                                                長期目標
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <Field label="開始日">
+                                                    <input
+                                                        type="date"
+                                                        className="border rounded px-2 py-1 w-full"
+                                                        value={
+                                                            longGoal
+                                                                .goal_start_date ??
+                                                            ""
+                                                        }
+                                                        onChange={(
+                                                            e,
+                                                        ) =>
+                                                            updateLongTermGoal(
+                                                                longGoal
+                                                                    .plan_long_term_goal_id,
+                                                                {
+                                                                    goal_start_date:
+                                                                        e
+                                                                            .target
+                                                                            .value ||
+                                                                        null,
+                                                                },
+                                                            )
+                                                        }
+                                                    />
+                                                </Field>
+
+                                                <Field label="終了日">
+                                                    <input
+                                                        type="date"
+                                                        className="border rounded px-2 py-1 w-full"
+                                                        value={
+                                                            longGoal
+                                                                .goal_end_date ??
+                                                            ""
+                                                        }
+                                                        onChange={(
+                                                            e,
+                                                        ) =>
+                                                            updateLongTermGoal(
+                                                                longGoal
+                                                                    .plan_long_term_goal_id,
+                                                                {
+                                                                    goal_end_date:
+                                                                        e
+                                                                            .target
+                                                                            .value ||
+                                                                        null,
+                                                                },
+                                                            )
+                                                        }
+                                                    />
+                                                </Field>
+                                            </div>
+
+                                            <Field label="目標内容">
+                                                <textarea
+                                                    className="border rounded px-2 py-1 w-full min-h-[90px]"
+                                                    value={
+                                                        longGoal
+                                                            .goal_text ??
+                                                        ""
+                                                    }
+                                                    onChange={(
+                                                        e,
+                                                    ) =>
+                                                        updateLongTermGoal(
+                                                            longGoal
+                                                                .plan_long_term_goal_id,
+                                                            {
+                                                                goal_text:
+                                                                    e
+                                                                        .target
+                                                                        .value,
+                                                            },
+                                                        )
+                                                    }
+                                                />
+                                            </Field>
+
+                                            <Field label="目標達成度">
+                                                <select
+                                                    className="border rounded px-2 py-1 w-full"
+                                                    value={
+                                                        longGoal
+                                                            .achievement_level ??
+                                                        "未選択"
+                                                    }
+                                                    onChange={(
+                                                        e,
+                                                    ) =>
+                                                        updateLongTermGoal(
+                                                            longGoal
+                                                                .plan_long_term_goal_id,
+                                                            {
+                                                                achievement_level:
+                                                                    e
+                                                                        .target
+                                                                        .value,
+                                                            },
+                                                        )
+                                                    }
+                                                >
+                                                    <option value="未選択">
+                                                        未選択
+                                                    </option>
+                                                    <option value="達成">
+                                                        達成
+                                                    </option>
+                                                    <option value="一部">
+                                                        一部
+                                                    </option>
+                                                    <option value="未達">
+                                                        未達
+                                                    </option>
+                                                </select>
+                                            </Field>
+                                        </div>
+
+                                        {/* 短期目標 */}
+                                        <div className="space-y-3">
+                                            {group.short_term_goals
+                                                .length ===
+                                                0 ? (
+                                                <div className="rounded border border-dashed bg-white p-3 text-sm text-gray-500">
+                                                    この長期目標に紐づく短期目標はありません。
+                                                </div>
+                                            ) : (
+                                                group.short_term_goals.map(
+                                                    (
+                                                        shortGoal,
+                                                        shortIndex,
+                                                    ) => (
+                                                        <div
+                                                            key={
+                                                                shortGoal
+                                                                    .plan_short_term_goal_id
+                                                            }
+                                                            className="rounded border bg-white p-3 space-y-3"
+                                                        >
+                                                            <div className="font-bold">
+                                                                短期目標
+                                                                {group
+                                                                    .short_term_goals
+                                                                    .length >
+                                                                    1
+                                                                    ? ` ${shortIndex +
+                                                                    1
+                                                                    }`
+                                                                    : ""}
+                                                            </div>
+
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                <Field label="開始日">
+                                                                    <input
+                                                                        type="date"
+                                                                        className="border rounded px-2 py-1 w-full"
+                                                                        value={
+                                                                            shortGoal
+                                                                                .goal_start_date ??
+                                                                            ""
+                                                                        }
+                                                                        onChange={(
+                                                                            e,
+                                                                        ) =>
+                                                                            updateShortTermGoal(
+                                                                                shortGoal
+                                                                                    .plan_short_term_goal_id,
+                                                                                {
+                                                                                    goal_start_date:
+                                                                                        e
+                                                                                            .target
+                                                                                            .value ||
+                                                                                        null,
+                                                                                },
+                                                                            )
+                                                                        }
+                                                                    />
+                                                                </Field>
+
+                                                                <Field label="終了日">
+                                                                    <input
+                                                                        type="date"
+                                                                        className="border rounded px-2 py-1 w-full"
+                                                                        value={
+                                                                            shortGoal
+                                                                                .goal_end_date ??
+                                                                            ""
+                                                                        }
+                                                                        onChange={(
+                                                                            e,
+                                                                        ) =>
+                                                                            updateShortTermGoal(
+                                                                                shortGoal
+                                                                                    .plan_short_term_goal_id,
+                                                                                {
+                                                                                    goal_end_date:
+                                                                                        e
+                                                                                            .target
+                                                                                            .value ||
+                                                                                        null,
+                                                                                },
+                                                                            )
+                                                                        }
+                                                                    />
+                                                                </Field>
+                                                            </div>
+
+                                                            <Field label="目標内容">
+                                                                <textarea
+                                                                    className="border rounded px-2 py-1 w-full min-h-[90px]"
+                                                                    value={
+                                                                        shortGoal
+                                                                            .goal_text ??
+                                                                        ""
+                                                                    }
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) =>
+                                                                        updateShortTermGoal(
+                                                                            shortGoal
+                                                                                .plan_short_term_goal_id,
+                                                                            {
+                                                                                goal_text:
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                            },
+                                                                        )
+                                                                    }
+                                                                />
+                                                            </Field>
+
+                                                            <Field label="目標達成度">
+                                                                <select
+                                                                    className="border rounded px-2 py-1 w-full"
+                                                                    value={
+                                                                        shortGoal
+                                                                            .achievement_level ??
+                                                                        "未選択"
+                                                                    }
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) =>
+                                                                        updateShortTermGoal(
+                                                                            shortGoal
+                                                                                .plan_short_term_goal_id,
+                                                                            {
+                                                                                achievement_level:
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                            },
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <option value="未選択">
+                                                                        未選択
+                                                                    </option>
+                                                                    <option value="達成">
+                                                                        達成
+                                                                    </option>
+                                                                    <option value="一部">
+                                                                        一部
+                                                                    </option>
+                                                                    <option value="未達">
+                                                                        未達
+                                                                    </option>
+                                                                </select>
+                                                            </Field>
+                                                        </div>
+                                                    ),
+                                                )
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            },
+                        )}
+                    </div>
+                )}
+
+                <div className="text-sm text-gray-600">
+                    変更した目標は、画面上部の「計画書・目標を保存」でまとめて保存されます。
+                </div>
+            </div>
+
+            <div className="border rounded p-3 bg-white space-y-3">
+                <div className="font-bold text-lg">
+                    サービス詳細編集
+                </div>
 
                 {serviceDrafts.length === 0 ? (
                     <div className="text-sm text-gray-500">サービス明細がありません。</div>
@@ -437,6 +1027,7 @@ export default function PlanEditor({ detail, onReload }: Props) {
                 plan={detail.plan}
                 planDraft={planDraft}
                 services={serviceDrafts}
+                goalGroups={goalGroupDrafts}
                 monthlySummaryRows={monthlySummaryRows}
             />
         </div>
@@ -456,11 +1047,13 @@ function PlanPreview({
     plan,
     planDraft,
     services,
+    goalGroups,
     monthlySummaryRows,
 }: {
     plan: PlanSummaryForEditor;
     planDraft: PlanDraft;
     services: PlanServiceForEditor[];
+    goalGroups: PlanGoalGroupForEditor[];
     monthlySummaryRows: Array<{
         category?: string;
         monthly_minutes?: number;
@@ -482,9 +1075,16 @@ function PlanPreview({
 
             <div className="border border-black p-2 bg-white text-xs overflow-x-auto">
                 <div className="text-center font-bold text-xl mb-2">
-                    {plan.plan_document_kind === "移動支援サービス"
+                    {plan.plan_document_kind ===
+                        "移動支援サービス"
                         ? "移動支援サービス計画書"
-                        : "居宅介護等計画書"}
+                        : plan.plan_document_kind ===
+                            "訪問介護サービス"
+                            ? "訪問介護計画書"
+                            : plan.plan_document_kind ===
+                                "訪問介護予防サービス"
+                                ? "介護予防訪問介護計画書"
+                                : "居宅介護等計画書"}
                 </div>
 
                 <table className="w-full border-collapse border border-black">
@@ -542,17 +1142,29 @@ function PlanPreview({
                 <table className="w-full border-collapse border border-black mt-2">
                     <tbody>
                         <tr>
-                            <Th className="w-[140px]">サービス内容</Th>
+                            <Th className="w-[140px]">
+                                サービス内容
+                            </Th>
+
                             <Td>
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
                                     {monthlySummaryRows.length === 0 ? (
                                         <span>集計なし</span>
                                     ) : (
-                                        monthlySummaryRows.map((m, idx) => (
-                                            <span key={`${m.category}-${idx}`}>
-                                                ■{m.category ?? "未分類"} {m.monthly_hours ?? ""}時間
-                                            </span>
-                                        ))
+                                        monthlySummaryRows.map(
+                                            (m, idx) => (
+                                                <span
+                                                    key={`${m.category}-${idx}`}
+                                                >
+                                                    ■
+                                                    {m.category ??
+                                                        "未分類"}{" "}
+                                                    {m.monthly_hours ??
+                                                        ""}
+                                                    時間
+                                                </span>
+                                            ),
+                                        )
                                     )}
                                 </div>
                             </Td>
@@ -560,7 +1172,154 @@ function PlanPreview({
                     </tbody>
                 </table>
 
-                <div className="font-bold text-base mt-3 mb-1">【計画予定表】</div>
+                <div className="font-bold text-base mt-3 mb-1">
+                    【利用目標】
+                </div>
+
+                {goalGroups.length === 0 ? (
+                    <div className="border border-black p-3">
+                        長期目標・短期目標は登録されていません。
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {goalGroups.map(
+                            (group, groupIndex) => {
+                                const longGoal =
+                                    group.long_term_goal;
+
+                                return (
+                                    <table
+                                        key={
+                                            longGoal
+                                                .plan_long_term_goal_id
+                                        }
+                                        className="w-full border-collapse border border-black"
+                                    >
+                                        <tbody>
+                                            <tr>
+                                                <Th className="w-[90px]">
+                                                    長期目標
+                                                    {goalGroups.length >
+                                                        1
+                                                        ? ` ${groupIndex + 1}`
+                                                        : ""}
+                                                </Th>
+
+                                                <Td className="w-[110px] text-center">
+                                                    {formatDate(
+                                                        longGoal
+                                                            .goal_start_date,
+                                                    )}
+                                                </Td>
+
+                                                <Td className="w-[20px] text-center">
+                                                    ～
+                                                </Td>
+
+                                                <Td className="w-[110px] text-center">
+                                                    {formatDate(
+                                                        longGoal
+                                                            .goal_end_date,
+                                                    )}
+                                                </Td>
+
+                                                <Td className="whitespace-pre-wrap">
+                                                    {longGoal.goal_text}
+                                                </Td>
+
+                                                <Th className="w-[80px]">
+                                                    達成度
+                                                </Th>
+
+                                                <Td className="w-[70px] text-center">
+                                                    {longGoal
+                                                        .achievement_level ??
+                                                        "未選択"}
+                                                </Td>
+                                            </tr>
+
+                                            {group.short_term_goals
+                                                .length === 0 ? (
+                                                <tr>
+                                                    <Th>短期目標</Th>
+
+                                                    <Td
+                                                        colSpan={6}
+                                                        className="text-gray-500"
+                                                    >
+                                                        短期目標は登録されていません。
+                                                    </Td>
+                                                </tr>
+                                            ) : (
+                                                group.short_term_goals.map(
+                                                    (
+                                                        shortGoal,
+                                                        shortIndex,
+                                                    ) => (
+                                                        <tr
+                                                            key={
+                                                                shortGoal
+                                                                    .plan_short_term_goal_id
+                                                            }
+                                                        >
+                                                            <Th>
+                                                                短期目標
+                                                                {group
+                                                                    .short_term_goals
+                                                                    .length >
+                                                                    1
+                                                                    ? ` ${shortIndex + 1}`
+                                                                    : ""}
+                                                            </Th>
+
+                                                            <Td className="text-center">
+                                                                {formatDate(
+                                                                    shortGoal
+                                                                        .goal_start_date,
+                                                                )}
+                                                            </Td>
+
+                                                            <Td className="text-center">
+                                                                ～
+                                                            </Td>
+
+                                                            <Td className="text-center">
+                                                                {formatDate(
+                                                                    shortGoal
+                                                                        .goal_end_date,
+                                                                )}
+                                                            </Td>
+
+                                                            <Td className="whitespace-pre-wrap">
+                                                                {
+                                                                    shortGoal.goal_text
+                                                                }
+                                                            </Td>
+
+                                                            <Th>
+                                                                達成度
+                                                            </Th>
+
+                                                            <Td className="text-center">
+                                                                {shortGoal
+                                                                    .achievement_level ??
+                                                                    "未選択"}
+                                                            </Td>
+                                                        </tr>
+                                                    ),
+                                                )
+                                            )}
+                                        </tbody>
+                                    </table>
+                                );
+                            },
+                        )}
+                    </div>
+                )}
+
+                <div className="font-bold text-base mt-3 mb-1">
+                    【計画予定表】
+                </div>
                 <table className="w-full border-collapse border border-black">
                     <thead>
                         <tr>

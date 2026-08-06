@@ -3,6 +3,8 @@
 export const PLAN_DOCUMENT_KINDS = [
   "障害福祉サービス",
   "移動支援サービス",
+  "訪問介護サービス",
+  "訪問介護予防サービス",
 ] as const;
 
 export type PlanDocumentKind = (typeof PLAN_DOCUMENT_KINDS)[number];

@@ -28,10 +28,75 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 
         if (planError) throw planError;
         if (!plan) {
-            return json({ ok: false, error: "plan not found" }, 404);
+            return json(
+                {
+                    ok: false,
+                    error: "plan not found",
+                },
+                404,
+            );
         }
 
-        const { data: services, error: servicesError } = await supabaseAdmin
+        /*
+         * このプランで選択・保存された
+         * 基準ケアプランを取得する。
+         */
+        let baseCarePlan: {
+            id: string;
+            kaipoke_cs_id: string | null;
+            doc_name: string | null;
+            summary: string | null;
+            url: string | null;
+            applicable_date: string | null;
+            doc_date_raw: string | null;
+            created_at: string | null;
+        } | null = null;
+
+        if (
+            typeof plan.base_care_plan_cs_doc_id ===
+            "string" &&
+            plan.base_care_plan_cs_doc_id.trim()
+        ) {
+            const {
+                data: baseCarePlanRow,
+                error: baseCarePlanError,
+            } = await supabaseAdmin
+                .from("cs_docs")
+                .select(`
+            id,
+            kaipoke_cs_id,
+            doc_name,
+            summary,
+            url,
+            applicable_date,
+            doc_date_raw,
+            created_at
+        `)
+                .eq(
+                    "id",
+                    plan.base_care_plan_cs_doc_id,
+                )
+                /*
+                 * 別利用者の文書を返さないための条件
+                 */
+                .eq(
+                    "kaipoke_cs_id",
+                    plan.kaipoke_cs_id,
+                )
+                .maybeSingle();
+
+            if (baseCarePlanError) {
+                throw baseCarePlanError;
+            }
+
+            baseCarePlan =
+                baseCarePlanRow ?? null;
+        }
+
+        const {
+            data: services,
+            error: servicesError,
+        } = await supabaseAdmin
             .from("plan_services")
             .select(`
         plan_service_id,
@@ -75,6 +140,119 @@ export async function GET(req: NextRequest, { params }: Ctx) {
             .order("start_time", { ascending: true });
 
         if (servicesError) throw servicesError;
+
+        /*
+         * 長期目標を取得
+         */
+        const {
+            data: longTermGoals,
+            error: longTermGoalsError,
+        } = await supabaseAdmin
+            .from("plan_long_term_goals")
+            .select(`
+        plan_long_term_goal_id,
+        plan_id,
+        display_order,
+        goal_start_date,
+        goal_end_date,
+        goal_text,
+        achievement_level,
+        effectiveness_satisfaction,
+        active,
+        created_at,
+        updated_at
+    `)
+            .eq("plan_id", id)
+            .eq("active", true)
+            .order("display_order", {
+                ascending: true,
+            });
+
+        if (longTermGoalsError) {
+            throw longTermGoalsError;
+        }
+
+        /*
+         * 長期目標IDを取り出す
+         */
+        const longTermGoalIds =
+            (longTermGoals ?? []).map(
+                (goal) =>
+                    goal.plan_long_term_goal_id,
+            );
+
+        /*
+         * 短期目標を取得
+         */
+        let shortTermGoals: Array<{
+            plan_short_term_goal_id: string;
+            plan_long_term_goal_id: string;
+            display_order: number;
+            goal_start_date: string | null;
+            goal_end_date: string | null;
+            goal_text: string;
+            achievement_level: string | null;
+            effectiveness_satisfaction: string | null;
+            active: boolean;
+            created_at: string;
+            updated_at: string;
+        }> = [];
+
+        if (longTermGoalIds.length > 0) {
+            const {
+                data: shortTermGoalRows,
+                error: shortTermGoalsError,
+            } = await supabaseAdmin
+                .from("plan_short_term_goals")
+                .select(`
+            plan_short_term_goal_id,
+            plan_long_term_goal_id,
+            display_order,
+            goal_start_date,
+            goal_end_date,
+            goal_text,
+            achievement_level,
+            effectiveness_satisfaction,
+            active,
+            created_at,
+            updated_at
+        `)
+                .in(
+                    "plan_long_term_goal_id",
+                    longTermGoalIds,
+                )
+                .eq("active", true)
+                .order("display_order", {
+                    ascending: true,
+                });
+
+            if (shortTermGoalsError) {
+                throw shortTermGoalsError;
+            }
+
+            shortTermGoals =
+                shortTermGoalRows ?? [];
+        }
+
+        /*
+         * 長期目標ごとに短期目標をまとめる
+         */
+        const goalGroups =
+            (longTermGoals ?? []).map(
+                (longTermGoal) => ({
+                    long_term_goal:
+                        longTermGoal,
+
+                    short_term_goals:
+                        shortTermGoals.filter(
+                            (shortTermGoal) =>
+                                shortTermGoal
+                                    .plan_long_term_goal_id ===
+                                longTermGoal
+                                    .plan_long_term_goal_id,
+                        ),
+                }),
+            );
 
         const { data: client, error: clientError } = await supabaseAdmin
             .from("cs_kaipoke_info")
@@ -129,6 +307,21 @@ export async function GET(req: NextRequest, { params }: Ctx) {
             data: {
                 plan,
                 services: services ?? [],
+
+                /*
+                 * 長期目標と短期目標
+                 */
+                goal_groups: goalGroups,
+
+                /*
+                 * 選択・保存済みの
+                 * 基準ケアプラン。
+                 *
+                 * summaryは省略せず全文を返す。
+                 */
+                base_care_plan:
+                    baseCarePlan,
+
                 client,
                 author,
             },
@@ -147,24 +340,80 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
         const { id } = await params;
         const body = await req.json();
 
+        /*
+         * plans本体の更新内容
+         */
         const patch = {
-            title: String(body.title ?? "").trim(),
-            issued_on: normalizeDateOrNull(body.issued_on),
-            plan_start_date: normalizeDateOrNull(body.plan_start_date),
-            plan_end_date: normalizeDateOrNull(body.plan_end_date),
-            author_name: nullableString(body.author_name),
-            person_family_hope: nullableString(body.person_family_hope),
-            assistance_goal: nullableString(body.assistance_goal),
-            remarks: nullableString(body.remarks),
-            weekly_plan_comment: nullableString(body.weekly_plan_comment),
-            content: body.content && typeof body.content === "object" ? body.content : {},
+            title: String(
+                body.title ?? "",
+            ).trim(),
+
+            issued_on:
+                normalizeDateOrNull(
+                    body.issued_on,
+                ),
+
+            plan_start_date:
+                normalizeDateOrNull(
+                    body.plan_start_date,
+                ),
+
+            plan_end_date:
+                normalizeDateOrNull(
+                    body.plan_end_date,
+                ),
+
+            author_name:
+                nullableString(
+                    body.author_name,
+                ),
+
+            person_family_hope:
+                nullableString(
+                    body.person_family_hope,
+                ),
+
+            assistance_goal:
+                nullableString(
+                    body.assistance_goal,
+                ),
+
+            remarks:
+                nullableString(
+                    body.remarks,
+                ),
+
+            weekly_plan_comment:
+                nullableString(
+                    body.weekly_plan_comment,
+                ),
+
+            content:
+                body.content &&
+                    typeof body.content ===
+                    "object"
+                    ? body.content
+                    : {},
         };
 
         if (!patch.title) {
-            return json({ ok: false, error: "タイトルは必須です" }, 400);
+            return json(
+                {
+                    ok: false,
+                    error:
+                        "タイトルは必須です",
+                },
+                400,
+            );
         }
 
-        const { data, error } = await supabaseAdmin
+        /*
+         * プラン本体を更新
+         */
+        const {
+            data: updatedPlan,
+            error: planUpdateError,
+        } = await supabaseAdmin
             .from("plans")
             .update(patch)
             .eq("plan_id", id)
@@ -172,13 +421,216 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
             .select("*")
             .single();
 
-        if (error) throw error;
+        if (planUpdateError) {
+            throw planUpdateError;
+        }
 
-        return json({ ok: true, data });
+        /*
+         * 画面から送られた目標グループ
+         *
+         * まだ画面側がgoal_groupsを
+         * 送っていない場合でも、
+         * プラン本体だけ保存できる。
+         */
+        const goalGroups =
+            Array.isArray(
+                body.goal_groups,
+            )
+                ? body.goal_groups
+                : [];
+
+        for (
+            const group
+            of goalGroups
+        ) {
+            const longTermGoal =
+                group &&
+                    typeof group ===
+                    "object"
+                    ? group.long_term_goal
+                    : null;
+
+            if (
+                longTermGoal &&
+                typeof longTermGoal ===
+                "object" &&
+                typeof longTermGoal
+                    .plan_long_term_goal_id ===
+                "string"
+            ) {
+                const {
+                    error:
+                    longTermGoalUpdateError,
+                } = await supabaseAdmin
+                    .from(
+                        "plan_long_term_goals",
+                    )
+                    .update({
+                        goal_start_date:
+                            normalizeDateOrNull(
+                                longTermGoal
+                                    .goal_start_date,
+                            ),
+
+                        goal_end_date:
+                            normalizeDateOrNull(
+                                longTermGoal
+                                    .goal_end_date,
+                            ),
+
+                        goal_text:
+                            String(
+                                longTermGoal
+                                    .goal_text ??
+                                "",
+                            ).trim(),
+
+                        achievement_level:
+                            nullableString(
+                                longTermGoal
+                                    .achievement_level,
+                            ),
+
+                        effectiveness_satisfaction:
+                            nullableString(
+                                longTermGoal
+                                    .effectiveness_satisfaction,
+                            ),
+
+                        updated_at:
+                            new Date()
+                                .toISOString(),
+                    })
+                    .eq(
+                        "plan_long_term_goal_id",
+                        longTermGoal
+                            .plan_long_term_goal_id,
+                    )
+                    /*
+                     * 他プランの目標を
+                     * 誤って更新しないための条件
+                     */
+                    .eq(
+                        "plan_id",
+                        id,
+                    )
+                    .eq(
+                        "active",
+                        true,
+                    );
+
+                if (
+                    longTermGoalUpdateError
+                ) {
+                    throw longTermGoalUpdateError;
+                }
+            }
+
+            const shortTermGoals =
+                Array.isArray(
+                    group?.short_term_goals,
+                )
+                    ? group.short_term_goals
+                    : [];
+
+            for (
+                const shortTermGoal
+                of shortTermGoals
+            ) {
+                if (
+                    !shortTermGoal ||
+                    typeof shortTermGoal !==
+                    "object" ||
+                    typeof shortTermGoal
+                        .plan_short_term_goal_id !==
+                    "string"
+                ) {
+                    continue;
+                }
+
+                const {
+                    error:
+                    shortTermGoalUpdateError,
+                } = await supabaseAdmin
+                    .from(
+                        "plan_short_term_goals",
+                    )
+                    .update({
+                        goal_start_date:
+                            normalizeDateOrNull(
+                                shortTermGoal
+                                    .goal_start_date,
+                            ),
+
+                        goal_end_date:
+                            normalizeDateOrNull(
+                                shortTermGoal
+                                    .goal_end_date,
+                            ),
+
+                        goal_text:
+                            String(
+                                shortTermGoal
+                                    .goal_text ??
+                                "",
+                            ).trim(),
+
+                        achievement_level:
+                            nullableString(
+                                shortTermGoal
+                                    .achievement_level,
+                            ),
+
+                        effectiveness_satisfaction:
+                            nullableString(
+                                shortTermGoal
+                                    .effectiveness_satisfaction,
+                            ),
+
+                        updated_at:
+                            new Date()
+                                .toISOString(),
+                    })
+                    .eq(
+                        "plan_short_term_goal_id",
+                        shortTermGoal
+                            .plan_short_term_goal_id,
+                    )
+                    .eq(
+                        "active",
+                        true,
+                    );
+
+                if (
+                    shortTermGoalUpdateError
+                ) {
+                    throw shortTermGoalUpdateError;
+                }
+            }
+        }
+
+        return json({
+            ok: true,
+            data: updatedPlan,
+        });
     } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error("[api/plans/[id]][PUT] error", msg);
-        return json({ ok: false, error: msg }, 500);
+        const msg =
+            e instanceof Error
+                ? e.message
+                : String(e);
+
+        console.error(
+            "[api/plans/[id]][PUT] error",
+            msg,
+        );
+
+        return json(
+            {
+                ok: false,
+                error: msg,
+            },
+            500,
+        );
     }
 }
 

@@ -102,7 +102,33 @@ type ServiceTextDraft = {
 
 type CarePlanGoalDraft = {
   long_term_goal: string;
+
+  /*
+   * ケアプラン原文に記載された
+   * 長期目標の期間。
+   *
+   * 日付が読み取れない場合は null。
+   */
+  long_term_goal_start_date:
+  string | null;
+
+  long_term_goal_end_date:
+  string | null;
+
   short_term_goal: string;
+
+  /*
+   * ケアプラン原文に記載された
+   * 短期目標の期間。
+   *
+   * 日付が読み取れない場合は null。
+   */
+  short_term_goal_start_date:
+  string | null;
+
+  short_term_goal_end_date:
+  string | null;
+
   source_text: string;
 };
 
@@ -125,11 +151,29 @@ type PlanSourceTextResult = {
 };
 
 const TITLE_MAP: Record<PlanDocumentKind, string> = {
-  障害福祉サービス: "障害福祉サービス　ファミーユヘルパーサービス愛知　個別計画書",
-  移動支援サービス: "移動支援サービス　ファミーユヘルパーサービス愛知　個別計画書",
-  訪問介護サービス: "訪問介護サービス　ファミーユヘルパーサービス愛知　個別計画書",
-  訪問介護予防サービス: "訪問介護予防サービス　ファミーユヘルパーサービス愛知　個別計画書",
-  役務提供請負サービス: "役務提供請負サービス　ファミーユヘルパーサービス愛知　個別計画書",
+  障害福祉サービス:
+    "障害福祉サービス　ファミーユヘルパーサービス愛知　個別計画書",
+
+  移動支援サービス:
+    "移動支援サービス　ファミーユヘルパーサービス愛知　個別計画書",
+
+  /*
+   * 介護保険
+   * 要介護者用
+   */
+  訪問介護サービス:
+    "訪問介護計画書",
+
+  /*
+   * 介護保険
+   * 要支援者用
+   */
+  訪問介護予防サービス:
+    "介護予防訪問介護計画書",
+
+  役務提供請負サービス:
+    "役務提供請負サービス　ファミーユヘルパーサービス愛知　個別計画書",
+
   重度障がい者等就労支援サービス:
     "重度障がい者等就労支援サービス　ファミーユヘルパーサービス愛知　個別計画書",
 };
@@ -453,6 +497,34 @@ async function buildPlanHeaderDraft(params: {
 
 長期目標と短期目標は、対応する組み合わせとして返してください。
 
+長期目標・短期目標のそれぞれについて、
+ケアプランに記載された開始日と終了日も抽出してください。
+
+日付は必ず西暦の YYYY-MM-DD 形式で返してください。
+
+和暦で記載されている場合は、
+次の対応に従って西暦へ変換してください。
+
+- 令和元年 = 2019年
+- 令和2年 = 2020年
+- 令和3年 = 2021年
+- 令和4年 = 2022年
+- 令和5年 = 2023年
+- 令和6年 = 2024年
+- 令和7年 = 2025年
+- 令和8年 = 2026年
+- 令和9年 = 2027年
+- 令和10年 = 2028年
+
+重要:
+- 日付はケアプラン原文と完全に一致させてください。
+- 日付を推測・補完・延長しないでください。
+- 長期目標と短期目標で期間が異なる場合は、それぞれ別に抽出してください。
+- 開始日だけ記載されている場合、終了日は null にしてください。
+- 終了日だけ記載されている場合、開始日は null にしてください。
+- 日付が記載されていない場合は null にしてください。
+- ケアプランの作成日、認定期間、サービス開始日を目標期間として代用してはいけません。
+
 訪問介護と明らかに無関係な目標は除外して構いません。
 
 除外してよい例:
@@ -518,10 +590,22 @@ source_textには、
   "care_plan_goals": [
     {
       "long_term_goal": "",
+      "long_term_goal_start_date": "2026-07-01",
+      "long_term_goal_end_date": "2026-10-31",
       "short_term_goal": "",
+      "short_term_goal_start_date": "2026-07-01",
+      "short_term_goal_end_date": "2026-10-31",
       "source_text": ""
     }
   ]
+}
+
+日付が記載されていない場合の例:
+{
+  "long_term_goal_start_date": null,
+  "long_term_goal_end_date": null,
+  "short_term_goal_start_date": null,
+  "short_term_goal_end_date": null
 }
 
 資料:
@@ -590,8 +674,31 @@ ${params.sourceText}
               ? goal.source_text.trim()
               : "";
 
+          const longTermGoalStartDate =
+            normalizeIsoDate(
+              goal.long_term_goal_start_date,
+            );
+
+          const longTermGoalEndDate =
+            normalizeIsoDate(
+              goal.long_term_goal_end_date,
+            );
+
+          const shortTermGoalStartDate =
+            normalizeIsoDate(
+              goal.short_term_goal_start_date,
+            );
+
+          const shortTermGoalEndDate =
+            normalizeIsoDate(
+              goal.short_term_goal_end_date,
+            );
+
           /*
            * 長期・短期の両方が揃ったものだけ採用する。
+           *
+           * 日付は記載がない場合もあるため、
+           * nullでも目標自体は採用する。
            */
           if (
             !longTermGoal ||
@@ -607,11 +714,23 @@ ${params.sourceText}
                 300,
               ),
 
+            long_term_goal_start_date:
+              longTermGoalStartDate,
+
+            long_term_goal_end_date:
+              longTermGoalEndDate,
+
             short_term_goal:
               limitJapaneseText(
                 shortTermGoal,
                 300,
               ),
+
+            short_term_goal_start_date:
+              shortTermGoalStartDate,
+
+            short_term_goal_end_date:
+              shortTermGoalEndDate,
 
             source_text:
               limitJapaneseText(
@@ -709,6 +828,68 @@ function limitJapaneseText(text: string, max: number): string {
   if (t.length <= max) return t;
   return t.slice(0, max);
 }
+
+function normalizeIsoDate(
+  value: unknown,
+): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed =
+    value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  /*
+   * AIの返却値は必ず
+   * YYYY-MM-DD とする。
+   */
+  const match =
+    trimmed.match(
+      /^(\d{4})-(\d{2})-(\d{2})$/,
+    );
+
+  if (!match) {
+    return null;
+  }
+
+  const year =
+    Number(match[1]);
+
+  const month =
+    Number(match[2]);
+
+  const day =
+    Number(match[3]);
+
+  const date =
+    new Date(
+      Date.UTC(
+        year,
+        month - 1,
+        day,
+      ),
+    );
+
+  /*
+   * 2026-02-31のような不正日付を
+   * 通さない。
+   */
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !==
+    month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return trimmed;
+}
+
 
 async function buildServiceDraftsByCategory(params: {
   sourceText: string;
@@ -1877,8 +2058,20 @@ export async function POST(req: NextRequest) {
               long_term_goal:
                 goal.long_term_goal,
 
+              long_term_goal_start_date:
+                goal.long_term_goal_start_date,
+
+              long_term_goal_end_date:
+                goal.long_term_goal_end_date,
+
               short_term_goal:
                 goal.short_term_goal,
+
+              short_term_goal_start_date:
+                goal.short_term_goal_start_date,
+
+              short_term_goal_end_date:
+                goal.short_term_goal_end_date,
 
               source_text:
                 goal.source_text,
@@ -2230,10 +2423,10 @@ export async function POST(req: NextRequest) {
               displayOrder,
 
             goal_start_date:
-              null,
+              goal.long_term_goal_start_date,
 
             goal_end_date:
-              null,
+              goal.long_term_goal_end_date,
 
             goal_text:
               goal.long_term_goal,
@@ -2265,10 +2458,21 @@ export async function POST(req: NextRequest) {
               extracted_long_term_goal:
                 goal.long_term_goal,
 
+              extracted_long_term_goal_start_date:
+                goal.long_term_goal_start_date,
+
+              extracted_long_term_goal_end_date:
+                goal.long_term_goal_end_date,
+
               extracted_short_term_goal:
                 goal.short_term_goal,
-            },
 
+              extracted_short_term_goal_start_date:
+                goal.short_term_goal_start_date,
+
+              extracted_short_term_goal_end_date:
+                goal.short_term_goal_end_date,
+            },
             generation_meta: {
               generated_at:
                 new Date().toISOString(),
@@ -2315,10 +2519,10 @@ export async function POST(req: NextRequest) {
             display_order: 1,
 
             goal_start_date:
-              null,
+              goal.short_term_goal_start_date,
 
             goal_end_date:
-              null,
+              goal.short_term_goal_end_date,
 
             goal_text:
               goal.short_term_goal,
@@ -2347,11 +2551,23 @@ export async function POST(req: NextRequest) {
               source_text:
                 goal.source_text,
 
-              parent_long_term_goal:
+              extracted_long_term_goal:
                 goal.long_term_goal,
+
+              extracted_long_term_goal_start_date:
+                goal.long_term_goal_start_date,
+
+              extracted_long_term_goal_end_date:
+                goal.long_term_goal_end_date,
 
               extracted_short_term_goal:
                 goal.short_term_goal,
+
+              extracted_short_term_goal_start_date:
+                goal.short_term_goal_start_date,
+
+              extracted_short_term_goal_end_date:
+                goal.short_term_goal_end_date,
             },
 
             generation_meta: {

@@ -10,14 +10,28 @@ import type {
 } from "@/types/plan";
 
 const PLAN_TITLE_MAP: Record<PlanDocumentKind, string> = {
-  障害福祉サービス: "障害福祉サービス　ファミーユヘルパーサービス愛知　個別計画書",
-  移動支援サービス: "移動支援サービス　ファミーユヘルパーサービス愛知　個別計画書",
+  障害福祉サービス:
+    "障害福祉サービス　ファミーユヘルパーサービス愛知　個別計画書",
+
+  移動支援サービス:
+    "移動支援サービス　ファミーユヘルパーサービス愛知　個別計画書",
+
+  訪問介護サービス:
+    "訪問介護計画書",
+
+  訪問介護予防サービス:
+    "介護予防訪問介護計画書",
 };
 
 export function isTargetPlanDocumentKind(
   value: string | null | undefined,
 ): value is PlanDocumentKind {
-  return value === "障害福祉サービス" || value === "移動支援サービス";
+  return (
+    value === "障害福祉サービス" ||
+    value === "移動支援サービス" ||
+    value === "訪問介護サービス" ||
+    value === "訪問介護予防サービス"
+  );
 }
 
 export function calcDurationMinutes(row: WeeklyTemplateSourceRow): number {
@@ -189,9 +203,14 @@ export function buildPlanServiceInserts(
 export function groupRowsByPlanDocumentKind(
   rows: WeeklyTemplateSourceRow[],
 ): Record<PlanDocumentKind, WeeklyTemplateSourceRow[]> {
-  const grouped: Record<PlanDocumentKind, WeeklyTemplateSourceRow[]> = {
+  const grouped: Record<
+    PlanDocumentKind,
+    WeeklyTemplateSourceRow[]
+  > = {
     障害福祉サービス: [],
     移動支援サービス: [],
+    訪問介護サービス: [],
+    訪問介護予防サービス: [],
   };
 
   for (const row of rows) {
