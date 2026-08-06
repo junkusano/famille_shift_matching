@@ -141,6 +141,16 @@ type ServiceGoalRelationDraft = {
 type PlanHeaderDraft = {
   person_family_hope: string;
   assistance_goal: string;
+
+  /*
+   * 介護保険計画書専用項目
+   */
+  care_service_history: string;
+  identified_needs: string;
+  health_status: string;
+  medical_care_risks: string;
+  home_activity_participation: string;
+
   care_plan_goals: CarePlanGoalDraft[];
 };
 
@@ -450,6 +460,9 @@ function flattenAssessmentContent(content: Record<string, unknown>): string {
 
 async function buildPlanHeaderDraft(params: {
   sourceText: string;
+
+  isElderCare: boolean;
+
   extracted: {
     person_family_hope: string | null;
     assistance_goal: string | null;
@@ -467,11 +480,18 @@ async function buildPlanHeaderDraft(params: {
     const prompt = `
 あなたは障害福祉サービス・訪問介護の計画書作成を補助する専門職です。
 
-以下の資料から、計画書に記載する次の内容を作成してください。
+以下の資料から、計画書に記載する内容を作成してください。
 
 1. 本人（家族）の希望
 2. 援助目標
-3. 選択された居宅介護支援計画書に記載された長期目標・短期目標
+3. 訪問介護利用までの経緯（活動歴や病歴）
+4. 解決すべき課題
+5. 健康状態
+6. ケアの上での医学的リスク
+7. 自宅での活動・参加の状況（役割など）
+8. 選択された居宅介護支援計画書に記載された長期目標・短期目標
+
+介護保険ではない場合、3〜7は空文字にしてください。
 
 重要ルール:
 - JSONのみ返してください。
@@ -485,11 +505,67 @@ async function buildPlanHeaderDraft(params: {
 - 資料から目標が十分に読み取れない場合は、空文字にしてください。
 - 医療判断、診断、過度な断定は禁止です。
 
+【介護保険計画書専用項目】
+
+is_elder_care:
+${params.isElderCare ? "true" : "false"}
+
+is_elder_care が true の場合のみ、次の5項目を作成してください。
+
+care_service_history:
+- 訪問介護利用までの経緯、生活歴、病歴、サービス導入理由を記載してください。
+- ケアプラン、アセスメント、担当者会議の記載を根拠にしてください。
+- 200文字程度まで。
+- 根拠がなければ空文字。
+
+identified_needs:
+- 本人が解決したい生活上の課題、訪問介護で対応する必要がある課題を記載してください。
+- 単なる病名一覧ではなく、生活上の困りごとと支援の必要性を記載してください。
+- 300文字程度まで。
+- 根拠がなければ空文字。
+
+health_status:
+- 病名、既往歴、合併症、服薬、通院、透析等、資料に記載された健康状態を記載してください。
+- 診断名や服薬内容を推測しないでください。
+- 300文字程度まで。
+- 根拠がなければ空文字。
+
+medical_care_risks:
+- 血圧、転倒、嚥下、誤嚥、服薬、透析、感染、疼痛、疲労等について、資料に記載されたリスクと留意事項を記載してください。
+- 医学的判断を創作しないでください。
+- 300文字程度まで。
+- 根拠がなければ空文字。
+
+home_activity_participation:
+- 自宅で行っている家事、買い物、外出、地域交流、役割、本人が継続したい活動を記載してください。
+- 300文字程度まで。
+- 根拠がなければ空文字。
+
 【介護保険の長期目標・短期目標】
 
 資料内に
 「今回選択された基準ケアプラン」
 がある場合は、そのケアプランに記載された長期目標・短期目標を抽出してください。
+
+【目標本文・期間の情報源優先順位】
+
+長期目標・短期目標の本文、開始日、終了日は、
+次の優先順位で確認してください。
+
+1. 今回選択された基準ケアプランの「ケアプランOCR本文」
+2. 今回選択された基準ケアプランの「ケアプランサマリー」
+
+OCR本文に目標本文または期間が記載されている場合は、
+サマリーではなくOCR本文の記載を使用してください。
+
+OCR本文とサマリーが異なる場合は、
+OCR本文を優先してください。
+
+OCRの文字認識が崩れていて日付を確定できない場合は、
+推測せず null にしてください。
+
+ケアプラン第2表に記載された
+長期目標・短期目標・期間を最優先してください。
 
 目標文は、原則としてケアプランの原文をそのまま使用してください。
 
@@ -587,6 +663,11 @@ source_textには、
 {
   "person_family_hope": "",
   "assistance_goal": "",
+  "care_service_history": "",
+  "identified_needs": "",
+  "health_status": "",
+  "medical_care_risks": "",
+  "home_activity_participation": "",
   "care_plan_goals": [
     {
       "long_term_goal": "",
@@ -768,6 +849,61 @@ ${params.sourceText}
           ),
         ),
 
+      care_service_history:
+        params.isElderCare
+          ? limitJapaneseText(
+            typeof obj.care_service_history ===
+              "string"
+              ? obj.care_service_history
+              : "",
+            500,
+          )
+          : "",
+
+      identified_needs:
+        params.isElderCare
+          ? limitJapaneseText(
+            typeof obj.identified_needs ===
+              "string"
+              ? obj.identified_needs
+              : "",
+            700,
+          )
+          : "",
+
+      health_status:
+        params.isElderCare
+          ? limitJapaneseText(
+            typeof obj.health_status ===
+              "string"
+              ? obj.health_status
+              : "",
+            700,
+          )
+          : "",
+
+      medical_care_risks:
+        params.isElderCare
+          ? limitJapaneseText(
+            typeof obj.medical_care_risks ===
+              "string"
+              ? obj.medical_care_risks
+              : "",
+            700,
+          )
+          : "",
+
+      home_activity_participation:
+        params.isElderCare
+          ? limitJapaneseText(
+            typeof obj.home_activity_participation ===
+              "string"
+              ? obj.home_activity_participation
+              : "",
+            700,
+          )
+          : "",
+
       care_plan_goals:
         carePlanGoals,
     };
@@ -799,9 +935,15 @@ function buildPlanHeaderFallback(extracted: {
     ),
 
     /*
-     * ケアプラン目標はAI抽出結果だけを採用する。
-     * フォールバックで創作しない。
+     * 資料から安全に生成できない場合は
+     * 創作せず空欄にする。
      */
+    care_service_history: "",
+    identified_needs: "",
+    health_status: "",
+    medical_care_risks: "",
+    home_activity_participation: "",
+
     care_plan_goals: [],
   };
 }
@@ -938,6 +1080,7 @@ async function buildServiceDraftsByCategory(params: {
 - 身体系で家事的内容しか資料から読み取れない場合は「掃除（共に行う）」「整理整頓（声かけ・見守りのもと共に行う）」のように、共同実践・声かけ・見守りと分かる表現にしてください。
 - 空欄を避けるための一般文補完は禁止です。
 - 医療判断、診断、過度な断定は禁止です。
+
 
 service_keys:
 ${keys.map((k) => `- ${k}`).join("\n")}
@@ -2030,9 +2173,9 @@ export async function POST(req: NextRequest) {
 
     const headerDraft = await buildPlanHeaderDraft({
       sourceText: source.text,
+      isElderCare,
       extracted,
     });
-
     console.info(
       "[plans/generate] care plan goals extracted",
       {
@@ -2076,6 +2219,64 @@ export async function POST(req: NextRequest) {
               source_text:
                 goal.source_text,
             })),
+      },
+    );
+
+    console.info(
+      "[plans/generate] elder care fields extracted",
+      {
+        assessment_id:
+          a.assessment_id,
+
+        is_elder_care:
+          isElderCare,
+
+        care_service_history_chars:
+          headerDraft
+            .care_service_history
+            .length,
+
+        identified_needs_chars:
+          headerDraft
+            .identified_needs
+            .length,
+
+        health_status_chars:
+          headerDraft
+            .health_status
+            .length,
+
+        medical_care_risks_chars:
+          headerDraft
+            .medical_care_risks
+            .length,
+
+        home_activity_participation_chars:
+          headerDraft
+            .home_activity_participation
+            .length,
+
+        fields: {
+          care_service_history:
+            headerDraft
+              .care_service_history,
+
+          identified_needs:
+            headerDraft
+              .identified_needs,
+
+          health_status:
+            headerDraft
+              .health_status,
+
+          medical_care_risks:
+            headerDraft
+              .medical_care_risks,
+
+          home_activity_participation:
+            headerDraft
+              .home_activity_participation,
+        },
       },
     );
 
@@ -2312,8 +2513,39 @@ export async function POST(req: NextRequest) {
           plan_end_date: null,
           author_user_id: a.author_user_id,
           author_name: a.author_name,
-          person_family_hope: headerDraft.person_family_hope,
-          assistance_goal: headerDraft.assistance_goal,
+          person_family_hope:
+            headerDraft.person_family_hope,
+
+          assistance_goal:
+            headerDraft.assistance_goal,
+
+          /*
+           * 介護保険計画書専用項目
+           *
+           * 障害プランの場合は、
+           * buildPlanHeaderDraft側で空文字になる。
+           */
+          care_service_history:
+            headerDraft.care_service_history ||
+            null,
+
+          identified_needs:
+            headerDraft.identified_needs ||
+            null,
+
+          health_status:
+            headerDraft.health_status ||
+            null,
+
+          medical_care_risks:
+            headerDraft.medical_care_risks ||
+            null,
+
+          home_activity_participation:
+            headerDraft
+              .home_activity_participation ||
+            null,
+
           remarks: null,
           weekly_plan_comment: null,
           monthly_summary: monthlySummary,

@@ -378,6 +378,34 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
                     body.assistance_goal,
                 ),
 
+            /*
+             * 介護保険計画書専用項目
+             */
+            care_service_history:
+                nullableString(
+                    body.care_service_history,
+                ),
+
+            identified_needs:
+                nullableString(
+                    body.identified_needs,
+                ),
+
+            health_status:
+                nullableString(
+                    body.health_status,
+                ),
+
+            medical_care_risks:
+                nullableString(
+                    body.medical_care_risks,
+                ),
+
+            home_activity_participation:
+                nullableString(
+                    body.home_activity_participation,
+                ),
+
             remarks:
                 nullableString(
                     body.remarks,

@@ -28,6 +28,16 @@ export type PlanSummaryForEditor = {
     author_name: string | null;
     person_family_hope: string | null;
     assistance_goal: string | null;
+
+    /*
+     * 介護保険計画書専用項目
+     */
+    care_service_history: string | null;
+    identified_needs: string | null;
+    health_status: string | null;
+    medical_care_risks: string | null;
+    home_activity_participation: string | null;
+
     remarks: string | null;
     weekly_plan_comment: string | null;
     monthly_summary: unknown;
@@ -169,6 +179,16 @@ type PlanDraft = {
     author_name: string;
     person_family_hope: string;
     assistance_goal: string;
+
+    /*
+     * 介護保険計画書専用項目
+     */
+    care_service_history: string;
+    identified_needs: string;
+    health_status: string;
+    medical_care_risks: string;
+    home_activity_participation: string;
+
     remarks: string;
     weekly_plan_comment: string;
 };
@@ -213,6 +233,12 @@ export default function PlanEditor({ detail, onReload }: Props) {
         detail.goal_groups,
     ]);
 
+    const isElderCarePlan =
+        detail.plan.plan_document_kind ===
+        "訪問介護サービス" ||
+        detail.plan.plan_document_kind ===
+        "訪問介護予防サービス";
+
     const monthlySummaryRows = useMemo(() => {
         if (!Array.isArray(detail.plan.monthly_summary)) return [];
         return detail.plan.monthly_summary as Array<{
@@ -255,6 +281,24 @@ export default function PlanEditor({ detail, onReload }: Props) {
 
                     assistance_goal:
                         planDraft.assistance_goal,
+
+                    /*
+                     * 介護保険計画書専用項目
+                     */
+                    care_service_history:
+                        planDraft.care_service_history,
+
+                    identified_needs:
+                        planDraft.identified_needs,
+
+                    health_status:
+                        planDraft.health_status,
+
+                    medical_care_risks:
+                        planDraft.medical_care_risks,
+
+                    home_activity_participation:
+                        planDraft.home_activity_participation,
 
                     remarks:
                         planDraft.remarks,
@@ -489,10 +533,111 @@ export default function PlanEditor({ detail, onReload }: Props) {
                         className="border rounded px-2 py-1 w-full min-h-[80px]"
                         value={planDraft.assistance_goal}
                         onChange={(e) =>
-                            setPlanDraft({ ...planDraft, assistance_goal: e.target.value })
+                            setPlanDraft({
+                                ...planDraft,
+                                assistance_goal:
+                                    e.target.value,
+                            })
                         }
                     />
                 </Field>
+
+                {isElderCarePlan ? (
+                    <div className="rounded border bg-blue-50 p-3 space-y-3">
+                        <div>
+                            <div className="font-bold text-lg">
+                                介護保険計画書項目
+                            </div>
+
+                            <div className="text-sm text-gray-600">
+                                ケアプラン、アセスメント、担当者会議等から生成された内容です。
+                            </div>
+                        </div>
+
+                        <Field label="訪問介護利用までの経緯（活動歴や病歴）">
+                            <textarea
+                                className="border rounded px-2 py-1 w-full min-h-[90px] bg-white"
+                                value={
+                                    planDraft
+                                        .care_service_history
+                                }
+                                onChange={(e) =>
+                                    setPlanDraft({
+                                        ...planDraft,
+                                        care_service_history:
+                                            e.target.value,
+                                    })
+                                }
+                            />
+                        </Field>
+
+                        <Field label="解決すべき課題">
+                            <textarea
+                                className="border rounded px-2 py-1 w-full min-h-[100px] bg-white"
+                                value={
+                                    planDraft.identified_needs
+                                }
+                                onChange={(e) =>
+                                    setPlanDraft({
+                                        ...planDraft,
+                                        identified_needs:
+                                            e.target.value,
+                                    })
+                                }
+                            />
+                        </Field>
+
+                        <Field label="健康状態（病名、合併症、服薬状況等）">
+                            <textarea
+                                className="border rounded px-2 py-1 w-full min-h-[100px] bg-white"
+                                value={
+                                    planDraft.health_status
+                                }
+                                onChange={(e) =>
+                                    setPlanDraft({
+                                        ...planDraft,
+                                        health_status:
+                                            e.target.value,
+                                    })
+                                }
+                            />
+                        </Field>
+
+                        <Field label="ケアの上での医学的リスク（血圧、転倒、嚥下障害等・留意事項）">
+                            <textarea
+                                className="border rounded px-2 py-1 w-full min-h-[100px] bg-white"
+                                value={
+                                    planDraft
+                                        .medical_care_risks
+                                }
+                                onChange={(e) =>
+                                    setPlanDraft({
+                                        ...planDraft,
+                                        medical_care_risks:
+                                            e.target.value,
+                                    })
+                                }
+                            />
+                        </Field>
+
+                        <Field label="自宅での活動・参加の状況（役割など）">
+                            <textarea
+                                className="border rounded px-2 py-1 w-full min-h-[100px] bg-white"
+                                value={
+                                    planDraft
+                                        .home_activity_participation
+                                }
+                                onChange={(e) =>
+                                    setPlanDraft({
+                                        ...planDraft,
+                                        home_activity_participation:
+                                            e.target.value,
+                                    })
+                                }
+                            />
+                        </Field>
+                    </div>
+                ) : null}
 
                 <Field label="週間計画コメント">
                     <textarea
@@ -1479,9 +1624,29 @@ function toPlanDraft(plan: PlanSummaryForEditor): PlanDraft {
         plan_start_date: plan.plan_start_date ?? "",
         plan_end_date: plan.plan_end_date ?? "",
         author_name: plan.author_name ?? "",
-        person_family_hope: plan.person_family_hope ?? "",
-        assistance_goal: plan.assistance_goal ?? "",
-        remarks: plan.remarks ?? "",
+        person_family_hope:
+            plan.person_family_hope ?? "",
+
+        assistance_goal:
+            plan.assistance_goal ?? "",
+
+        care_service_history:
+            plan.care_service_history ?? "",
+
+        identified_needs:
+            plan.identified_needs ?? "",
+
+        health_status:
+            plan.health_status ?? "",
+
+        medical_care_risks:
+            plan.medical_care_risks ?? "",
+
+        home_activity_participation:
+            plan.home_activity_participation ?? "",
+
+        remarks:
+            plan.remarks ?? "",
         weekly_plan_comment: plan.weekly_plan_comment ?? "",
     };
 }
