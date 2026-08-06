@@ -21,6 +21,16 @@ type PlanRow = {
     author_name: string | null;
     person_family_hope: string | null;
     assistance_goal: string | null;
+
+    /*
+     * 介護保険計画書専用項目
+     */
+    care_service_history: string | null;
+    identified_needs: string | null;
+    health_status: string | null;
+    medical_care_risks: string | null;
+    home_activity_participation: string | null;
+
     remarks: string | null;
     weekly_plan_comment: string | null;
     monthly_summary: unknown;
@@ -188,6 +198,12 @@ export default function PlanPrintView({ planId }: { planId: string }) {
         author,
         goal_groups: goalGroups,
     } = data;
+
+    const isElderCarePlan =
+        plan.plan_document_kind ===
+        "訪問介護サービス" ||
+        plan.plan_document_kind ===
+        "訪問介護予防サービス";
 
     const handlePrint = () => {
         const originalTitle = document.title;
@@ -454,20 +470,93 @@ export default function PlanPrintView({ planId }: { planId: string }) {
                         <table className="w-full border-collapse border border-black mt-2">
                             <tbody>
                                 <tr>
-                                    <Th className="w-[18%]">本人(家族)の希望</Th>
-                                    <Td className="h-[58px] whitespace-pre-wrap">
+                                    <Th className="w-[18%]">
+                                        本人(家族)の希望
+                                    </Th>
+
+                                    <Td className="whitespace-pre-wrap">
                                         {plan.person_family_hope ?? ""}
                                     </Td>
                                 </tr>
+
                                 <tr>
                                     <Th>援助目標</Th>
-                                    <Td className="h-[58px] whitespace-pre-wrap">
+
+                                    <Td className="whitespace-pre-wrap">
                                         {plan.assistance_goal ?? ""}
                                     </Td>
                                 </tr>
+
+                                {isElderCarePlan ? (
+                                    <>
+                                        <tr>
+                                            <Th>
+                                                訪問介護利用までの経緯
+                                                <br />
+                                                （活動歴や病歴）
+                                            </Th>
+
+                                            <Td className="whitespace-pre-wrap">
+                                                {plan.care_service_history ?? ""}
+                                            </Td>
+                                        </tr>
+
+                                        <tr>
+                                            <Th>
+                                                解決すべき課題
+                                            </Th>
+
+                                            <Td className="whitespace-pre-wrap">
+                                                {plan.identified_needs ?? ""}
+                                            </Td>
+                                        </tr>
+
+                                        <tr>
+                                            <Th>
+                                                健康状態
+                                                <br />
+                                                <span className="text-[9px] font-normal">
+                                                    病名、合併症、服薬状況等
+                                                </span>
+                                            </Th>
+
+                                            <Td className="whitespace-pre-wrap">
+                                                {plan.health_status ?? ""}
+                                            </Td>
+                                        </tr>
+
+                                        <tr>
+                                            <Th>
+                                                ケアの上での医学的リスク
+                                                <br />
+                                                <span className="text-[9px] font-normal">
+                                                    血圧、転倒、嚥下障害等・留意事項
+                                                </span>
+                                            </Th>
+
+                                            <Td className="whitespace-pre-wrap">
+                                                {plan.medical_care_risks ?? ""}
+                                            </Td>
+                                        </tr>
+
+                                        <tr>
+                                            <Th>
+                                                自宅での活動・参加の状況
+                                                <br />
+                                                （役割など）
+                                            </Th>
+
+                                            <Td className="whitespace-pre-wrap">
+                                                {plan.home_activity_participation ?? ""}
+                                            </Td>
+                                        </tr>
+                                    </>
+                                ) : null}
+
                                 <tr>
                                     <Th>備考</Th>
-                                    <Td className="h-[42px] whitespace-pre-wrap">
+
+                                    <Td className="whitespace-pre-wrap">
                                         {plan.remarks ?? ""}
                                     </Td>
                                 </tr>
