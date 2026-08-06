@@ -155,11 +155,19 @@ type PlanHeaderDraft = {
 };
 
 type PlanSourceTextResult = {
+  /*
+   * 計画書ヘッダ・介護保険項目・目標抽出用
+   */
   text: string;
+
+  /*
+   * サービス内容・手順生成専用
+   */
+  serviceText: string;
+
   hasUsableSource: boolean;
   sourceLabels: string[];
 };
-
 const TITLE_MAP: Record<PlanDocumentKind, string> = {
   障害福祉サービス:
     "障害福祉サービス　ファミーユヘルパーサービス愛知　個別計画書",
@@ -380,13 +388,13 @@ async function buildPlanSourceText(
     sourceLabels.push("直近の訪問介護記録・特定コメント");
   }
 
+  /*
+ * 計画書ヘッダ・介護保険項目・目標抽出用。
+ *
+ * 選択したケアプラン全文を最優先にする。
+ */
   const text = [
-    /*
-     * 選択されたケアプランを最優先資料として
-     * 必ず先頭に置く。
-     */
     selectedCarePlanText,
-
     meetingMinutes,
     docText,
     assessmentText,
@@ -400,6 +408,65 @@ async function buildPlanSourceText(
     .join("\n\n")
     .slice(0, 18000);
 
+  /*
+   * サービス内容・手順生成専用資料。
+   *
+   * 実際の支援内容が書かれている可能性が高い資料を
+   * 先に配置する。
+   *
+   * 長いケアプランOCRによって、
+   * 議事録や訪問記録が切り捨てられないようにする。
+   */
+  const selectedCarePlanServiceText =
+    selectedCarePlan
+      ? [
+        "【選択された基準ケアプラン】",
+
+        "【ケアプランサマリー】",
+        selectedCarePlan.summary ?? "",
+
+        /*
+         * 第2表のサービス内容・援助内容・留意事項が
+         * 含まれる可能性があるためOCRも渡す。
+         *
+         * ただし全文ではなく最大6000文字に制限する。
+         */
+        "【ケアプランOCR本文】",
+        selectedCarePlan.ocr_text
+          ?.slice(0, 6000) ?? "",
+      ]
+        .filter(
+          (value) =>
+            typeof value === "string" &&
+            value.trim() !== "",
+        )
+        .join("\n")
+      : "";
+
+  /*
+   * サービス生成では以下の順に優先する。
+   *
+   * 1. 担当者会議
+   * 2. 実際の訪問記録
+   * 3. アセスメント
+   * 4. 選択ケアプラン
+   * 5. その他資料
+   */
+  const serviceText = [
+    meetingMinutes,
+    visitNotesText,
+    assessmentText,
+    selectedCarePlanServiceText,
+    docText,
+  ]
+    .filter(
+      (value) =>
+        typeof value === "string" &&
+        value.trim() !== "",
+    )
+    .join("\n\n")
+    .slice(0, 16000);
+
   const hasUsableSource = sourceLabels.some((x) =>
     x.includes("基本情報") ||
     x.includes("サービス等利用計画") ||
@@ -409,8 +476,10 @@ async function buildPlanSourceText(
 
   return {
     text,
+    serviceText,
     hasUsableSource,
-    sourceLabels: [...new Set(sourceLabels)],
+    sourceLabels:
+      [...new Set(sourceLabels)],
   };
 }
 
@@ -2166,6 +2235,9 @@ export async function POST(req: NextRequest) {
         source_chars:
           source.text.length,
 
+        service_source_chars:
+          source.serviceText.length,
+
         selected_care_plan_summary_chars:
           selectedCarePlan?.summary
             ?.length ?? 0,
@@ -2507,11 +2579,50 @@ export async function POST(req: NextRequest) {
 
       const monthlySummary = calcMonthlySummary(targetRows);
 
-      const serviceDraftByCategory = await buildServiceDraftsByCategory({
-        sourceText: source.text,
-        assessmentContent: a.content ?? {},
-        targetRows,
-      });
+      console.info(
+        "[plans/generate] service source prepared",
+        {
+          assessment_id:
+            a.assessment_id,
+
+          plan_document_kind:
+            kind,
+
+          service_source_chars:
+            source.serviceText.length,
+
+          has_meeting_minutes:
+            Boolean(
+              a.meeting_minutes?.trim(),
+            ),
+
+          has_visit_notes:
+            source.serviceText.includes(
+              "【直近の訪問介護記録・特定コメント】",
+            ),
+
+          has_care_plan:
+            source.serviceText.includes(
+              "【選択された基準ケアプラン】",
+            ),
+        },
+      );
+
+      const serviceDraftByCategory =
+        await buildServiceDraftsByCategory({
+          /*
+           * ヘッダ・目標用の全文資料ではなく、
+           * 議事録・訪問記録を優先した
+           * サービス生成専用資料を使う。
+           */
+          sourceText:
+            source.serviceText,
+
+          assessmentContent:
+            a.content ?? {},
+
+          targetRows,
+        });
 
       const { data: insertedPlan, error: pErr } = await supabaseAdmin
         .from("plans")
