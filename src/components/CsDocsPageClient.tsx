@@ -1,10 +1,10 @@
 //components/CsDocsPageClient.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { CsDocRow, CsDocsInitialData } from "@/lib/cs_docs";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import type { CsDocRow, CsDocsFilters, CsDocsInitialData } from "@/lib/cs_docs";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation"; // 追加
+import { useRouter } from "next/navigation";
 
 type DocOption = { value: string; label: string };
 
@@ -22,6 +22,43 @@ const SOURCE_OPTIONS = [
     "OTHER",
     "Backfill",
 ];
+
+type ActiveFilters = {
+    kaipokeCsId: string;
+    unassignedOnly: boolean;
+    keyword: string;
+    unclassifiedOnly: boolean;
+    dateFrom: string;
+    dateTo: string;
+};
+
+const EMPTY_FILTERS: ActiveFilters = {
+    kaipokeCsId: "",
+    unassignedOnly: false,
+    keyword: "",
+    unclassifiedOnly: false,
+    dateFrom: "",
+    dateTo: "",
+};
+
+function normalizeFilters(filters: CsDocsFilters): ActiveFilters {
+    return {
+        kaipokeCsId: filters.kaipokeCsId?.trim() ?? "",
+        unassignedOnly: filters.unassignedOnly === true,
+        keyword: filters.keyword?.trim() ?? "",
+        unclassifiedOnly: filters.unclassifiedOnly === true,
+        dateFrom: filters.dateFrom?.trim() ?? "",
+        dateTo: filters.dateTo?.trim() ?? "",
+    };
+}
+
+function validateDateRange(dateFrom: string, dateTo: string): string | null {
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+        return "開始日は終了日以前の日付を指定してください。";
+    }
+
+    return null;
+}
 
 function formatDate(value: string | null): string {
     if (!value) return "";
@@ -69,6 +106,8 @@ type Props = {
     docMasterList: DocOption[];
     page: number;
     perPage: number;
+    filters: CsDocsFilters;
+    filterError: string | null;
 };
 
 type Draft = {
@@ -80,21 +119,66 @@ type Draft = {
     summary: string;
 };
 
-export default function CsDocsPageClient({ initialData, docMasterList, page, perPage }: Props) {
+export default function CsDocsPageClient({
+    initialData,
+    docMasterList,
+    page,
+    perPage,
+    filters,
+    filterError,
+}: Props) {
     const [docs, setDocs] = useState<CsDocRow[]>(initialData.docs);
+    const [totalCount, setTotalCount] = useState(initialData.totalCount);
     const router = useRouter();
-    const searchParams = useSearchParams();
 
+    const activeFilters = useMemo(() => normalizeFilters(filters), [filters]);
+    const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
     const hasPrev = page > 1;
-    const hasNext = docs.length === perPage; // totalが無くてもOK判定
+    const hasNext = page < totalPages;
+    const rangeStart = totalCount === 0 || docs.length === 0 ? 0 : (page - 1) * perPage + 1;
+    const rangeEnd =
+        totalCount === 0 || docs.length === 0
+            ? 0
+            : Math.min((page - 1) * perPage + docs.length, totalCount);
+    const rangeLabel =
+        totalCount === 0
+            ? "全 0 件"
+            : `全 ${totalCount.toLocaleString()} 件中 ${rangeStart.toLocaleString()}-${rangeEnd.toLocaleString()} 件`;
 
     const buildHref = (nextPage: number, nextPerPage: number) => {
-        const sp = new URLSearchParams(searchParams?.toString());
+        return buildHrefWithFilters(nextPage, nextPerPage, activeFilters);
+    };
+
+    const buildHrefWithFilters = (
+        nextPage: number,
+        nextPerPage: number,
+        nextFilters: ActiveFilters
+    ) => {
+        const sp = new URLSearchParams();
         sp.set("page", String(nextPage));
         sp.set("perPage", String(nextPerPage));
+        if (nextFilters.kaipokeCsId) sp.set("kaipoke_cs_id", nextFilters.kaipokeCsId);
+        if (nextFilters.unassignedOnly) sp.set("unassigned", "1");
+        if (nextFilters.keyword) sp.set("keyword", nextFilters.keyword);
+        if (nextFilters.unclassifiedOnly) sp.set("unclassified", "1");
+        if (nextFilters.dateFrom) sp.set("date_from", nextFilters.dateFrom);
+        if (nextFilters.dateTo) sp.set("date_to", nextFilters.dateTo);
         return `/portal/cs_docs?${sp.toString()}`;
     };
+
+    const [keywordInput, setKeywordInput] = useState(activeFilters.keyword);
+    const [dateFromInput, setDateFromInput] = useState(activeFilters.dateFrom);
+    const [dateToInput, setDateToInput] = useState(activeFilters.dateTo);
+    const [localFilterError, setLocalFilterError] = useState<string | null>(filterError);
     const [kaipokeFilter, setKaipokeFilter] = useState<string>("");
+
+    const hasActiveFilters =
+        activeFilters.kaipokeCsId !== "" ||
+        activeFilters.unassignedOnly ||
+        activeFilters.keyword !== "" ||
+        activeFilters.unclassifiedOnly ||
+        activeFilters.dateFrom !== "" ||
+        activeFilters.dateTo !== "";
 
     const filteredKaipokeList = useMemo(() => {
         const q = kaipokeFilter.trim().toLowerCase();
@@ -107,14 +191,66 @@ export default function CsDocsPageClient({ initialData, docMasterList, page, per
         });
     }, [initialData.kaipokeList, kaipokeFilter]);
 
+    const pushFilters = (nextFilters: ActiveFilters) => {
+        const dateError = validateDateRange(nextFilters.dateFrom, nextFilters.dateTo);
+        if (dateError) {
+            setLocalFilterError(dateError);
+            return;
+        }
+
+        setLocalFilterError(null);
+        router.push(buildHrefWithFilters(1, perPage, nextFilters));
+    };
+
+    const patchFilters = (patch: Partial<ActiveFilters>) => {
+        pushFilters({
+            ...activeFilters,
+            keyword: keywordInput.trim(),
+            dateFrom: dateFromInput,
+            dateTo: dateToInput,
+            ...patch,
+        });
+    };
+
+    const handleFilterSubmit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        pushFilters({
+            ...activeFilters,
+            keyword: keywordInput.trim(),
+            dateFrom: dateFromInput,
+            dateTo: dateToInput,
+        });
+    };
+
+    const handleClearFilters = () => {
+        setKeywordInput("");
+        setDateFromInput("");
+        setDateToInput("");
+        setLocalFilterError(null);
+        router.push(buildHrefWithFilters(1, perPage, EMPTY_FILTERS));
+    };
+
     const [drafts, setDrafts] = useState<Record<string, Draft>>({});
 
     // ✅ ページ/検索条件が変わったら Server から来た docs を state に反映
     // （useState初期値は初回マウント時しか使われないため）
     useEffect(() => {
         setDocs(initialData.docs);
+        setTotalCount(initialData.totalCount);
         setDrafts({}); // ページを跨いだ下書き混在を防ぐ（必要なら消してOK）
-    }, [initialData.docs]);
+    }, [initialData.docs, initialData.totalCount]);
+
+    useEffect(() => {
+        setKeywordInput(activeFilters.keyword);
+        setDateFromInput(activeFilters.dateFrom);
+        setDateToInput(activeFilters.dateTo);
+        setLocalFilterError(filterError);
+    }, [
+        activeFilters.keyword,
+        activeFilters.dateFrom,
+        activeFilters.dateTo,
+        filterError,
+    ]);
 
     const getDraft = (row: CsDocRow): Draft => {
         const d = drafts[row.id];
@@ -236,6 +372,7 @@ export default function CsDocsPageClient({ initialData, docMasterList, page, per
         }
 
         setDocs((prev) => prev.filter((d) => d.id !== id));
+        setTotalCount((prev) => Math.max(0, prev - 1));
         setDrafts((prev) => {
             const next = { ...prev };
             delete next[id];
@@ -243,67 +380,157 @@ export default function CsDocsPageClient({ initialData, docMasterList, page, per
         });
     };
 
+    const renderPager = () => (
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+            <div className="text-gray-600">
+                Page: {page} / {totalPages}（{rangeLabel}）
+            </div>
+
+            <Link
+                href={hasPrev ? buildHref(page - 1, perPage) : "#"}
+                aria-disabled={!hasPrev}
+                className={[
+                    "px-2 py-1 border rounded",
+                    hasPrev ? "hover:bg-gray-50" : "opacity-40 pointer-events-none",
+                ].join(" ")}
+            >
+                ← 前へ
+            </Link>
+
+            <Link
+                href={hasNext ? buildHref(page + 1, perPage) : "#"}
+                aria-disabled={!hasNext}
+                className={[
+                    "px-2 py-1 border rounded",
+                    hasNext ? "hover:bg-gray-50" : "opacity-40 pointer-events-none",
+                ].join(" ")}
+            >
+                次へ →
+            </Link>
+
+            <div className="flex items-center gap-2">
+                <span className="text-gray-600">表示件数</span>
+                <select
+                    value={perPage}
+                    onChange={(e) => {
+                        const next = Number(e.target.value);
+                        router.push(buildHref(1, Number.isFinite(next) && next > 0 ? next : perPage));
+                    }}
+                    className="border px-2 py-1 rounded"
+                >
+                    {[20, 50, 100, 200].map((n) => (
+                        <option key={n} value={n}>
+                            {n}
+                        </option>
+                    ))}
+                </select>
+            </div>
+        </div>
+    );
+
     return (
         <div className="p-4 space-y-3">
             <div className="space-y-2">
                 <h1 className="text-lg font-bold">cs_docs 管理</h1>
-                {/* ✅ ページャー */}
-                <div className="flex items-center gap-3 text-xs">
-                    <div className="text-gray-600">Page: {page}</div>
-
-                    <Link
-                        href={hasPrev ? buildHref(page - 1, perPage) : "#"}
-                        aria-disabled={!hasPrev}
-                        className={[
-                            "px-2 py-1 border rounded",
-                            hasPrev ? "hover:bg-gray-50" : "opacity-40 pointer-events-none",
-                        ].join(" ")}
-                    >
-                        ← 前へ
-                    </Link>
-
-                    <Link
-                        href={hasNext ? buildHref(page + 1, perPage) : "#"}
-                        aria-disabled={!hasNext}
-                        className={[
-                            "px-2 py-1 border rounded",
-                            hasNext ? "hover:bg-gray-50" : "opacity-40 pointer-events-none",
-                        ].join(" ")}
-                    >
-                        次へ →
-                    </Link>
-
-                    <div className="ml-3 flex items-center gap-2">
-                        <span className="text-gray-600">表示件数</span>
-                        <select
-                            value={perPage}
-                            onChange={(e) => {
-                                const next = Number(e.target.value);
-                                // perPage 変更時は 1ページ目に戻す
-                                router.push(buildHref(1, Number.isFinite(next) && next > 0 ? next : perPage));
-                            }}
-                            className="border px-2 py-1 rounded"
-                        >
-                            {[20, 50, 100, 200].map((n) => (
-                                <option key={n} value={n}>
-                                    {n}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
+                {renderPager()}
 
                 <div className="text-xs text-gray-600">
                     □（ピンク背景）項目について、利用者、Source、doc_name、日付等の特定を行ってください。利用者情報に紐づき、同期されます。
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <div className="text-xs text-gray-600 whitespace-nowrap">利用者フィルター</div>
+                <form
+                    onSubmit={handleFilterSubmit}
+                    className="rounded border bg-gray-50 p-3 space-y-3 text-xs"
+                >
+                    <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_160px_160px_auto] md:items-end">
+                        <label className="space-y-1">
+                            <span className="block text-gray-600">OCR・サマリー検索</span>
+                            <input
+                                value={keywordInput}
+                                onChange={(e) => setKeywordInput(e.target.value)}
+                                placeholder="キーワード"
+                                className="border px-2 py-1 rounded w-full bg-white"
+                            />
+                        </label>
+
+                        <label className="space-y-1">
+                            <span className="block text-gray-600">開始日</span>
+                            <input
+                                type="date"
+                                value={dateFromInput}
+                                onChange={(e) => setDateFromInput(e.target.value)}
+                                className="border px-2 py-1 rounded w-full bg-white"
+                            />
+                        </label>
+
+                        <label className="space-y-1">
+                            <span className="block text-gray-600">終了日</span>
+                            <input
+                                type="date"
+                                value={dateToInput}
+                                onChange={(e) => setDateToInput(e.target.value)}
+                                className="border px-2 py-1 rounded w-full bg-white"
+                            />
+                        </label>
+
+                        <button
+                            type="submit"
+                            className="border rounded px-3 py-1 bg-white hover:bg-gray-100 whitespace-nowrap"
+                        >
+                            検索
+                        </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                        <label className="inline-flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                checked={activeFilters.unassignedOnly}
+                                onChange={(e) => patchFilters({ unassignedOnly: e.target.checked })}
+                            />
+                            <span>利用者未設定のみ</span>
+                        </label>
+
+                        <label className="inline-flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                checked={activeFilters.unclassifiedOnly}
+                                onChange={(e) => patchFilters({ unclassifiedOnly: e.target.checked })}
+                            />
+                            <span>分類不能のみ</span>
+                        </label>
+
+                        <button
+                            type="button"
+                            className={[
+                                "border rounded px-3 py-1 bg-white",
+                                hasActiveFilters ? "hover:bg-gray-100" : "opacity-40 pointer-events-none",
+                            ].join(" ")}
+                            onClick={handleClearFilters}
+                            disabled={!hasActiveFilters}
+                        >
+                            フィルターをクリア
+                        </button>
+
+                        {activeFilters.kaipokeCsId && (
+                            <span className="text-gray-600">
+                                対象利用者ID: {activeFilters.kaipokeCsId}
+                            </span>
+                        )}
+                    </div>
+
+                    {localFilterError && (
+                        <div className="text-red-600">{localFilterError}</div>
+                    )}
+                </form>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-xs text-gray-600 whitespace-nowrap">利用者候補検索</div>
                     <input
                         value={kaipokeFilter}
                         onChange={(e) => setKaipokeFilter(e.target.value)}
                         placeholder="氏名 or kaipoke_cs_id で検索"
-                        className="border px-2 py-1 text-xs w-80"
+                        className="border px-2 py-1 text-xs w-full max-w-sm"
                     />
                     {kaipokeFilter.trim() !== "" && (
                         <button
@@ -496,51 +723,7 @@ export default function CsDocsPageClient({ initialData, docMasterList, page, per
                 </table>
             </div>
 
-            {/* ✅ ページャー */}
-            <div className="flex items-center gap-3 text-xs">
-                <div className="text-gray-600">Page: {page}</div>
-
-                <Link
-                    href={hasPrev ? buildHref(page - 1, perPage) : "#"}
-                    aria-disabled={!hasPrev}
-                    className={[
-                        "px-2 py-1 border rounded",
-                        hasPrev ? "hover:bg-gray-50" : "opacity-40 pointer-events-none",
-                    ].join(" ")}
-                >
-                    ← 前へ
-                </Link>
-
-                <Link
-                    href={hasNext ? buildHref(page + 1, perPage) : "#"}
-                    aria-disabled={!hasNext}
-                    className={[
-                        "px-2 py-1 border rounded",
-                        hasNext ? "hover:bg-gray-50" : "opacity-40 pointer-events-none",
-                    ].join(" ")}
-                >
-                    次へ →
-                </Link>
-
-                <div className="ml-3 flex items-center gap-2">
-                    <span className="text-gray-600">表示件数</span>
-                    <select
-                        value={perPage}
-                        onChange={(e) => {
-                            const next = Number(e.target.value);
-                            // perPage 変更時は 1ページ目に戻す
-                            router.push(buildHref(1, Number.isFinite(next) && next > 0 ? next : perPage));
-                        }}
-                        className="border px-2 py-1 rounded"
-                    >
-                        {[20, 50, 100, 200].map((n) => (
-                            <option key={n} value={n}>
-                                {n}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-            </div>
+            {renderPager()}
 
         </div>
     );

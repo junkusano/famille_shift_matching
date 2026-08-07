@@ -34,11 +34,69 @@ export type CsDocsInitialData = {
   perPage: number;
 };
 
-export type CsDocsQuery = {
+export const UNCLASSIFIED_DOC_NAME = "分類不能";
+
+export type CsDocsFilters = {
+  kaipokeCsId?: string | null;
+  unassignedOnly?: boolean;
+  keyword?: string | null;
+  unclassifiedOnly?: boolean;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+};
+
+export type CsDocsQuery = CsDocsFilters & {
   page?: number;
   perPage?: number;
-  kaipokeCsId?: string | null;
 };
+
+const UNASSIGNED_CLIENT_FILTER =
+  'kaipoke_cs_id.is.null,kaipoke_cs_id.eq."",cs_kaipoke_info_id.is.null';
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function cleanTextParam(value: string | null | undefined): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function escapeLikePattern(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_")
+    .replace(/\*/g, "\\*");
+}
+
+function quotePostgrestValue(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function buildOcrSummaryKeywordFilter(keyword: string): string {
+  const pattern = `*${escapeLikePattern(keyword)}*`;
+  const quotedPattern = quotePostgrestValue(pattern);
+  return `ocr_text.ilike.${quotedPattern},summary.ilike.${quotedPattern}`;
+}
+
+function isValidDateOnly(value: string): boolean {
+  if (!DATE_ONLY_RE.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+function toUtcDayStart(dateOnly: string): string {
+  return `${dateOnly}T00:00:00.000Z`;
+}
+
+function toNextUtcDayStart(dateOnly: string): string {
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  const nextDate = new Date(Date.UTC(year, month - 1, day + 1));
+  return `${nextDate.toISOString().slice(0, 10)}T00:00:00.000Z`;
+}
 
 /* ========== 一覧取得 ========== */
 
@@ -69,8 +127,33 @@ export async function getCsDocsInitialData(
       { count: "exact" }
     );
 
-  if (params.kaipokeCsId) {
-    q = q.eq("kaipoke_cs_id", params.kaipokeCsId);
+  const kaipokeCsId = cleanTextParam(params.kaipokeCsId);
+  const keyword = cleanTextParam(params.keyword);
+  const dateFrom = cleanTextParam(params.dateFrom);
+  const dateTo = cleanTextParam(params.dateTo);
+
+  if (kaipokeCsId) {
+    q = q.eq("kaipoke_cs_id", kaipokeCsId);
+  }
+
+  if (params.unassignedOnly) {
+    q = q.or(UNASSIGNED_CLIENT_FILTER);
+  }
+
+  if (keyword) {
+    q = q.or(buildOcrSummaryKeywordFilter(keyword));
+  }
+
+  if (params.unclassifiedOnly) {
+    q = q.eq("doc_name", UNCLASSIFIED_DOC_NAME);
+  }
+
+  if (isValidDateOnly(dateFrom)) {
+    q = q.gte("doc_date_raw", toUtcDayStart(dateFrom));
+  }
+
+  if (isValidDateOnly(dateTo)) {
+    q = q.lt("doc_date_raw", toNextUtcDayStart(dateTo));
   }
 
   const { data: docs, error: docsErr, count } = await q
