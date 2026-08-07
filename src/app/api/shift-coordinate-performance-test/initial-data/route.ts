@@ -293,6 +293,7 @@ async function fetchRowsByColumn<Row>(
     select: string;
     column: string;
     values: string[];
+    eq?: Array<{ column: string; value: string | number | boolean }>;
     orders?: Array<{ column: string; ascending: boolean; nullsFirst?: boolean }>;
   },
 ) {
@@ -307,6 +308,9 @@ async function fetchRowsByColumn<Row>(
         `${args.stage}_${index + 1}`,
         () => {
           let query = sb.from(args.table).select(args.select).in(args.column, chunk);
+          for (const filter of args.eq ?? []) {
+            query = query.eq(filter.column, filter.value);
+          }
           for (const order of args.orders ?? []) {
             query = query.order(order.column, {
               ascending: order.ascending,
@@ -559,6 +563,7 @@ export async function GET(req: NextRequest) {
       select: "shift_id",
       column: "shift_id",
       values: rawShiftIds,
+      eq: [{ column: "status", value: "確定" }],
     }).then((rows) => rows.filter((row) => row.shift_id !== null));
 
     const confirmedShiftIds = new Set(confirmedRecords.map((record) => String(record.shift_id)));

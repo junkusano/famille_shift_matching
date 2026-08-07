@@ -10,6 +10,7 @@ import { ParkingPlace } from "@/types/parking-places";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import type { AssessmentServiceKind } from "@/types/assessment";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
 
 
 /** -----------------------------
@@ -159,14 +160,19 @@ type DocMasterRow = {
 
 type TimeAdjustRow = { id: string; label: string };
 
-type FaxOption = { id: string; office_name: string | null };
+type FaxOption = { id: string; office_name: string | null; service_kind_label: string | null };
 
 type FaxOptionQuery = {
     id: string;
     office_name: string | null;
-    service_kinds: {
-        label: string;
-    }[];
+    service_kinds:
+    | {
+        label: string | null;
+    }
+    | {
+        label: string | null;
+    }[]
+    | null;
 };
 
 type Staff = {
@@ -237,6 +243,20 @@ export default function KaipokeInfoDetailPage() {
     });
 
     const [faxOptions, setFaxOptions] = useState<FaxOption[]>([]);
+    const faxSelectOptions = useMemo<SearchableSelectOption[]>(
+        () =>
+            faxOptions.map((option) => {
+                const label = option.office_name?.trim() || "(名称未設定)";
+                return {
+                    value: option.id,
+                    label,
+                    searchText: [option.office_name, option.service_kind_label]
+                        .filter((value): value is string => Boolean(value))
+                        .join(" "),
+                };
+            }),
+        [faxOptions],
+    );
 
     // client.service_kind が入ってる前提。無ければ "障害"
     const client = row;
@@ -459,10 +479,20 @@ export default function KaipokeInfoDetailPage() {
             return;
         }
 
-        const options: FaxOption[] = ((data ?? []) as FaxOptionQuery[]).map((item) => ({
-            id: item.id,
-            office_name: item.office_name,
-        }));
+        const options: FaxOption[] = ((data ?? []) as FaxOptionQuery[]).map((item) => {
+            const serviceKindLabel = Array.isArray(item.service_kinds)
+                ? item.service_kinds
+                    .map((serviceKind) => serviceKind.label)
+                    .filter((label): label is string => Boolean(label))
+                    .join(" ")
+                : item.service_kinds?.label ?? null;
+
+            return {
+                id: item.id,
+                office_name: item.office_name,
+                service_kind_label: serviceKindLabel,
+            };
+        });
 
         setFaxOptions(options);
     };
@@ -1062,20 +1092,18 @@ export default function KaipokeInfoDetailPage() {
                 />
             </div>
 
-            <div className="max-w-[14rem] md:max-w-[18rem]">
+            <div className="max-w-md">
                 <label className="block text-sm text-gray-600">ケアマネ（相談支援）</label>
-                <select
-                    className="w-full border rounded px-2 py-1"
+                <SearchableSelect
+                    className="mt-1"
+                    options={faxSelectOptions}
                     value={row.care_consultant ?? ""}
-                    onChange={(e) => setRow({ ...row, care_consultant: e.target.value || null })}
-                >
-                    <option value="">未設定</option>
-                    {faxOptions.map((o) => (
-                        <option key={o.id} value={o.id}>
-                            {o.office_name ?? "(名称未設定)"}
-                        </option>
-                    ))}
-                </select>
+                    onChange={(nextValue) => setRow({ ...row, care_consultant: nextValue })}
+                    placeholder="未設定"
+                    searchPlaceholder="事業所名・サービス種別で検索..."
+                    maxVisibleOptions={50}
+                    emptyMessage="該当する事業所がありません"
+                />
             </div>
 
             {/* 希望性別 */}
