@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { ja } from "date-fns/locale";
+import { Filter, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabaseClient";
 import { createTimeAdjustAlertFromShift } from "@/lib/shift/shift_card_alert";
@@ -418,6 +419,18 @@ export default function ShiftCoordinatePerformanceTestClient() {
   );
 
   const start = (currentPage - 1) * PAGE_SIZE;
+  const selectedFilterCount = [filterDate, filterWeekday, filterService, filterPostal, filterName, filterGender].reduce(
+    (total, values) => total + values.length,
+    0,
+  );
+  const appliedFilterCount = [
+    appliedFilters.filterDate,
+    appliedFilters.filterWeekday,
+    appliedFilters.filterService,
+    appliedFilters.filterPostal,
+    appliedFilters.filterName,
+    appliedFilters.filterGender,
+  ].reduce((total, values) => total + values.length, 0);
 
   if (loading) {
     return (
@@ -440,76 +453,107 @@ export default function ShiftCoordinatePerformanceTestClient() {
   }
 
   return (
-    <div className="content">
-      <h2 className="text-xl font-bold mb-4">シフ子（ｼﾌﾄｺｰﾃﾞｨﾈｰﾄ：自分で好きなシフトを取れます）</h2>
+    <div className="content bg-slate-50/70 px-3 py-4 sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-[1600px] space-y-6">
+        <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-cm-primary-50 px-4 py-5 shadow-sm sm:px-6 sm:py-7">
+          <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-cm-primary-100/60 blur-3xl" />
+          <div className="relative flex items-start justify-between gap-5">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-cm-primary-100 bg-cm-primary-50 px-3 py-1 text-xs font-semibold text-cm-primary-800">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                ベータ版・UIアップデート
+              </div>
+              <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+                シフ子
+                <span className="ml-2 text-cm-primary-700">シフトコーディネート</span>
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
+                条件からシフトを探して、入りたい案件をすばやく確認できます。
+              </p>
+            </div>
+            <div className="hidden shrink-0 rounded-2xl border border-white/80 bg-white/80 px-4 py-3 text-right shadow-sm sm:block">
+              <div className="text-xs font-semibold text-slate-500">該当シフト</div>
+              <div className="mt-1 text-2xl font-bold tabular-nums text-cm-primary-700">{filteredShifts.length}<span className="ml-1 text-sm font-semibold">件</span></div>
+            </div>
+          </div>
+        </section>
 
-      <table style={{ width: "100%", borderSpacing: "1rem 0" }}>
-        <tbody>
-          <tr>
-            <td style={{ width: "50%" }}>
-              <div className="mb-1 flex items-center gap-3 text-xs">
-                <label>
-                  <input
-                    type="radio"
-                    name="dateFilterType"
-                    checked={dateFilterType === "date"}
-                    onChange={() => {
-                      setDateFilterType("date");
-                      setFilterWeekday([]);
-                    }}
-                    className="mr-1"
-                  />
-                  日付
-                </label>
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="shift-filter-heading">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-cm-primary-50 p-2 text-cm-primary-700">
+                <Filter className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 id="shift-filter-heading" className="text-base font-bold text-slate-900 sm:text-lg">シフトを検索</h2>
+                <p className="mt-1 text-xs text-slate-500 sm:text-sm">日付・エリア・サービスなどを組み合わせて絞り込めます。</p>
+              </div>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+              {appliedFilterCount > 0 ? `${appliedFilterCount}項目を適用中` : "条件未設定"}
+            </span>
+          </div>
 
-                <label>
-                  <input
-                    type="radio"
-                    name="dateFilterType"
-                    checked={dateFilterType === "weekday"}
-                    onChange={() => {
-                      setDateFilterType("weekday");
-                      setFilterDate([]);
-                    }}
-                    className="mr-1"
-                  />
-                  曜日
-                </label>
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold text-slate-700">日付・曜日</span>
+                <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1" role="radiogroup" aria-label="日付と曜日の切り替え">
+                  <label className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${dateFilterType === "date" ? "bg-white text-cm-primary-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                    <input
+                      type="radio"
+                      name="dateFilterType"
+                      checked={dateFilterType === "date"}
+                      onChange={() => {
+                        setDateFilterType("date");
+                        setFilterWeekday([]);
+                      }}
+                      className="sr-only"
+                    />
+                    日付
+                  </label>
+                  <label className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${dateFilterType === "weekday" ? "bg-white text-cm-primary-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                    <input
+                      type="radio"
+                      name="dateFilterType"
+                      checked={dateFilterType === "weekday"}
+                      onChange={() => {
+                        setDateFilterType("weekday");
+                        setFilterDate([]);
+                      }}
+                      className="sr-only"
+                    />
+                    曜日
+                  </label>
+                </div>
               </div>
 
               {dateFilterType === "date" ? (
                 <>
-                  <label className="text-xs">日付（複数選択）</label>
+                  <label className="mt-2 block text-xs text-slate-500">日付（複数選択）</label>
                   <select
                     multiple
                     value={filterDate}
-                    onChange={(event) =>
-                      setFilterDate(Array.from(event.target.selectedOptions, (option) => option.value))
-                    }
-                    className="w-full border rounded p-1 h-[6rem]"
+                    onChange={(event) => setFilterDate(Array.from(event.target.selectedOptions, (option) => option.value))}
+                    className="mt-2 h-32 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-cm-primary-500 focus:ring-2 focus:ring-cm-primary-100"
+                    aria-label="日付（複数選択）"
                   >
                     {filterOptions.dateOptions.map((dateStr) => {
                       const weekday = format(parseISO(dateStr), "(E)", { locale: ja });
                       const display = format(parseISO(dateStr), "M/d") + weekday;
-
-                      return (
-                        <option key={dateStr} value={dateStr}>
-                          {display}
-                        </option>
-                      );
+                      return <option key={dateStr} value={dateStr}>{display}</option>;
                     })}
                   </select>
                 </>
               ) : (
                 <>
-                  <label className="text-xs">曜日（複数選択）</label>
+                  <label className="mt-2 block text-xs text-slate-500">曜日（複数選択）</label>
                   <select
                     multiple
                     value={filterWeekday}
-                    onChange={(event) =>
-                      setFilterWeekday(Array.from(event.target.selectedOptions, (option) => option.value))
-                    }
-                    className="w-full border rounded p-1 h-[6rem]"
+                    onChange={(event) => setFilterWeekday(Array.from(event.target.selectedOptions, (option) => option.value))}
+                    className="mt-2 h-32 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-cm-primary-500 focus:ring-2 focus:ring-cm-primary-100"
+                    aria-label="曜日（複数選択）"
                   >
                     <option value="0">日曜日</option>
                     <option value="1">月曜日</option>
@@ -521,37 +565,29 @@ export default function ShiftCoordinatePerformanceTestClient() {
                   </select>
                 </>
               )}
-            </td>
+            </div>
 
-            <td style={{ width: "50%" }}>
-              <label className="text-xs">種別（複数選択）</label>
+            <div className="min-w-0">
+              <label className="text-xs font-bold text-slate-700">種別（複数選択）</label>
               <select
                 multiple
                 value={filterService}
-                onChange={(event) =>
-                  setFilterService(Array.from(event.target.selectedOptions, (option) => option.value))
-                }
-                className="w-full border rounded p-1 h-[6rem]"
+                onChange={(event) => setFilterService(Array.from(event.target.selectedOptions, (option) => option.value))}
+                className="mt-2 h-32 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-cm-primary-500 focus:ring-2 focus:ring-cm-primary-100"
+                aria-label="種別（複数選択）"
               >
-                {filterOptions.serviceOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
+                {filterOptions.serviceOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
-            </td>
-          </tr>
+            </div>
 
-          <tr>
-            <td style={{ width: "50%" }}>
-              <label className="text-xs">住所エリア（複数選択）</label>
+            <div className="min-w-0">
+              <label className="text-xs font-bold text-slate-700">住所エリア（複数選択）</label>
               <select
                 multiple
                 value={filterPostal}
-                onChange={(event) =>
-                  setFilterPostal(Array.from(event.target.selectedOptions, (option) => option.value))
-                }
-                className="w-full border rounded p-1 h-[6rem]"
+                onChange={(event) => setFilterPostal(Array.from(event.target.selectedOptions, (option) => option.value))}
+                className="mt-2 h-32 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-cm-primary-500 focus:ring-2 focus:ring-cm-primary-100"
+                aria-label="住所エリア（複数選択）"
               >
                 {filterOptions.postalOptions.map((postalOption) => (
                   <option key={postalOption.postal_code_3} value={postalOption.postal_code_3}>
@@ -559,92 +595,109 @@ export default function ShiftCoordinatePerformanceTestClient() {
                   </option>
                 ))}
               </select>
-            </td>
+            </div>
 
-            <td style={{ width: "50%" }}>
-              <label className="text-xs">利用者名（複数選択）</label>
+            <div className="min-w-0">
+              <label className="text-xs font-bold text-slate-700">利用者名（複数選択）</label>
               <select
                 multiple
                 value={filterName}
-                onChange={(event) =>
-                  setFilterName(Array.from(event.target.selectedOptions, (option) => option.value))
-                }
-                className="w-full border rounded p-1 h-[6rem]"
+                onChange={(event) => setFilterName(Array.from(event.target.selectedOptions, (option) => option.value))}
+                className="mt-2 h-32 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-cm-primary-500 focus:ring-2 focus:ring-cm-primary-100"
+                aria-label="利用者名（複数選択）"
               >
-                {filterOptions.nameOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
+                {filterOptions.nameOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
-            </td>
-          </tr>
+            </div>
 
-          <tr>
-            <td style={{ width: "50%" }}>
-              <label className="text-xs">ヘルパー希望（複数選択）</label>
+            <div className="min-w-0">
+              <label className="text-xs font-bold text-slate-700">ヘルパー希望（複数選択）</label>
               <select
                 multiple
                 value={filterGender}
-                onChange={(event) =>
-                  setFilterGender(Array.from(event.target.selectedOptions, (option) => option.value))
-                }
-                className="w-full border rounded p-1 h-[6rem]"
+                onChange={(event) => setFilterGender(Array.from(event.target.selectedOptions, (option) => option.value))}
+                className="mt-2 h-32 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-cm-primary-500 focus:ring-2 focus:ring-cm-primary-100"
+                aria-label="ヘルパー希望（複数選択）"
               >
-                {filterOptions.genderOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
+                {filterOptions.genderOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
-            </td>
+            </div>
 
-            <td style={{ width: "50%" }}>
-              <Button onClick={applyFilters} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                フィルターを適用
-              </Button>
-              <Button onClick={clearFilters} className="w-full bg-gray-400 hover:bg-gray-500 text-white">
-                フィルター解除
-              </Button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            <div className="flex flex-col justify-end gap-2 rounded-xl bg-slate-50 p-3 md:col-span-2 xl:col-span-1">
+              <div className="text-xs text-slate-500">
+                {selectedFilterCount > 0 ? `${selectedFilterCount}項目を選択中` : "条件を選択してください"}
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button onClick={applyFilters} className="w-full bg-cm-primary-600 text-white hover:bg-cm-primary-700 sm:flex-1">
+                  フィルターを適用
+                </Button>
+                <Button onClick={clearFilters} variant="outline" className="w-full border-slate-300 bg-white text-slate-700 hover:bg-slate-100 sm:w-auto">
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  解除
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
 
-      <ShiftWishWidgetPerformanceTest filterOptions={filterOptions} />
+        <section className="space-y-4" aria-labelledby="shift-list-heading">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-xs font-bold tracking-[0.16em] text-cm-primary-700">MAIN SHIFT LIST</div>
+              <h2 id="shift-list-heading" className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">シフ子本体</h2>
+              <p className="mt-1 text-sm text-slate-500">日付・時間・給与の目安を見比べて、入りたいシフトを選べます。</p>
+            </div>
+            <div className="flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm shadow-sm sm:self-auto">
+              <span className="text-slate-500">表示件数</span>
+              <span className="font-bold tabular-nums text-slate-900">{filteredShifts.length}件</span>
+            </div>
+          </div>
 
-      <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-        表示している「概算給与」は、基本時給・サービス加算・回ごと単価・通勤費から算出した目安です。
-        実際の給与は、個人別時給、同日に複数サービスへ入る場合の移動時間加算等により変動します。
-      </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900 sm:px-4">
+            表示している「概算給与」は、基本時給・サービス加算・回ごと単価・通勤費から算出した目安です。
+            実際の給与は、個人別時給、同日に複数サービスへ入る場合の移動時間加算等により変動します。
+          </div>
 
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {paginatedShifts.map((shift) => (
-          <ShiftCardPerformanceTest
-            key={shift.shift_id}
-            shift={shift}
-            staffMap={staffMap}
-            myServiceKeys={myServiceKeys}
-            userRole={userRole}
-            creatingRequest={creatingShiftRequest}
-            onRequest={(attend, note) => {
-              void handleShiftRequest(shift, attend, note);
-            }}
-            extraActions={<GroupAddButtonPerformanceTest shift={shift} />}
-          />
-        ))}
-      </div>
+          {paginatedShifts.length > 0 ? (
+            <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {paginatedShifts.map((shift) => (
+                <ShiftCardPerformanceTest
+                  key={shift.shift_id}
+                  shift={shift}
+                  staffMap={staffMap}
+                  myServiceKeys={myServiceKeys}
+                  userRole={userRole}
+                  creatingRequest={creatingShiftRequest}
+                  onRequest={(attend, note) => {
+                    void handleShiftRequest(shift, attend, note);
+                  }}
+                  extraActions={<GroupAddButtonPerformanceTest shift={shift} />}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500">
+              条件に一致するシフトがありません。フィルターを解除してお試しください。
+            </div>
+          )}
 
-      <div className="flex justify-between mt-6">
-        <Button disabled={currentPage === 1} onClick={() => setCurrentPage((page) => page - 1)}>
-          戻る
-        </Button>
-        <Button
-          disabled={start + PAGE_SIZE >= filteredShifts.length}
-          onClick={() => setCurrentPage((page) => page + 1)}
-        >
-          次へ
-        </Button>
+          <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
+            <Button variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage((page) => page - 1)}>
+              戻る
+            </Button>
+            <span className="text-xs text-slate-500">{currentPage}ページ目</span>
+            <Button
+              disabled={start + PAGE_SIZE >= filteredShifts.length}
+              onClick={() => setCurrentPage((page) => page + 1)}
+            >
+              次へ
+            </Button>
+          </div>
+        </section>
+
+        <section aria-label="シフトWish">
+          <ShiftWishWidgetPerformanceTest filterOptions={filterOptions} />
+        </section>
       </div>
     </div>
   );

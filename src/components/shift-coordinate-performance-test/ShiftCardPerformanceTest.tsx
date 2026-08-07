@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { format, parseISO } from "date-fns";
+import { ja } from "date-fns/locale";
+import { CalendarDays, Clock3, MapPin, UserRound } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,6 +63,20 @@ function formatName(row?: StaffRow) {
   return `${row.last_name_kanji ?? ""} ${row.first_name_kanji ?? ""}`.trim() || row.user_id;
 }
 
+function formatShiftDate(date?: string | null) {
+  if (!date) return "日付未定";
+
+  try {
+    return format(parseISO(date), "M/d（E）", { locale: ja });
+  } catch {
+    return date;
+  }
+}
+
+function formatShiftTime(time?: string | null) {
+  return time?.slice(0, 5) || "--:--";
+}
+
 function isHiddenRequestShift(shift: ShiftData) {
   const csId = String(shift.kaipoke_cs_id ?? "");
   const service = shift.service_code ?? "";
@@ -79,8 +96,12 @@ function EstimatedPayLine({ amount }: { amount?: number | null }) {
   if (typeof amount !== "number") return null;
 
   return (
-    <div className="text-sm mt-1 font-semibold text-emerald-700">
-      概算給与: {amount.toLocaleString()}円
+    <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-emerald-50/80 px-3 py-2.5">
+      <span className="text-xs font-semibold tracking-wide text-emerald-900">概算給与</span>
+      <span className="text-lg font-bold tabular-nums text-emerald-800 sm:text-xl">
+        {amount.toLocaleString()}
+        <span className="ml-0.5 text-sm font-semibold">円</span>
+      </span>
     </div>
   );
 }
@@ -140,46 +161,54 @@ export default function ShiftCardPerformanceTest({
   return (
     <Card
       className={[
-        "shadow",
-        !eligible ? "bg-gray-100" : "",
-        eligible && showBadge ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : "",
+        "group h-full overflow-hidden border-slate-200/90 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-cm-primary-300 hover:shadow-cm-card-hover focus-within:ring-2 focus-within:ring-cm-primary-200",
+        !eligible ? "bg-slate-50" : "",
+        eligible && showBadge ? "border-pink-300 bg-pink-50/70 ring-1 ring-pink-200" : "",
       ].join(" ")}
       style={!eligible ? { opacity: 0.7, filter: "grayscale(0.1)" } : undefined}
     >
-      <CardContent className="p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="text-sm font-semibold">
-            {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～{shift.shift_end_time?.slice(0, 5)}
+      <CardContent className="flex h-full flex-col p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="inline-flex max-w-full items-center gap-2 rounded-lg border border-cm-primary-100 bg-cm-primary-50 px-2.5 py-1.5 text-base font-bold tracking-tight text-cm-primary-900">
+              <CalendarDays className="h-4 w-4 shrink-0 text-cm-primary-600" aria-hidden="true" />
+              <span className="truncate">{formatShiftDate(shift.shift_start_date)}</span>
+            </div>
+
+            <div className="mt-3 flex items-center gap-2 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+              <Clock3 className="h-5 w-5 shrink-0 text-cm-primary-600" aria-hidden="true" />
+              <span className="tabular-nums">
+                {formatShiftTime(shift.shift_start_time)}
+                <span className="mx-1 text-slate-400">-</span>
+                {formatShiftTime(shift.shift_end_time)}
+              </span>
+            </div>
           </div>
+
           {showBadge && (
-            <span className="text-[11px] px-2 py-0.5 rounded bg-pink-100 border border-pink-300" title={badgeText}>
+            <span className="shrink-0 rounded-full border border-pink-300 bg-pink-100 px-2 py-1 text-[11px] font-semibold text-pink-900" title={badgeText}>
               {badgeText}
             </span>
           )}
         </div>
 
-        <div className="text-sm mt-1">種別: {shift.service_code}</div>
-        <EstimatedPayLine amount={estimatedPayAmount} />
-
-        <div className="text-sm">
-          住所:{" "}
-          {addr && mapsUrl ? (
-            <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="underline text-blue-600" title="Googleマップで開く">
-              {addr}
-            </a>
-          ) : (
-            "—"
-          )}
-          {postal && <span className="ml-2">（{postal}）</span>}
+        <div className="mt-4 flex items-center gap-2 text-sm">
+          <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold tracking-wide text-slate-600">種別</span>
+          <span className="min-w-0 break-words font-semibold text-slate-800">{shift.service_code}</span>
         </div>
 
-        <div className="mt-2 space-y-1">
-          <div className="text-sm">
-            利用者名: {shift.client_name ?? "—"} 様
+        <EstimatedPayLine amount={estimatedPayAmount} />
+
+        <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+          <div className="flex items-start gap-2 text-sm text-slate-700">
+            <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+            <div className="min-w-0 flex-1 break-words">
+              <span className="mr-1 text-xs font-semibold text-slate-500">利用者</span>
+              <span className="font-semibold text-slate-900">{shift.client_name ?? "—"}</span> 様
             {commuting && (
               <Dialog>
                 <DialogTrigger asChild>
-                  <button className="ml-2 text-xs text-blue-500 underline">通所・通学</button>
+                  <button className="ml-2 text-xs font-semibold text-blue-700 underline underline-offset-2">通所・通学</button>
                 </DialogTrigger>
                 <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] ml-4 mr-0 modal-avoid-sidebar">
                   <DialogTitle>通所・通学</DialogTitle>
@@ -194,24 +223,26 @@ export default function ShiftCardPerformanceTest({
                 </DialogContent>
               </Dialog>
             )}
+            </div>
           </div>
 
-          <div
-            className="text-sm"
-            style={{
-              color:
+          <div className="flex items-start gap-2 text-sm">
+            <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full border border-slate-300" aria-hidden="true" />
+            <div
+              className={
                 shift.gender_request_name === "男性希望"
-                  ? "blue"
+                  ? "text-blue-700"
                   : shift.gender_request_name === "女性希望"
-                    ? "red"
-                    : "black",
-            }}
-          >
-            性別希望: {shift.gender_request_name ?? "—"}
+                    ? "text-rose-700"
+                    : "text-slate-700"
+              }
+            >
+              <span className="mr-1 text-xs font-semibold text-slate-500">性別希望</span>
+              {shift.gender_request_name ?? "—"}
             {(biko || basicInformation || shiftDetailInformation) && (
               <Dialog>
                 <DialogTrigger asChild>
-                  <button className="ml-2 text-xs text-blue-500 underline">詳細情報</button>
+                  <button className="ml-2 text-xs font-semibold text-blue-700 underline underline-offset-2">詳細情報</button>
                 </DialogTrigger>
                 <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[640px] ml-4 mr-0 modal-avoid-sidebar max-h-[85vh] overflow-hidden">
                   <DialogTitle>詳細情報</DialogTitle>
@@ -242,17 +273,35 @@ export default function ShiftCardPerformanceTest({
                 </DialogContent>
               </Dialog>
             )}
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2 text-sm text-slate-600">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+            <div className="min-w-0 flex-1 break-words">
+              <span className="mr-1 text-xs font-semibold text-slate-500">住所</span>
+              {addr && mapsUrl ? (
+                <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-700 underline underline-offset-2" title="Googleマップで開く">
+                  {addr}
+                </a>
+              ) : (
+                "—"
+              )}
+              {postal && <span className="ml-2">（{postal}）</span>}
+            </div>
           </div>
         </div>
 
-        <div className="text-sm mt-2">
-          スタッフ：
-          <span className="inline-block mr-3">{formatName(staffMap[shift.staff_01_user_id ?? ""])}</span>
-          <span className="inline-block mr-3">{formatName(staffMap[shift.staff_02_user_id ?? ""])}</span>
-          <span className="inline-block">{formatName(staffMap[shift.staff_03_user_id ?? ""])}</span>
+        <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
+          <div className="mb-1 text-[11px] font-semibold tracking-wide text-slate-500">担当スタッフ</div>
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            <span>{formatName(staffMap[shift.staff_01_user_id ?? ""])}</span>
+            <span>{formatName(staffMap[shift.staff_02_user_id ?? ""])}</span>
+            <span>{formatName(staffMap[shift.staff_03_user_id ?? ""])}</span>
+          </div>
 
           {shift.spot_offer_status === "確定" && (
-            <span className="ml-3 inline-flex flex-col rounded bg-yellow-100 px-2 py-1 text-xs text-black align-middle">
+            <span className="mt-2 inline-flex flex-col rounded-lg bg-yellow-100 px-2 py-1 text-xs text-black">
               <span className="font-medium">スポット確定</span>
               <span>
                 {shift.applicant_name ?? "—"}（{shift.applicant_sex ?? "—"}）
@@ -267,10 +316,10 @@ export default function ShiftCardPerformanceTest({
           )}
         </div>
 
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
+        <div className="mt-auto flex flex-col items-stretch gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:flex-wrap sm:items-center">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button>このシフトを希望する</Button>
+              <Button className="w-full sm:w-auto">このシフトを希望する</Button>
             </DialogTrigger>
             <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-4 mr-0">
               {!eligible && (
@@ -326,7 +375,7 @@ export default function ShiftCardPerformanceTest({
           </Dialog>
 
           {csId && shift.shift_start_date && (
-            <Button variant="secondary" asChild>
+            <Button variant="secondary" asChild className="w-full sm:w-auto">
               <Link href={monthlyHref}>月間</Link>
             </Button>
           )}

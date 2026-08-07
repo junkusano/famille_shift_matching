@@ -79,7 +79,7 @@ export default function GroupAddButtonPerformanceTest({ shift }: { shift: ShiftD
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogOverlay className="overlay-avoid-sidebar" />
       <DialogTrigger asChild>
-        <button className="mt-2 text-xs flex items-center gap-1 px-2 py-1 border border-gray-400 rounded hover:bg-gray-100">
+        <button className="mt-0 inline-flex min-h-9 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50">
           <Image src="/8aeeac38-ce77-4c97-b2e9-2fcd97c5ed4a.jpg" alt="LW" width={16} height={16} />
           <span>グループ追加</span>
         </button>
