@@ -15,10 +15,16 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import PlanEditor, { type PlanDetailForEditor } from "@/components/assessment/PlanEditor";
 import ElderCareAssessmentForm from "@/components/assessment/ElderCareAssessmentForm";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
 
 type Props = { initialAssessmentId: string | null };
 
-type ClientOption = { client_id: string; client_name: string };
+type ClientOption = {
+    client_id: string;
+    client_name: string | null;
+    kana?: string;
+    service_kind?: string;
+};
 
 type PlanSummary = {
     plan_id: string;
@@ -83,7 +89,22 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
     const [serviceKind, setServiceKind] = useState<AssessmentServiceKind>(serviceKindQ);
 
     const [clients, setClients] = useState<ClientOption[]>([]);
-    const [clientSearch, setClientSearch] = useState("");
+    const clientSelectOptions = useMemo<SearchableSelectOption[]>(
+        () =>
+            clients.map((client) => ({
+                value: client.client_id,
+                label: `${client.client_name?.trim() || "名称未設定"}（${client.client_id}）`,
+                searchText: [
+                    client.client_name,
+                    client.kana,
+                    client.client_id,
+                    client.service_kind,
+                ]
+                    .filter((value): value is string => Boolean(value))
+                    .join(" "),
+            })),
+        [clients]
+    );
 
     const [list, setList] = useState<AssessmentRecord[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(initialAssessmentId);
@@ -128,13 +149,13 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
     useEffect(() => {
         (async () => {
             const bearer = await getBearer();
-            const res = await fetch(`/api/assessment/clients?q=${encodeURIComponent(clientSearch)}`, {
+            const res = await fetch("/api/assessment/clients", {
                 headers: bearer ? { Authorization: bearer } : {},
             });
             const j = await res.json();
             if (j?.ok) setClients(j.data ?? []);
         })();
-    }, [clientSearch]);
+    }, []);
 
     // list fetch
     useEffect(() => {
@@ -720,35 +741,21 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
         <div className="p-4 space-y-3">
             <div className="flex flex-wrap gap-3 items-end">
                 <div>
-                    <div className="text-sm mb-1">利用者検索</div>
-                    <input
-                        className="border rounded px-2 py-1 w-64"
-                        value={clientSearch}
-                        onChange={(e) => setClientSearch(e.target.value)}
-                        placeholder="名前で絞り込み"
-                    />
-                </div>
-
-                <div>
                     <div className="text-sm mb-1">利用者（URLクエリ連動）</div>
-                    <select
-                        className="border rounded px-2 py-1 w-64"
+                    <SearchableSelect
+                        options={clientSelectOptions}
                         value={clientId}
-                        onChange={(e) => {
-                            const v = e.target.value;
+                        onChange={(value) => {
+                            const v = value ?? "";
                             setClientId(v);
                             setSelectedId(null);
                             setDetail(null);
                             syncQuery(v, serviceKind, null);
                         }}
-                    >
-                        <option value="">（選択してください）</option>
-                        {clients.map((c) => (
-                            <option key={c.client_id} value={c.client_id}>
-                                {c.client_name}（{c.client_id}）
-                            </option>
-                        ))}
-                    </select>
+                        placeholder="選択してください"
+                        searchPlaceholder="利用者名・カナ・IDで検索"
+                        className="w-72"
+                    />
                 </div>
 
                 <div>

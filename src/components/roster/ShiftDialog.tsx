@@ -16,6 +16,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
 import { createRpaRequestDetails } from "@/lib/spot_offer/createRpaRequestDetails";
 import { useRouter } from "next/navigation";
 
@@ -323,6 +324,24 @@ export default function ShiftDialog({
     const [spotConfirmed, setSpotConfirmed] =
     useState<SpotConfirmed | null>(null);
     const router = useRouter();
+
+    const staffSelectOptions = useMemo<SearchableSelectOption[]>(
+        () =>
+            staffOptions.map((staff) => ({
+                value: staff.id,
+                label: staff.name || staff.id,
+                searchText: [
+                    staff.name,
+                    staff.id,
+                    staff.team,
+                    staff.level,
+                    staff.status,
+                ]
+                    .filter((value): value is string => Boolean(value))
+                    .join(" "),
+            })),
+        [staffOptions]
+    );
 
     const breakValidationMessage = useMemo(() => {
     try {
@@ -953,38 +972,28 @@ const saveShiftOnly = async () => {
                             </label>
 
                             <div className="grid grid-cols-1 gap-3">
-                                <label className="block">
+                                <div className="block">
                                     <div className="text-xs text-gray-500">スタッフ1</div>
-                                    <select
+                                    <SearchableSelect
+                                        options={staffSelectOptions}
                                         value={form.staff_01_user_id}
-                                        onChange={(e) => setField('staff_01_user_id', e.target.value)}
-                                        className="w-full rounded border p-2"
-                                    >
-                                        <option value="">未設定</option>
-                                        {staffOptions.map((s) => (
-                                            <option key={s.id} value={s.id}>
-                                                {s.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
+                                        onChange={(value) => setField('staff_01_user_id', value ?? '')}
+                                        placeholder="未設定"
+                                        searchPlaceholder="スタッフを検索"
+                                    />
+                                </div>
 
                                 <div className="grid grid-cols-[1fr_auto] gap-3">
-                                    <label className="block">
+                                    <div className="block">
                                         <div className="text-xs text-gray-500">スタッフ2</div>
-                                        <select
+                                        <SearchableSelect
+                                            options={staffSelectOptions}
                                             value={form.staff_02_user_id}
-                                            onChange={(e) => setField('staff_02_user_id', e.target.value)}
-                                            className="w-full rounded border p-2"
-                                        >
-                                            <option value="">未設定</option>
-                                            {staffOptions.map((s) => (
-                                                <option key={s.id} value={s.id}>
-                                                    {s.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </label>
+                                            onChange={(value) => setField('staff_02_user_id', value ?? '')}
+                                            placeholder="未設定"
+                                            searchPlaceholder="スタッフを検索"
+                                        />
+                                    </div>
                                     <label className="flex items-end gap-2 pb-2 text-sm">
                                         <input
                                             type="checkbox"
@@ -996,21 +1005,16 @@ const saveShiftOnly = async () => {
                                 </div>
 
                                 <div className="grid grid-cols-[1fr_auto] gap-3">
-                                    <label className="block">
+                                    <div className="block">
                                         <div className="text-xs text-gray-500">スタッフ3</div>
-                                        <select
+                                        <SearchableSelect
+                                            options={staffSelectOptions}
                                             value={form.staff_03_user_id}
-                                            onChange={(e) => setField('staff_03_user_id', e.target.value)}
-                                            className="w-full rounded border p-2"
-                                        >
-                                            <option value="">未設定</option>
-                                            {staffOptions.map((s) => (
-                                                <option key={s.id} value={s.id}>
-                                                    {s.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </label>
+                                            onChange={(value) => setField('staff_03_user_id', value ?? '')}
+                                            placeholder="未設定"
+                                            searchPlaceholder="スタッフを検索"
+                                        />
+                                    </div>
                                     <label className="flex items-end gap-2 pb-2 text-sm">
                                         <input
                                             type="checkbox"

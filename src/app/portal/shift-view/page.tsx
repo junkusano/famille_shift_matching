@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { ShiftData } from "@/types/shift";
 import ShiftCard from "@/components/shift/ShiftCard";
 import { Button } from "@/components/ui/button";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
 import { format, startOfMonth, addMonths } from "date-fns";
 import Link from "next/link";
 
@@ -133,9 +134,9 @@ export default function ShiftViewPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [shifts, setShifts] = useState<ShiftData[]>([]);
   // ▼ 担当者セレクト：value=user_id, label=氏名（last_name_kanji + " " + first_name_kanji）
-  const [staffOptions, setStaffOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [staffOptions, setStaffOptions] = useState<SearchableSelectOption[]>([]);
   // ▼ 利用者セレクト：value=kaipoke_cs_id, 表示も kaipoke_cs_id
-  const [clientOptions, setClientOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [clientOptions, setClientOptions] = useState<SearchableSelectOption[]>([]);
 
   // 初期クエリ注入フラグ
   const [initDone, setInitDone] = useState<boolean>(false);
@@ -164,6 +165,99 @@ export default function ShiftViewPage() {
 
   // ===== データ取得（URLの各値に追従） =====
   const ready = useMemo(() => authChecked && initDone, [authChecked, initDone]);
+
+  useEffect(() => {
+    if (!authChecked) return;
+
+    const ac = new AbortController();
+    let alive = true;
+
+    type StaffMasterRow = {
+      user_id: string;
+      last_name_kanji: string | null;
+      first_name_kanji: string | null;
+      roster_sort?: number | string | null;
+    };
+
+    type ClientMasterRow = {
+      kaipoke_cs_id: string;
+      name: string | null;
+      kana?: string | null;
+      service_kind?: string | null;
+    };
+
+    const getRosterSort = (value: StaffMasterRow["roster_sort"]) => {
+      if (value == null || value === "") return Number.MAX_SAFE_INTEGER;
+      const n = Number(value);
+      return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
+    };
+
+    (async () => {
+      try {
+        const [staffRes, clientRes] = await Promise.all([
+          fetch("/api/users", { cache: "no-store", signal: ac.signal }),
+          fetch("/api/kaipoke-info", { cache: "no-store", signal: ac.signal }),
+        ]);
+
+        if (!staffRes.ok) throw new Error(`staff options load failed: ${staffRes.status}`);
+        if (!clientRes.ok) throw new Error(`client options load failed: ${clientRes.status}`);
+
+        const staffJson = await staffRes.json();
+        const clientJson = await clientRes.json();
+
+        if (!alive || ac.signal.aborted) return;
+
+        const staffRows: StaffMasterRow[] = Array.isArray(staffJson) ? staffJson : [];
+        const staffMasterOptions = staffRows
+          .filter((staff) => staff.user_id)
+          .map((staff) => {
+            const name = `${staff.last_name_kanji ?? ""} ${staff.first_name_kanji ?? ""}`.trim();
+            return {
+              value: staff.user_id,
+              label: name || staff.user_id,
+              searchText: `${name} ${staff.user_id}`,
+              rosterSort: getRosterSort(staff.roster_sort),
+            };
+          })
+          .sort((a, b) => {
+            if (a.rosterSort !== b.rosterSort) return a.rosterSort - b.rosterSort;
+            return a.label.localeCompare(b.label, "ja");
+          })
+          .map((option) => ({
+            value: option.value,
+            label: option.label,
+            searchText: option.searchText,
+          }));
+
+        const clientRows: ClientMasterRow[] = Array.isArray(clientJson) ? clientJson : [];
+        const clientMasterOptions = clientRows
+          .filter((client) => client.kaipoke_cs_id)
+          .map((client) => ({
+            value: client.kaipoke_cs_id,
+            label: client.name?.trim() || client.kaipoke_cs_id,
+            searchText: [
+              client.name,
+              client.kana,
+              client.kaipoke_cs_id,
+              client.service_kind,
+            ]
+              .filter((value): value is string => Boolean(value))
+              .join(" "),
+          }))
+          .sort((a, b) => a.label.localeCompare(b.label, "ja"));
+
+        setStaffOptions(staffMasterOptions);
+        setClientOptions(clientMasterOptions);
+      } catch (e) {
+        if (!ac.signal.aborted) console.error(e);
+      }
+    })();
+
+    return () => {
+      alive = false;
+      ac.abort();
+    };
+  }, [authChecked]);
 
   useEffect(() => {
     if (!ready) return;
@@ -288,82 +382,6 @@ export default function ShiftViewPage() {
         //setShifts(mapped);
         setShifts(mappedPage);
 
-        // ===== セレクト用の候補 =====
-        // 1) 担当者（user_entry_united_view から氏名ラベルを取得）
-        // mapped -> mappedPage に統一し、型を明示
-        const staffIds: string[] = Array.from(
-          new Set<string>(
-            mappedPage
-              .flatMap((m) => [
-                m.staff_01_user_id,
-                m.staff_02_user_id,
-                m.staff_03_user_id,
-              ])
-              // 空文字を除外しつつ string に絞る
-              .filter((v): v is string => !!v)
-          )
-        ).sort((a, b) => a.localeCompare(b, "ja"));
-
-        type UserEntry = {
-          user_id: string;
-          last_name_kanji: string | null;
-          first_name_kanji: string | null;
-        };
-
-        let staffOpts: Array<{ value: string; label: string }> = staffIds.map(id => ({ value: id, label: id }));
-        if (staffIds.length > 0) {
-          const { data: entries, error: entriesErr } = await supabase
-            .from("user_entry_united_view")
-            .select("user_id,last_name_kanji,first_name_kanji")
-            .in("user_id", staffIds);
-
-          if (entriesErr) throw entriesErr;
-
-          const byId = new Map<string, UserEntry>();
-          (entries ?? []).forEach((e: UserEntry) => byId.set(e.user_id, e));
-
-          staffOpts = staffIds.map((id) => {
-            const rec = byId.get(id);
-            const ln = (rec?.last_name_kanji ?? "").trim();
-            const fn = (rec?.first_name_kanji ?? "").trim();
-            const label = (ln || fn) ? `${ln} ${fn}`.trim() : id;
-            return { value: id, label };
-          }).sort((a, b) => a.label.localeCompare(b.label, "ja"));
-        }
-        setStaffOptions(staffOpts);
-
-        // 2) 利用者（kaipoke_cs_id をそのまま value/label に）
-        // 変更後（表示は cs_kaipoke_info.name、値は kaipoke_cs_id）
-        const clientIds: string[] = Array.from(
-          new Set<string>(
-            mappedPage
-              .map((m) => m.kaipoke_cs_id)
-              .filter((v): v is string => !!v)
-          )
-        ).sort((a, b) => a.localeCompare(b, "ja"));
-
-        type CsInfo = { kaipoke_cs_id: string; name: string | null };
-
-        let clientOpts: Array<{ value: string; label: string }> = clientIds.map(id => ({ value: id, label: id }));
-        if (clientIds.length > 0) {
-          const { data: csList, error: csErr } = await supabase
-            .from("cs_kaipoke_info")
-            .select("kaipoke_cs_id,name")
-            .in("kaipoke_cs_id", clientIds);
-          if (csErr) throw csErr;
-
-          const byId = new Map<string, CsInfo>();
-          (csList ?? []).forEach((c: CsInfo) => byId.set(c.kaipoke_cs_id, c));
-
-          clientOpts = clientIds.map((id: string) => {
-            const rec = byId.get(id);
-            const label = (rec?.name ?? "").trim() || id;  // name が無ければ id を表示
-            return { value: id, label };
-          }).sort((a, b) => a.label.localeCompare(b.label, "ja"));
-        }
-        setClientOptions(clientOpts);
-
-
       } catch (e) {
         console.error(e);
       } finally {
@@ -453,16 +471,13 @@ export default function ShiftViewPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 items-end">
         <div>
           <label className="text-xs">担当者（氏名表示 / 値は user_id）</label>
-          <select
-            className="w-full border rounded p-2"
+          <SearchableSelect
+            options={staffOptions}
             value={qUserId}
-            onChange={(e) => setQuery({ user_id: e.target.value || undefined })}
-          >
-            <option value="">— 指定なし —</option>
-            {staffOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+            onChange={(value) => setQuery({ user_id: value || undefined, page: "1" })}
+            placeholder="指定なし"
+            searchPlaceholder="担当者名・IDで検索"
+          />
         </div>
 
         <div>
@@ -477,16 +492,13 @@ export default function ShiftViewPage() {
 
         <div>
           <label className="text-xs">利用者（kaipoke_cs_id）</label>
-          <select
-            className="w-full border rounded p-2"
+          <SearchableSelect
+            options={clientOptions}
             value={qClient}
-            onChange={(e) => setQuery({ client: e.target.value || undefined })}
-          >
-            <option value="">— 指定なし —</option>
-            {clientOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+            onChange={(value) => setQuery({ client: value || undefined, page: "1" })}
+            placeholder="指定なし"
+            searchPlaceholder="利用者名・カナ・IDで検索"
+          />
         </div>
       </div>
       &nbsp;<Pager />

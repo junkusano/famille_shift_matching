@@ -4,6 +4,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/SearchableSelect'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import ShiftRecordLinkButton from '@/components/shift/ShiftRecordLinkButton'
@@ -412,9 +413,6 @@ export default function MonthlyRosterPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // ★ 追加: 利用者検索キーワードの State
-    const [clientSearchKeyword, setClientSearchKeyword] = useState<string>('')
-
     // 明細
     const [shifts, setShifts] = useState<ShiftRow[]>([])
     const [openRecordFor, setOpenRecordFor] = useState<string | null>(null)
@@ -780,16 +778,15 @@ export default function MonthlyRosterPage() {
     const csPrev = csIndex > 0 ? kaipokeCs[csIndex - 1] : null
     const csNext = csIndex >= 0 && csIndex < kaipokeCs.length - 1 ? kaipokeCs[csIndex + 1] : null
 
-    // ★ 追加: 検索キーワードで絞り込んだ利用者リスト
-    const filteredKaipokeCs = useMemo(() => {
-        const keyword = clientSearchKeyword.trim().toLowerCase();
-        if (!keyword) {
-            return kaipokeCs;
-        }
-        return kaipokeCs.filter(cs =>
-            cs.name.toLowerCase().includes(keyword)
-        );
-    }, [kaipokeCs, clientSearchKeyword]);
+    const kaipokeSelectOptions = useMemo<SearchableSelectOption[]>(
+        () =>
+            kaipokeCs.map((cs) => ({
+                value: cs.kaipoke_cs_id,
+                label: cs.name,
+                searchText: `${cs.name} ${cs.kaipoke_cs_id}`,
+            })),
+        [kaipokeCs]
+    );
 
     // ★ 特定コメント用ダイアログの状態
     const [tokuteiDialogOpen, setTokuteiDialogOpen] = useState(false);
@@ -1164,84 +1161,15 @@ if (
         [serviceCodes]
     );
 
-function SearchableStaffSelect({
-    value,
-    options,
-    onChange,
-    disabled,
-}: {
-    value: string;
-    options: { value: string; label: string }[];
-    onChange: (value: string) => void;
-    disabled?: boolean;
-}) {
-    const [open, setOpen] = useState(false);
-    const [keyword, setKeyword] = useState("");
-
-    const selected = options.find((o) => o.value === value);
-
-    const filtered = options.filter((o) =>
-        o.label.toLowerCase().includes(keyword.toLowerCase()) ||
-        o.value.toLowerCase().includes(keyword.toLowerCase())
+    const staffSelectOptions = useMemo<SearchableSelectOption[]>(
+        () =>
+            staffOptions.map((staff) => ({
+                value: staff.value,
+                label: staff.label || staff.value,
+                searchText: `${staff.label} ${staff.value}`,
+            })),
+        [staffOptions]
     );
-
-    return (
-        <div className="relative">
-            <button
-                type="button"
-                disabled={disabled}
-                onClick={() => setOpen((v) => !v)}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-left text-sm"
-            >
-                <span className={selected ? "text-slate-900" : "text-slate-500"}>
-                    {selected?.label ?? "--選択--"}
-                </span>
-            </button>
-
-            {open && (
-                <div className="absolute z-50 mt-1 w-56 rounded-md border bg-white p-2 shadow-lg">
-                    <Input
-                        value={keyword}
-                        onChange={(e) => setKeyword(e.target.value)}
-                        placeholder="担当者を検索"
-                        className="mb-2 h-8"
-                        autoFocus
-                    />
-
-                    <div className="max-h-60 overflow-y-auto">
-                        <button
-                            type="button"
-                            className="w-full rounded px-2 py-1 text-left text-sm hover:bg-slate-100"
-                            onClick={() => {
-                                onChange("");
-                                setKeyword("");
-                                setOpen(false);
-                            }}
-                        >
-                            --選択--
-                        </button>
-
-                        {filtered.map((o) => (
-                            <button
-                                key={o.value}
-                                type="button"
-                                className="w-full rounded px-2 py-1 text-left text-sm hover:bg-slate-100"
-                                onClick={() => {
-                                    onChange(o.value);
-                                    setKeyword("");
-                                    setOpen(false);
-                                }}
-                            >
-                                {o.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
-
 
     // 月リスト（過去5年〜未来12ヶ月）
     const monthOptions = useMemo(() => {
@@ -1360,40 +1288,16 @@ function SearchableStaffSelect({
                             前へ（{csPrev?.name ?? '-'}）
                         </Button>
 
-                        {/* ★ 追加: 検索用テキストボックス */}
-                        <div>
-                            <Input
-                                type="text"
-                                placeholder="利用者名検索 (冒頭一致)"
-                                value={clientSearchKeyword}
-                                onChange={(e) => setClientSearchKeyword(e.target.value)}
-                                className="w-[150px] bg-sky-50"
-                            />
-                        </div>
-
-                        <div>
-                            <Select
+                        <div className="w-64">
+                            <SearchableSelect
+                                options={kaipokeSelectOptions}
                                 value={selectedKaipokeCS}
-                                onValueChange={setSelectedKaipokeCS}
-                                className="w-[150px] bg-amber-50"
-                            >
-                                <SelectTrigger bg-amber-50>
-                                    <SelectValue placeholder="利用者を選択" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {/* 絞り込まれた利用者リストを表示 */}
-                                    {filteredKaipokeCs.map((cs) => (
-                                        <SelectItem key={cs.kaipoke_cs_id} value={cs.kaipoke_cs_id}>
-                                            {cs.name}
-                                        </SelectItem>
-                                    ))}
-                                    {/* 検索結果が0件の場合のメッセージ表示を削除します。
-                                       {filteredKaipokeCs.length === 0 && (
-                                            <SelectItem value="" disabled>検索結果なし</SelectItem> 
-                                       )}
-                                    */}
-                                </SelectContent>
-                            </Select>
+                                onChange={(value) => setSelectedKaipokeCS(value ?? "")}
+                                placeholder="利用者を選択"
+                                searchPlaceholder="利用者名・IDで検索"
+                                clearable={false}
+                                triggerClassName="bg-amber-50"
+                            />
                         </div>
                         <Button variant="secondary" disabled={!csNext} onClick={() => csNext && setSelectedKaipokeCS(csNext.kaipoke_cs_id)}>
                             次へ（{csNext?.name ?? '-'}）
@@ -1643,21 +1547,15 @@ function SearchableStaffSelect({
                                                     <span className="text-sm text-muted-foreground">スタッフ1</span>
                                                     <div className="w-44">
 
-                                                        <Select
+                                                        <SearchableSelect
+                                                            options={staffSelectOptions}
                                                             value={row.staff_01_user_id ?? ''}
-                                                            onValueChange={(v) => updateRow(row.shift_id, 'staff_01_user_id', v || null)}
-                                                        >
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="選択" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {staffOptions.map((o) => (
-                                                                    <SelectItem key={o.value} value={o.value}>
-                                                                        {o.label}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                            onChange={(value) => updateRow(row.shift_id, 'staff_01_user_id', value || null)}
+                                                            placeholder="選択"
+                                                            searchPlaceholder="スタッフを検索"
+                                                            disabled={readOnly}
+                                                            triggerClassName="min-h-9 py-1"
+                                                        />
 
                                                     </div>
                                                 </div>
@@ -1667,21 +1565,15 @@ function SearchableStaffSelect({
                                                     <span className="text-sm text-muted-foreground">スタッフ2</span>
                                                     <div className="w-44">
 
-                                                        <Select
+                                                        <SearchableSelect
+                                                            options={staffSelectOptions}
                                                             value={row.staff_02_user_id ?? ''}
-                                                            onValueChange={(v) => updateRow(row.shift_id, 'staff_02_user_id', v || null)}
-                                                        >
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="選択" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {staffOptions.map((o) => (
-                                                                    <SelectItem key={o.value} value={o.value}>
-                                                                        {o.label}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                            onChange={(value) => updateRow(row.shift_id, 'staff_02_user_id', value || null)}
+                                                            placeholder="選択"
+                                                            searchPlaceholder="スタッフを検索"
+                                                            disabled={readOnly}
+                                                            triggerClassName="min-h-9 py-1"
+                                                        />
 
                                                     </div>
                                                     <span className="text-sm text-muted-foreground">同</span>
@@ -1699,11 +1591,14 @@ function SearchableStaffSelect({
                                                     <span className="text-sm text-muted-foreground">スタッフ3</span>
                                                     <div className="w-44">
 
-                                                        <SearchableStaffSelect
+                                                        <SearchableSelect
+                                                            options={staffSelectOptions}
                                                             value={row.staff_03_user_id ?? ""}
-                                                            options={staffOptions}
-                                                            onChange={(v) => updateRow(row.shift_id, 'staff_03_user_id', v || null)}
+                                                            onChange={(value) => updateRow(row.shift_id, 'staff_03_user_id', value || null)}
+                                                            placeholder="選択"
+                                                            searchPlaceholder="スタッフを検索"
                                                             disabled={readOnly}
+                                                            triggerClassName="min-h-9 py-1"
                                                         />
 
                                                     </div>
@@ -1818,7 +1713,7 @@ function SearchableStaffSelect({
                                 draft={draft}
                                 updateDraft={updateDraft}
                                 serviceOptions={serviceOptions}
-                                staffOptions={staffOptions}
+                                staffOptions={staffSelectOptions}
                             />
                         </LockIf>
                         {/* ====== /新規追加行 ====== */}
@@ -2000,17 +1895,14 @@ function NewAddRow(props: NewAddRowProps) {
                         <div className="flex items-center gap-2">
                             <span className="text-sm text-muted-foreground">スタッフ1</span>
                             <div className="w-44">
-                                <Select
+                                <SearchableSelect
+                                    options={staffOptions}
                                     value={draft.staff_01_user_id ?? ''}
-                                    onValueChange={(v) => updateDraft('staff_01_user_id', v || null)}
-                                >
-                                    <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
-                                    <SelectContent>
-                                        {staffOptions.map((o) => (
-                                            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                    onChange={(value) => updateDraft('staff_01_user_id', value || null)}
+                                    placeholder="選択"
+                                    searchPlaceholder="スタッフを検索"
+                                    triggerClassName="min-h-9 py-1"
+                                />
                             </div>
                         </div>
 
@@ -2018,17 +1910,14 @@ function NewAddRow(props: NewAddRowProps) {
                         <div className="flex items-center gap-2">
                             <span className="text-sm text-muted-foreground">スタッフ2</span>
                             <div className="w-44">
-                                <Select
+                                <SearchableSelect
+                                    options={staffOptions}
                                     value={draft.staff_02_user_id ?? ''}
-                                    onValueChange={(v) => updateDraft('staff_02_user_id', v || null)}
-                                >
-                                    <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
-                                    <SelectContent>
-                                        {staffOptions.map((o) => (
-                                            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                    onChange={(value) => updateDraft('staff_02_user_id', value || null)}
+                                    placeholder="選択"
+                                    searchPlaceholder="スタッフを検索"
+                                    triggerClassName="min-h-9 py-1"
+                                />
                             </div>
                             <span className="text-sm text-muted-foreground">同</span>
                             <input
@@ -2043,17 +1932,14 @@ function NewAddRow(props: NewAddRowProps) {
                         <div className="flex items-center gap-2">
                             <span className="text-sm text-muted-foreground">スタッフ3</span>
                             <div className="w-44">
-                                <Select
+                                <SearchableSelect
+                                    options={staffOptions}
                                     value={draft.staff_03_user_id ?? ''}
-                                    onValueChange={(v) => updateDraft('staff_03_user_id', v || null)}
-                                >
-                                    <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
-                                    <SelectContent>
-                                        {staffOptions.map((o) => (
-                                            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                    onChange={(value) => updateDraft('staff_03_user_id', value || null)}
+                                    placeholder="選択"
+                                    searchPlaceholder="スタッフを検索"
+                                    triggerClassName="min-h-9 py-1"
+                                />
                             </div>
                             <span className="text-sm text-muted-foreground">同</span>
                             <input

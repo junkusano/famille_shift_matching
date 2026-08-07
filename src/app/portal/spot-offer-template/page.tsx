@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
 
 const RPA_TEMPLATE_ID = "caf1a290-b9ac-4eeb-84eb-eb7fd9936c2f";
 const REQUIRED_LICENSE_OPTIONS = [
@@ -260,6 +260,21 @@ type ParkingPreview = {
   };
   
   const [clientOptions, setClientOptions] = useState<ClientOption[]>([]);
+  const clientSelectOptions = useMemo<SearchableSelectOption[]>(
+    () =>
+      clientOptions.map((client) => ({
+        value: client.kaipoke_cs_id,
+        label: client.name || client.kaipoke_cs_id,
+        searchText: [
+          client.name,
+          client.kana,
+          client.kaipoke_cs_id,
+        ]
+          .filter((value): value is string => Boolean(value))
+          .join(" "),
+      })),
+    [clientOptions]
+  );
 
   const canAccess = useMemo(() => ["admin", "manager"].includes(role), [role]);
 
@@ -1275,18 +1290,13 @@ await fetchList();
                 <div className="md:col-span-2">
                   <FieldLabel>利用者選択</FieldLabel>
 
-               <Select value={fKaipokeCsId} onValueChange={setFKaipokeCsId}>
-                <SelectTrigger>
-                 <SelectValue placeholder="利用者を選択" />
-              </SelectTrigger>
-              <SelectContent>
-                {clientOptions.map((c) => (
-                <SelectItem key={c.kaipoke_cs_id} value={c.kaipoke_cs_id}>
-                 {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-           </Select>
+                  <SearchableSelect
+                    options={clientSelectOptions}
+                    value={fKaipokeCsId}
+                    onChange={(value) => setFKaipokeCsId(value ?? "")}
+                    placeholder="利用者を選択"
+                    searchPlaceholder="利用者名・カナ・IDで検索"
+                  />
           </div>
                 
                 <div className="md:col-span-2 xl:col-span-3 rounded-md border border-green-300 bg-green-50 p-3 text-sm">
