@@ -735,27 +735,30 @@ console.log(
         const bd = getGenderBorder(c);
 
         return {
-            position: "absolute",
-            top: topPx,
-            left: leftPx(dispHHmm(c.start_at)),
-            width: widthPx(dispHHmm(c.start_at), dispHHmm(c.end_at)),
-            height: ROW_HEIGHT - CARD_VPAD * 2,
-            borderRadius: 6,
-            background: bg,
-            border: bd,
-            mixBlendMode: "multiply",
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-start",
-            justifyContent: "flex-start",
-            padding: "4px 8px",
-            boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
-            cursor: "grab",
-            userSelect: "none",
-            lineHeight: 1.15,
-            gap: 2,
-        };
+    position: "absolute",
+    top: topPx,
+    left: leftPx(dispHHmm(c.start_at)),
+    width: widthPx(dispHHmm(c.start_at), dispHHmm(c.end_at)),
+    height: ROW_HEIGHT - CARD_VPAD * 2,
+    borderRadius: 6,
+    background: bg,
+    border: bd,
+    mixBlendMode: "multiply",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    padding: "4px 8px",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+    cursor: "grab",
+    userSelect: "none",
+    lineHeight: 1.15,
+    gap: 2,
+
+    // Googleカレンダーよりシフトを前面にする
+    zIndex: 2,
+};
     };
     const googleEventStyle = (
   event: GoogleCalendarEvent,
@@ -788,45 +791,45 @@ const topPx =
       googleEventBottomMargin;
 
   return {
-    position: "absolute",
-    top: topPx,
-    left: leftPx(eventTime.start),
-    width: widthPx(
-      eventTime.start,
-      eventTime.end,
-    ),
+  position: "absolute",
+  top: topPx,
+  left: leftPx(eventTime.start),
+  width: widthPx(
+    eventTime.start,
+    eventTime.end,
+  ),
 
-    // 高さを約2倍に変更
-    height: googleEventHeight,
-    minWidth: 4,
+  // 高さを約2倍に変更
+  height: googleEventHeight,
+  minWidth: 4,
 
-    borderRadius: 4,
+  borderRadius: 4,
 
-    // オレンジ色
-    border: "1px solid rgba(234, 88, 12, 0.85)",
-    background: "rgba(251, 146, 60, 0.55)",
+  // オレンジ色
+  border: "1px solid rgba(234, 88, 12, 0.85)",
+  background: "rgba(251, 146, 60, 0.55)",
 
-    color: "#7c2d12",
-    padding: "2px 5px",
-    fontSize: 11,
-    fontWeight: 600,
-    lineHeight: "14px",
+  color: "#7c2d12",
+  padding: "2px 5px",
+  fontSize: 11,
+  fontWeight: 600,
+  lineHeight: "14px",
 
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
 
-    cursor: "default",
-    userSelect: "none",
+  cursor: "default",
+  userSelect: "none",
 
-    // 後ろのシフトを見えるようにする
-    opacity: 0.72,
+  // 後ろのシフトを見えるようにする
+  opacity: 0.72,
 
-  // Googleカレンダーは最背面
+  // Googleカレンダーはシフトより背面
   zIndex: 1,
 
-  // クリック・ドラッグ操作をシフト側へ通す
-  pointerEvents: "none",
+  // Google予定自体はクリック可能
+  pointerEvents: "auto",
 
   boxSizing: "border-box",
 };
