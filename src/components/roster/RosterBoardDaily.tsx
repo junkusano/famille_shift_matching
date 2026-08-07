@@ -1148,6 +1148,21 @@ const topPx =
     displayTitle,
     "編集はGoogleカレンダーで行ってください",
   ].join("\n")}
+  onClick={(e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    alert(
+      [
+        "Googleカレンダーから同期された予定です。",
+        "",
+        `${eventTime.start}-${eventTime.end}`,
+        displayTitle,
+        "",
+        "編集はGoogleカレンダーで行ってください。",
+      ].join("\n"),
+    );
+  }}
 >
   {displayTitle}
 </div>
