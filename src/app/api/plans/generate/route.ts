@@ -167,6 +167,7 @@ type PlanSourceTextResult = {
 
   hasUsableSource: boolean;
   sourceLabels: string[];
+  serviceSupportDocNames: string[];
 };
 const TITLE_MAP: Record<PlanDocumentKind, string> = {
   障害福祉サービス:
@@ -306,6 +307,53 @@ async function buildPlanSourceText(
     console.warn("[plans/generate] cs_docs fetch failed", error.message);
   }
 
+  /*
+ * サービス内容・手順生成で優先して使用する資料を
+ * cs_docsから別途取得する。
+ *
+ * 通常資料の「最新8件」に入らなくても、
+ * 担当者会議や情報連携資料を取りこぼさない。
+ */
+  const {
+    data: serviceSupportDocs,
+    error: serviceSupportDocsError,
+  } = await supabaseAdmin
+    .from("cs_docs")
+    .select(
+      `
+      doc_name,
+      summary,
+      ocr_text,
+      created_at
+    `,
+    )
+    .eq(
+      "kaipoke_cs_id",
+      a.kaipoke_cs_id,
+    )
+    .or(
+      [
+        "doc_name.ilike.%サ担会%",
+        "doc_name.ilike.%担当者会議%",
+        "doc_name.ilike.%情報連携%",
+        "doc_name.ilike.%看護サマリー%",
+      ].join(","),
+    )
+    .order(
+      "created_at",
+      {
+        ascending: false,
+      },
+    )
+    .limit(8);
+
+  if (serviceSupportDocsError) {
+    console.warn(
+      "[plans/generate] service support docs fetch failed",
+      serviceSupportDocsError.message,
+    );
+  }
+
   const sourceLabels: string[] = [];
 
   const selectedCarePlanText =
@@ -371,6 +419,37 @@ async function buildPlanSourceText(
     })
     .filter(Boolean)
     .join("\n\n");
+
+  const serviceSupportDocText =
+    ((serviceSupportDocs ?? []) as CsDocRow[])
+      .map((doc) => {
+        const docName =
+          doc.doc_name ?? "支援資料";
+
+        const text = [
+          doc.summary ?? "",
+
+          /*
+           * 議事録等は具体的な支援内容・注意事項が
+           * OCR側にあることが多いため、
+           * 十分な長さを渡す。
+           */
+          doc.ocr_text
+            ? doc.ocr_text.slice(
+              0,
+              6000,
+            )
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        return text
+          ? `【${docName}】\n${text}`
+          : "";
+      })
+      .filter(Boolean)
+      .join("\n\n");
 
   const meetingMinutes = a.meeting_minutes?.trim()
     ? `【担当者会議議事録】\n${a.meeting_minutes.trim()}`
@@ -453,12 +532,39 @@ async function buildPlanSourceText(
    * 5. その他資料
    */
   const serviceText = [
+    /*
+     * assessments_records側に保存された
+     * 担当者会議議事録
+     */
     meetingMinutes,
+
+    /*
+     * cs_docs側の
+     * サ担会・担当者会議・情報連携・看護サマリー
+     */
+    serviceSupportDocText,
+
+    /*
+     * 実際に行った訪問介護記録
+     */
     visitNotesText,
+
+    /*
+     * アセスメント
+     */
     assessmentText,
+
+    /*
+     * 選択したケアプラン
+     */
     selectedCarePlanServiceText,
+
+    /*
+     * その他資料
+     */
     docText,
   ]
+
     .filter(
       (value) =>
         typeof value === "string" &&
@@ -478,8 +584,17 @@ async function buildPlanSourceText(
     text,
     serviceText,
     hasUsableSource,
+
     sourceLabels:
       [...new Set(sourceLabels)],
+
+    serviceSupportDocNames:
+      (serviceSupportDocs ?? [])
+        .map(
+          (doc) =>
+            doc.doc_name ?? "",
+        )
+        .filter(Boolean),
   };
 }
 
@@ -1147,11 +1262,14 @@ async function buildServiceDraftsByCategory(params: {
 - 読み取れなければ空文字にしてください。
 
 【手順・留意事項・観察ポイント procedure_notes】
-- 支援時の順序、声かけ、見守り、確認事項、転倒・誤嚥・血圧・疲労・疼痛等の留意事項を記載してください。
-- 選択したケアプランのOCR本文、アセスメント、担当者会議、直近の訪問記録を根拠にしてください。
-- 訪問記録に具体的な手順や注意事項がある場合は、優先して反映してください。
-- 医学的判断や資料にないリスクを創作しないでください。
-- 読み取れなければ空文字にしてください。
+- 担当者会議議事録、サ担会要点、情報連携資料、看護サマリー、アセスメント、訪問記録を重要な根拠として使用してください。
+- 「手順」という見出しがなくても、資料に記載された実際の支援方法、声かけ、見守り、確認事項、注意事項を手順・留意事項として整理してください。
+- 例えば「体調確認を行う」「透析日は疲労に注意」「転倒に注意」「持ち物確認」「送り出し」「帰宅時確認」等の記載があれば反映してください。
+- 同じ利用者について複数資料に共通して書かれている注意点は、特に重要な留意事項として扱ってください。
+- ケアプランだけに限定せず、担当者会議や実際の訪問記録を積極的に使用してください。
+- ただし資料に全く根拠のない動作・リスク・医学的判断は追加しないでください。
+- 根拠となる支援方法や留意事項が1つでもある場合は、可能な限り空文字にせず記載してください。
+- 本当に根拠がない場合のみ空文字にしてください。
 
 【本人・家族にやっていただくこと family_action】
 - 原則として空文字にしてください。
@@ -2605,6 +2723,13 @@ export async function POST(req: NextRequest) {
             source.serviceText.includes(
               "【選択された基準ケアプラン】",
             ),
+
+          service_support_doc_count:
+            source.serviceSupportDocNames.length,
+
+          service_support_doc_names:
+            source.serviceSupportDocNames,
+
         },
       );
 
