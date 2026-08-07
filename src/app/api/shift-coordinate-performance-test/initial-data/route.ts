@@ -74,8 +74,6 @@ type CsInfoRow = {
   standard_trans_ways: string | null;
   standard_purpose: string | null;
   biko: string | null;
-  sms_phone_number?: string | null;
-  kodoengo_plan_link?: string | null;
 };
 
 type ShiftDetailRow = {
@@ -115,7 +113,6 @@ type AttachmentLike = {
 type PerformanceShiftData = ShiftData & {
   basic_information?: string;
   shift_detail_information?: string;
-  sms_phone_number?: string | null;
 };
 
 function getSupabaseUrl() {
@@ -594,7 +591,7 @@ export async function GET(req: NextRequest) {
             stage: "supabase.cs_kaipoke_info",
             table: "cs_kaipoke_info",
             select:
-              "kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko, sms_phone_number, kodoengo_plan_link",
+              "kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko",
             column: "kaipoke_cs_id",
             values: kaipokeCsIds,
           }),
@@ -656,8 +653,6 @@ export async function GET(req: NextRequest) {
           standard_trans_ways: csInfo?.standard_trans_ways ?? "",
           standard_purpose: csInfo?.standard_purpose ?? "",
           biko: typeof csInfo?.biko === "string" ? csInfo.biko.trim() : "",
-          sms_phone_number: csInfo?.sms_phone_number ?? null,
-          kodoengo_plan_link: csInfo?.kodoengo_plan_link ?? null,
           basic_information: csDocsMap.get(kaipokeCsId) ?? "",
           shift_detail_information: shiftDetailMap.get(kaipokeCsId) ?? "",
           document_summary:

@@ -5,6 +5,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import type { CsDocRow, CsDocsFilters, CsDocsInitialData } from "@/lib/cs_docs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
 
 type DocOption = { value: string; label: string };
 
@@ -170,7 +171,6 @@ export default function CsDocsPageClient({
     const [dateFromInput, setDateFromInput] = useState(activeFilters.dateFrom);
     const [dateToInput, setDateToInput] = useState(activeFilters.dateTo);
     const [localFilterError, setLocalFilterError] = useState<string | null>(filterError);
-    const [kaipokeFilter, setKaipokeFilter] = useState<string>("");
 
     const hasActiveFilters =
         activeFilters.kaipokeCsId !== "" ||
@@ -180,16 +180,17 @@ export default function CsDocsPageClient({
         activeFilters.dateFrom !== "" ||
         activeFilters.dateTo !== "";
 
-    const filteredKaipokeList = useMemo(() => {
-        const q = kaipokeFilter.trim().toLowerCase();
-        if (!q) return initialData.kaipokeList;
-
-        return initialData.kaipokeList.filter((k) => {
-            const name = (k.name ?? "").toLowerCase();
-            const id = (k.kaipoke_cs_id ?? "").toLowerCase();
-            return name.includes(q) || id.includes(q);
-        });
-    }, [initialData.kaipokeList, kaipokeFilter]);
+    const kaipokeSelectOptions = useMemo<SearchableSelectOption[]>(
+        () =>
+            initialData.kaipokeList.map((k) => ({
+                value: k.kaipoke_cs_id,
+                label: `${k.name ?? "(氏名未設定)"} (${k.kaipoke_cs_id})`,
+                searchText: [k.name, k.kana, k.kaipoke_cs_id]
+                    .filter((value): value is string => Boolean(value))
+                    .join(" "),
+            })),
+        [initialData.kaipokeList],
+    );
 
     const pushFilters = (nextFilters: ActiveFilters) => {
         const dateError = validateDateRange(nextFilters.dateFrom, nextFilters.dateTo);
@@ -524,23 +525,8 @@ export default function CsDocsPageClient({
                     )}
                 </form>
 
-                <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-xs text-gray-600 whitespace-nowrap">利用者候補検索</div>
-                    <input
-                        value={kaipokeFilter}
-                        onChange={(e) => setKaipokeFilter(e.target.value)}
-                        placeholder="氏名 or kaipoke_cs_id で検索"
-                        className="border px-2 py-1 text-xs w-full max-w-sm"
-                    />
-                    {kaipokeFilter.trim() !== "" && (
-                        <button
-                            type="button"
-                            className="text-xs underline"
-                            onClick={() => setKaipokeFilter("")}
-                        >
-                            クリア
-                        </button>
-                    )}
+                <div className="text-xs text-gray-600">
+                    利用者欄は入力検索で候補を絞り込めます。
                 </div>
             </div>
 
@@ -602,24 +588,20 @@ export default function CsDocsPageClient({
                                                 <div className="text-gray-400">（利用者未特定）</div>
                                             )}
 
-                                            <select
+                                            <SearchableSelect
                                                 value={d.kaipoke_cs_id}
-                                                onChange={(e) =>
-                                                    patchDraft(row.id, { kaipoke_cs_id: e.target.value }, row)
+                                                onChange={(nextValue) =>
+                                                    patchDraft(row.id, { kaipoke_cs_id: nextValue ?? "" }, row)
                                                 }
-                                                className={[
-                                                    "border w-full",
+                                                options={kaipokeSelectOptions}
+                                                placeholder="(未設定)"
+                                                searchPlaceholder="氏名・カナ・kaipoke_cs_idで検索..."
+                                                maxVisibleOptions={50}
+                                                triggerClassName={[
+                                                    "min-h-8 py-1 text-xs",
                                                     needsPinkKaipoke(d.kaipoke_cs_id) ? "bg-pink-100" : "",
                                                 ].join(" ")}
-
-                                            >
-                                                <option value="">(未設定)</option>
-                                                {filteredKaipokeList.map((k) => (
-                                                    <option key={k.kaipoke_cs_id} value={k.kaipoke_cs_id}>
-                                                        {k.name} ({k.kaipoke_cs_id})
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            />
                                         </div>
                                     </td>
 

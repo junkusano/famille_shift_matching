@@ -20,6 +20,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Select, SelectItem } from "@/components/ui/select";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
 import { supabase } from "@/lib/supabaseClient";
 import type {
     EventTaskMetaResponse,
@@ -199,6 +200,28 @@ const [pagination, setPagination] = useState<Pagination>({
     const editTask = useMemo(() => tasks.find((t) => t.id === editId) ?? null, [tasks, editId]);
     const [addDocTypeId, setAddDocTypeId] = useState<string>("");
     const [addDocMemo, setAddDocMemo] = useState<string>("");
+    const clientSelectOptions = useMemo<SearchableSelectOption[]>(
+        () =>
+            (meta?.clients ?? []).map((client) => ({
+                value: client.kaipoke_cs_id,
+                label: `${client.name ?? client.kaipoke_cs_id}（${client.kaipoke_cs_id}）`,
+                searchText: [client.name, client.kaipoke_cs_id]
+                    .filter((value): value is string => Boolean(value))
+                    .join(" "),
+            })),
+        [meta?.clients],
+    );
+    const userSelectOptions = useMemo<SearchableSelectOption[]>(
+        () =>
+            (meta?.users ?? []).map((user) => ({
+                value: user.user_id,
+                label: `${user.name}（${user.user_id}）`,
+                searchText: [user.name, user.user_id]
+                    .filter((value): value is string => Boolean(value))
+                    .join(" "),
+            })),
+        [meta?.users],
+    );
 
     function handleSort(
     column:
@@ -537,54 +560,36 @@ return (
                     利用者
                 </label>
 
-                <Select
+                <SearchableSelect
                     value={clientFilter}
-                    onValueChange={(value) => {
-                        setClientFilter(value);
+                    onChange={(value) => {
+                        setClientFilter(value ?? "");
                         setPage(1);
                     }}
+                    options={clientSelectOptions}
                     placeholder="利用者を選択"
+                    searchPlaceholder="利用者名・kaipoke_cs_idで検索..."
                     disabled={loading}
-                >
-                    <SelectItem value="">すべて</SelectItem>
-
-                    {(meta?.clients ?? []).map((client) => (
-                        <SelectItem
-                            key={client.kaipoke_cs_id}
-                            value={client.kaipoke_cs_id}
-                        >
-                            {client.name ?? client.kaipoke_cs_id}
-                        </SelectItem>
-                    ))}
-                </Select>
+                    maxVisibleOptions={50}
+                />
             </div>
             <div className="space-y-1">
     <label className="text-sm font-medium">
         担当
     </label>
 
-    <Select
+    <SearchableSelect
         value={userFilter}
-        onValueChange={(value) => {
-            setUserFilter(value);
+        onChange={(value) => {
+            setUserFilter(value ?? "");
             setPage(1);
         }}
+        options={userSelectOptions}
         placeholder="担当を選択"
+        searchPlaceholder="担当者名・ユーザーIDで検索..."
         disabled={loading}
-    >
-        <SelectItem value="">
-            すべて
-        </SelectItem>
-
-        {(meta?.users ?? []).map((user) => (
-    <SelectItem
-        key={user.user_id}
-        value={user.user_id}
-    >
-        {user.name}
-    </SelectItem>
-))}
-    </Select>
+        maxVisibleOptions={50}
+    />
 </div>
         </div>
      </div>
@@ -623,36 +628,29 @@ return (
 
                         <div className="md:col-span-2">
                             <div className="md:col-span-2">
-                                <Select
+                                <SearchableSelect
                                     value={clientId}
-                                    onValueChange={setClientId}
+                                    onChange={(value) => setClientId(value ?? "")}
+                                    options={clientSelectOptions}
                                     placeholder="利用者選択"
+                                    searchPlaceholder="利用者名・kaipoke_cs_idで検索..."
                                     disabled={!canUse || loading}
-                                >
-                                    {(meta?.clients ?? []).map((c) => (
-                                        <SelectItem key={c.kaipoke_cs_id} value={c.kaipoke_cs_id}>
-                                            {c.name}（{c.kaipoke_cs_id}）
-                                        </SelectItem>
-                                    ))}
-                                </Select>
+                                    maxVisibleOptions={50}
+                                />
                             </div>
 
                         </div>
 
                         <div className="md:col-span-2">
-                            <Select
+                            <SearchableSelect
                                 value={userId}
-                                onValueChange={setUserId}
+                                onChange={(value) => setUserId(value ?? "")}
+                                options={userSelectOptions}
                                 placeholder="担当者（任意）"
+                                searchPlaceholder="担当者名・ユーザーIDで検索..."
                                 disabled={!canUse || loading}
-                            >
-                                <SelectItem value="">(未指定)</SelectItem>
-                                {(meta?.users ?? []).map((u) => (
-                                    <SelectItem key={u.user_id} value={u.user_id}>
-                                        {u.name}（{u.user_id}）
-                                    </SelectItem>
-                                ))}
-                            </Select>
+                                maxVisibleOptions={50}
+                            />
                         </div>
 
                         <div className="md:col-span-1">
@@ -970,18 +968,15 @@ return (
 
                             <div className="md:col-span-2">
                                 <div className="text-sm text-muted-foreground">担当者</div>
-                                <Select
+                                <SearchableSelect
                                     value={editTask.user_id ?? ""}
-                                    onValueChange={(v) => onUpdateTask({ user_id: v || null })}
+                                    onChange={(value) => onUpdateTask({ user_id: value || null })}
+                                    options={userSelectOptions}
+                                    placeholder="(未指定)"
+                                    searchPlaceholder="担当者名・ユーザーIDで検索..."
                                     disabled={!canUse || loading}
-                                >
-                                    <SelectItem value="">(未指定)</SelectItem>
-                                    {(meta?.users ?? []).map((u) => (
-                                        <SelectItem key={u.user_id} value={u.user_id}>
-                                            {u.name}（{u.user_id}）
-                                        </SelectItem>
-                                    ))}
-                                </Select>
+                                    maxVisibleOptions={50}
+                                />
                             </div>
 
                             <div className="md:col-span-4">

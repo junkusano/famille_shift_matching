@@ -14,6 +14,7 @@ import { addAreaPrefixToKana, hiraToKata } from '@/utils/kanaPrefix';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import DocUploader, { DocItem } from "@/components/DocUploader";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
 import {
     determineServicesFromCertificates,
     type DocMasterRow as CertMasterRow,
@@ -2556,12 +2557,34 @@ function UserOjtSection({ userId, userName }: { userId: string; userName?: strin
         userOptions.forEach(u => { m[u.user_id] = u.display_name; });
         return m;
     }, [userOptions]);
+    const userSelectOptions = useMemo<SearchableSelectOption[]>(
+        () =>
+            userOptions.map((u) => ({
+                value: u.user_id,
+                label: u.display_name,
+                searchText: [u.display_name, u.user_id]
+                    .filter((value): value is string => Boolean(value))
+                    .join(" "),
+            })),
+        [userOptions]
+    );
 
     const kaipokeNameById = useMemo(() => {
         const m: Record<string, string> = {};
         kaipokeOptions.forEach(k => { m[k.kaipoke_cs_id] = k.name; });
         return m;
     }, [kaipokeOptions]);
+    const kaipokeSelectOptions = useMemo<SearchableSelectOption[]>(
+        () =>
+            kaipokeOptions.map((k) => ({
+                value: k.kaipoke_cs_id,
+                label: k.name,
+                searchText: [k.name, k.kaipoke_cs_id]
+                    .filter((value): value is string => Boolean(value))
+                    .join(" "),
+            })),
+        [kaipokeOptions]
+    );
 
     // OJT レコード取得（対象 userId で絞り込み）
     const fetchRecords = useCallback(async () => {
@@ -2648,52 +2671,43 @@ function UserOjtSection({ userId, userName }: { userId: string; userName?: strin
                 {/* OJT 対象ユーザー */}
                 <div className="flex flex-col md:flex-row md:items-center gap-2">
                     <label className="md:w-24">対象ユーザー</label>
-                    <select
-                        className="border rounded px-2 py-1 flex-1 min-w-[200px]"
+                    <SearchableSelect
+                        className="flex-1 min-w-[200px]"
+                        options={userSelectOptions}
                         value={selectedUserId}
-                        onChange={e => setSelectedUserId(e.target.value)}
-                    >
-                        <option value="">選択してください</option>
-                        {userOptions.map(u => (
-                            <option key={u.user_id} value={u.user_id}>
-                                {u.display_name}
-                            </option>
-                        ))}
-                    </select>
+                        onChange={(value) => setSelectedUserId(value ?? "")}
+                        placeholder="選択してください"
+                        searchPlaceholder="氏名・ユーザーIDで検索..."
+                        maxVisibleOptions={50}
+                    />
                 </div>
 
                 {/* 指導者 */}
                 <div className="flex flex-col md:flex-row md:items-center gap-2">
                     <label className="md:w-24">指導者</label>
-                    <select
-                        className="border rounded px-2 py-1 flex-1 min-w-[200px]"
+                    <SearchableSelect
+                        className="flex-1 min-w-[200px]"
+                        options={userSelectOptions}
                         value={trainerUserId}
-                        onChange={e => setTrainerUserId(e.target.value)}
-                    >
-                        <option value="">（任意）</option>
-                        {userOptions.map(u => (
-                            <option key={u.user_id} value={u.user_id}>
-                                {u.display_name}
-                            </option>
-                        ))}
-                    </select>
+                        onChange={(value) => setTrainerUserId(value ?? "")}
+                        placeholder="（任意）"
+                        searchPlaceholder="氏名・ユーザーIDで検索..."
+                        maxVisibleOptions={50}
+                    />
                 </div>
 
                 {/* 事業所（カイポケ CS） */}
                 <div className="flex flex-col md:flex-row md:items-center gap-2">
                     <label className="md:w-24">利用者（カイポケCS）</label>
-                    <select
-                        className="border rounded px-2 py-1 flex-1 min-w-[200px]"
+                    <SearchableSelect
+                        className="flex-1 min-w-[200px]"
+                        options={kaipokeSelectOptions}
                         value={selectedKaipokeCsId}
-                        onChange={e => setSelectedKaipokeCsId(e.target.value)}
-                    >
-                        <option value="">（任意）</option>
-                        {kaipokeOptions.map(k => (
-                            <option key={k.kaipoke_cs_id} value={k.kaipoke_cs_id}>
-                                {k.name}
-                            </option>
-                        ))}
-                    </select>
+                        onChange={(value) => setSelectedKaipokeCsId(value ?? "")}
+                        placeholder="（任意）"
+                        searchPlaceholder="利用者名・kaipoke_cs_idで検索..."
+                        maxVisibleOptions={50}
+                    />
                 </div>
 
                 {/* 日付 + 開始時間 */}
@@ -2808,4 +2822,3 @@ function getUserIdSuggestions(
     }
     return candidates.filter(c => !existingIds.includes(c));
 }
-

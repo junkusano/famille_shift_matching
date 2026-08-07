@@ -24,7 +24,6 @@ type StaffRow = {
 type PerformanceShiftData = ShiftData & {
   basic_information?: string;
   shift_detail_information?: string;
-  sms_phone_number?: string | null;
 };
 
 type InitialLoadPerf = {

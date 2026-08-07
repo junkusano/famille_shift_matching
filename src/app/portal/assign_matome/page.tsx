@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
 
 // =======================
 // 型定義
@@ -96,6 +97,17 @@ export default function AssignMatomePage() {
     const [filterPostalArea, setFilterPostalArea] = useState("");
     const [filterStaff, setFilterStaff] = useState("");
     const [filterOrg, setFilterOrg] = useState("");
+    const staffSelectOptions = useMemo<SearchableSelectOption[]>(
+        () =>
+            staffOptions.map((staff) => ({
+                value: staff.user_id,
+                label: staff.name || staff.user_id,
+                searchText: [staff.name, staff.user_id, staff.org_unit_id]
+                    .filter((value): value is string => Boolean(value))
+                    .join(" "),
+            })),
+        [staffOptions],
+    );
 
     // -----------------------
     // 初期データ取得
@@ -582,18 +594,15 @@ export default function AssignMatomePage() {
 
                                 {/* 実績記録担当者フィルタ */}
                                 <th className="py-1 px-2">
-                                    <select
-                                        className="w-full border rounded px-1 py-0.5 text-xs"
+                                    <SearchableSelect
+                                        options={staffSelectOptions}
                                         value={filterStaff}
-                                        onChange={(e) => setFilterStaff(e.target.value)}
-                                    >
-                                        <option value="">(全て)</option>
-                                        {staffOptions.map((s) => (
-                                            <option key={s.user_id} value={s.user_id}>
-                                                {s.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        onChange={(value) => setFilterStaff(value ?? "")}
+                                        placeholder="(全て)"
+                                        searchPlaceholder="氏名・ユーザーIDで検索..."
+                                        maxVisibleOptions={50}
+                                        triggerClassName="min-h-8 py-1 text-xs"
+                                    />
                                 </th>
 
                                 {/* チームフィルタ */}
@@ -638,24 +647,21 @@ export default function AssignMatomePage() {
 
                                         {/* 実績記録担当者：Select */}
                                         <td className="py-1 px-2">
-                                            <select
-                                                className="w-full border rounded px-1 py-0.5 text-xs"
+                                            <SearchableSelect
+                                                options={staffSelectOptions}
                                                 value={row.asigned_jisseki_staff ?? ""}
-                                                onChange={(e) =>
+                                                onChange={(value) =>
                                                     handleStaffChange(
                                                         row.id,
                                                         row.asigned_jisseki_staff,
-                                                        e.target.value
+                                                        value ?? ""
                                                     )
                                                 }
-                                            >
-                                                <option value="">(未設定)</option>
-                                                {staffOptions.map((s) => (
-                                                    <option key={s.user_id} value={s.user_id}>
-                                                        {s.name}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                                placeholder="(未設定)"
+                                                searchPlaceholder="氏名・ユーザーIDで検索..."
+                                                maxVisibleOptions={50}
+                                                triggerClassName="min-h-8 py-1 text-xs"
+                                            />
                                             {row.errorStaff && (
                                                 <p className="text-[10px] text-red-600">
                                                     {row.errorStaff}

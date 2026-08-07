@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, Fragment } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import toast from "react-hot-toast"
 import Link from "next/link"
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect"
 
 /** -----------------------------
  * 型定義
@@ -39,14 +40,19 @@ type KaipokeInfo = {
 
 type TimeAdjustRow = { id: string; label: string }
 
-type FaxOption = { id: string; office_name: string }
+type FaxOption = { id: string; office_name: string; service_kind_label: string | null }
 
 type FaxOptionQuery = {
   id: string;
   office_name: string | null;
-  service_kinds: {
-    label: string;
-  }[];
+  service_kinds:
+  | {
+    label: string | null;
+  }
+  | {
+    label: string | null;
+  }[]
+  | null;
 };
 
 type Filters = {
@@ -93,6 +99,28 @@ export default function KaipokeInfoPage() {
   const [staffList, setStaffList] = useState<
     { user_id: string; name: string; org_unit_id: string | null }[]
   >([]);
+  const faxSelectOptions = useMemo<SearchableSelectOption[]>(
+    () =>
+      faxOptions.map((option) => ({
+        value: option.id,
+        label: option.office_name.trim() || "(名称未設定)",
+        searchText: [option.office_name, option.service_kind_label]
+          .filter((value): value is string => Boolean(value))
+          .join(" "),
+      })),
+    [faxOptions]
+  )
+  const staffSelectOptions = useMemo<SearchableSelectOption[]>(
+    () =>
+      staffList.map((staff) => ({
+        value: staff.user_id,
+        label: staff.name || staff.user_id,
+        searchText: [staff.name, staff.user_id, staff.org_unit_id]
+          .filter((value): value is string => Boolean(value))
+          .join(" "),
+      })),
+    [staffList]
+  )
 
   const listTopRef = useRef<HTMLDivElement>(null)
 
@@ -135,10 +163,20 @@ export default function KaipokeInfoPage() {
         .order("office_name")
 
       if (!error && data) {
-        const options = (data as FaxOptionQuery[]).map((row) => ({
-          id: row.id,
-          office_name: row.office_name ?? "",
-        }));
+        const options = (data as FaxOptionQuery[]).map((row) => {
+          const serviceKindLabel = Array.isArray(row.service_kinds)
+            ? row.service_kinds
+              .map((serviceKind) => serviceKind.label)
+              .filter((label): label is string => Boolean(label))
+              .join(" ")
+            : row.service_kinds?.label ?? null;
+
+          return {
+            id: row.id,
+            office_name: row.office_name ?? "",
+            service_kind_label: serviceKindLabel,
+          };
+        });
 
         setFaxOptions(options);
       }
@@ -571,18 +609,14 @@ export default function KaipokeInfoPage() {
                     </td>
                     <td className="border p-2">
                       <label className="text-sm">ケアマネ（相談支援）：</label>
-                      <select
+                      <SearchableSelect
+                        options={faxSelectOptions}
                         value={item.care_consultant || ""}
-                        onChange={e => handleChange(item.id, "care_consultant", e.target.value || null)}
-                        className="w-full border px-2 py-1"
-                      >
-                        <option value="">（未選択）</option>
-                        {faxOptions.map(opt => (
-                          <option key={opt.id} value={opt.id}>
-                            {opt.office_name}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(nextValue) => handleChange(item.id, "care_consultant", nextValue)}
+                        placeholder="（未選択）"
+                        searchPlaceholder="事業所名・サービス種別で検索..."
+                        maxVisibleOptions={50}
+                      />
                     </td>
                     <td className="border p-2">
                       <label className="text-sm">性別希望：</label>
@@ -691,11 +725,11 @@ export default function KaipokeInfoPage() {
                         {/* 実績担当者（assigned_jisseki_staff） */}
                         <div className="space-y-2">
                           <label className="block text-sm text-gray-600">実績担当者</label>
-                          <select
-                            className="w-full border rounded px-2 py-1"
+                          <SearchableSelect
+                            options={staffSelectOptions}
                             value={item.asigned_jisseki_staff ?? ""}
-                            onChange={(e) => {
-                              const newStaffId = e.target.value;
+                            onChange={(nextValue) => {
+                              const newStaffId = nextValue ?? "";
                               // 実績担当者IDを更新
                               handleChange(item.id, "asigned_jisseki_staff", newStaffId || null);
 
@@ -704,14 +738,10 @@ export default function KaipokeInfoPage() {
                               const newOrgId = selectedStaff?.org_unit_id ?? null;
                               handleChange(item.id, "asigned_org", newOrgId);
                             }}
-                          >
-                            <option value="">選択してください</option>
-                            {staffList.map((staff) => (
-                              <option key={staff.user_id} value={staff.user_id}>
-                                {staff.name} {/* 氏名（姓＋名） */}
-                              </option>
-                            ))}
-                          </select>
+                            placeholder="選択してください"
+                            searchPlaceholder="氏名・ユーザーIDで検索..."
+                            maxVisibleOptions={50}
+                          />
                         </div>
 
 

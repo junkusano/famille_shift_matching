@@ -257,6 +257,17 @@ export default function KaipokeInfoDetailPage() {
             }),
         [faxOptions],
     );
+    const staffSelectOptions = useMemo<SearchableSelectOption[]>(
+        () =>
+            staffList.map((staff) => ({
+                value: staff.user_id,
+                label: staff.name || staff.user_id,
+                searchText: [staff.name, staff.user_id, staff.org_unit_id]
+                    .filter((value): value is string => Boolean(value))
+                    .join(" "),
+            })),
+        [staffList],
+    );
 
     // client.service_kind が入ってる前提。無ければ "障害"
     const client = row;
@@ -1053,11 +1064,11 @@ export default function KaipokeInfoDetailPage() {
                 {/* 実績担当者（assigned_jisseki_staff） */}
                 <div className="space-y-2">
                     <label className="block text-sm text-gray-600">実績担当者</label>
-                    <select
-                        className="w-full border rounded px-2 py-1"
+                    <SearchableSelect
+                        options={staffSelectOptions}
                         value={row?.asigned_jisseki_staff ?? ""}
-                        onChange={(e) => {
-                            const newStaffId = e.target.value;
+                        onChange={(nextValue) => {
+                            const newStaffId = nextValue ?? "";
 
                             // 1) 実績担当者IDを更新
                             // 2) その担当者のチーム（org_unit_id：例外込み）を asigned_org に反映
@@ -1070,14 +1081,10 @@ export default function KaipokeInfoDetailPage() {
                                 asigned_org: newOrgId, // ← 担当者の org を保存
                             });
                         }}
-                    >
-                        <option value="">選択してください</option>
-                        {staffList.map((staff) => (
-                            <option key={staff.user_id} value={staff.user_id}>
-                                {staff.name} {/* 姓と名を結合して表示 */}
-                            </option>
-                        ))}
-                    </select>
+                        placeholder="選択してください"
+                        searchPlaceholder="氏名・ユーザーIDで検索..."
+                        maxVisibleOptions={50}
+                    />
                 </div>
             </div>
 
