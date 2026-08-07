@@ -14,7 +14,6 @@ const MAX_SHIFT_PAGES = 10;
 const IN_CHUNK_SIZE = 500;
 
 const SHIFT_SELECT = [
-  "id",
   "shift_id",
   "shift_start_date",
   "shift_start_time",
