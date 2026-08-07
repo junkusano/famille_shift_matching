@@ -1264,26 +1264,140 @@ function PlanPreview({
                 <table className="w-full border-collapse border border-black mt-2">
                     <tbody>
                         <tr>
-                            <Th className="w-[140px]">本人(家族)の希望</Th>
-                            <Td className="min-h-[55px] whitespace-pre-wrap" colSpan={5}>
+                            <Th className="w-[140px]">
+                                本人(家族)の希望
+                            </Th>
+
+                            <Td
+                                className="whitespace-pre-wrap"
+                                colSpan={5}
+                            >
                                 {planDraft.person_family_hope}
                             </Td>
                         </tr>
+
                         <tr>
                             <Th>援助目標</Th>
-                            <Td className="min-h-[55px] whitespace-pre-wrap" colSpan={5}>
+
+                            <Td
+                                className="whitespace-pre-wrap"
+                                colSpan={5}
+                            >
                                 {planDraft.assistance_goal}
                             </Td>
                         </tr>
+
+                        {plan.plan_document_kind ===
+                            "訪問介護サービス" ||
+                            plan.plan_document_kind ===
+                            "訪問介護予防サービス" ? (
+                            <>
+                                <tr>
+                                    <Th>
+                                        訪問介護利用までの経緯
+                                        <br />
+                                        （活動歴や病歴）
+                                    </Th>
+
+                                    <Td
+                                        className="whitespace-pre-wrap"
+                                        colSpan={5}
+                                    >
+                                        {
+                                            planDraft
+                                                .care_service_history
+                                        }
+                                    </Td>
+                                </tr>
+
+                                <tr>
+                                    <Th>
+                                        解決すべき課題
+                                    </Th>
+
+                                    <Td
+                                        className="whitespace-pre-wrap"
+                                        colSpan={5}
+                                    >
+                                        {
+                                            planDraft
+                                                .identified_needs
+                                        }
+                                    </Td>
+                                </tr>
+
+                                <tr>
+                                    <Th>
+                                        健康状態
+                                        <br />
+                                        <span className="text-[9px] font-normal">
+                                            病名、合併症、服薬状況等
+                                        </span>
+                                    </Th>
+
+                                    <Td
+                                        className="whitespace-pre-wrap"
+                                        colSpan={5}
+                                    >
+                                        {
+                                            planDraft
+                                                .health_status
+                                        }
+                                    </Td>
+                                </tr>
+
+                                <tr>
+                                    <Th>
+                                        ケアの上での医学的リスク
+                                        <br />
+                                        <span className="text-[9px] font-normal">
+                                            血圧、転倒、嚥下障害等・留意事項
+                                        </span>
+                                    </Th>
+
+                                    <Td
+                                        className="whitespace-pre-wrap"
+                                        colSpan={5}
+                                    >
+                                        {
+                                            planDraft
+                                                .medical_care_risks
+                                        }
+                                    </Td>
+                                </tr>
+
+                                <tr>
+                                    <Th>
+                                        自宅での活動・参加の状況
+                                        <br />
+                                        （役割など）
+                                    </Th>
+
+                                    <Td
+                                        className="whitespace-pre-wrap"
+                                        colSpan={5}
+                                    >
+                                        {
+                                            planDraft
+                                                .home_activity_participation
+                                        }
+                                    </Td>
+                                </tr>
+                            </>
+                        ) : null}
+
                         <tr>
                             <Th>備考</Th>
-                            <Td className="min-h-[45px] whitespace-pre-wrap" colSpan={5}>
+
+                            <Td
+                                className="whitespace-pre-wrap"
+                                colSpan={5}
+                            >
                                 {planDraft.remarks}
                             </Td>
                         </tr>
                     </tbody>
                 </table>
-
                 <table className="w-full border-collapse border border-black mt-2">
                     <tbody>
                         <tr>
