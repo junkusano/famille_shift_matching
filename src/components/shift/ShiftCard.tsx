@@ -1605,12 +1605,14 @@ const shiftDetailInformation = pickNonEmptyString(shift, [
               {mode === "view" ? (
                 null
               ) : mode === "request" ? (
-                <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>
-              ) : (
-                <Button className={REJECT_BTN_CLASS} onClick={() => setOpen(true)}>
-                  このシフトに入れない
-                </Button>
-              )}
+  <Button>
+    このシフトを希望する
+  </Button>
+) : (
+  <Button className={REJECT_BTN_CLASS}>
+    このシフトに入れない
+  </Button>
+)}
             </DialogTrigger>
             <DialogPortal>
               <DialogOverlay className="overlay-avoid-sidebar" />
