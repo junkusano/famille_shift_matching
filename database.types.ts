@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -7958,23 +7958,23 @@ export type Database = {
           source_filename: string
           taimee_user_id: string | null
           uploaded_at: string
-          "繝ｦ繝ｼ繧ｶ繝ｼID・医Θ繝ｼ繧ｶ繝ｼ縺ｫ繧医▲縺ｦ荳諢上↑蛟､・・: string
-          菴乗園: string | null
-          譛邨らｨｼ蜒肴律: string | null
-          蛻晏屓遞ｼ蜒肴律: string | null
-          蜷・ string | null
-          蟋・ string | null
-          諤ｧ蛻･: string | null
-          逕溷ｹｴ譛域律: string | null
-          邏ｯ險井ｺ､騾夊ｲｻ謾ｯ謇暮｡・ string | null
-          邏ｯ險亥ｮ溷ロ譎る俣: string | null
-          邏ｯ險域ｳ募ｮ壼､門牡蠅玲凾髢・ string | null
-          邏ｯ險域ｷｱ螟懷感蜒肴凾髢・ string | null
-          邏ｯ險域ｺ先ｳ牙ｾｴ蜿朱｡・ string | null
-          邏ｯ險育ｨｼ蜒榊屓謨ｰ: string | null
-          邏ｯ險育ｵｦ荳取髪謇暮｡・ string | null
-          邏ｯ險磯壼ｸｸ蜍､蜍呎凾髢・ string | null
-          髮ｻ隧ｱ逡ｪ蜿ｷ: string | null
+          "ユーザーID（ユーザーによって一意な値）": string
+          住所: string | null
+          最終稼働日: string | null
+          初回稼働日: string | null
+          名: string | null
+          姓: string | null
+          性別: string | null
+          生年月日: string | null
+          累計交通費支払額: string | null
+          累計実働時間: string | null
+          累計法定外割増時間: string | null
+          累計深夜労働時間: string | null
+          累計源泉徴収額: string | null
+          累計稼働回数: string | null
+          累計給与支払額: string | null
+          累計通常勤務時間: string | null
+          電話番号: string | null
         }
         Insert: {
           black_list?: boolean | null
@@ -7986,23 +7986,23 @@ export type Database = {
           source_filename: string
           taimee_user_id?: string | null
           uploaded_at?: string
-          "繝ｦ繝ｼ繧ｶ繝ｼID・医Θ繝ｼ繧ｶ繝ｼ縺ｫ繧医▲縺ｦ荳諢上↑蛟､・・: string
-          菴乗園?: string | null
-          譛邨らｨｼ蜒肴律?: string | null
-          蛻晏屓遞ｼ蜒肴律?: string | null
-          蜷・: string | null
-          蟋・: string | null
-          諤ｧ蛻･?: string | null
-          逕溷ｹｴ譛域律?: string | null
-          邏ｯ險井ｺ､騾夊ｲｻ謾ｯ謇暮｡・: string | null
-          邏ｯ險亥ｮ溷ロ譎る俣?: string | null
-          邏ｯ險域ｳ募ｮ壼､門牡蠅玲凾髢・: string | null
-          邏ｯ險域ｷｱ螟懷感蜒肴凾髢・: string | null
-          邏ｯ險域ｺ先ｳ牙ｾｴ蜿朱｡・: string | null
-          邏ｯ險育ｨｼ蜒榊屓謨ｰ?: string | null
-          邏ｯ險育ｵｦ荳取髪謇暮｡・: string | null
-          邏ｯ險磯壼ｸｸ蜍､蜍呎凾髢・: string | null
-          髮ｻ隧ｱ逡ｪ蜿ｷ?: string | null
+          "ユーザーID（ユーザーによって一意な値）": string
+          住所?: string | null
+          最終稼働日?: string | null
+          初回稼働日?: string | null
+          名?: string | null
+          姓?: string | null
+          性別?: string | null
+          生年月日?: string | null
+          累計交通費支払額?: string | null
+          累計実働時間?: string | null
+          累計法定外割増時間?: string | null
+          累計深夜労働時間?: string | null
+          累計源泉徴収額?: string | null
+          累計稼働回数?: string | null
+          累計給与支払額?: string | null
+          累計通常勤務時間?: string | null
+          電話番号?: string | null
         }
         Update: {
           black_list?: boolean | null
@@ -8014,23 +8014,23 @@ export type Database = {
           source_filename?: string
           taimee_user_id?: string | null
           uploaded_at?: string
-          "繝ｦ繝ｼ繧ｶ繝ｼID・医Θ繝ｼ繧ｶ繝ｼ縺ｫ繧医▲縺ｦ荳諢上↑蛟､・・?: string
-          菴乗園?: string | null
-          譛邨らｨｼ蜒肴律?: string | null
-          蛻晏屓遞ｼ蜒肴律?: string | null
-          蜷・: string | null
-          蟋・: string | null
-          諤ｧ蛻･?: string | null
-          逕溷ｹｴ譛域律?: string | null
-          邏ｯ險井ｺ､騾夊ｲｻ謾ｯ謇暮｡・: string | null
-          邏ｯ險亥ｮ溷ロ譎る俣?: string | null
-          邏ｯ險域ｳ募ｮ壼､門牡蠅玲凾髢・: string | null
-          邏ｯ險域ｷｱ螟懷感蜒肴凾髢・: string | null
-          邏ｯ險域ｺ先ｳ牙ｾｴ蜿朱｡・: string | null
-          邏ｯ險育ｨｼ蜒榊屓謨ｰ?: string | null
-          邏ｯ險育ｵｦ荳取髪謇暮｡・: string | null
-          邏ｯ險磯壼ｸｸ蜍､蜍呎凾髢・: string | null
-          髮ｻ隧ｱ逡ｪ蜿ｷ?: string | null
+          "ユーザーID（ユーザーによって一意な値）"?: string
+          住所?: string | null
+          最終稼働日?: string | null
+          初回稼働日?: string | null
+          名?: string | null
+          姓?: string | null
+          性別?: string | null
+          生年月日?: string | null
+          累計交通費支払額?: string | null
+          累計実働時間?: string | null
+          累計法定外割増時間?: string | null
+          累計深夜労働時間?: string | null
+          累計源泉徴収額?: string | null
+          累計稼働回数?: string | null
+          累計給与支払額?: string | null
+          累計通常勤務時間?: string | null
+          電話番号?: string | null
         }
         Relationships: []
       }
@@ -8413,61 +8413,61 @@ export type Database = {
       }
       user_notification_determination: {
         Row: {
-          "螟画峩蜑阪繧ｱ繧｢繝槭ロ謇句ｽ・: number | null
-          "螟画峩蜑阪繧ｹ繧ｭ繝ｫ蜉邂玲焔蠖・: number | null
-          "螟画峩蜑阪蜷郁ｨ・: number | null
-          "螟画峩蜑阪蝓ｺ譛ｬ邨ｦ": number | null
-          "螟画峩蜑阪遘∵怏霆頑･ｭ蜍吩ｽｿ逕ｨ謇句ｽ・: number | null
-          "螟画峩蜑阪閨ｷ邏・: string | null
-          "螟画峩蜑阪閨ｷ邏壽焔蠖・: number | null
-          "螟画峩蠕後繧ｱ繧｢繝槭ロ謇句ｽ・: number | null
-          "螟画峩蠕後繧ｹ繧ｭ繝ｫ蜉邂玲焔蠖・: number | null
-          "螟画峩蠕後蜷郁ｨ・: number | null
-          "螟画峩蠕後蝓ｺ譛ｬ邨ｦ": number | null
-          "螟画峩蠕後遘∵怏霆頑･ｭ蜍吩ｽｿ逕ｨ謇句ｽ・: number | null
-          "螟画峩蠕後閨ｷ邏・: string | null
-          "螟画峩蠕後閨ｷ邏壽焔蠖・: number | null
-          螟画峩譌･: string | null
-          蠕捺･ｭ蜩｡逡ｪ蜿ｷ: string | null
-          豌丞錐: string | null
+          "変更前　ケアマネ手当": number | null
+          "変更前　スキル加算手当": number | null
+          "変更前　合計": number | null
+          "変更前　基本給": number | null
+          "変更前　私有車業務使用手当": number | null
+          "変更前　職級": string | null
+          "変更前　職級手当": number | null
+          "変更後　ケアマネ手当": number | null
+          "変更後　スキル加算手当": number | null
+          "変更後　合計": number | null
+          "変更後　基本給": number | null
+          "変更後　私有車業務使用手当": number | null
+          "変更後　職級": string | null
+          "変更後　職級手当": number | null
+          変更日: string | null
+          従業員番号: string | null
+          氏名: string | null
         }
         Insert: {
-          "螟画峩蜑阪繧ｱ繧｢繝槭ロ謇句ｽ・?: number | null
-          "螟画峩蜑阪繧ｹ繧ｭ繝ｫ蜉邂玲焔蠖・?: number | null
-          "螟画峩蜑阪蜷郁ｨ・?: number | null
-          "螟画峩蜑阪蝓ｺ譛ｬ邨ｦ"?: number | null
-          "螟画峩蜑阪遘∵怏霆頑･ｭ蜍吩ｽｿ逕ｨ謇句ｽ・?: number | null
-          "螟画峩蜑阪閨ｷ邏・?: string | null
-          "螟画峩蜑阪閨ｷ邏壽焔蠖・?: number | null
-          "螟画峩蠕後繧ｱ繧｢繝槭ロ謇句ｽ・?: number | null
-          "螟画峩蠕後繧ｹ繧ｭ繝ｫ蜉邂玲焔蠖・?: number | null
-          "螟画峩蠕後蜷郁ｨ・?: number | null
-          "螟画峩蠕後蝓ｺ譛ｬ邨ｦ"?: number | null
-          "螟画峩蠕後遘∵怏霆頑･ｭ蜍吩ｽｿ逕ｨ謇句ｽ・?: number | null
-          "螟画峩蠕後閨ｷ邏・?: string | null
-          "螟画峩蠕後閨ｷ邏壽焔蠖・?: number | null
-          螟画峩譌･?: string | null
-          蠕捺･ｭ蜩｡逡ｪ蜿ｷ?: string | null
-          豌丞錐?: string | null
+          "変更前　ケアマネ手当"?: number | null
+          "変更前　スキル加算手当"?: number | null
+          "変更前　合計"?: number | null
+          "変更前　基本給"?: number | null
+          "変更前　私有車業務使用手当"?: number | null
+          "変更前　職級"?: string | null
+          "変更前　職級手当"?: number | null
+          "変更後　ケアマネ手当"?: number | null
+          "変更後　スキル加算手当"?: number | null
+          "変更後　合計"?: number | null
+          "変更後　基本給"?: number | null
+          "変更後　私有車業務使用手当"?: number | null
+          "変更後　職級"?: string | null
+          "変更後　職級手当"?: number | null
+          変更日?: string | null
+          従業員番号?: string | null
+          氏名?: string | null
         }
         Update: {
-          "螟画峩蜑阪繧ｱ繧｢繝槭ロ謇句ｽ・?: number | null
-          "螟画峩蜑阪繧ｹ繧ｭ繝ｫ蜉邂玲焔蠖・?: number | null
-          "螟画峩蜑阪蜷郁ｨ・?: number | null
-          "螟画峩蜑阪蝓ｺ譛ｬ邨ｦ"?: number | null
-          "螟画峩蜑阪遘∵怏霆頑･ｭ蜍吩ｽｿ逕ｨ謇句ｽ・?: number | null
-          "螟画峩蜑阪閨ｷ邏・?: string | null
-          "螟画峩蜑阪閨ｷ邏壽焔蠖・?: number | null
-          "螟画峩蠕後繧ｱ繧｢繝槭ロ謇句ｽ・?: number | null
-          "螟画峩蠕後繧ｹ繧ｭ繝ｫ蜉邂玲焔蠖・?: number | null
-          "螟画峩蠕後蜷郁ｨ・?: number | null
-          "螟画峩蠕後蝓ｺ譛ｬ邨ｦ"?: number | null
-          "螟画峩蠕後遘∵怏霆頑･ｭ蜍吩ｽｿ逕ｨ謇句ｽ・?: number | null
-          "螟画峩蠕後閨ｷ邏・?: string | null
-          "螟画峩蠕後閨ｷ邏壽焔蠖・?: number | null
-          螟画峩譌･?: string | null
-          蠕捺･ｭ蜩｡逡ｪ蜿ｷ?: string | null
-          豌丞錐?: string | null
+          "変更前　ケアマネ手当"?: number | null
+          "変更前　スキル加算手当"?: number | null
+          "変更前　合計"?: number | null
+          "変更前　基本給"?: number | null
+          "変更前　私有車業務使用手当"?: number | null
+          "変更前　職級"?: string | null
+          "変更前　職級手当"?: number | null
+          "変更後　ケアマネ手当"?: number | null
+          "変更後　スキル加算手当"?: number | null
+          "変更後　合計"?: number | null
+          "変更後　基本給"?: number | null
+          "変更後　私有車業務使用手当"?: number | null
+          "変更後　職級"?: string | null
+          "変更後　職級手当"?: number | null
+          変更日?: string | null
+          従業員番号?: string | null
+          氏名?: string | null
         }
         Relationships: []
       }
@@ -8530,286 +8530,286 @@ export type Database = {
           created_at: string
           id: string
           updated_at: string
-          繧ｭ繝｣繝ｳ繧ｻ繝ｫ蝗樊焚: number | null
-          "繧ｭ繝｣繝ｳ繧ｻ繝ｫ謇句ｽ・謾ｯ邨ｦ)": number | null
-          "繧ｰ繝ｫ繝ｼ繝嶺ｻ句勧謇句ｽ・謾ｯ邨ｦ)": number | null
-          繧ｰ繝ｫ繝ｼ繝嶺ｻ句勧譎る俣: string | null
-          "繧ｱ繧｢繝槭ロ謇句ｽ・謾ｯ邨ｦ)": number | null
-          繧ｵ繝ｼ繝薙せ蝗樊焚: number | null
-          "繧ｹ繧ｭ繝ｫ蜉邂暦ｼ亥・驕・隼蝟・刈邂暦ｼ・謾ｯ邨ｦ)": number | null
-          "繧ｹ繧ｭ繝ｫ蜉邂玲焔蠖・謾ｯ邨ｦ)": number | null
-          "縺昴・莉匁焔蠖・謾ｯ邨ｦ)": number | null
-          "縺昴・莉也ｲｾ邂鈴｡・謗ｧ髯､)": number | null
-          "繧ｿ繧､繝溘・遲牙・謇墓而髯､(謗ｧ髯､)": number | null
-          "繝・じ繝ｪ繝ｳ繧ｰ謇句ｽ・謾ｯ邨ｦ)": number | null
-          "荳榊ｰｱ蜉ｴ(謗ｧ髯､)": number | null
-          "莉玖ｭｷ菫晞匱譁・謗ｧ髯､)": number | null
-          "菴乗ｰ醍ｨ・謗ｧ髯､)": number | null
-          "蛛･蠎ｷ菫晞匱譁・謗ｧ髯､)": number | null
-          蛯呵・ string | null
-          "蜈域鴛邨ｦ荳守ｲｾ邂・謗ｧ髯､)": number | null
-          蜃ｦ驕・隼蝟・刈邂・ number | null
-          "蜃ｦ驕・隼蝟・刈邂・謾ｯ邨ｦ)": number | null
-          "蜃ｺ蜍､譌･謨ｰ・亥ｹｳ譌･・・: number | null
-          "蜃ｺ蜍､譌･謨ｰ・域園螳壻ｼ第律・・: number | null
-          "蜴夂函蟷ｴ驥台ｿ晞匱譁・謗ｧ髯､)": number | null
-          "蜷瑚｡梧抄隴ｷ遐比ｿｮ謇句ｽ・謾ｯ邨ｦ)": number | null
-          "蝓ｺ譛ｬ邨ｦ(謾ｯ邨ｦ)": number | null
-          "蟄舌←繧ゅ・蟄占ご縺ｦ謾ｯ謠ｴ驥・莨夂､ｾ)": number | null
-          "蟄舌←繧ゅ・蟄占ご縺ｦ謾ｯ謠ｴ驥・謗ｧ髯､)": number | null
-          蟾ｮ蠑墓髪邨ｦ蜷郁ｨ・ number | null
-          蟷ｴ譛ｫ蟷ｴ蟋句・蜍､譎る俣: string | null
-          "蟷ｴ譛ｫ蟷ｴ蟋句刈邂・謾ｯ邨ｦ)": number | null
-          "蟷ｴ隱ｿ驕惹ｸ崎ｶｳ遞朱｡・謗ｧ髯､)": number | null
-          "蠖ｹ蜑ｲ蝓ｺ貅匁焔蠖・謾ｯ邨ｦ)": number | null
-          "蠖ｹ蜩｡蝣ｱ驟ｬ(謾ｯ邨ｦ)": number | null
-          "蠖ｹ閨ｷ謇句ｽ・謾ｯ邨ｦ)": number | null
-          蠕捺･ｭ蜩｡: string | null
-          蠕捺･ｭ蜩｡逡ｪ蜿ｷ: string
-          "謇螳壻ｼ第律謇句ｽ・謾ｯ邨ｦ)": number | null
-          "謇螳壽凾髢難ｼ亥ｹｳ譌･・・: string | null
-          "謇蠕礼ｨ・謗ｧ髯､)": number | null
-          謖ｯ霎ｼ謾ｯ邨ｦ鬘榊粋險・ number | null
-          謗ｧ髯､蜷郁ｨ・ number | null
-          謾ｯ邨ｦ蜷郁ｨ・ number | null
-          謾ｯ邨ｦ譌･: string
-          "譎らｵｦ蜉邂・謾ｯ邨ｦ)": number | null
-          譎らｵｦ蜉邂玲凾髢・ string | null
-          "譛域ｬ｡蝣ｱ驟ｬ(謾ｯ邨ｦ)": number | null
-          譛我ｼ台ｻ倅ｸ取律謨ｰ: number | null
-          譛我ｼ大叙蠕玲律謨ｰ: number | null
-          譛我ｼ第ｮ区律謨ｰ: number | null
-          "譛臥ｵｦ謇句ｽ・謾ｯ邨ｦ)": number | null
-          "谺蜍､謗ｧ髯､(謾ｯ邨ｦ)": number | null
-          "谺蜍､譌･謨ｰ・亥ｹｳ譌･・・: number | null
-          "谿区･ｭ謇句ｽ・謾ｯ邨ｦ)": number | null
-          "豕募ｮ壼､匁凾髢難ｼ亥ｹｳ譌･・・: string | null
-          "豺ｱ螟懷・蜍､莉｣(謾ｯ邨ｦ)": number | null
-          "豺ｱ螟懈園螳壽凾髢難ｼ亥ｹｳ譌･・・: string | null
-          "豺ｱ螟懈ｮ区･ｭ謇句ｽ・謾ｯ邨ｦ)": number | null
-          "迚ｹ蛻･蜍､蜍呎焔蠖・謾ｯ邨ｦ)": number | null
-          "迚ｹ螳壼・驕・隼蝟・刈邂・謾ｯ邨ｦ)": number | null
-          "遐比ｿｮ螂ｨ蜉ｱ謇句ｽ・謾ｯ邨ｦ)": number | null
-          "遐比ｿｮ謇句ｽ・謾ｯ邨ｦ)": number | null
-          遐比ｿｮ譎る俣: string | null
-          "遐比ｿｮ雋ｻ陬懷勧霑秘≡(謗ｧ髯､)": number | null
-          "遐比ｿｮ雋ｻ雋ｸ莉倬≡(謗ｧ髯､)": number | null
-          遉ｾ莨壻ｿ晞匱譁吝粋險・ number | null
-          "遉ｾ螳・ｲｻ/霆贋ｻ｣/鬧占ｻ雁ｴ莉｣(謗ｧ髯､)": number | null
-          "遖丞茜蜴夂函雋ｻ(謾ｯ邨ｦ)": number | null
-          "遘∵怏霆頑･ｭ蜍吩ｽｿ逕ｨ謇句ｽ・謾ｯ邨ｦ)": number | null
-          "遘ｻ蜍募刈邂暦ｼ育援驕捺髪謠ｴ・・謾ｯ邨ｦ)": number | null
-          遘ｻ蜍募屓謨ｰ: number | null
-          "邂｡逅・せ繝代Φ謇句ｽ・謾ｯ邨ｦ)": number | null
-          "邏ｹ莉区焔蠖・謾ｯ邨ｦ)": number | null
-          "邨瑚ｲｻ邊ｾ邂礼ｭ・謾ｯ邨ｦ)": number | null
-          "邱丞感蜒肴凾髢難ｼ亥ｹｳ譌･・・: string | null
-          "閨ｷ邏壽焔蠖・謾ｯ邨ｦ)": number | null
-          "雉・ｼ謇句ｽ・謾ｯ邨ｦ)": number | null
-          "霄ｫ菴薙・蜷瑚｡後・陦悟虚蜉邂・謾ｯ邨ｦ)": number | null
-          "霄ｫ菴薙・蜷瑚｡後・陦悟虚譎る俣": string | null
-          "騾壼共謇句ｽ難ｼ医◎縺ｮ莉厄ｼ・謾ｯ邨ｦ)": number | null
-          "騾壼共謇句ｽ・謾ｯ邨ｦ)": number | null
-          "騾壼共謇句ｽ難ｼ域怦鬘搾ｼ・謾ｯ邨ｦ)": number | null
-          "騾夐劼莉句勧遲会ｼ郁ｺｫ菴薙↑縺暦ｼ・謾ｯ邨ｦ)": number | null
-          "騾夐劼遲我ｻ句勧・郁ｺｫ菴薙↑縺暦ｼ・謾ｯ邨ｦ)": number | null
-          "騾夐劼遲我ｻ句勧・郁ｺｫ菴薙↑縺暦ｼ画凾髢・: string | null
-          "驥崎ｨｪ遘ｻ蜍募刈邂・謾ｯ邨ｦ)": number | null
-          驥崎ｨｪ遘ｻ蜍墓凾髢・ string | null
-          "髮・畑菫晞匱譁・謗ｧ髯､)": number | null
-          "鬟滉ｺ句刈邂・謾ｯ邨ｦ)": number | null
-          鬟滉ｺ句屓謨ｰ: number | null
-          "鬟滉ｺ区焔蠖・謾ｯ邨ｦ)": number | null
+          キャンセル回数: number | null
+          "キャンセル手当(支給)": number | null
+          "グループ介助手当(支給)": number | null
+          グループ介助時間: string | null
+          "ケアマネ手当(支給)": number | null
+          サービス回数: number | null
+          "スキル加算（処遇改善加算）(支給)": number | null
+          "スキル加算手当(支給)": number | null
+          "その他手当(支給)": number | null
+          "その他精算額(控除)": number | null
+          "タイミー等先払控除(控除)": number | null
+          "テザリング手当(支給)": number | null
+          "不就労(控除)": number | null
+          "介護保険料(控除)": number | null
+          "住民税(控除)": number | null
+          "健康保険料(控除)": number | null
+          備考: string | null
+          "先払給与精算(控除)": number | null
+          処遇改善加算: number | null
+          "処遇改善加算(支給)": number | null
+          "出勤日数（平日）": number | null
+          "出勤日数（所定休日）": number | null
+          "厚生年金保険料(控除)": number | null
+          "同行援護研修手当(支給)": number | null
+          "基本給(支給)": number | null
+          "子ども・子育て支援金(会社)": number | null
+          "子ども・子育て支援金(控除)": number | null
+          差引支給合計: number | null
+          年末年始出勤時間: string | null
+          "年末年始加算(支給)": number | null
+          "年調過不足税額(控除)": number | null
+          "役割基準手当(支給)": number | null
+          "役員報酬(支給)": number | null
+          "役職手当(支給)": number | null
+          従業員: string | null
+          従業員番号: string
+          "所定休日手当(支給)": number | null
+          "所定時間（平日）": string | null
+          "所得税(控除)": number | null
+          振込支給額合計: number | null
+          控除合計: number | null
+          支給合計: number | null
+          支給日: string
+          "時給加算(支給)": number | null
+          時給加算時間: string | null
+          "月次報酬(支給)": number | null
+          有休付与日数: number | null
+          有休取得日数: number | null
+          有休残日数: number | null
+          "有給手当(支給)": number | null
+          "欠勤控除(支給)": number | null
+          "欠勤日数（平日）": number | null
+          "残業手当(支給)": number | null
+          "法定外時間（平日）": string | null
+          "深夜出勤代(支給)": number | null
+          "深夜所定時間（平日）": string | null
+          "深夜残業手当(支給)": number | null
+          "特別勤務手当(支給)": number | null
+          "特定処遇改善加算(支給)": number | null
+          "研修奨励手当(支給)": number | null
+          "研修手当(支給)": number | null
+          研修時間: string | null
+          "研修費補助返金(控除)": number | null
+          "研修費貸付金(控除)": number | null
+          社会保険料合計: number | null
+          "社宅費/車代/駐車場代(控除)": number | null
+          "福利厚生費(支給)": number | null
+          "私有車業務使用手当(支給)": number | null
+          "移動加算（片道支援）(支給)": number | null
+          移動回数: number | null
+          "管理スパン手当(支給)": number | null
+          "紹介手当(支給)": number | null
+          "経費精算等(支給)": number | null
+          "総労働時間（平日）": string | null
+          "職級手当(支給)": number | null
+          "資格手当(支給)": number | null
+          "身体・同行・行動加算(支給)": number | null
+          "身体・同行・行動時間": string | null
+          "通勤手当（その他）(支給)": number | null
+          "通勤手当(支給)": number | null
+          "通勤手当（月額）(支給)": number | null
+          "通院介助等（身体なし）(支給)": number | null
+          "通院等介助（身体なし）(支給)": number | null
+          "通院等介助（身体なし）時間": string | null
+          "重訪移動加算(支給)": number | null
+          重訪移動時間: string | null
+          "雇用保険料(控除)": number | null
+          "食事加算(支給)": number | null
+          食事回数: number | null
+          "食事手当(支給)": number | null
         }
         Insert: {
           created_at?: string
           id?: string
           updated_at?: string
-          繧ｭ繝｣繝ｳ繧ｻ繝ｫ蝗樊焚?: number | null
-          "繧ｭ繝｣繝ｳ繧ｻ繝ｫ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "繧ｰ繝ｫ繝ｼ繝嶺ｻ句勧謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          繧ｰ繝ｫ繝ｼ繝嶺ｻ句勧譎る俣?: string | null
-          "繧ｱ繧｢繝槭ロ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          繧ｵ繝ｼ繝薙せ蝗樊焚?: number | null
-          "繧ｹ繧ｭ繝ｫ蜉邂暦ｼ亥・驕・隼蝟・刈邂暦ｼ・謾ｯ邨ｦ)"?: number | null
-          "繧ｹ繧ｭ繝ｫ蜉邂玲焔蠖・謾ｯ邨ｦ)"?: number | null
-          "縺昴・莉匁焔蠖・謾ｯ邨ｦ)"?: number | null
-          "縺昴・莉也ｲｾ邂鈴｡・謗ｧ髯､)"?: number | null
-          "繧ｿ繧､繝溘・遲牙・謇墓而髯､(謗ｧ髯､)"?: number | null
-          "繝・じ繝ｪ繝ｳ繧ｰ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "荳榊ｰｱ蜉ｴ(謗ｧ髯､)"?: number | null
-          "莉玖ｭｷ菫晞匱譁・謗ｧ髯､)"?: number | null
-          "菴乗ｰ醍ｨ・謗ｧ髯､)"?: number | null
-          "蛛･蠎ｷ菫晞匱譁・謗ｧ髯､)"?: number | null
-          蛯呵・: string | null
-          "蜈域鴛邨ｦ荳守ｲｾ邂・謗ｧ髯､)"?: number | null
-          蜃ｦ驕・隼蝟・刈邂・: number | null
-          "蜃ｦ驕・隼蝟・刈邂・謾ｯ邨ｦ)"?: number | null
-          "蜃ｺ蜍､譌･謨ｰ・亥ｹｳ譌･・・?: number | null
-          "蜃ｺ蜍､譌･謨ｰ・域園螳壻ｼ第律・・?: number | null
-          "蜴夂函蟷ｴ驥台ｿ晞匱譁・謗ｧ髯､)"?: number | null
-          "蜷瑚｡梧抄隴ｷ遐比ｿｮ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "蝓ｺ譛ｬ邨ｦ(謾ｯ邨ｦ)"?: number | null
-          "蟄舌←繧ゅ・蟄占ご縺ｦ謾ｯ謠ｴ驥・莨夂､ｾ)"?: number | null
-          "蟄舌←繧ゅ・蟄占ご縺ｦ謾ｯ謠ｴ驥・謗ｧ髯､)"?: number | null
-          蟾ｮ蠑墓髪邨ｦ蜷郁ｨ・: number | null
-          蟷ｴ譛ｫ蟷ｴ蟋句・蜍､譎る俣?: string | null
-          "蟷ｴ譛ｫ蟷ｴ蟋句刈邂・謾ｯ邨ｦ)"?: number | null
-          "蟷ｴ隱ｿ驕惹ｸ崎ｶｳ遞朱｡・謗ｧ髯､)"?: number | null
-          "蠖ｹ蜑ｲ蝓ｺ貅匁焔蠖・謾ｯ邨ｦ)"?: number | null
-          "蠖ｹ蜩｡蝣ｱ驟ｬ(謾ｯ邨ｦ)"?: number | null
-          "蠖ｹ閨ｷ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          蠕捺･ｭ蜩｡?: string | null
-          蠕捺･ｭ蜩｡逡ｪ蜿ｷ: string
-          "謇螳壻ｼ第律謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "謇螳壽凾髢難ｼ亥ｹｳ譌･・・?: string | null
-          "謇蠕礼ｨ・謗ｧ髯､)"?: number | null
-          謖ｯ霎ｼ謾ｯ邨ｦ鬘榊粋險・: number | null
-          謗ｧ髯､蜷郁ｨ・: number | null
-          謾ｯ邨ｦ蜷郁ｨ・: number | null
-          謾ｯ邨ｦ譌･: string
-          "譎らｵｦ蜉邂・謾ｯ邨ｦ)"?: number | null
-          譎らｵｦ蜉邂玲凾髢・: string | null
-          "譛域ｬ｡蝣ｱ驟ｬ(謾ｯ邨ｦ)"?: number | null
-          譛我ｼ台ｻ倅ｸ取律謨ｰ?: number | null
-          譛我ｼ大叙蠕玲律謨ｰ?: number | null
-          譛我ｼ第ｮ区律謨ｰ?: number | null
-          "譛臥ｵｦ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "谺蜍､謗ｧ髯､(謾ｯ邨ｦ)"?: number | null
-          "谺蜍､譌･謨ｰ・亥ｹｳ譌･・・?: number | null
-          "谿区･ｭ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "豕募ｮ壼､匁凾髢難ｼ亥ｹｳ譌･・・?: string | null
-          "豺ｱ螟懷・蜍､莉｣(謾ｯ邨ｦ)"?: number | null
-          "豺ｱ螟懈園螳壽凾髢難ｼ亥ｹｳ譌･・・?: string | null
-          "豺ｱ螟懈ｮ区･ｭ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "迚ｹ蛻･蜍､蜍呎焔蠖・謾ｯ邨ｦ)"?: number | null
-          "迚ｹ螳壼・驕・隼蝟・刈邂・謾ｯ邨ｦ)"?: number | null
-          "遐比ｿｮ螂ｨ蜉ｱ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "遐比ｿｮ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          遐比ｿｮ譎る俣?: string | null
-          "遐比ｿｮ雋ｻ陬懷勧霑秘≡(謗ｧ髯､)"?: number | null
-          "遐比ｿｮ雋ｻ雋ｸ莉倬≡(謗ｧ髯､)"?: number | null
-          遉ｾ莨壻ｿ晞匱譁吝粋險・: number | null
-          "遉ｾ螳・ｲｻ/霆贋ｻ｣/鬧占ｻ雁ｴ莉｣(謗ｧ髯､)"?: number | null
-          "遖丞茜蜴夂函雋ｻ(謾ｯ邨ｦ)"?: number | null
-          "遘∵怏霆頑･ｭ蜍吩ｽｿ逕ｨ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "遘ｻ蜍募刈邂暦ｼ育援驕捺髪謠ｴ・・謾ｯ邨ｦ)"?: number | null
-          遘ｻ蜍募屓謨ｰ?: number | null
-          "邂｡逅・せ繝代Φ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "邏ｹ莉区焔蠖・謾ｯ邨ｦ)"?: number | null
-          "邨瑚ｲｻ邊ｾ邂礼ｭ・謾ｯ邨ｦ)"?: number | null
-          "邱丞感蜒肴凾髢難ｼ亥ｹｳ譌･・・?: string | null
-          "閨ｷ邏壽焔蠖・謾ｯ邨ｦ)"?: number | null
-          "雉・ｼ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "霄ｫ菴薙・蜷瑚｡後・陦悟虚蜉邂・謾ｯ邨ｦ)"?: number | null
-          "霄ｫ菴薙・蜷瑚｡後・陦悟虚譎る俣"?: string | null
-          "騾壼共謇句ｽ難ｼ医◎縺ｮ莉厄ｼ・謾ｯ邨ｦ)"?: number | null
-          "騾壼共謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "騾壼共謇句ｽ難ｼ域怦鬘搾ｼ・謾ｯ邨ｦ)"?: number | null
-          "騾夐劼莉句勧遲会ｼ郁ｺｫ菴薙↑縺暦ｼ・謾ｯ邨ｦ)"?: number | null
-          "騾夐劼遲我ｻ句勧・郁ｺｫ菴薙↑縺暦ｼ・謾ｯ邨ｦ)"?: number | null
-          "騾夐劼遲我ｻ句勧・郁ｺｫ菴薙↑縺暦ｼ画凾髢・?: string | null
-          "驥崎ｨｪ遘ｻ蜍募刈邂・謾ｯ邨ｦ)"?: number | null
-          驥崎ｨｪ遘ｻ蜍墓凾髢・: string | null
-          "髮・畑菫晞匱譁・謗ｧ髯､)"?: number | null
-          "鬟滉ｺ句刈邂・謾ｯ邨ｦ)"?: number | null
-          鬟滉ｺ句屓謨ｰ?: number | null
-          "鬟滉ｺ区焔蠖・謾ｯ邨ｦ)"?: number | null
+          キャンセル回数?: number | null
+          "キャンセル手当(支給)"?: number | null
+          "グループ介助手当(支給)"?: number | null
+          グループ介助時間?: string | null
+          "ケアマネ手当(支給)"?: number | null
+          サービス回数?: number | null
+          "スキル加算（処遇改善加算）(支給)"?: number | null
+          "スキル加算手当(支給)"?: number | null
+          "その他手当(支給)"?: number | null
+          "その他精算額(控除)"?: number | null
+          "タイミー等先払控除(控除)"?: number | null
+          "テザリング手当(支給)"?: number | null
+          "不就労(控除)"?: number | null
+          "介護保険料(控除)"?: number | null
+          "住民税(控除)"?: number | null
+          "健康保険料(控除)"?: number | null
+          備考?: string | null
+          "先払給与精算(控除)"?: number | null
+          処遇改善加算?: number | null
+          "処遇改善加算(支給)"?: number | null
+          "出勤日数（平日）"?: number | null
+          "出勤日数（所定休日）"?: number | null
+          "厚生年金保険料(控除)"?: number | null
+          "同行援護研修手当(支給)"?: number | null
+          "基本給(支給)"?: number | null
+          "子ども・子育て支援金(会社)"?: number | null
+          "子ども・子育て支援金(控除)"?: number | null
+          差引支給合計?: number | null
+          年末年始出勤時間?: string | null
+          "年末年始加算(支給)"?: number | null
+          "年調過不足税額(控除)"?: number | null
+          "役割基準手当(支給)"?: number | null
+          "役員報酬(支給)"?: number | null
+          "役職手当(支給)"?: number | null
+          従業員?: string | null
+          従業員番号: string
+          "所定休日手当(支給)"?: number | null
+          "所定時間（平日）"?: string | null
+          "所得税(控除)"?: number | null
+          振込支給額合計?: number | null
+          控除合計?: number | null
+          支給合計?: number | null
+          支給日: string
+          "時給加算(支給)"?: number | null
+          時給加算時間?: string | null
+          "月次報酬(支給)"?: number | null
+          有休付与日数?: number | null
+          有休取得日数?: number | null
+          有休残日数?: number | null
+          "有給手当(支給)"?: number | null
+          "欠勤控除(支給)"?: number | null
+          "欠勤日数（平日）"?: number | null
+          "残業手当(支給)"?: number | null
+          "法定外時間（平日）"?: string | null
+          "深夜出勤代(支給)"?: number | null
+          "深夜所定時間（平日）"?: string | null
+          "深夜残業手当(支給)"?: number | null
+          "特別勤務手当(支給)"?: number | null
+          "特定処遇改善加算(支給)"?: number | null
+          "研修奨励手当(支給)"?: number | null
+          "研修手当(支給)"?: number | null
+          研修時間?: string | null
+          "研修費補助返金(控除)"?: number | null
+          "研修費貸付金(控除)"?: number | null
+          社会保険料合計?: number | null
+          "社宅費/車代/駐車場代(控除)"?: number | null
+          "福利厚生費(支給)"?: number | null
+          "私有車業務使用手当(支給)"?: number | null
+          "移動加算（片道支援）(支給)"?: number | null
+          移動回数?: number | null
+          "管理スパン手当(支給)"?: number | null
+          "紹介手当(支給)"?: number | null
+          "経費精算等(支給)"?: number | null
+          "総労働時間（平日）"?: string | null
+          "職級手当(支給)"?: number | null
+          "資格手当(支給)"?: number | null
+          "身体・同行・行動加算(支給)"?: number | null
+          "身体・同行・行動時間"?: string | null
+          "通勤手当（その他）(支給)"?: number | null
+          "通勤手当(支給)"?: number | null
+          "通勤手当（月額）(支給)"?: number | null
+          "通院介助等（身体なし）(支給)"?: number | null
+          "通院等介助（身体なし）(支給)"?: number | null
+          "通院等介助（身体なし）時間"?: string | null
+          "重訪移動加算(支給)"?: number | null
+          重訪移動時間?: string | null
+          "雇用保険料(控除)"?: number | null
+          "食事加算(支給)"?: number | null
+          食事回数?: number | null
+          "食事手当(支給)"?: number | null
         }
         Update: {
           created_at?: string
           id?: string
           updated_at?: string
-          繧ｭ繝｣繝ｳ繧ｻ繝ｫ蝗樊焚?: number | null
-          "繧ｭ繝｣繝ｳ繧ｻ繝ｫ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "繧ｰ繝ｫ繝ｼ繝嶺ｻ句勧謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          繧ｰ繝ｫ繝ｼ繝嶺ｻ句勧譎る俣?: string | null
-          "繧ｱ繧｢繝槭ロ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          繧ｵ繝ｼ繝薙せ蝗樊焚?: number | null
-          "繧ｹ繧ｭ繝ｫ蜉邂暦ｼ亥・驕・隼蝟・刈邂暦ｼ・謾ｯ邨ｦ)"?: number | null
-          "繧ｹ繧ｭ繝ｫ蜉邂玲焔蠖・謾ｯ邨ｦ)"?: number | null
-          "縺昴・莉匁焔蠖・謾ｯ邨ｦ)"?: number | null
-          "縺昴・莉也ｲｾ邂鈴｡・謗ｧ髯､)"?: number | null
-          "繧ｿ繧､繝溘・遲牙・謇墓而髯､(謗ｧ髯､)"?: number | null
-          "繝・じ繝ｪ繝ｳ繧ｰ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "荳榊ｰｱ蜉ｴ(謗ｧ髯､)"?: number | null
-          "莉玖ｭｷ菫晞匱譁・謗ｧ髯､)"?: number | null
-          "菴乗ｰ醍ｨ・謗ｧ髯､)"?: number | null
-          "蛛･蠎ｷ菫晞匱譁・謗ｧ髯､)"?: number | null
-          蛯呵・: string | null
-          "蜈域鴛邨ｦ荳守ｲｾ邂・謗ｧ髯､)"?: number | null
-          蜃ｦ驕・隼蝟・刈邂・: number | null
-          "蜃ｦ驕・隼蝟・刈邂・謾ｯ邨ｦ)"?: number | null
-          "蜃ｺ蜍､譌･謨ｰ・亥ｹｳ譌･・・?: number | null
-          "蜃ｺ蜍､譌･謨ｰ・域園螳壻ｼ第律・・?: number | null
-          "蜴夂函蟷ｴ驥台ｿ晞匱譁・謗ｧ髯､)"?: number | null
-          "蜷瑚｡梧抄隴ｷ遐比ｿｮ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "蝓ｺ譛ｬ邨ｦ(謾ｯ邨ｦ)"?: number | null
-          "蟄舌←繧ゅ・蟄占ご縺ｦ謾ｯ謠ｴ驥・莨夂､ｾ)"?: number | null
-          "蟄舌←繧ゅ・蟄占ご縺ｦ謾ｯ謠ｴ驥・謗ｧ髯､)"?: number | null
-          蟾ｮ蠑墓髪邨ｦ蜷郁ｨ・: number | null
-          蟷ｴ譛ｫ蟷ｴ蟋句・蜍､譎る俣?: string | null
-          "蟷ｴ譛ｫ蟷ｴ蟋句刈邂・謾ｯ邨ｦ)"?: number | null
-          "蟷ｴ隱ｿ驕惹ｸ崎ｶｳ遞朱｡・謗ｧ髯､)"?: number | null
-          "蠖ｹ蜑ｲ蝓ｺ貅匁焔蠖・謾ｯ邨ｦ)"?: number | null
-          "蠖ｹ蜩｡蝣ｱ驟ｬ(謾ｯ邨ｦ)"?: number | null
-          "蠖ｹ閨ｷ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          蠕捺･ｭ蜩｡?: string | null
-          蠕捺･ｭ蜩｡逡ｪ蜿ｷ?: string
-          "謇螳壻ｼ第律謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "謇螳壽凾髢難ｼ亥ｹｳ譌･・・?: string | null
-          "謇蠕礼ｨ・謗ｧ髯､)"?: number | null
-          謖ｯ霎ｼ謾ｯ邨ｦ鬘榊粋險・: number | null
-          謗ｧ髯､蜷郁ｨ・: number | null
-          謾ｯ邨ｦ蜷郁ｨ・: number | null
-          謾ｯ邨ｦ譌･?: string
-          "譎らｵｦ蜉邂・謾ｯ邨ｦ)"?: number | null
-          譎らｵｦ蜉邂玲凾髢・: string | null
-          "譛域ｬ｡蝣ｱ驟ｬ(謾ｯ邨ｦ)"?: number | null
-          譛我ｼ台ｻ倅ｸ取律謨ｰ?: number | null
-          譛我ｼ大叙蠕玲律謨ｰ?: number | null
-          譛我ｼ第ｮ区律謨ｰ?: number | null
-          "譛臥ｵｦ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "谺蜍､謗ｧ髯､(謾ｯ邨ｦ)"?: number | null
-          "谺蜍､譌･謨ｰ・亥ｹｳ譌･・・?: number | null
-          "谿区･ｭ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "豕募ｮ壼､匁凾髢難ｼ亥ｹｳ譌･・・?: string | null
-          "豺ｱ螟懷・蜍､莉｣(謾ｯ邨ｦ)"?: number | null
-          "豺ｱ螟懈園螳壽凾髢難ｼ亥ｹｳ譌･・・?: string | null
-          "豺ｱ螟懈ｮ区･ｭ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "迚ｹ蛻･蜍､蜍呎焔蠖・謾ｯ邨ｦ)"?: number | null
-          "迚ｹ螳壼・驕・隼蝟・刈邂・謾ｯ邨ｦ)"?: number | null
-          "遐比ｿｮ螂ｨ蜉ｱ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "遐比ｿｮ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          遐比ｿｮ譎る俣?: string | null
-          "遐比ｿｮ雋ｻ陬懷勧霑秘≡(謗ｧ髯､)"?: number | null
-          "遐比ｿｮ雋ｻ雋ｸ莉倬≡(謗ｧ髯､)"?: number | null
-          遉ｾ莨壻ｿ晞匱譁吝粋險・: number | null
-          "遉ｾ螳・ｲｻ/霆贋ｻ｣/鬧占ｻ雁ｴ莉｣(謗ｧ髯､)"?: number | null
-          "遖丞茜蜴夂函雋ｻ(謾ｯ邨ｦ)"?: number | null
-          "遘∵怏霆頑･ｭ蜍吩ｽｿ逕ｨ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "遘ｻ蜍募刈邂暦ｼ育援驕捺髪謠ｴ・・謾ｯ邨ｦ)"?: number | null
-          遘ｻ蜍募屓謨ｰ?: number | null
-          "邂｡逅・せ繝代Φ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "邏ｹ莉区焔蠖・謾ｯ邨ｦ)"?: number | null
-          "邨瑚ｲｻ邊ｾ邂礼ｭ・謾ｯ邨ｦ)"?: number | null
-          "邱丞感蜒肴凾髢難ｼ亥ｹｳ譌･・・?: string | null
-          "閨ｷ邏壽焔蠖・謾ｯ邨ｦ)"?: number | null
-          "雉・ｼ謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "霄ｫ菴薙・蜷瑚｡後・陦悟虚蜉邂・謾ｯ邨ｦ)"?: number | null
-          "霄ｫ菴薙・蜷瑚｡後・陦悟虚譎る俣"?: string | null
-          "騾壼共謇句ｽ難ｼ医◎縺ｮ莉厄ｼ・謾ｯ邨ｦ)"?: number | null
-          "騾壼共謇句ｽ・謾ｯ邨ｦ)"?: number | null
-          "騾壼共謇句ｽ難ｼ域怦鬘搾ｼ・謾ｯ邨ｦ)"?: number | null
-          "騾夐劼莉句勧遲会ｼ郁ｺｫ菴薙↑縺暦ｼ・謾ｯ邨ｦ)"?: number | null
-          "騾夐劼遲我ｻ句勧・郁ｺｫ菴薙↑縺暦ｼ・謾ｯ邨ｦ)"?: number | null
-          "騾夐劼遲我ｻ句勧・郁ｺｫ菴薙↑縺暦ｼ画凾髢・?: string | null
-          "驥崎ｨｪ遘ｻ蜍募刈邂・謾ｯ邨ｦ)"?: number | null
-          驥崎ｨｪ遘ｻ蜍墓凾髢・: string | null
-          "髮・畑菫晞匱譁・謗ｧ髯､)"?: number | null
-          "鬟滉ｺ句刈邂・謾ｯ邨ｦ)"?: number | null
-          鬟滉ｺ句屓謨ｰ?: number | null
-          "鬟滉ｺ区焔蠖・謾ｯ邨ｦ)"?: number | null
+          キャンセル回数?: number | null
+          "キャンセル手当(支給)"?: number | null
+          "グループ介助手当(支給)"?: number | null
+          グループ介助時間?: string | null
+          "ケアマネ手当(支給)"?: number | null
+          サービス回数?: number | null
+          "スキル加算（処遇改善加算）(支給)"?: number | null
+          "スキル加算手当(支給)"?: number | null
+          "その他手当(支給)"?: number | null
+          "その他精算額(控除)"?: number | null
+          "タイミー等先払控除(控除)"?: number | null
+          "テザリング手当(支給)"?: number | null
+          "不就労(控除)"?: number | null
+          "介護保険料(控除)"?: number | null
+          "住民税(控除)"?: number | null
+          "健康保険料(控除)"?: number | null
+          備考?: string | null
+          "先払給与精算(控除)"?: number | null
+          処遇改善加算?: number | null
+          "処遇改善加算(支給)"?: number | null
+          "出勤日数（平日）"?: number | null
+          "出勤日数（所定休日）"?: number | null
+          "厚生年金保険料(控除)"?: number | null
+          "同行援護研修手当(支給)"?: number | null
+          "基本給(支給)"?: number | null
+          "子ども・子育て支援金(会社)"?: number | null
+          "子ども・子育て支援金(控除)"?: number | null
+          差引支給合計?: number | null
+          年末年始出勤時間?: string | null
+          "年末年始加算(支給)"?: number | null
+          "年調過不足税額(控除)"?: number | null
+          "役割基準手当(支給)"?: number | null
+          "役員報酬(支給)"?: number | null
+          "役職手当(支給)"?: number | null
+          従業員?: string | null
+          従業員番号?: string
+          "所定休日手当(支給)"?: number | null
+          "所定時間（平日）"?: string | null
+          "所得税(控除)"?: number | null
+          振込支給額合計?: number | null
+          控除合計?: number | null
+          支給合計?: number | null
+          支給日?: string
+          "時給加算(支給)"?: number | null
+          時給加算時間?: string | null
+          "月次報酬(支給)"?: number | null
+          有休付与日数?: number | null
+          有休取得日数?: number | null
+          有休残日数?: number | null
+          "有給手当(支給)"?: number | null
+          "欠勤控除(支給)"?: number | null
+          "欠勤日数（平日）"?: number | null
+          "残業手当(支給)"?: number | null
+          "法定外時間（平日）"?: string | null
+          "深夜出勤代(支給)"?: number | null
+          "深夜所定時間（平日）"?: string | null
+          "深夜残業手当(支給)"?: number | null
+          "特別勤務手当(支給)"?: number | null
+          "特定処遇改善加算(支給)"?: number | null
+          "研修奨励手当(支給)"?: number | null
+          "研修手当(支給)"?: number | null
+          研修時間?: string | null
+          "研修費補助返金(控除)"?: number | null
+          "研修費貸付金(控除)"?: number | null
+          社会保険料合計?: number | null
+          "社宅費/車代/駐車場代(控除)"?: number | null
+          "福利厚生費(支給)"?: number | null
+          "私有車業務使用手当(支給)"?: number | null
+          "移動加算（片道支援）(支給)"?: number | null
+          移動回数?: number | null
+          "管理スパン手当(支給)"?: number | null
+          "紹介手当(支給)"?: number | null
+          "経費精算等(支給)"?: number | null
+          "総労働時間（平日）"?: string | null
+          "職級手当(支給)"?: number | null
+          "資格手当(支給)"?: number | null
+          "身体・同行・行動加算(支給)"?: number | null
+          "身体・同行・行動時間"?: string | null
+          "通勤手当（その他）(支給)"?: number | null
+          "通勤手当(支給)"?: number | null
+          "通勤手当（月額）(支給)"?: number | null
+          "通院介助等（身体なし）(支給)"?: number | null
+          "通院等介助（身体なし）(支給)"?: number | null
+          "通院等介助（身体なし）時間"?: string | null
+          "重訪移動加算(支給)"?: number | null
+          重訪移動時間?: string | null
+          "雇用保険料(控除)"?: number | null
+          "食事加算(支給)"?: number | null
+          食事回数?: number | null
+          "食事手当(支給)"?: number | null
         }
         Relationships: []
       }
@@ -11037,28 +11037,28 @@ export type Database = {
         Row: {
           target_month: string | null
           Version: number | null
-          繧ｭ繝｣繝ｳ繧ｻ繝ｫ蝗樊焚: number | null
-          繧ｵ繝ｼ繝薙せ蝗樊焚: number | null
-          莠区･ｭ謇蜷・ string | null
-          蜃ｦ驕・隼蝟・刈邂・ string | null
-          "蜃ｺ蜍､譌･謨ｰ・亥ｹｳ譌･・・: number | null
-          蜷・ string | null
-          螂醍ｴ・ｨｮ蛻･: string | null
-          蟋・ string | null
-          蟷ｴ譛ｫ蟷ｴ蟋句・蜍､譎る俣: string | null
-          蠕捺･ｭ蜩｡逡ｪ蜿ｷ: string | null
-          蠕捺･ｭ蜩｡隴伜挨蟄・ string | null
-          "謇螳壽凾髢難ｼ亥ｹｳ譌･・・: string | null
-          譛我ｼ大叙蠕玲律謨ｰ: string | null
-          "豺ｱ螟懈園螳壽凾髢難ｼ亥ｹｳ譌･・・: string | null
-          迚ｹ螳壼・驕・隼蝟・刈邂・ string | null
-          迢ｬ閾ｪ蝗樊焚: string | null
-          遘ｻ蜍募屓謨ｰ: number | null
-          閨ｷ遞ｮ蜷・ string | null
-          "霄ｫ菴薙・蜷瑚｡後・陦悟虚譎る俣": string | null
-          驛ｨ髢蜷・ string | null
-          驥崎ｨｪ遘ｻ蜍墓凾髢・ string | null
-          鬟滉ｺ句屓謨ｰ: string | null
+          キャンセル回数: number | null
+          サービス回数: number | null
+          事業所名: string | null
+          処遇改善加算: string | null
+          "出勤日数（平日）": number | null
+          名: string | null
+          契約種別: string | null
+          姓: string | null
+          年末年始出勤時間: string | null
+          従業員番号: string | null
+          従業員識別子: string | null
+          "所定時間（平日）": string | null
+          有休取得日数: string | null
+          "深夜所定時間（平日）": string | null
+          特定処遇改善加算: string | null
+          独自回数: string | null
+          移動回数: number | null
+          職種名: string | null
+          "身体・同行・行動時間": string | null
+          部門名: string | null
+          重訪移動時間: string | null
+          食事回数: string | null
         }
         Relationships: []
       }
@@ -11066,29 +11066,29 @@ export type Database = {
         Row: {
           target_month: string | null
           Version: number | null
-          繧ｭ繝｣繝ｳ繧ｻ繝ｫ蝗樊焚: number | null
-          繧ｵ繝ｼ繝薙せ蝗樊焚: number | null
-          莠区･ｭ謇蜷・ string | null
-          蜃ｦ驕・隼蝟・刈邂・ string | null
-          "蜃ｺ蜍､譌･謨ｰ・亥ｹｳ譌･・・: number | null
-          蜷・ string | null
-          螂醍ｴ・ｨｮ蛻･: string | null
-          蟋・ string | null
-          蟷ｴ譛ｫ蟷ｴ蟋句・蜍､譎る俣: string | null
-          蠕捺･ｭ蜩｡逡ｪ蜿ｷ: string | null
-          蠕捺･ｭ蜩｡隴伜挨蟄・ string | null
-          "謇螳壽凾髢難ｼ亥ｹｳ譌･・・: string | null
-          譛我ｼ大叙蠕玲律謨ｰ: string | null
-          "豺ｱ螟懈園螳壽凾髢難ｼ亥ｹｳ譌･・・: string | null
-          迚ｹ螳壼・驕・隼蝟・刈邂・ string | null
-          迢ｬ閾ｪ蝗樊焚: string | null
-          遘ｻ蜍募屓謨ｰ: number | null
-          閨ｷ遞ｮ蜷・ string | null
-          "霄ｫ菴薙・蜷瑚｡後・陦悟虚譎る俣": string | null
-          "騾夐劼遲我ｻ句勧・郁ｺｫ菴薙↑縺暦ｼ画凾髢・: string | null
-          驛ｨ髢蜷・ string | null
-          驥崎ｨｪ遘ｻ蜍墓凾髢・ string | null
-          鬟滉ｺ句屓謨ｰ: string | null
+          キャンセル回数: number | null
+          サービス回数: number | null
+          事業所名: string | null
+          処遇改善加算: string | null
+          "出勤日数（平日）": number | null
+          名: string | null
+          契約種別: string | null
+          姓: string | null
+          年末年始出勤時間: string | null
+          従業員番号: string | null
+          従業員識別子: string | null
+          "所定時間（平日）": string | null
+          有休取得日数: string | null
+          "深夜所定時間（平日）": string | null
+          特定処遇改善加算: string | null
+          独自回数: string | null
+          移動回数: number | null
+          職種名: string | null
+          "身体・同行・行動時間": string | null
+          "通院等介助（身体なし）時間": string | null
+          部門名: string | null
+          重訪移動時間: string | null
+          食事回数: string | null
         }
         Relationships: []
       }
@@ -11096,29 +11096,29 @@ export type Database = {
         Row: {
           target_month: string | null
           Version: number | null
-          繧ｭ繝｣繝ｳ繧ｻ繝ｫ蝗樊焚: number | null
-          繧ｵ繝ｼ繝薙せ蝗樊焚: number | null
-          莠区･ｭ謇蜷・ string | null
-          蜃ｦ驕・隼蝟・刈邂・ string | null
-          "蜃ｺ蜍､譌･謨ｰ・亥ｹｳ譌･・・: number | null
-          蜷・ string | null
-          螂醍ｴ・ｨｮ蛻･: string | null
-          蟋・ string | null
-          蟷ｴ譛ｫ蟷ｴ蟋句・蜍､譎る俣: string | null
-          蠕捺･ｭ蜩｡逡ｪ蜿ｷ: string | null
-          蠕捺･ｭ蜩｡隴伜挨蟄・ string | null
-          "謇螳壽凾髢難ｼ亥ｹｳ譌･・・: string | null
-          譛我ｼ大叙蠕玲律謨ｰ: string | null
-          "豺ｱ螟懈園螳壽凾髢難ｼ亥ｹｳ譌･・・: string | null
-          迚ｹ螳壼・驕・隼蝟・刈邂・ string | null
-          迢ｬ閾ｪ蝗樊焚: string | null
-          遘ｻ蜍募屓謨ｰ: number | null
-          閨ｷ遞ｮ蜷・ string | null
-          "霄ｫ菴薙・蜷瑚｡後・陦悟虚譎る俣": string | null
-          "騾夐劼遲我ｻ句勧・郁ｺｫ菴薙↑縺暦ｼ画凾髢・: string | null
-          驛ｨ髢蜷・ string | null
-          驥崎ｨｪ遘ｻ蜍墓凾髢・ string | null
-          鬟滉ｺ句屓謨ｰ: string | null
+          キャンセル回数: number | null
+          サービス回数: number | null
+          事業所名: string | null
+          処遇改善加算: string | null
+          "出勤日数（平日）": number | null
+          名: string | null
+          契約種別: string | null
+          姓: string | null
+          年末年始出勤時間: string | null
+          従業員番号: string | null
+          従業員識別子: string | null
+          "所定時間（平日）": string | null
+          有休取得日数: string | null
+          "深夜所定時間（平日）": string | null
+          特定処遇改善加算: string | null
+          独自回数: string | null
+          移動回数: number | null
+          職種名: string | null
+          "身体・同行・行動時間": string | null
+          "通院等介助（身体なし）時間": string | null
+          部門名: string | null
+          重訪移動時間: string | null
+          食事回数: string | null
         }
         Relationships: []
       }
@@ -11728,13 +11728,13 @@ export type Database = {
           taimee_user_id: string | null
           total_document_count: number | null
           updated_at: string | null
-          菴乗園: string | null
-          蜷・ string | null
-          蜷阪き繝・ string | null
-          蟋・ string | null
-          蟋薙き繝・ string | null
-          諤ｧ蛻･: string | null
-          髮ｻ隧ｱ逡ｪ蜿ｷ: string | null
+          住所: string | null
+          名: string | null
+          名カナ: string | null
+          姓: string | null
+          姓カナ: string | null
+          性別: string | null
+          電話番号: string | null
         }
         Relationships: []
       }
@@ -11751,23 +11751,23 @@ export type Database = {
           source_filename: string | null
           taimee_user_id: string | null
           uploaded_at: string | null
-          "繝ｦ繝ｼ繧ｶ繝ｼID・医Θ繝ｼ繧ｶ繝ｼ縺ｫ繧医▲縺ｦ荳諢上↑蛟､・・: string | null
-          菴乗園: string | null
-          譛邨らｨｼ蜒肴律: string | null
-          蛻晏屓遞ｼ蜒肴律: string | null
-          蜷・ string | null
-          蟋・ string | null
-          諤ｧ蛻･: string | null
-          逕溷ｹｴ譛域律: string | null
-          邏ｯ險井ｺ､騾夊ｲｻ謾ｯ謇暮｡・ string | null
-          邏ｯ險亥ｮ溷ロ譎る俣: string | null
-          邏ｯ險域ｳ募ｮ壼､門牡蠅玲凾髢・ string | null
-          邏ｯ險域ｷｱ螟懷感蜒肴凾髢・ string | null
-          邏ｯ險域ｺ先ｳ牙ｾｴ蜿朱｡・ string | null
-          邏ｯ險育ｨｼ蜒榊屓謨ｰ: string | null
-          邏ｯ險育ｵｦ荳取髪謇暮｡・ string | null
-          邏ｯ險磯壼ｸｸ蜍､蜍呎凾髢・ string | null
-          髮ｻ隧ｱ逡ｪ蜿ｷ: string | null
+          "ユーザーID（ユーザーによって一意な値）": string | null
+          住所: string | null
+          最終稼働日: string | null
+          初回稼働日: string | null
+          名: string | null
+          姓: string | null
+          性別: string | null
+          生年月日: string | null
+          累計交通費支払額: string | null
+          累計実働時間: string | null
+          累計法定外割増時間: string | null
+          累計深夜労働時間: string | null
+          累計源泉徴収額: string | null
+          累計稼働回数: string | null
+          累計給与支払額: string | null
+          累計通常勤務時間: string | null
+          電話番号: string | null
         }
         Relationships: []
       }
