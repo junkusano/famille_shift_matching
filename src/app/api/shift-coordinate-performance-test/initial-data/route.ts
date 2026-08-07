@@ -39,12 +39,6 @@ const SHIFT_SELECT = [
   "district",
   "level_sort_order",
   "require_doc_group",
-  "tokutei_comment",
-  "judo_ido",
-  "spot_offer_status",
-  "applicant_name",
-  "applicant_sex",
-  "applicant_control_url",
   "document_summary",
 ].join(",");
 
@@ -202,6 +196,61 @@ async function queryRows<Row>(
   return rows;
 }
 
+function isMissingColumnError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("does not exist") || message.includes("column ") || message.includes("42703");
+}
+
+async function queryShiftRowsWithFallback(
+  sb: UserSupabaseClient,
+  timings: PerfTiming[],
+  counter: QueryCounter,
+  stage: string,
+  jstToday: string,
+  from: number,
+  to: number,
+  details?: Record<string, unknown>,
+) {
+  try {
+    return await queryRows<SupabaseShiftRaw>(
+      timings,
+      counter,
+      stage,
+      () =>
+        sb
+          .from("shift_self_coordinate_card_view")
+          .select(SHIFT_SELECT)
+          .gte("shift_start_date", jstToday)
+          .range(from, to),
+      details,
+    );
+  } catch (error) {
+    if (!isMissingColumnError(error)) {
+      throw error;
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    timings.push({
+      stage: `${stage}.fallback_to_select_all`,
+      ms: 0,
+      details: { reason: message },
+    });
+
+    return await queryRows<SupabaseShiftRaw>(
+      timings,
+      counter,
+      `${stage}.select_all_retry`,
+      () =>
+        sb
+          .from("shift_self_coordinate_card_view")
+          .select("*")
+          .gte("shift_start_date", jstToday)
+          .range(from, to),
+      details,
+    );
+  }
+}
+
 async function queryMaybeOne<Row>(
   timings: PerfTiming[],
   counter: QueryCounter,
@@ -284,16 +333,14 @@ async function fetchShiftRows(
   counter: QueryCounter,
   jstToday: string,
 ) {
-  const firstPage = await queryRows<SupabaseShiftRaw>(
+  const firstPage = await queryShiftRowsWithFallback(
+    sb,
     timings,
     counter,
     "supabase.shift_self_coordinate_card_view.page_1",
-    () =>
-      sb
-        .from("shift_self_coordinate_card_view")
-        .select(SHIFT_SELECT)
-        .gte("shift_start_date", jstToday)
-        .range(0, SHIFT_PAGE_SIZE - 1),
+    jstToday,
+    0,
+    SHIFT_PAGE_SIZE - 1,
   );
 
   if (firstPage.length < SHIFT_PAGE_SIZE) {
@@ -306,16 +353,14 @@ async function fetchShiftRows(
       const from = pageIndex * SHIFT_PAGE_SIZE;
       const to = from + SHIFT_PAGE_SIZE - 1;
 
-      return queryRows<SupabaseShiftRaw>(
+      return queryShiftRowsWithFallback(
+        sb,
         timings,
         counter,
         `supabase.shift_self_coordinate_card_view.page_${pageIndex + 1}`,
-        () =>
-          sb
-            .from("shift_self_coordinate_card_view")
-            .select(SHIFT_SELECT)
-            .gte("shift_start_date", jstToday)
-            .range(from, to),
+        jstToday,
+        from,
+        to,
         { range: `${from}-${to}` },
       );
     }),
@@ -362,7 +407,6 @@ function buildBaseShiftRows(
       staff_03_level_sort: shift.staff_01_level_sort,
       staff_02_attend_flg: shift.staff_02_attend_flg,
       staff_03_attend_flg: shift.staff_03_attend_flg,
-      judo_ido: shift.judo_ido,
       address: shift.address || "",
       postal_code: shift.postal_code || "",
       estimated_pay_amount:
@@ -378,11 +422,6 @@ function buildBaseShiftRows(
         typeof shift.require_doc_group === "string" && shift.require_doc_group.trim() !== ""
           ? shift.require_doc_group
           : null,
-      tokutei_comment: shift.tokutei_comment ?? null,
-      spot_offer_status: shift.spot_offer_status ?? null,
-      applicant_name: shift.applicant_name ?? null,
-      applicant_sex: shift.applicant_sex ?? null,
-      applicant_control_url: shift.applicant_control_url ?? null,
       document_summary:
         typeof shift.document_summary === "string" ? shift.document_summary.trim() : "",
     }))
