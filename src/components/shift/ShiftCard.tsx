@@ -137,8 +137,10 @@ type KaipokeInfo = {
   address?: string | null;
   postal_code?: string | null;
   kodoengo_plan_link?: string | null;
-};
 
+  // ★追加
+  sms_phone_number?: string | null;
+};
 // ★ 追加：型（ShiftCard.tsx の他の型定義の近く）
 type RecordStatus = 'draft' | 'submitted' | 'approved' | 'archived';
 
@@ -400,6 +402,7 @@ const [mealExpenseSubmitting, setMealExpenseSubmitting] =
     standard_purpose?: string | null;
     address?: string | null;       // ← 追加
     postal_code?: string | null;
+    sms_phone_number?: string | null;
     kodoengo_plan_link?: string | null;
   } | null>(null);
 
@@ -430,6 +433,17 @@ const [mealExpenseSubmitting, setMealExpenseSubmitting] =
   const [parkingSending, setParkingSending] = useState(false);
   const [hasActiveParking, setHasActiveParking] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+
+  // 利用者様SMS送信（rejectモード）
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsBody, setSmsBody] = useState("");
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsError, setSmsError] = useState<string | null>(null);
+  const [smsSent, setSmsSent] = useState(false);
+
+  const SMS_DEFAULT_HEADER =
+    "ファミーユヘルパーサービス愛知からのSMSです。\n" +
+    "※このSMSは送信専用です。返信いただいても確認できません。";
 
 
   useEffect(() => {
@@ -682,19 +696,44 @@ useEffect(() => {
       p = (async () => {
         const { data } = await supabase
           .from(kaipokeInfoTableName)
-          .select("time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code, kodoengo_plan_link")
+          .select(
+  "time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code, kodoengo_plan_link, sms_phone_number"
+)
           .eq("kaipoke_cs_id", csId)
           .maybeSingle();
 
         const rec = (data ?? {}) as Record<string, unknown>;
         const info: KaipokeInfo = {
-          standard_route: typeof rec.standard_route === "string" ? rec.standard_route : null,
-          standard_trans_ways: typeof rec.standard_trans_ways === "string" ? rec.standard_trans_ways : null,
-          standard_purpose: typeof rec.standard_purpose === "string" ? rec.standard_purpose : null,
-          address: typeof rec.address === "string" ? rec.address : null,
-          postal_code: typeof rec.postal_code === "string" ? rec.postal_code : null,
-          kodoengo_plan_link: typeof rec.kodoengo_plan_link === "string" ? rec.kodoengo_plan_link : null,
-        };
+  standard_route:
+    typeof rec.standard_route === "string"
+      ? rec.standard_route
+      : null,
+
+  standard_trans_ways:
+    typeof rec.standard_trans_ways === "string"
+      ? rec.standard_trans_ways
+      : null,
+
+  standard_purpose:
+    typeof rec.standard_purpose === "string"
+      ? rec.standard_purpose
+      : null,
+
+  address:
+    typeof rec.address === "string"
+      ? rec.address
+      : null,
+
+  postal_code:
+    typeof rec.postal_code === "string"
+      ? rec.postal_code
+      : null,
+
+  sms_phone_number:
+    typeof rec.sms_phone_number === "string"
+      ? rec.sms_phone_number
+      : null,
+};
         const id =
           typeof rec.time_adjustability_id === "string" ? rec.time_adjustability_id as string
             : typeof rec.time_adjustability_id === "number" ? String(rec.time_adjustability_id)
@@ -736,7 +775,7 @@ useEffect(() => {
       p = (async () => {
         const { data } = await supabase
           .from(kaipokeInfoTableName)
-          .select("time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code")
+          .select("time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code, sms_phone_number")
           .eq("kaipoke_cs_id", csId)
           .maybeSingle();
 
@@ -747,6 +786,10 @@ useEffect(() => {
           standard_purpose: typeof rec.standard_purpose === "string" ? rec.standard_purpose : null,
           address: typeof rec.address === "string" ? rec.address : null,
           postal_code: typeof rec.postal_code === "string" ? rec.postal_code : null,
+          sms_phone_number:
+  typeof rec.sms_phone_number === "string"
+    ? rec.sms_phone_number
+    : null,
         };
         const id =
           typeof rec.time_adjustability_id === "string" ? rec.time_adjustability_id as string
@@ -1124,6 +1167,75 @@ const shiftDetailInformation = pickNonEmptyString(shift, [
       : "#";
 
 
+
+  const smsRecipientPhone =
+    pickNonEmptyString(kaipokeInfo, ["sms_phone_number"]) ??
+    pickNonEmptyString(shift, ["sms_phone_number"]);
+
+  const handleSmsSend = async () => {
+    if (!shiftIdStr || !csId || !smsRecipientPhone) {
+      setSmsError("送信に必要なシフトID・利用者ID・電話番号を取得できません。");
+      return;
+    }
+
+    const body = smsBody.trim();
+    if (!body) {
+      setSmsError("本文を入力してください。");
+      return;
+    }
+
+    setSmsSending(true);
+    setSmsError(null);
+    setSmsSent(false);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const messageBody = `${SMS_DEFAULT_HEADER}\n\n${body}`;
+
+      const res = await fetch("/api/sms/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+  items: [
+    {
+      phone: smsRecipientPhone,
+      body: messageBody,
+      shift_id: shiftIdStr,
+      kaipoke_cs_id: csId,
+    },
+  ],
+}),
+      });
+
+      const json = (await res.json().catch(() => null)) as
+  | {
+      ok?: boolean;
+      error?: string;
+      message?: string;
+    }
+  | null;
+
+if (!res.ok || json?.ok !== true) {
+  throw new Error(
+    json?.error ||
+      json?.message ||
+      "SMS送信に失敗しました。"
+  );
+}
+
+      setSmsSent(true);
+      setSmsBody("");
+    } catch (e) {
+      setSmsError(e instanceof Error ? e.message : "SMS送信に失敗しました。");
+    } finally {
+      setSmsSending(false);
+    }
+  };
 
   // ★ 追加：駐車ダイアログを開く（必要なら取得）
   const openParkingDialog = async () => {
@@ -1600,6 +1712,97 @@ const shiftDetailInformation = pickNonEmptyString(shift, [
 )}
 
 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
+          {mode === "reject" && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!smsRecipientPhone}
+                onClick={() => {
+                  setSmsError(null);
+                  setSmsSent(false);
+                  setSmsOpen(true);
+                }}
+              >
+                利用者様へSMS
+              </Button>
+
+              <Dialog open={smsOpen} onOpenChange={setSmsOpen}>
+                <DialogPortal>
+                  <DialogOverlay className="overlay-avoid-sidebar" />
+                  <DialogContent className="z-[120] w-[calc(100vw-32px)] sm:max-w-[560px] sm:mx-auto ml-4 mr-0">
+                    <DialogTitle>利用者様へSMS送信</DialogTitle>
+                    <DialogDescription>
+                      登録されている利用者様の電話番号へSMSを送信します。
+                    </DialogDescription>
+
+                    <div className="mt-4 space-y-3 text-sm">
+                      <div>
+                        <div className="font-medium">送信先</div>
+                        <div>{smsRecipientPhone ?? "電話番号未登録"}</div>
+                      </div>
+
+                      <div>
+                        <div className="font-medium">固定文</div>
+                        <div className="mt-1 whitespace-pre-wrap rounded-md border bg-gray-50 p-3 text-gray-700">
+                          {SMS_DEFAULT_HEADER}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="font-medium">本文</label>
+                        <textarea
+                          value={smsBody}
+                          onChange={(e) => setSmsBody(e.target.value)}
+                          placeholder="利用者様へ送る内容を入力してください"
+                          rows={6}
+                          className="mt-1 w-full rounded-md border p-3"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="font-medium">送信内容プレビュー</div>
+                        <div className="mt-1 whitespace-pre-wrap rounded-md border p-3">
+                          {SMS_DEFAULT_HEADER}
+                          {smsBody.trim() ? `\n\n${smsBody.trim()}` : ""}
+                        </div>
+                      </div>
+
+                      {smsError && (
+                        <div className="rounded-md border border-red-300 bg-red-50 p-2 text-red-700">
+                          {smsError}
+                        </div>
+                      )}
+
+                      {smsSent && (
+                        <div className="rounded-md border border-green-300 bg-green-50 p-2 text-green-700">
+                          SMSを送信しました。
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setSmsOpen(false)}
+                      >
+                        閉じる
+                      </Button>
+                      <Button
+                        type="button"
+                        disabled={smsSending || !smsRecipientPhone || !smsBody.trim()}
+                        onClick={() => void handleSmsSend()}
+                      >
+                        {smsSending ? "送信中..." : "SMSを送信"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </DialogPortal>
+              </Dialog>
+            </>
+          )}
+
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               {mode === "view" ? (
