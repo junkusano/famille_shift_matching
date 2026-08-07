@@ -822,9 +822,14 @@ const topPx =
     // 後ろのシフトを見えるようにする
     opacity: 0.72,
 
-    zIndex: 5,
-    boxSizing: "border-box",
-  };
+  // Googleカレンダーは最背面
+  zIndex: 1,
+
+  // クリック・ドラッグ操作をシフト側へ通す
+  pointerEvents: "none",
+
+  boxSizing: "border-box",
+};
 };
 
     const resizeHandleStyle: React.CSSProperties = {
@@ -1132,36 +1137,17 @@ const topPx =
 
   return (
     <div
-      key={`google-${event.id}`}
-      style={googleEventStyle(event)}
-      title={[
-        "Googleカレンダー予定",
-        `${eventTime.start}-${eventTime.end}`,
-        displayTitle,
-        "編集はGoogleカレンダーで行ってください",
-      ].join("\n")}
-      onMouseDown={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      }}
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        alert(
-          [
-            "Googleカレンダーから同期された予定です。",
-            "",
-            `${eventTime.start}-${eventTime.end}`,
-            displayTitle,
-            "",
-            "編集はGoogleカレンダーで行ってください。",
-          ].join("\n"),
-        );
-      }}
-    >
-      {displayTitle}
-    </div>
+  key={`google-${event.id}`}
+  style={googleEventStyle(event)}
+  title={[
+    "Googleカレンダー予定",
+    `${eventTime.start}-${eventTime.end}`,
+    displayTitle,
+    "編集はGoogleカレンダーで行ってください",
+  ].join("\n")}
+>
+  {displayTitle}
+</div>
   );
 })}
 
