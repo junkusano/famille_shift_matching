@@ -7,27 +7,57 @@ type Attachment = {
   label?: string;
   type?: string;
   mimeType?: string | null;
-  uploaded_at: string;
-  acquired_at: string;
+  uploaded_at?: string | null;
+  acquired_at?: string | null;
 };
 
 type Body = {
   csKaipokeInfoId: string;     // cs_kaipoke_info.id
   documents: Attachment[];     // 更新後のdocuments（next）
+  dateChangedDocumentIds?: string[];
 };
 
 function isNonEmptyString(v: unknown): v is string {
   return typeof v === "string" && v.trim() !== "";
 }
 
-function toIsoDateOnly(iso: string): string | null {
-  const d = new Date(iso);
+function hasAttachmentUrl(doc: Attachment): doc is Attachment & { url: string } {
+  return isNonEmptyString(doc.url);
+}
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const JST_DATE_FORMATTER = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function isValidDateOnly(value: string): boolean {
+  if (!DATE_ONLY_RE.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+function toIsoDateOnly(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const s = value.trim();
+  if (s === "") return null;
+  if (isValidDateOnly(s)) return s;
+
+  const d = new Date(s);
   if (Number.isNaN(d.getTime())) return null;
-  // YYYY-MM-DD
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+
+  const parts = JST_DATE_FORMATTER.formatToParts(d);
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  return year && month && day ? `${year}-${month}-${day}` : null;
 }
 
 export async function POST(req: NextRequest) {
@@ -39,6 +69,11 @@ export async function POST(req: NextRequest) {
     }
 
     const docs = Array.isArray(body.documents) ? body.documents : [];
+    const dateChangedDocumentIds = new Set(
+      Array.isArray(body.dateChangedDocumentIds)
+        ? body.dateChangedDocumentIds.filter(isNonEmptyString)
+        : []
+    );
 
     // cs_kaipoke_info から kaipoke_cs_id を取得（信頼できる正）
     const { data: info, error: infoErr } = await supabaseAdmin
@@ -50,19 +85,49 @@ export async function POST(req: NextRequest) {
     if (infoErr) throw infoErr;
     const kaipokeCsId = (info?.kaipoke_cs_id ?? null) as string | null;
 
+    const docsWithUrl = docs.filter(hasAttachmentUrl);
+    const urls = [...new Set(docsWithUrl.map((d) => d.url.trim()))];
+
+    const existingDateByUrl = new Map<
+      string,
+      { applicable_date: string | null; doc_date_raw: string | null }
+    >();
+
+    if (urls.length > 0) {
+      const { data: existingDates, error: existingDatesErr } = await supabaseAdmin
+        .from("cs_docs")
+        .select("url, applicable_date, doc_date_raw")
+        .in("url", urls);
+
+      if (existingDatesErr) throw existingDatesErr;
+
+      (existingDates ?? []).forEach((row) => {
+        if (!isNonEmptyString(row.url)) return;
+        existingDateByUrl.set(row.url.trim(), {
+          applicable_date: row.applicable_date ?? null,
+          doc_date_raw: row.doc_date_raw ?? null,
+        });
+      });
+    }
+
     // upsert 対象（urlがあるものだけ）
-    const upsertRows = docs
-      .filter((d) => isNonEmptyString(d.url))
+    const upsertRows = docsWithUrl
       .map((d) => {
-        const acquiredDate = toIsoDateOnly(d.acquired_at);
+        const url = d.url.trim();
+        const existingDate = existingDateByUrl.get(url);
+        const shouldUpdateDate = dateChangedDocumentIds.has(d.id);
+        const acquiredDate = shouldUpdateDate ? toIsoDateOnly(d.acquired_at) : null;
+        const applicableDate = shouldUpdateDate ? acquiredDate : existingDate?.applicable_date ?? null;
+        const docDateRaw = shouldUpdateDate ? acquiredDate : existingDate?.doc_date_raw ?? null;
+
         return {
-          url: d.url!.trim(),
+          url,
           kaipoke_cs_id: kaipokeCsId,                 // cs_docs側の業務キー
           cs_kaipoke_info_id: body.csKaipokeInfoId,   // FK
           source: "kaipoke-info-detail",
           doc_name: (d.label ?? "").trim() || null,
-          applicable_date: acquiredDate,              // date
-          doc_date_raw: d.acquired_at || null,        // timestamptz（ISO）
+          applicable_date: applicableDate,             // date
+          doc_date_raw: docDateRaw,                   // 書類日付
           meta: {
             documents_id: d.id,
             mimeType: d.mimeType ?? null,

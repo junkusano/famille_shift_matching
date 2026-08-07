@@ -26,39 +26,67 @@ function toLocalInputValue(iso: string) {
     }
 };
 
-/** 補助: YYYYMM または YYYYMMDD を ISO(+09:00)へ */
-function parseAcquired(raw: string | undefined | null): string {
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const JST_DATE_FORMATTER = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+});
+
+function isValidDateOnly(value: string): boolean {
+    if (!DATE_ONLY_RE.test(value)) return false;
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return (
+        date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day
+    );
+}
+
+function toDateOnlyValue(value: string | null | undefined): string | null {
+    if (!value) return null;
+    const s = value.trim();
+    if (s === "") return null;
+    if (isValidDateOnly(s)) return s;
+
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return null;
+
+    const parts = JST_DATE_FORMATTER.formatToParts(d);
+    const year = parts.find((p) => p.type === "year")?.value;
+    const month = parts.find((p) => p.type === "month")?.value;
+    const day = parts.find((p) => p.type === "day")?.value;
+    return year && month && day ? `${year}-${month}-${day}` : null;
+}
+
+/** 補助: YYYYMM または YYYYMMDD を日付文字列へ */
+function parseAcquired(raw: string | undefined | null): string | null {
     const s = (raw ?? '').replace(/\D/g, '');
     if (/^\d{8}$/.test(s)) {
         const y = s.slice(0, 4), m = s.slice(4, 6), d = s.slice(6, 8);
-        return `${y}-${m}-${d}T00:00:00+09:00`;
+        const dateOnly = `${y}-${m}-${d}`;
+        return isValidDateOnly(dateOnly) ? dateOnly : null;
     }
     if (/^\d{6}$/.test(s)) {
         const y = s.slice(0, 4), m = s.slice(4, 6);
-        return `${y}-${m}-01T00:00:00+09:00`;
+        const dateOnly = `${y}-${m}-01`;
+        return isValidDateOnly(dateOnly) ? dateOnly : null;
     }
-    return new Date().toISOString();
+    return null;
 }
 
-function formatAcquired(iso: string) {
-    const d = new Date(iso);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
+function formatAcquired(value: string | null | undefined) {
+    const dateOnly = toDateOnlyValue(value);
+    if (!dateOnly) return '未設定';
+    const [y, m, day] = dateOnly.split('-');
     // 月指定(01日固定)っぽければ YYYY/MM 表示
     return day === '01' ? `${y}/${m}` : `${y}/${m}/${day}`;
 }
 
-function toDateInputValueFromIso(iso: string) {
-    try {
-        const d = new Date(iso);
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${day}`; // yyyy-MM-dd
-    } catch {
-        return '';
-    }
+function toDateInputValueFromStoredDate(value: string | null | undefined) {
+    return toDateOnlyValue(value) ?? '';
 }
 
 
@@ -79,8 +107,19 @@ type Attachment = {
     label?: string;             // 書類名（同名可）
     type?: string;
     mimeType?: string | null;
-    uploaded_at: string;        // 保存日時（ISO）
-    acquired_at: string;        // 取得日（ISO）
+    uploaded_at?: string | null; // 保存日時
+    acquired_at?: string | null; // 取得日
+};
+
+type SaveDocumentsOptions = {
+    dateChangedDocumentIds?: string[];
+};
+
+type DocEditState = {
+    label: string;
+    useCustom: boolean;
+    acquiredDate: string;
+    acquiredDateTouched: boolean;
 };
 
 type KaipokeInfo = {
@@ -137,6 +176,12 @@ type Staff = {
     org_unit_id: string | null;
 };
 
+type CsDocDateRow = {
+    url: string | null;
+    applicable_date: string | null;
+    doc_date_raw: string | null;
+};
+
 const GENDER_OPTIONS = [
     { id: '', label: '未設定' },
     { id: '9b32a1f0-f711-4ab4-92fb-0331f0c86d42', label: '男性希望' },
@@ -153,7 +198,7 @@ export default function KaipokeInfoDetailPage() {
 
     // 書類の編集用（id ごとに一時値を保持）
     const [docEditState, setDocEditState] = useState<
-        Record<string, { label: string; useCustom: boolean; acquiredDate: string }>
+        Record<string, DocEditState>
     >({});
 
     const [row, setRow] = useState<KaipokeInfo | null>(null);
@@ -175,6 +220,7 @@ export default function KaipokeInfoDetailPage() {
     const [newDocLabel, setNewDocLabel] = useState('');
 
     const [timeAdjustOptions, setTimeAdjustOptions] = useState<TimeAdjustRow[]>([]);
+    const [csDocDateByUrl, setCsDocDateByUrl] = useState<Record<string, string>>({});
 
     const [parkingPlaces, setParkingPlaces] = useState<ParkingPlace[]>([]);
     const [newParkingPlace, setNewParkingPlace] = useState<ParkingPlace>({
@@ -379,8 +425,16 @@ export default function KaipokeInfoDetailPage() {
         return {
             label: baseLabel,
             useCustom: baseLabel ? !inMaster : false,
-            acquiredDate: toDateInputValueFromIso(doc.acquired_at),
+            acquiredDate: toDateInputValueFromStoredDate(getDocumentDate(doc)),
+            acquiredDateTouched: false,
         };
+    };
+
+    const getDocumentDate = (doc: Attachment): string | null => {
+        const ownDate = toDateOnlyValue(doc.acquired_at);
+        if (ownDate) return ownDate;
+        if (!doc.url) return null;
+        return csDocDateByUrl[doc.url] ?? null;
     };
 
     const loadFaxOptions = async () => {
@@ -548,20 +602,73 @@ export default function KaipokeInfoDetailPage() {
         loadFaxOptions();
     }, [id]);
 
+    useEffect(() => {
+        if (!row?.id) {
+            setCsDocDateByUrl({});
+            return;
+        }
+
+        let cancelled = false;
+
+        const loadCsDocDates = async () => {
+            const queries = [
+                supabase
+                    .from("cs_docs")
+                    .select("url, applicable_date, doc_date_raw")
+                    .eq("cs_kaipoke_info_id", row.id),
+            ];
+
+            if (row.kaipoke_cs_id) {
+                queries.push(
+                    supabase
+                        .from("cs_docs")
+                        .select("url, applicable_date, doc_date_raw")
+                        .eq("kaipoke_cs_id", row.kaipoke_cs_id)
+                );
+            }
+
+            const results = await Promise.all(queries);
+            if (cancelled) return;
+
+            const next: Record<string, string> = {};
+            for (const result of results) {
+                if (result.error) {
+                    console.error("cs_docs date load error", result.error);
+                    continue;
+                }
+
+                ((result.data ?? []) as CsDocDateRow[]).forEach((doc) => {
+                    if (!doc.url) return;
+                    const date = toDateOnlyValue(doc.applicable_date ?? doc.doc_date_raw);
+                    if (date) next[doc.url] = date;
+                });
+            }
+
+            setCsDocDateByUrl(next);
+        };
+
+        void loadCsDocDates();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [row?.id, row?.kaipoke_cs_id]);
+
     const documentsArray = useMemo<Attachment[]>(() => {
         const arr: unknown[] = Array.isArray(row?.documents) ? (row?.documents as unknown[]) : [];
         // 後方互換: id/日付が無い要素に補完して返す
         return arr.map((d) => {
             const doc = d as Partial<Attachment>;
-            return {
+            const normalized: Attachment = {
                 id: doc.id ?? crypto.randomUUID(),
                 url: doc.url ?? null,
                 label: doc.label,
                 type: doc.type,
                 mimeType: doc.mimeType ?? null,
-                uploaded_at: doc.uploaded_at ?? new Date().toISOString(),
-                acquired_at: doc.acquired_at ?? doc.uploaded_at ?? new Date().toISOString(),
-            } as Attachment;
+            };
+            if ("uploaded_at" in doc) normalized.uploaded_at = doc.uploaded_at ?? null;
+            if ("acquired_at" in doc) normalized.acquired_at = doc.acquired_at ?? null;
+            return normalized;
         });
     }, [row?.documents]);
 
@@ -632,7 +739,7 @@ export default function KaipokeInfoDetailPage() {
         };
     };
 
-    const saveDocuments = async (next: Attachment[]) => {
+    const saveDocuments = async (next: Attachment[], options: SaveDocumentsOptions = {}) => {
         if (!row) return;
 
         const { error } = await supabase
@@ -647,7 +754,11 @@ export default function KaipokeInfoDetailPage() {
             const res = await fetch("/api/cs-docs/sync-from-documents", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ csKaipokeInfoId: row.id, documents: next }),
+                body: JSON.stringify({
+                    csKaipokeInfoId: row.id,
+                    documents: next,
+                    dateChangedDocumentIds: options.dateChangedDocumentIds ?? [],
+                }),
             });
 
             if (!res.ok) {
@@ -676,14 +787,16 @@ export default function KaipokeInfoDetailPage() {
         const { url, mimeType } = await uploadFileViaApi(file);
         const current = documentsArray;
         const nowIso = new Date().toISOString();
+        const acquiredAt = parseAcquired(acquiredRaw);
+        const newId = crypto.randomUUID();
         const item: Attachment = {
-            id: crypto.randomUUID(),
+            id: newId,
             url, label, type: 'その他', mimeType,
             uploaded_at: nowIso,
-            acquired_at: parseAcquired(acquiredRaw)
+            ...(acquiredAt ? { acquired_at: acquiredAt } : {}),
         };
         const next = addAttachment(current, item);
-        await saveDocuments(next);
+        await saveDocuments(next, acquiredAt ? { dateChangedDocumentIds: [newId] } : {});
         alert(`${label} をアップロードしました`);
     };
 
@@ -1225,7 +1338,7 @@ export default function KaipokeInfoDetailPage() {
                                 <div key={doc.id} className="border rounded p-2 bg-white">
                                     {/* サムネイル */}
                                     <FileThumbnail
-                                        title={`${fallbackLabel}（取得: ${formatAcquired(doc.acquired_at)}）`}
+                                        title={`${fallbackLabel}（取得: ${formatAcquired(getDocumentDate(doc))}）`}
                                         src={doc.url ?? undefined}
                                         mimeType={doc.mimeType ?? undefined}
                                     />
@@ -1243,6 +1356,7 @@ export default function KaipokeInfoDetailPage() {
                                                     [doc.id]: {
                                                         ...getDocEdit(doc),
                                                         acquiredDate: e.target.value,
+                                                        acquiredDateTouched: true,
                                                     },
                                                 }))
                                             }
@@ -1356,20 +1470,24 @@ export default function KaipokeInfoDetailPage() {
                                                     alert('書類名を選択または入力してください');
                                                     return;
                                                 }
-                                                if (!current.acquiredDate) {
-                                                    alert('取得日を選択してください');
-                                                    return;
-                                                }
                                                 try {
-                                                    const iso = new Date(
-                                                        `${current.acquiredDate}T00:00:00+09:00`
-                                                    ).toISOString();
                                                     const next = documentsArray.map((d) =>
                                                         d.id === doc.id
-                                                            ? { ...d, label, acquired_at: iso }
+                                                            ? {
+                                                                ...d,
+                                                                label,
+                                                                ...(current.acquiredDateTouched
+                                                                    ? { acquired_at: current.acquiredDate || null }
+                                                                    : {}),
+                                                            }
                                                             : d
                                                     );
-                                                    await saveDocuments(next);
+                                                    await saveDocuments(
+                                                        next,
+                                                        current.acquiredDateTouched
+                                                            ? { dateChangedDocumentIds: [doc.id] }
+                                                            : {}
+                                                    );
                                                     alert('書類情報を更新しました');
                                                 } catch (err) {
                                                     const msg = err instanceof Error ? err.message : String(err);

@@ -54,6 +54,12 @@ const UNASSIGNED_CLIENT_FILTER =
   'kaipoke_cs_id.is.null,kaipoke_cs_id.eq."",cs_kaipoke_info_id.is.null';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const JST_DATE_FORMATTER = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
 function cleanTextParam(value: string | null | undefined): string {
   return typeof value === "string" ? value.trim() : "";
@@ -86,6 +92,17 @@ function isValidDateOnly(value: string): boolean {
     date.getUTCMonth() === month - 1 &&
     date.getUTCDate() === day
   );
+}
+
+function toJstDateOnly(value: string): string | null {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+
+  const parts = JST_DATE_FORMATTER.formatToParts(d);
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  return year && month && day ? `${year}-${month}-${day}` : null;
 }
 
 function toUtcDayStart(dateOnly: string): string {
@@ -299,11 +316,11 @@ function normalizeDateOnly(v: string | null): string | null {
   if (!v) return null;
   const s = v.trim();
   if (s === "") return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
+  if (isValidDateOnly(s)) return s;
+  const dateOnly = toJstDateOnly(s);
+  if (dateOnly) return dateOnly;
+  const prefixedDate = s.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
+  return prefixedDate && isValidDateOnly(prefixedDate) ? prefixedDate : null;
 }
 
 export async function syncCsDocToKaipokeDocuments(input: SyncInput): Promise<void> {
