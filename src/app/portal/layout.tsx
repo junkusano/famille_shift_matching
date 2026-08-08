@@ -187,6 +187,17 @@ function NavLinks({ role }: { role: string | null }) {
       </li>
       <li><Link href="/portal/shift-view" className="text-blue-300 hover:underline">シフト・勤務一覧</Link></li>
       <li><Link href="/portal/shift" className="text-blue-300 hover:underline">シフト・訪問記録</Link></li>
+      <li>
+        <Link
+          href="/portal/shift-reject-performance-test"
+          className="inline-flex items-center gap-2 text-blue-200 hover:underline"
+        >
+          <span>シフト・訪問記録（ベータ版）</span>
+          <span className="rounded-full bg-amber-300/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-200">
+            BETA
+          </span>
+        </Link>
+      </li>
       <li><Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">ｼﾌﾄｾﾙﾌｺｰﾃﾞｨﾈｰﾄ（シフ子）</Link></li>
       <li>
         <Link
@@ -194,17 +205,6 @@ function NavLinks({ role }: { role: string | null }) {
           className="inline-flex items-center gap-2 text-blue-200 hover:underline"
         >
           <span>シフ子（ベータ版）</span>
-          <span className="rounded-full bg-amber-300/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-200">
-            BETA
-          </span>
-        </Link>
-      </li>
-      <li>
-        <Link
-          href="/portal/shift-reject-performance-test"
-          className="inline-flex items-center gap-2 text-blue-200 hover:underline"
-        >
-          <span>Rejectモード（ベータ版）</span>
           <span className="rounded-full bg-amber-300/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-200">
             BETA
           </span>
