@@ -64,7 +64,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 function buildDetailUrl(csKaipokeInfoId: string): string {
-    return `https://myfamille.shi-on.net/portal/kaipoke-info-detail/${csKaipokeInfoId}`;
+    return `/portal/kaipoke-info-detail/${csKaipokeInfoId}`;
 }
 
 function buildMsgNoConsultant(c: ClientRow): string {
@@ -330,4 +330,3 @@ export async function runKaipokeCsFaxCheck(): Promise<KaipokeCsFaxCheckResult> {
         alertsUpdated,
     };
 }
-

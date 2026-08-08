@@ -170,7 +170,7 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
             const monthYm = row.target_month.slice(0, 7);
 
             const detailUrl =
-                `https://myfamille.shi-on.net/portal/monthly-meeting-check?ym=${encodeURIComponent(monthYm)}`;
+                `/portal/monthly-meeting-check?ym=${encodeURIComponent(monthYm)}`;
 
             const message =
                 `【月例会議 未対応】〈${formatYmJa(monthYm)}分〉\n` +

@@ -7,6 +7,7 @@ import { subHours } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { getAccessToken } from "@/lib/getAccessToken";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
 
 const timeZone = "Asia/Tokyo";
 const DRY_RUN_DEFAULT = false; // 既定では送信する（API側から dryRun 指定で抑止）
@@ -108,7 +109,7 @@ export async function runShiftRecordCheck(opts: { now?: Date; dryRun?: boolean }
         if (clientUnfinishedShifts.length > 0) {
           const header = `訪問記録が未了です。`;
           const body = clientUnfinishedShifts.join("\n");
-          const link = `https://myfamille.shi-on.net/portal/shift-view?openExternalBrowser=1 `;
+          const link = `${getAppBaseUrl()}/portal/shift-view?openExternalBrowser=1 `;
           const messageSegment = `\n\n<m userId="${user.lw_userid}">さん\n${header}\n${body}\n未了の記録を確認し、完了させてください。\n${link}`;
 
           const currentMessage = clientMessageQueue.get(clientChannelId) || `【未了訪問記録の通知】\n`;

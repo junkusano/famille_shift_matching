@@ -79,9 +79,9 @@ function buildAlertMessage(
 ): string {
     const name = client?.name ?? "利用者名不明";
 
-    const taskPortalUrl = "https://myfamille.shi-on.net/portal/event-tasks";
+    const taskPortalUrl = "/portal/event-tasks";
     const clientUrl = client?.id
-        ? `https://myfamille.shi-on.net/portal/kaipoke-info-detail/${client.id}`
+        ? `/portal/kaipoke-info-detail/${client.id}`
         : null;
 
     return [

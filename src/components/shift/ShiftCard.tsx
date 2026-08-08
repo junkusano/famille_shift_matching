@@ -145,9 +145,74 @@ type KaipokeInfo = {
 type RecordStatus = 'draft' | 'submitted' | 'approved' | 'archived';
 
 
-// ★ 追加：cs_idごとの情報キャッシュ & 進行中Promiseキャッシュ
-const infoCache = new Map<string, { adjId?: string; info: KaipokeInfo }>();
-const infoPromiseCache = new Map<string, Promise<{ adjId?: string; info: KaipokeInfo }>>();
+type KaipokeInfoResult = { adjId?: string; info: KaipokeInfo };
+
+const KAI_POKE_INFO_SELECT =
+  "time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code, kodoengo_plan_link";
+
+// テーブル名の上書き時に別の取得元が混ざらないよう、取得元とcs_idの組でキャッシュする
+const infoCache = new Map<string, KaipokeInfoResult>();
+const infoPromiseCache = new Map<string, Promise<KaipokeInfoResult>>();
+
+const getInfoCacheKey = (tableName: string, csId: string) => `${tableName}:${csId}`;
+
+async function fetchKaipokeInfo(
+  tableName: string,
+  csId: string
+): Promise<KaipokeInfoResult> {
+  const { data, error } = await supabase
+    .from(tableName)
+    .select(KAI_POKE_INFO_SELECT)
+    .eq("kaipoke_cs_id", csId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  const rec = (data ?? {}) as Record<string, unknown>;
+  const info: KaipokeInfo = {
+    standard_route: typeof rec.standard_route === "string" ? rec.standard_route : null,
+    standard_trans_ways:
+      typeof rec.standard_trans_ways === "string" ? rec.standard_trans_ways : null,
+    standard_purpose:
+      typeof rec.standard_purpose === "string" ? rec.standard_purpose : null,
+    address: typeof rec.address === "string" ? rec.address : null,
+    postal_code: typeof rec.postal_code === "string" ? rec.postal_code : null,
+    kodoengo_plan_link:
+      typeof rec.kodoengo_plan_link === "string" ? rec.kodoengo_plan_link : null,
+  };
+  const adjId =
+    typeof rec.time_adjustability_id === "string"
+      ? rec.time_adjustability_id
+      : typeof rec.time_adjustability_id === "number"
+        ? String(rec.time_adjustability_id)
+        : undefined;
+
+  return { adjId, info };
+}
+
+function loadKaipokeInfo(
+  tableName: string,
+  csId: string
+): Promise<KaipokeInfoResult> {
+  const cacheKey = getInfoCacheKey(tableName, csId);
+  const cached = infoCache.get(cacheKey);
+  if (cached) return Promise.resolve(cached);
+
+  const inflight = infoPromiseCache.get(cacheKey);
+  if (inflight) return inflight;
+
+  const promise = fetchKaipokeInfo(tableName, csId)
+    .then((result) => {
+      infoCache.set(cacheKey, result);
+      return result;
+    })
+    .finally(() => {
+      infoPromiseCache.delete(cacheKey);
+    });
+
+  infoPromiseCache.set(cacheKey, promise);
+  return promise;
+}
 
 function isMyAssignmentRejectMode(s: ShiftData, myId?: string | null) {
   if (!myId) return false;
@@ -676,79 +741,50 @@ useEffect(() => {
   }, [shift, myServiceKeys]);
 
   useEffect(() => {
-    if (!csId) { setAdjId(undefined); return; }
+    let cancelled = false;
 
-    // ★ requestモードではここで先読みしない（遅延に任せる）
-    // ★ request 以外（= reject / view）はここで先読みする
-    if (mode === "request") return;
-
-    // ★ まずキャッシュ確認
-    if (infoCache.has(csId)) {
-      const c = infoCache.get(csId)!;
-      setKaipokeInfo(c.info);
-      setAdjId(c.adjId);
+    if (!csId) {
+      setKaipokeInfo(null);
+      setAdjId(undefined);
       return;
     }
 
-    // ★ Promiseキャッシュ（同時多発リクエストを1つにまとめる）
-    let p = infoPromiseCache.get(csId);
-    if (!p) {
-      p = (async () => {
-        const { data } = await supabase
-          .from(kaipokeInfoTableName)
-          .select(
-  "time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code, kodoengo_plan_link, sms_phone_number"
-)
-          .eq("kaipoke_cs_id", csId)
-          .maybeSingle();
-
-        const rec = (data ?? {}) as Record<string, unknown>;
-        const info: KaipokeInfo = {
-  standard_route:
-    typeof rec.standard_route === "string"
-      ? rec.standard_route
-      : null,
-
-  standard_trans_ways:
-    typeof rec.standard_trans_ways === "string"
-      ? rec.standard_trans_ways
-      : null,
-
-  standard_purpose:
-    typeof rec.standard_purpose === "string"
-      ? rec.standard_purpose
-      : null,
-
-  address:
-    typeof rec.address === "string"
-      ? rec.address
-      : null,
-
-  postal_code:
-    typeof rec.postal_code === "string"
-      ? rec.postal_code
-      : null,
-
-  sms_phone_number:
-    typeof rec.sms_phone_number === "string"
-      ? rec.sms_phone_number
-      : null,
-};
-        const id =
-          typeof rec.time_adjustability_id === "string" ? rec.time_adjustability_id as string
-            : typeof rec.time_adjustability_id === "number" ? String(rec.time_adjustability_id)
-              : undefined;
-
-        return { adjId: id, info };
-      })();
-      infoPromiseCache.set(csId, p);
+    // ★ requestモードではここで先読みしない（遅延に任せる）
+    // ★ request 以外（= reject / view）はここで先読みする
+    if (mode === "request") {
+      setKaipokeInfo(null);
+      setAdjId(undefined);
+      return;
     }
 
-    p.then(({ adjId, info }) => {
-      infoCache.set(csId, { adjId, info });
-      setKaipokeInfo(info);
-      setAdjId(adjId);
-    });
+    const cacheKey = getInfoCacheKey(kaipokeInfoTableName, csId);
+    const cached = infoCache.get(cacheKey);
+    if (cached) {
+      setKaipokeInfo(cached.info);
+      setAdjId(cached.adjId);
+      return;
+    }
+
+    // 別カードの結果が残ったまま、新しい利用者の情報として描画されるのを防ぐ
+    setKaipokeInfo(null);
+    setAdjId(undefined);
+
+    void loadKaipokeInfo(kaipokeInfoTableName, csId)
+      .then(({ adjId, info }) => {
+        if (cancelled) return;
+        setKaipokeInfo(info);
+        setAdjId(adjId);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        console.error("[ShiftCard] failed to load kaipoke info", error);
+        setKaipokeInfo(null);
+        setAdjId(undefined);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [csId, mode, kaipokeInfoTableName]);
 
 
@@ -763,48 +799,16 @@ useEffect(() => {
       !!pickNonEmptyString(shift, ["standard_purpose"]);
     if (hasMini && kaipokeInfo) return;
 
-    if (infoCache.has(csId)) {
-      const c = infoCache.get(csId)!;
-      setKaipokeInfo(c.info);
-      setAdjId(c.adjId);
-      return;
+    try {
+      const { adjId: loadedAdjId, info } = await loadKaipokeInfo(
+        kaipokeInfoTableName,
+        csId
+      );
+      setKaipokeInfo(info);
+      setAdjId(loadedAdjId);
+    } catch (error) {
+      console.error("[ShiftCard] failed to load kaipoke info on demand", error);
     }
-
-    let p = infoPromiseCache.get(csId);
-    if (!p) {
-      p = (async () => {
-        const { data } = await supabase
-          .from(kaipokeInfoTableName)
-          .select("time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code, sms_phone_number")
-          .eq("kaipoke_cs_id", csId)
-          .maybeSingle();
-
-        const rec = (data ?? {}) as Record<string, unknown>;
-        const info: KaipokeInfo = {
-          standard_route: typeof rec.standard_route === "string" ? rec.standard_route : null,
-          standard_trans_ways: typeof rec.standard_trans_ways === "string" ? rec.standard_trans_ways : null,
-          standard_purpose: typeof rec.standard_purpose === "string" ? rec.standard_purpose : null,
-          address: typeof rec.address === "string" ? rec.address : null,
-          postal_code: typeof rec.postal_code === "string" ? rec.postal_code : null,
-          sms_phone_number:
-  typeof rec.sms_phone_number === "string"
-    ? rec.sms_phone_number
-    : null,
-        };
-        const id =
-          typeof rec.time_adjustability_id === "string" ? rec.time_adjustability_id as string
-            : typeof rec.time_adjustability_id === "number" ? String(rec.time_adjustability_id)
-              : undefined;
-
-        return { adjId: id, info };
-      })();
-      infoPromiseCache.set(csId, p);
-    }
-
-    const { adjId, info } = await p;
-    infoCache.set(csId, { adjId, info });
-    setKaipokeInfo(info);
-    setAdjId(adjId);
   };
 
   // 3) time_adjustability_id -> マスター（label, Advance/Backwoard）
@@ -1133,8 +1137,8 @@ const shiftDetailInformation = pickNonEmptyString(shift, [
     if (!isMyAssignmentRejectMode(shift, myUserId)) return null;
   }
 
-  // ★ ここを return の直前に追加
-  const addr =
+  // 表示とGoogle Mapsで必ず同じ解決済み住所を使う
+  const fullAddress =
     pickNonEmptyString(kaipokeInfo, ["address"]) ??
     pickNonEmptyString(shift, ["address"]);
 
@@ -1142,7 +1146,9 @@ const shiftDetailInformation = pickNonEmptyString(shift, [
     pickNonEmptyString(kaipokeInfo, ["postal_code"]) ??
     pickNonEmptyString(shift, ["postal_code"]);
 
-  const mapsUrl = addr ? `https://www.google.com/maps?q=${encodeURIComponent(addr)}` : null;
+  const mapsUrl = fullAddress
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`
+    : null;
 
   const estimatedPayAmount =
     typeof (shift as unknown as { estimated_pay_amount?: unknown }).estimated_pay_amount === "number"
@@ -1512,7 +1518,7 @@ if (!res.ok || json?.ok !== true) {
         <EstimatedPayLine amount={estimatedPayAmount} />
         {mode === "reject" ? (
           <div className="text-sm">
-            住所: {addr ? (
+            住所: {fullAddress ? (
               <a
                 href={mapsUrl!}
                 target="_blank"
@@ -1520,7 +1526,7 @@ if (!res.ok || json?.ok !== true) {
                 className="underline text-blue-600"
                 title="Googleマップで開く"
               >
-                {addr}
+                {fullAddress}
               </a>
             ) : "—"}
             {postal && <span className="ml-2">（{postal}）</span>}
@@ -1546,7 +1552,7 @@ if (!res.ok || json?.ok !== true) {
           </div>
         ) : mode === "request" ? (
           <div className="text-sm">
-            住所: {addr ? (
+            住所: {fullAddress ? (
               <a
                 href={mapsUrl!}
                 target="_blank"
@@ -1554,7 +1560,7 @@ if (!res.ok || json?.ok !== true) {
                 className="underline text-blue-600"
                 title="Googleマップで開く"
               >
-                {addr}
+                {fullAddress}
               </a>
             ) : "—"}
             {postal && <span className="ml-2">（{postal}）</span>}
@@ -2133,4 +2139,3 @@ if (!res.ok || json?.ok !== true) {
     </Card>
   );
 }
-

@@ -111,8 +111,7 @@ export function renderAlertMessage(msg: string): ReactNode {
   }
 
   // ② プレーンな URL を含むメッセージをパースしてリンクにする
-  const urlRegex =
-    /https:\/\/myfamille\.shi-on\.net\/portal\/[^\s]+/g;
+  const urlRegex = /(?:https?:\/\/[^\s<]+)?\/portal\/[^\s<]+/g;
 
   const parts: ReactNode[] = [];
   let lastIndex = 0;

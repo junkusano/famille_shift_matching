@@ -86,7 +86,7 @@ function extractKaipokeCsId(row: GroupRow): string | null {
 }
 
 const CLIENT_DETAIL_BASE_URL =
-    "https://myfamille.shi-on.net/portal/kaipoke-info-detail";
+    "/portal/kaipoke-info-detail";
 
 function buildAlertMessage(row: GroupRow, csid: string, client?: ClientRow): string {
     const groupLabel = row.group_name ? `「${row.group_name}」` : "（グループ名不明）";

@@ -89,7 +89,7 @@ export async function runCsContractPlanCheck(
 }
 
 const CLIENT_DETAIL_BASE_URL =
-  "https://myfamille.shi-on.net/portal/kaipoke-info-detail";
+  "/portal/kaipoke-info-detail";
 
 function buildAlertMessage(client: ClientMissingDocs): string {
   const link = `<a href="${CLIENT_DETAIL_BASE_URL}/${client.clientId}">${client.name}様</a>`;

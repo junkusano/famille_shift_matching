@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { subHours } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
+import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
 
 
 const timeZone = "Asia/Tokyo";
@@ -127,7 +128,7 @@ export async function GET() {
                 if (clientUnfinishedShifts.length > 0) {
                     const header = `訪問記録が未了です。`;
                     const body = clientUnfinishedShifts.join('\n');
-                    const link = `https://myfamille.shi-on.net/portal/shift-view?openExternalBrowser=1 `;
+                    const link = `${getAppBaseUrl()}/portal/shift-view?openExternalBrowser=1 `;
 
                     const messageSegment = `\n\n<m userId="${user.lw_userid}">さん\n${header}\n${body}\n未了の記録を確認し、完了させてください。\n${link}`;
 

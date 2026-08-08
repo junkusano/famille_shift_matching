@@ -240,7 +240,7 @@ function buildAlertMessage(c: ClientRow): string {
   const name = c.name ?? "利用者名不明";
   const csId = c.kaipoke_cs_id;
   // ★ cs_kaipoke_info.id を使った詳細ページ URL
-  const detailUrl = `https://myfamille.shi-on.net/portal/kaipoke-info-detail/${c.id}`;
+  const detailUrl = `/portal/kaipoke-info-detail/${c.id}`;
 
   return [
     `【移動系サービス情報未設定】移動系サービスを利用しているのに標準の移動手段／目的が設定されていません：${name} 様（CS ID: ${csId}）`,

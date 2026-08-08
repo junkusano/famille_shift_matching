@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import { getAppBaseUrl } from '@/lib/env/getAppBaseUrl'
 
 const notify = {
   success: (msg: string) => (typeof window !== 'undefined' ? window.alert(msg) : void 0),
@@ -70,6 +71,7 @@ interface RowEditState {
 
 export default function Page() {
   const router = useRouter()
+  const appBaseUrl = typeof window === 'undefined' ? getAppBaseUrl() : window.location.origin
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [items, setItems] = useState<TaimeeEmployeeWithEntry[]>([])
@@ -100,7 +102,7 @@ export default function Page() {
 ✅ 資格取得補助充実 受講料＋研修時間も時給あり
 
 ★ エントリーしたい！方は↓
-https://myfamille.shi-on.net/entry
+${appBaseUrl}/entry
 
 ★ 詳しい情報を知りたいという方は↓
 https://www.shi-on.net/recruit

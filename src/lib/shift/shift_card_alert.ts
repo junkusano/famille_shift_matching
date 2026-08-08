@@ -50,7 +50,7 @@ function getYearMonth(dateStr?: string | null): string | null {
   return dateStr.slice(0, 7); // 'YYYY-MM'
 }
 
-/** 月間シフトのURLを生成（例: https://myfamille.shi-on.net/portal/roster/monthly?...） */
+/** 月間シフトのURLを生成（例: /portal/roster/monthly?...） */
 function buildMonthlyRosterUrl(kaipokeCsId?: string | null, dateStr?: string | null): string | null {
   const cs = (kaipokeCsId ?? "").trim();
   const ym = getYearMonth(dateStr ?? undefined);
@@ -60,7 +60,7 @@ function buildMonthlyRosterUrl(kaipokeCsId?: string | null, dateStr?: string | n
     "kaipoke_cs_id=" + encodeURIComponent(cs) +
     "&month=" + encodeURIComponent(ym);
 
-  return `https://myfamille.shi-on.net/portal/roster/monthly?${qs}`;
+  return `/portal/roster/monthly?${qs}`;
 }
 
 /**
@@ -149,4 +149,3 @@ export async function createTimeAdjustAlertFromShift(
     user_id: requester ?? null, // ③ リクエストした user_id を格納
   });
 }
-

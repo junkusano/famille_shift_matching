@@ -731,7 +731,7 @@ export default function EntryDetailPage() {
                 email: entry.email,
                 password: 'DummyPass123!',
                 options: {
-                    emailRedirectTo: 'https://myfamille.shi-on.net/signup/complete',
+                    emailRedirectTo: `${window.location.origin}/signup/complete`,
                     data: {
                         full_name: `${entry.last_name_kanji} ${entry.first_name_kanji}`
                     }
@@ -1025,7 +1025,8 @@ export default function EntryDetailPage() {
             const { subject, body } = lineworksInviteTemplate({
                 fullName: `${entry.last_name_kanji}${entry.first_name_kanji}`,
                 userId,
-                tempPassword: data.tempPassword
+                tempPassword: data.tempPassword,
+                appBaseUrl: window.location.origin,
             });
 
             console.log('メール送信データ:', {

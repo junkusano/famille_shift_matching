@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getAccessToken } from "@/lib/getAccessToken";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
 
 type StaffRow = {
     entry_id: string | null;
@@ -91,7 +92,7 @@ export async function sendTrainingGoalRemarkToLineworks(args: {
         `氏名: ${staffName}\n` +
         `チーム: ${orgName || "未設定"}\n` +
         `${detailText}\n\n` +
-        `確認画面:\nhttps://myfamille.shi-on.net/portal/training-goals`;
+        `確認画面:\n${getAppBaseUrl()}/portal/training-goals`;
     await sendLWBotMessage(to, message, accessToken);
 
     return {

@@ -164,7 +164,7 @@ export async function runKaipokeParkingPlaceCheck() {
         const cs = csMap.get(target.kaipoke_cs_id);
         if (!cs?.id || !cs?.name || !cs.asigned_org) continue;
 
-        const detailUrl = `https://myfamille.shi-on.net/portal/kaipoke-info-detail/${cs.id}`;
+        const detailUrl = `/portal/kaipoke-info-detail/${cs.id}`;
         const shiftMonthLabel = formatJpMonth(target.firstShiftDate);
 
         const message =

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { getAccessToken } from "@/lib/getAccessToken";
+import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -107,7 +108,7 @@ ${fiscalYear}年度の健康診断の提出がまだ確認できていません�
 ${startDate} ～ ${fiscalYear + 1}-02-28
 
 精算・申請ページ
-https://myfamille.shi-on.net/portal/wf-seisan-shinsei
+${getAppBaseUrl()}/portal/wf-seisan-shinsei
 から「健康診断受診」を選択し、以下を提出してください。
 
 ・受診日

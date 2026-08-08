@@ -118,7 +118,7 @@ export async function runResignerShiftCheck(): Promise<ResignerShiftResult> {
       a.shift_start_date <= b.shift_start_date ? a : b,
     );
 
-    const link = `https://myfamille.shi-on.net/portal/shift-view?user_id=${encodeURIComponent(
+    const link = `/portal/shift-view?user_id=${encodeURIComponent(
       u.user_id,
     )}&date=${firstOfMonth}&per=50&page=1`;
 

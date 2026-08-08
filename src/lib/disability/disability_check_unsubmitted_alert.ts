@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { ensureSystemAlert, type EnsureAlertParams } from "@/lib/alert/ensureSystemAlert";
 import { getAccessToken } from "@/lib/getAccessToken";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
 
 type DisabilityCheckViewRow = {
     kaipoke_cs_id: string;
@@ -372,7 +373,7 @@ async function runSubmittedUncheckLineworksOnly(args: {
                 const svcLabel = Array.from(svcSet).join("/"); // 例: "移動支援/障害"
 
                 // ★svc を入れない（＝常に「全て」初期表示にしたい）
-                const staffUrl = `https://myfamille.shi-on.net/portal/disability-check?ym=${encodeURIComponent(
+                const staffUrl = `${getAppBaseUrl()}/portal/disability-check?ym=${encodeURIComponent(
                     targetYm
                 )}&user_id=${encodeURIComponent(staffId)}`;
 
@@ -548,7 +549,7 @@ async function runCollectedUncheckManagerAlert(args: {
 
             const detailUrl =
                 staffId
-                    ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&user_id=${encodeURIComponent(staffId)}`
+                    ? `/portal/disability-check?ym=${targetYm}&user_id=${encodeURIComponent(staffId)}`
                     : "";
 
             return detailUrl ? `<a href="${detailUrl}">${labelText}</a>` : labelText;

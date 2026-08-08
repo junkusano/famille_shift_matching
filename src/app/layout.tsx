@@ -2,6 +2,7 @@ import '../styles/globals.css';
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import RoleProvider from '@/components/RoleProvider';
+import { getAppBaseUrl } from '@/lib/env/getAppBaseUrl';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,7 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 // 公開URL（Next.js の public ディレクトリ以下の画像は直接URLでアクセス可能）
-const ogImageUrl = "https://myfamille.shi-on.net/hero.jpg";
+const appBaseUrl = getAppBaseUrl();
+const ogImageUrl = `${appBaseUrl}/hero.jpg`;
 
 export const metadata: Metadata = {
   title: 'ファミーユ・ヘルパーサービス愛知｜訪問介護の新しいカタチ',
@@ -22,7 +24,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'ファミーユ・ヘルパーサービス愛知｜訪問介護の新しいカタチ',
     description: '名古屋市・春日井市・小牧市・岩倉市で訪問介護ならファミーユ・ヘルパーサービス愛知へ。高時給・柔軟な働き方・スマホだけで簡単登録！',
-    url: 'https://myfamille.shi-on.net/',
+    url: appBaseUrl,
     siteName: 'ファミーユ・ヘルパーサービス愛知',
     images: [
       {

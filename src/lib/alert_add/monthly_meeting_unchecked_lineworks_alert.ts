@@ -4,6 +4,7 @@
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getAccessToken } from "@/lib/getAccessToken";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
 
 type AttendanceRow = {
     target_month: string; // YYYY-MM-01
@@ -245,7 +246,7 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
 
             const monthYm = row.target_month.slice(0, 7);
             const detailUrl =
-                `https://myfamille.shi-on.net/portal/monthly-meeting-check?ym=${encodeURIComponent(monthYm)}`;
+                `${getAppBaseUrl()}/portal/monthly-meeting-check?ym=${encodeURIComponent(monthYm)}`;
 
             const mentionLine = lwUserId
                 ? `<m userId="${lwUserId}">さん`

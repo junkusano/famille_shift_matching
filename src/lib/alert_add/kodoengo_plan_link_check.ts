@@ -97,7 +97,7 @@ export async function kodoengoPlanLinkCheck(): Promise<KodoengoPlanLinkCheckResu
   for (const cs of rows) {
     const name = cs.name ?? "（名称未設定）";
 
-    const msg = `【行動援護 支援手順書リンク無】 <a href="https://myfamille.shi-on.net/portal/kaipoke-info-detail/${cs.id}">${name}</a>`;
+    const msg = `【行動援護 支援手順書リンク無】 <a href="/portal/kaipoke-info-detail/${cs.id}">${name}</a>`;
 
     try {
       const result = await ensureSystemAlert({

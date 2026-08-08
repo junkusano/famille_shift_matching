@@ -1,8 +1,11 @@
-export function lineworksInviteTemplate({ fullName, userId, tempPassword }: {
+export function lineworksInviteTemplate({ fullName, userId, tempPassword, appBaseUrl }: {
   fullName: string;
   userId: string;
   tempPassword: string;
+  appBaseUrl: string;
 }) {
+  const normalizedAppBaseUrl = appBaseUrl.replace(/\/$/, '');
+
   return {
     subject: 'マイ・ファミーユ：LINE WORKS 初回ログイン情報のご案内',
     body: `
@@ -21,7 +24,7 @@ ${tempPassword}</p>
 <p>下記のガイドページに、アプリのインストール方法やログイン手順をまとめています。<br>
 必要に応じてご参照ください。</p>
 
-<p>▶ <a href="https://myfamille.shi-on.net/lineworks-login-guide">ログインガイドページ</a></p>
+<p>▶ <a href="${normalizedAppBaseUrl}/lineworks-login-guide">ログインガイドページ</a></p>
 
 <p>ログイン後は必ずパスワードを変更してください。<br>
 ご不明な点がございましたら、管理者までご連絡ください。</p>

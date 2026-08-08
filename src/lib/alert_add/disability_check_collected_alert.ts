@@ -223,7 +223,7 @@ export async function runDisabilityCheckCollectedAlert(args: {
         const clientNameRaw = (r.client_name ?? "").trim();
         const clientLabel = clientNameRaw ? `${clientNameRaw}様` : `CS:${kaipokeCsId}`;
         const clientUrl =
-            `https://myfamille.shi-on.net/portal/disability-check?ym=${r.year_month}&kaipoke_cs_id=${encodeURIComponent(kaipokeCsId)}`; const clientName = `<a href="${clientUrl}">${clientLabel}</a>`;
+            `/portal/disability-check?ym=${r.year_month}&kaipoke_cs_id=${encodeURIComponent(kaipokeCsId)}`; const clientName = `<a href="${clientUrl}">${clientLabel}</a>`;
 
         const packKey = `${r.year_month}:${kaipokeCsId}`;
         const cur = byClient.get(packKey);
@@ -255,7 +255,7 @@ export async function runDisabilityCheckCollectedAlert(args: {
 
             const labelText = `[${it.kaipoke_servicek}] 担当:${staffName}さん`;
             const detailUrl = staffId
-                ? `https://myfamille.shi-on.net/portal/disability-check?ym=${pack.yearMonth}&user_id=${encodeURIComponent(staffId)}`
+                ? `/portal/disability-check?ym=${pack.yearMonth}&user_id=${encodeURIComponent(staffId)}`
                 : "";
 
             return detailUrl ? `<a href="${detailUrl}">${labelText}</a>` : labelText;

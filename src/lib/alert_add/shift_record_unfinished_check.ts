@@ -91,7 +91,7 @@ export async function runShiftRecordUnfinishedCheck(): Promise<ShiftRecordUnfini
     // 利用者別シフト画面へのリンク
     const url =
       r.kaipoke_cs_id
-        ? `https://myfamille.shi-on.net/portal/shift-view?client=${encodeURIComponent(
+        ? `/portal/shift-view?client=${encodeURIComponent(
             r.kaipoke_cs_id,
           )}&date=${encodeURIComponent(date)}`
         : "";

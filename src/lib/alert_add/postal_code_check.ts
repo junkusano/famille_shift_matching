@@ -49,7 +49,7 @@ export async function runPostalCodeCheck(): Promise<PostalCodeCheckResult> {
     const name = cs.name ?? "(名称未設定)";
 
     // ★ URLクエリ id=... ではなく、パス /{uuid} 形式に変更
-    const detailUrl = `https://myfamille.shi-on.net/portal/kaipoke-info-detail/${cs.id}`;
+    const detailUrl = `/portal/kaipoke-info-detail/${cs.id}`;
 
     // ★ 利用者詳細部分を <a href> でリンク化
     const message =
