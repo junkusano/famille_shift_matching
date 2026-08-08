@@ -478,6 +478,23 @@ export default function ShiftCoordinatePerformanceTestClient() {
           </div>
         </section>
 
+        <section className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-amber-950 shadow-sm sm:flex-row sm:items-center sm:justify-between" aria-label="不具合・改善提案">
+          <div>
+            <p className="text-sm font-bold">不具合・改善提案について</p>
+            <p className="mt-1 text-xs leading-5 text-amber-900 sm:text-sm">
+              不具合があれば、マイファミーユ不具合・改善提案（掲示板）で教えてください。
+            </p>
+          </div>
+          <a
+            href="https://board.worksmobile.com/main/article/4090000000184884271?selectedBoardType=PIN&t=10630&boardNo=4090000000000291076&isShowFilesArea=false"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100 hover:underline sm:text-sm"
+          >
+            掲示板へ移動 ↗
+          </a>
+        </section>
+
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="shift-filter-heading">
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
             <div className="flex items-start gap-3">
