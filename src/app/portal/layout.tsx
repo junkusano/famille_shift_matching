@@ -199,6 +199,17 @@ function NavLinks({ role }: { role: string | null }) {
           </span>
         </Link>
       </li>
+      <li>
+        <Link
+          href="/portal/shift-reject-performance-test"
+          className="inline-flex items-center gap-2 text-blue-200 hover:underline"
+        >
+          <span>Rejectモード（ベータ版）</span>
+          <span className="rounded-full bg-amber-300/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-200">
+            BETA
+          </span>
+        </Link>
+      </li>
       <li><Link href="/portal/parking_cs_places" className="text-blue-300 hover:underline">駐車許可証申請</Link></li>
       <li><Link href="/portal/wf-seisan-shinsei" className="text-blue-300 hover:underline">清算・申請</Link></li>
       <li>
