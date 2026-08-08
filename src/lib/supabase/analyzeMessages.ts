@@ -3,6 +3,7 @@
 import OpenAI from 'openai';
 import { MsgLwLog } from '@/types/msgLwLog';
 import { AnalyzedResult } from '@/types/msgLwAnalyzed';
+import { OPENAI_PROFILES } from '@/lib/openaiProfiles';
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY!,
@@ -44,7 +45,7 @@ Bot自身が投稿した通知は除外してください。
         .join('\n');
 
     const response = await openai.chat.completions.create({
-        model: 'gpt-4',
+        model: OPENAI_PROFILES.standard.model,
         messages: [
             { role: 'system', content: prompt },
             { role: 'user', content: formattedLogs },

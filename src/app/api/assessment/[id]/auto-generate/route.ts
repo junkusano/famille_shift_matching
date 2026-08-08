@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
 import { getDefaultElderCareAssessmentContent } from "@/lib/assessment/elder-care-template";
+import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 
 export const dynamic = "force-dynamic";
 
@@ -1645,12 +1646,8 @@ template_contentのsheet.key、row.key、labelを変更しないでください�
             visit_notes_chars: visitNotes.length,
         });
 
-        const model = isElderCareKind(serviceKind)
-            ? "gpt-4o-mini"
-            : "gpt-4.1-mini";
-
         const resp = await openai.chat.completions.create({
-            model,
+            model: OPENAI_PROFILES.critical.model,
             temperature: 0.2,
             response_format: {
                 type: "json_object",

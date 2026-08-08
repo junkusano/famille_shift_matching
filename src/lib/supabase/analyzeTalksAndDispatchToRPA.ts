@@ -7,6 +7,7 @@ import { getAccessToken } from "@/lib/getAccessToken";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { insertShifts } from "@/lib/supabase/shiftAdd";
 import { deleteShifts } from "@/lib/supabase/shiftDelete";
+import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -627,7 +628,7 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
         ];
 
         const ai = await openai.chat.completions.create({
-            model: "gpt-4o",
+            model: OPENAI_PROFILES.critical.model,
             messages,
             temperature: 0,
         });

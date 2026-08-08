@@ -188,6 +188,27 @@ function NavLinks({ role }: { role: string | null }) {
       <li><Link href="/portal/shift-view" className="text-blue-300 hover:underline">シフト・勤務一覧</Link></li>
       <li><Link href="/portal/shift" className="text-blue-300 hover:underline">シフト・訪問記録</Link></li>
       <li><Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">ｼﾌﾄｾﾙﾌｺｰﾃﾞｨﾈｰﾄ（シフ子）</Link></li>
+      <li>
+        <Link
+          href="/portal/shift-coordinate-performance-test"
+          className="inline-flex items-center gap-2 text-blue-200 hover:underline"
+        >
+          <span>シフ子（ベータ版）</span>
+          <span className="rounded-full bg-amber-300/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-200">
+            BETA
+          </span>
+        </Link>
+      </li>
+      <li className="ml-2 border-l border-slate-500 pl-3">
+        <a
+          href="https://board.worksmobile.com/main/article/4090000000184884271?selectedBoardType=PIN&t=10630&boardNo=4090000000000291076&isShowFilesArea=false"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block text-xs leading-5 text-slate-300 hover:text-white hover:underline"
+        >
+          不具合・改善提案は「マイファミーユ不具合・改善提案（掲示板）」へ
+        </a>
+      </li>
       <li><Link href="/portal/parking_cs_places" className="text-blue-300 hover:underline">駐車許可証申請</Link></li>
       <li><Link href="/portal/wf-seisan-shinsei" className="text-blue-300 hover:underline">清算・申請</Link></li>
       <li>

@@ -15,6 +15,7 @@ import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import { withAuditLog } from "@/lib/cm/audit/withAuditLog";
 import { CM_OP_LOG_PLAUD_GENERATE } from "@/constants/cm/operationLogActions";
 import OpenAI from "openai";
+import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 
 const logger = createLogger("lib/cm/plaud/generate");
 
@@ -27,8 +28,6 @@ const openai = new OpenAI({
 // 定数
 // =============================================================
 
-// 使用するモデル（gpt-4o-mini: 高速・低コスト、gpt-4o: 高精度）
-const OPENAI_MODEL = "gpt-4o-mini";
 const MAX_TOKENS = 2000;
 const TEMPERATURE = 0.7;
 
@@ -114,7 +113,7 @@ export async function generateWithTemplates(
 
             // OpenAI API呼び出し
             const response = await openai.chat.completions.create({
-              model: OPENAI_MODEL,
+              model: OPENAI_PROFILES.standard.model,
               max_tokens: MAX_TOKENS,
               temperature: TEMPERATURE,
               messages: [

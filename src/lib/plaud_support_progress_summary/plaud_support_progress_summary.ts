@@ -5,7 +5,7 @@
 //
 // 【処理概要】
 // 1. Chrome拡張からcm_plaud_sumテーブルに登録されたPlaud録音データを取得
-// 2. OpenAI API（gpt-4o-mini）で音声テキストを要約
+// 2. OpenAI APIで音声テキストを要約
 // 3. 要約結果をcm_plaud_sum_processingテーブルに保存
 // 4. PAD（Power Automate Desktop）用のRPAリクエストをrpa_command_requestsに作成
 // 5. PADがカイポケに支援経過を登録/更新
@@ -23,6 +23,7 @@
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import { getPromptWithVariables } from "@/lib/prompt-template";
+import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 import { validateSummary, getRetryPromptAddition, SummaryValidationErrorType } from "@/lib/plaud_support_progress_summary/validation";
 import {
   sendDeleteRequestNotification,
@@ -795,7 +796,7 @@ async function generateSummary(
 
   // OpenAI API呼び出し
   const response = await openai.chat.completions.create({
-    model: promptResult.model,
+    model: OPENAI_PROFILES.standard.model,
     max_tokens: promptResult.max_tokens,
     temperature: promptResult.temperature,
     messages: [

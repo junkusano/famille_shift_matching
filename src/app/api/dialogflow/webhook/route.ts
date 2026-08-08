@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 
 type PendingRow = {
     id: string;
@@ -143,7 +144,7 @@ ${message}
             "Content-Type": "application/json",
         },
         body: JSON.stringify({
-            model: "gpt-5.4",
+            model: OPENAI_PROFILES.light.model,
             input: [
                 {
                     role: "system",

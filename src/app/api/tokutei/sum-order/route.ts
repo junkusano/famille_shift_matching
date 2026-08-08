@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin as supabase } from "@/lib/supabase/service";
+import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 
 /* =========================
    型定義（必要最小限）
@@ -353,7 +354,7 @@ async function generateInstruction(
   ].join("\n");
 
   const resp = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: OPENAI_PROFILES.standard.model,
     messages: [
       { role: "system", content: sys },
       { role: "user", content: usr },

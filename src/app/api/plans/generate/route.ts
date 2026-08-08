@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
 import OpenAI from "openai";
+import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 
 export const dynamic = "force-dynamic";
 
@@ -878,7 +879,7 @@ ${params.sourceText}
 `;
 
     const resp = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: OPENAI_PROFILES.heavy.model,
       temperature: 0.2,
       messages: [
         {
@@ -1315,7 +1316,7 @@ ${sourceText}
 `;
 
     const resp = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: OPENAI_PROFILES.heavy.model,
       temperature: 0.2,
       messages: [
         {
@@ -1499,7 +1500,7 @@ ${sourceText}
 
     const resp =
       await openai.chat.completions.create({
-        model: "gpt-4.1-mini",
+        model: OPENAI_PROFILES.heavy.model,
         temperature: 0.1,
         messages: [
           {
@@ -2973,7 +2974,7 @@ export async function POST(req: NextRequest) {
                 "selected_care_plan",
 
               extraction_model:
-                "gpt-4.1-mini",
+                OPENAI_PROFILES.heavy.model,
 
               display_order:
                 displayOrder,
@@ -3070,7 +3071,7 @@ export async function POST(req: NextRequest) {
                 "selected_care_plan",
 
               extraction_model:
-                "gpt-4.1-mini",
+                OPENAI_PROFILES.heavy.model,
 
               display_order: 1,
             },
@@ -3336,7 +3337,7 @@ export async function POST(req: NextRequest) {
                   new Date().toISOString(),
 
                 source:
-                  "gpt-4.1-mini",
+                  OPENAI_PROFILES.heavy.model,
 
                 extraction:
                   "service_goal_relation",

@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { startOfMonth, subMonths } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import OpenAI from "openai";
+import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 
 const timeZone = "Asia/Tokyo";
 const DRY_RUN_DEFAULT = false;
@@ -710,7 +711,7 @@ ${lines || "記録内容がほとんどありません。"}
 `;
 
     const res = await openai.chat.completions.create({
-        model: "gpt-4.1-mini",
+        model: OPENAI_PROFILES.standard.model,
         messages: [
             {
                 role: "system",

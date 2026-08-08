@@ -1,5 +1,6 @@
 //cs_docs_judge_logics.ts
 import { createClient } from "@supabase/supabase-js";
+import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 
 export type CronMode = "incremental" | "full";
 
@@ -132,11 +133,6 @@ async function callLLM(params: {
     return { features: buildFallbackFeatures({ label, sampleOcrTexts }) };
   }
 
-  const model =
-    process.env.OPENAI_MODEL_JUDGE_LOGICS ||
-    process.env.OPENAI_MODEL ||
-    "gpt-4o-mini";
-
   const system = [
     "あなたは日本語の介護・福祉書類をOCRテキストとして受け取り、",
     "『その書類種別を判定するために使える特徴（キーワード/見出し/正規表現ヒント）』を抽出する専門家です。",
@@ -158,7 +154,7 @@ async function callLLM(params: {
       Authorization: `Bearer ${apiKey}`,
     },
     body: safeJsonStringify({
-      model,
+      model: OPENAI_PROFILES.light.model,
       temperature: 0.2,
       response_format: { type: "json_object" },
       messages: [
