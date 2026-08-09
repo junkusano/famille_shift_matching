@@ -201,6 +201,10 @@
       "schedule": "43 */2 * * *"
     },
     {
+      "path": "/api/cron/visit-record-daily-reminder",
+      "schedule": "43 8 * * *"
+    },
+    {
       "path": "/api/cron/health-check-reminder",
       "schedule": "32 1 1 * *"
     },

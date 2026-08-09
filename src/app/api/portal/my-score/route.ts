@@ -228,6 +228,7 @@ type ScoreRow = {
     training_goal_selected_count: number | null;
     health_check_done: boolean | null;
     visit_record_current_month_incomplete_count: number | null;
+    visit_record_deadline_miss_count: number | null;
     shift_decline_3days_count: number | null;
     shift_decline_6hours_count: number | null;
     shift_decline_penalty_score: number | null;
@@ -242,15 +243,9 @@ function calcDisplayTotalScore(row: ScoreRow) {
 
 
 
-    const visitRecordPastIncompleteCount = Number(
-        row.visit_record_past_incomplete_count ?? 0
-    );
-
-
-    const visitRecordScore = Math.max(
-        0,
-        30 - visitRecordPastIncompleteCount * 5
-    );
+    const visitRecordDeadlineMissCount = Number(row.visit_record_deadline_miss_count ?? 0);
+    const visitRecordPastIncompleteCount = Number(row.visit_record_past_incomplete_count ?? 0);
+    const visitRecordScore = -(visitRecordDeadlineMissCount * 5) - (visitRecordPastIncompleteCount * 5);
 
     const meetingScore =
         row.meeting_previous_month_attended === true ||
@@ -486,6 +481,7 @@ export async function GET(req: NextRequest) {
             visit_record_total_count,
             houmon_same_day_done_count,
             visit_record_past_incomplete_count,
+            visit_record_deadline_miss_count,
             meeting_previous_month_attended,
             meeting_past_attended,
             jisseki_previous_month_total_count,
@@ -512,24 +508,13 @@ shift_decline_penalty_score,
     );
 
 
-    const visitRecordTotalCount = Number(summary.visit_record_total_count ?? 0);
-    const visitRecordLateDoneCount = Number(summary.houmon_late_done_count ?? 0);
+    const visitRecordDeadlineMissCount = Number(summary.visit_record_deadline_miss_count ?? 0);
     const visitRecordPastIncompleteCount = Number(
         summary.visit_record_past_incomplete_count ?? 0
     );
-
     const visitRecordScore =
-        visitRecordTotalCount > 0
-            ? Math.max(
-                0,
-                Math.round(
-                    30 *
-                    ((visitRecordTotalCount - visitRecordLateDoneCount) /
-                        visitRecordTotalCount) -
-                    visitRecordPastIncompleteCount * 5
-                )
-            )
-            : 0;
+        -(visitRecordDeadlineMissCount * 5) -
+        (visitRecordPastIncompleteCount * 5);
     const meetingScore =
         summary.meeting_previous_month_attended === true ||
             summary.meeting_past_attended === true
@@ -629,8 +614,8 @@ shift_decline_penalty_score,
                 key: "visit_record",
                 label: "訪問記録",
                 score: visitRecordScore,
-                maxScore: 30,
-                note: `当日完了 ${summary.houmon_same_day_done_count ?? 0}件 / 遅れ完了 ${summary.houmon_late_done_count ?? 0}件 / 当月未完了 ${summary.visit_record_current_month_incomplete_count ?? 0}件 / 過去未完了 ${summary.visit_record_past_incomplete_count ?? 0}件`,
+                maxScore: 0,
+                note: `23:43締切違反 ${visitRecordDeadlineMissCount}件 / 過去未完了 ${visitRecordPastIncompleteCount}件`,
                 linkUrl: addParams("/portal/shift-view", {
                     user_id: userId,
                     date: `${ym}-01`,

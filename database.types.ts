@@ -7624,6 +7624,7 @@ export type Database = {
           updated_at: string
           user_id: string
           visit_record_current_month_incomplete_count: number
+          visit_record_deadline_miss_count: number
           visit_record_past_incomplete_count: number
           visit_record_total_count: number
         }
@@ -7656,6 +7657,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           visit_record_current_month_incomplete_count?: number
+          visit_record_deadline_miss_count?: number
           visit_record_past_incomplete_count?: number
           visit_record_total_count?: number
         }
@@ -7688,8 +7690,27 @@ export type Database = {
           updated_at?: string
           user_id?: string
           visit_record_current_month_incomplete_count?: number
+          visit_record_deadline_miss_count?: number
           visit_record_past_incomplete_count?: number
           visit_record_total_count?: number
+        }
+        Relationships: []
+      }
+      visit_record_daily_reminder_logs: {
+        Row: {
+          attempted_at: string
+          reminder_date: string
+          sent_at: string | null
+        }
+        Insert: {
+          attempted_at?: string
+          reminder_date: string
+          sent_at?: string | null
+        }
+        Update: {
+          attempted_at?: string
+          reminder_date?: string
+          sent_at?: string | null
         }
         Relationships: []
       }

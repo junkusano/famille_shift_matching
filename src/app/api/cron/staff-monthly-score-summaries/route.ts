@@ -22,6 +22,7 @@ type SummaryRow = {
     houmon_same_day_done_count: number | null;
     houmon_late_done_count: number | null;
     visit_record_current_month_incomplete_count: number | null;
+    visit_record_deadline_miss_count: number | null;
     visit_record_past_incomplete_count: number | null;
     meeting_previous_month_attended: boolean | null;
     meeting_past_attended: boolean | null;
@@ -41,6 +42,7 @@ type SummaryRow = {
 };
 
 type ShiftRecordViewRow = {
+    shift_id: string | null;
     shift_start_date: string | null;
     shift_start_time: string | null;
     shift_end_date: string | null;
@@ -54,6 +56,17 @@ type ShiftRecordViewRow = {
     record_status: string | null;
     record_created_at: string | null;
 };
+
+type DeadlineMissLogRow = { staff_id: string; action_detail: string | null };
+type DeadlineMissRecorder = {
+    rpc: (
+        functionName: "record_visit_record_deadline_miss",
+        args: { p_staff_id: string; p_action_at: string; p_action_detail: string }
+    ) => Promise<{ error: { message: string } | null }>;
+};
+
+const VISIT_RECORD_DEADLINE_EVENT = "[VISIT_RECORD_DEADLINE_MISS]";
+const VISIT_RECORD_DEADLINE_REGISTERED_BY = "cron:visit-record-deadline";
 
 type IncompleteCount = {
     currentMonth: number;
@@ -301,21 +314,35 @@ function addServiceHours(
 }
 
 function calcVisitRecordScore(row: SummaryRow) {
-    const totalCount = Number(row.visit_record_total_count ?? 0);
-    const lateDoneCount = Number(row.houmon_late_done_count ?? 0);
+    const deadlineMissCount = Number(row.visit_record_deadline_miss_count ?? 0);
     const pastIncomplete = Number(row.visit_record_past_incomplete_count ?? 0);
+    return -(deadlineMissCount * 5) - (pastIncomplete * 5);
+}
 
-    if (totalCount <= 0) {
-        return 0;
-    }
+function getJstDateTime(now = new Date()) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Tokyo",
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(now);
+    const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+    return {
+        date: `${value("year")}-${value("month")}-${value("day")}`,
+        hour: Number(value("hour")),
+        minute: Number(value("minute")),
+    };
+}
 
-    return Math.max(
-        0,
-        Math.round(
-            30 * ((totalCount - lateDoneCount) / totalCount) -
-            pastIncomplete * 5
-        )
-    );
+function getParticipatingUserIds(shift: ShiftRecordViewRow) {
+    return Array.from(new Set([
+        shift.staff_01_user_id,
+        shift.staff_02_attend_flg === true ? shift.staff_02_user_id : null,
+        shift.staff_03_attend_flg === true ? shift.staff_03_user_id : null,
+    ].filter((userId): userId is string => Boolean(userId))));
+}
+
+function isVisitRecordComplete(status: string | null) {
+    return status === "submitted" || status === "approved";
 }
 
 function calcTotalScore(row: SummaryRow) {
@@ -441,6 +468,7 @@ export async function GET(req: NextRequest) {
                 houmon_same_day_done_count: 0,
                 houmon_late_done_count: 0,
                 visit_record_current_month_incomplete_count: 0,
+                visit_record_deadline_miss_count: 0,
                 visit_record_past_incomplete_count: 0,
                 meeting_previous_month_attended: false,
                 meeting_past_attended: false,
@@ -537,6 +565,7 @@ export async function GET(req: NextRequest) {
             houmon_same_day_done_count: 0,
             houmon_late_done_count: 0,
             visit_record_current_month_incomplete_count: 0,
+            visit_record_deadline_miss_count: 0,
             visit_record_past_incomplete_count: 0,
             meeting_previous_month_attended: false,
             meeting_past_attended: false,
@@ -737,7 +766,7 @@ export async function GET(req: NextRequest) {
             */
 
         const selectShiftColumns =
-            "shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, staff_02_attend_flg, staff_03_attend_flg, record_status, record_created_at";
+            "shift_id, shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, staff_02_attend_flg, staff_03_attend_flg, record_status, record_created_at";
 
         const currentMonthShiftRows = await fetchAllShiftRows(
             targetMonth,
@@ -751,6 +780,69 @@ export async function GET(req: NextRequest) {
             selectShiftColumns
         );
 
+        // 締切違反は、過去月の再計算では作らず、実際の23:43 JST実行時だけ確定する。
+        const jstNow = getJstDateTime();
+        const isLiveDeadlineRun =
+            !req.nextUrl.searchParams.has("ym") &&
+            jstNow.hour === 23 &&
+            jstNow.minute === 43;
+
+        if (isLiveDeadlineRun) {
+            const todayRows = await fetchAllShiftRows(
+                jstNow.date,
+                getNextMonthStartDate(jstNow.date.slice(0, 7) + "-01"),
+                selectShiftColumns
+            );
+            const todaysShifts = todayRows.filter((shift) => shift.shift_start_date === jstNow.date);
+            const participantUserIds = Array.from(new Set(
+                todaysShifts.flatMap((shift) => getParticipatingUserIds(shift))
+            ));
+
+            if (participantUserIds.length > 0) {
+                const { data: entryRows, error: entryError } = await supabaseAdmin
+                    .from("user_entry_united_view_single")
+                    .select("user_id, entry_id")
+                    .in("user_id", participantUserIds);
+
+                if (entryError) throw entryError;
+
+                const entryIdByUserId = new Map<string, string>();
+                for (const entry of entryRows ?? []) {
+                    if (entry.user_id && entry.entry_id && !entryIdByUserId.has(entry.user_id)) {
+                        entryIdByUserId.set(entry.user_id, entry.entry_id);
+                    }
+                }
+
+                const actionAt = `${jstNow.date} 23:43:00`;
+                const deadlineMissRows = todaysShifts
+                    .filter((shift) => shift.shift_id && !isVisitRecordComplete(shift.record_status))
+                    .flatMap((shift) => getParticipatingUserIds(shift).map((userId) => {
+                        const entryId = entryIdByUserId.get(userId);
+                        if (!entryId) return null;
+                        return {
+                            staff_id: entryId,
+                            action_at: actionAt,
+                            action_detail: `${VISIT_RECORD_DEADLINE_EVENT} shift_id=${shift.shift_id} shift_date=${jstNow.date} penalty=-5 reason=23:43時点で訪問記録未完了`,
+                            registered_by: VISIT_RECORD_DEADLINE_REGISTERED_BY,
+                        };
+                    }))
+                    .filter((row): row is NonNullable<typeof row> => row !== null);
+
+                if (deadlineMissRows.length > 0) {
+                    const recorder = supabaseAdmin as unknown as DeadlineMissRecorder;
+                    const results = await Promise.all(deadlineMissRows.map((row) =>
+                        recorder.rpc("record_visit_record_deadline_miss", {
+                            p_staff_id: row.staff_id,
+                            p_action_at: row.action_at,
+                            p_action_detail: row.action_detail,
+                        })
+                    ));
+                    const deadlineMissError = results.find((result) => result.error)?.error;
+                    if (deadlineMissError) throw new Error(deadlineMissError.message);
+                }
+            }
+        }
+
         const shiftRecordRows = [
             ...currentMonthShiftRows,
             ...pastShiftRows,
@@ -761,6 +853,36 @@ export async function GET(req: NextRequest) {
         const houmonSameDayDoneCountMap = new Map<string, number>();
         const houmonLateDoneCountMap = new Map<string, number>();
         const visitCurrentMonthIncompleteCountMap = new Map<string, number>();
+        const visitDeadlineMissCountMap = new Map<string, number>();
+
+        const entryIdToUserId = new Map<string, string>();
+        for (const row of rows) {
+            if (row.entry_id) entryIdToUserId.set(row.entry_id, row.user_id);
+        }
+        for (const user of userRows ?? []) {
+            if (user.entry_id && user.user_id && !entryIdToUserId.has(user.entry_id)) {
+                entryIdToUserId.set(user.entry_id, user.user_id);
+            }
+        }
+        const { data: deadlineMissLogs, error: deadlineMissLogsError } = await supabaseAdmin
+            .from("staff_log")
+            .select("staff_id, action_detail")
+            .eq("registered_by", VISIT_RECORD_DEADLINE_REGISTERED_BY)
+            .gte("action_at", targetMonth)
+            .lt("action_at", nextMonthStart)
+            .like("action_detail", `${VISIT_RECORD_DEADLINE_EVENT}%`)
+            .returns<DeadlineMissLogRow[]>();
+
+        if (deadlineMissLogsError) throw deadlineMissLogsError;
+        for (const log of deadlineMissLogs ?? []) {
+            const userId = entryIdToUserId.get(log.staff_id);
+            if (userId) {
+                visitDeadlineMissCountMap.set(
+                    userId,
+                    (visitDeadlineMissCountMap.get(userId) ?? 0) + 1
+                );
+            }
+        }
 
         const serviceHoursMap = new Map<string, number>();
         const jissekiPreviousMonthTotalMap = new Map<string, number>();
@@ -878,13 +1000,9 @@ export async function GET(req: NextRequest) {
                 shift.shift_start_date >= targetMonth &&
                 shift.shift_start_date < nextMonthStart
             ) {
-                const userIds = [
-                    shift.staff_01_user_id,
-                    shift.staff_02_user_id,
-                    shift.staff_03_user_id,
-                ].filter(Boolean) as string[];
+                const userIds = getParticipatingUserIds(shift);
 
-                const isSubmitted = shift.record_status === "submitted";
+                const isSubmitted = isVisitRecordComplete(shift.record_status);
 
                 const recordCreatedDate = shift.record_created_at
                     ? new Date(shift.record_created_at)
@@ -931,14 +1049,12 @@ export async function GET(req: NextRequest) {
                 shift.shift_start_date >= "2025-11-01" &&
                 shift.shift_start_date < targetMonth
             ) {
-                const isDone =
-                    shift.record_status === "submitted" ||
-                    shift.record_status === "approved";
+                const isDone = isVisitRecordComplete(shift.record_status);
 
                 if (!isDone) {
-                    addIncompleteCount(incompleteCountMap, shift.staff_01_user_id ?? "", "past");
-                    addIncompleteCount(incompleteCountMap, shift.staff_02_user_id ?? "", "past");
-                    addIncompleteCount(incompleteCountMap, shift.staff_03_user_id ?? "", "past");
+                    for (const userId of getParticipatingUserIds(shift)) {
+                        addIncompleteCount(incompleteCountMap, userId, "past");
+                    }
                 }
             }
         }
@@ -972,6 +1088,8 @@ export async function GET(req: NextRequest) {
                         houmonLateDoneCountMap.get(row.user_id) ?? 0,
                     visit_record_current_month_incomplete_count:
                         visitCurrentMonthIncompleteCountMap.get(row.user_id) ?? 0,
+                    visit_record_deadline_miss_count:
+                        visitDeadlineMissCountMap.get(row.user_id) ?? 0,
                     visit_record_past_incomplete_count:
                         incompleteCountMap.get(row.user_id)?.past ?? 0,
                     jisseki_previous_month_total_count:
@@ -1011,6 +1129,9 @@ export async function GET(req: NextRequest) {
 
             visit_record_current_month_incomplete_count:
                 visitCurrentMonthIncompleteCountMap.get(row.user_id) ?? 0,
+
+            visit_record_deadline_miss_count:
+                visitDeadlineMissCountMap.get(row.user_id) ?? 0,
 
             visit_record_past_incomplete_count:
                 incompleteCountMap.get(row.user_id)?.past ?? 0,
