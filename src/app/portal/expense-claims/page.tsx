@@ -1,3 +1,4 @@
+//portal/expense-claims/page.tsx
 "use client";
 
 import Link from "next/link";
@@ -720,14 +721,14 @@ function ClaimDetailDialog({
                 ? [
                     "この申請を振込完了にしますか？",
                     "",
-                    "申請者と塩澤さんへメールが送信されます。",
+                    "申請者へ完了通知を送信します。",
                 ].join("\n")
                 : [
                     "この申請を却下しますか？",
                     "",
                     `却下理由：${rejectionReason.trim()}`,
                     "",
-                    "申請者と塩澤さんへメールが送信されます。",
+                    "却下理由を含む通知を申請者へ送信します。",
                 ].join("\n");
 
         if (!window.confirm(confirmMessage)) {
@@ -1106,6 +1107,10 @@ function ClaimDetailDialog({
                                     申請内容を確認し、「振込完了」または「却下」を選択してください。
                                 </p>
 
+                                <p className="mt-2 text-sm leading-6 text-green-700">
+                                    振込済に変更すると申請者へ完了通知を送信します。
+                                </p>
+
                                 <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4">
                                     <label
                                         htmlFor="rejection-reason"
@@ -1129,7 +1134,7 @@ function ClaimDetailDialog({
                                     />
 
                                     <p className="mt-2 text-xs text-red-700">
-                                        入力した内容は、申請者と塩澤さんへのメールに記載されます。
+                                        却下理由は申請者への通知に記載されます。
                                     </p>
                                 </div>
 

@@ -5,13 +5,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
-import { sendEmail } from "@/lib/email";
+import { sendExpenseClaimNotifications } from "@/lib/expenseClaimNotification";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const EXPENSE_CLAIM_ADMIN_EMAIL =
-    "satominishio@shi-on.net";
 
 type UpdateAction = "paid" | "rejected";
 
@@ -19,6 +16,14 @@ type RequestBody = {
     action?: UpdateAction;
     rejectionReason?: string;
 };
+
+type LegacyEmailResult =
+    | { status: "ok" }
+    | { status: "error"; error: string };
+
+function skippedLegacyEmailResult(): LegacyEmailResult {
+    return { status: "ok" };
+}
 
 type RouteContext = {
     params: Promise<{
@@ -228,6 +233,7 @@ export async function PATCH(
                     id,
                     name,
                     email,
+                    phone,
                     work_date,
                     total_amount,
                     bank_name,
@@ -502,23 +508,12 @@ export async function PATCH(
 </html>
 `;
 
-                    const [
-                        applicantEmailResult,
-                        adminEmailResult,
-                    ] = await Promise.all([
-                        sendEmail({
-                            to: applicantEmail,
-                            subject:
-                                applicantSubject,
-                            html: applicantHtml,
-                        }),
-                        sendEmail({
-                            to: EXPENSE_CLAIM_ADMIN_EMAIL,
-                            subject:
-                                adminSubject,
-                            html: adminHtml,
-                        }),
-                    ]);
+                    void applicantSubject;
+                    void applicantHtml;
+                    void adminSubject;
+                    void adminHtml;
+                    const applicantEmailResult = skippedLegacyEmailResult();
+                    const adminEmailResult = skippedLegacyEmailResult();
 
                     if (
                         applicantEmailResult.status ===
@@ -528,8 +523,6 @@ export async function PATCH(
                             "[admin-expense-claim-update] applicant paid email failed",
                             {
                                 claimId,
-                                recipient:
-                                    applicantEmail,
                                 error:
                                     applicantEmailResult.error,
                             }
@@ -544,8 +537,6 @@ export async function PATCH(
                             "[admin-expense-claim-update] admin paid email failed",
                             {
                                 claimId,
-                                recipient:
-                                    EXPENSE_CLAIM_ADMIN_EMAIL,
                                 error:
                                     adminEmailResult.error,
                             }
@@ -674,23 +665,12 @@ export async function PATCH(
 </html>
 `;
 
-                    const [
-                        applicantEmailResult,
-                        adminEmailResult,
-                    ] = await Promise.all([
-                        sendEmail({
-                            to: applicantEmail,
-                            subject:
-                                applicantSubject,
-                            html: applicantHtml,
-                        }),
-                        sendEmail({
-                            to: EXPENSE_CLAIM_ADMIN_EMAIL,
-                            subject:
-                                adminSubject,
-                            html: adminHtml,
-                        }),
-                    ]);
+                    void applicantSubject;
+                    void applicantHtml;
+                    void adminSubject;
+                    void adminHtml;
+                    const applicantEmailResult = skippedLegacyEmailResult();
+                    const adminEmailResult = skippedLegacyEmailResult();
 
                     if (
                         applicantEmailResult.status ===
@@ -700,8 +680,6 @@ export async function PATCH(
                             "[admin-expense-claim-update] applicant rejected email failed",
                             {
                                 claimId,
-                                recipient:
-                                    applicantEmail,
                                 error:
                                     applicantEmailResult.error,
                             }
@@ -716,8 +694,6 @@ export async function PATCH(
                             "[admin-expense-claim-update] admin rejected email failed",
                             {
                                 claimId,
-                                recipient:
-                                    EXPENSE_CLAIM_ADMIN_EMAIL,
                                 error:
                                     adminEmailResult.error,
                             }
@@ -746,6 +722,17 @@ export async function PATCH(
                 }
             );
         }
+
+        await sendExpenseClaimNotifications({
+            event: action,
+            claimId: updatedClaim.id,
+            applicantName: claim.name,
+            applicantEmail: claim.email,
+            applicantPhone: claim.phone,
+            workDate: claim.work_date ?? "",
+            totalAmount: Number(claim.total_amount ?? 0),
+            rejectionReason: action === "rejected" ? rejectionReason : null,
+        });
 
         console.log(
             "[admin-expense-claim-update] success",

@@ -1,3 +1,5 @@
+//expense-claim/page.tsx
+
 "use client";
 
 import Link from "next/link";
@@ -447,7 +449,7 @@ export default function ExpenseClaimPage() {
                             </p>
 
                             <p className="mt-2 leading-7 text-slate-600">
-                                確認が必要な場合は、ご入力いただいた電話番号またはメールアドレスへご連絡します。
+                                申請受付・振込完了等の連絡を、ご入力いただいたメールアドレスまたは電話番号へお送りする場合があります。
                             </p>
 
                             <div className="mt-8 rounded-xl bg-slate-50 p-4 text-left text-sm leading-6 text-slate-700">

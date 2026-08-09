@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
-import { sendEmail } from "@/lib/email";
+import { sendExpenseClaimNotifications } from "@/lib/expenseClaimNotification";
 
 export const dynamic = "force-dynamic";
 
 const MAX_EXPENSE_COUNT = 5;
 const MAX_RECEIPT_COUNT = 10;
-
-const EXPENSE_CLAIM_ADMIN_EMAIL =
-    "satominishio@shi-on.net";
 
 function formatAmount(value: number) {
     return new Intl.NumberFormat("ja-JP").format(value);
@@ -36,6 +33,14 @@ type GoogleDriveReceiptFile = {
     webViewLink: string;
     createdTime: string | null;
 };
+
+type LegacyEmailResult =
+    | { status: "ok" }
+    | { status: "error"; error: string };
+
+function skippedLegacyEmailResult(): LegacyEmailResult {
+    return { status: "ok" };
+}
 
 function json(message: unknown, status = 200) {
     return NextResponse.json(message, { status });
@@ -559,26 +564,19 @@ export async function POST(req: NextRequest) {
 `;
 
         try {
-            const [applicantEmailResult, adminEmailResult] =
-                await Promise.all([
-                    sendEmail({
-                        to: email,
-                        subject: applicantSubject,
-                        html: applicantHtml,
-                    }),
-                    sendEmail({
-                        to: EXPENSE_CLAIM_ADMIN_EMAIL,
-                        subject: adminSubject,
-                        html: adminHtml,
-                    }),
-                ]);
+            // Applicant delivery is centralized in expenseClaimNotification.
+            void applicantSubject;
+            void applicantHtml;
+            void adminSubject;
+            void adminHtml;
+            const applicantEmailResult = skippedLegacyEmailResult();
+            const adminEmailResult = skippedLegacyEmailResult();
 
             if (applicantEmailResult.status === "error") {
                 console.error(
                     "[public-expense-claims] applicant email failed",
                     {
                         claimId: claim.id,
-                        recipient: email,
                         error: applicantEmailResult.error,
                     }
                 );
@@ -589,8 +587,6 @@ export async function POST(req: NextRequest) {
                     "[public-expense-claims] admin email failed",
                     {
                         claimId: claim.id,
-                        recipient:
-                            EXPENSE_CLAIM_ADMIN_EMAIL,
                         error: adminEmailResult.error,
                     }
                 );
@@ -604,6 +600,16 @@ export async function POST(req: NextRequest) {
                 }
             );
         }
+
+        await sendExpenseClaimNotifications({
+            event: "accepted",
+            claimId: claim.id,
+            applicantName: name,
+            applicantEmail: email,
+            applicantPhone: phone,
+            workDate,
+            totalAmount: calculatedTotalAmount,
+        });
 
         return json(
             {
