@@ -142,7 +142,7 @@ function NavLinks({ role }: { role: string | null }) {
               href="/portal/expense-claims"
               className="text-blue-300 hover:underline"
             >
-              経費精算【管理用】
+              ｽｷﾏﾊﾞｲﾄ経費精算
             </Link>
           </li>
           <li>

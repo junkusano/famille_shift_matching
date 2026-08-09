@@ -44,6 +44,21 @@ type RankingUser = {
     badge: string;
 };
 
+type TeamRankingRow = {
+    rank: number;
+    teamId: string;
+    teamName: string;
+    score: number;
+    serviceHoursScore: number;
+    visitRecordScore: number;
+    jissekiScore: number;
+    meetingScore: number;
+    serviceHoursGrowth: number;
+    visitRecordDeadlineMissCount: number;
+    jissekiIncompleteCount: number;
+    meetingIncompleteCount: number;
+};
+
 type ScoreHistoryPoint = {
     month: string;
     label: string;
@@ -73,6 +88,7 @@ type PortalScore = {
     topRanking: RankingUser[];
     officialRanking: RankingUser[];
     projectedRanking: RankingUser[];
+    teamRanking: TeamRankingRow[];
     scoreHistory: ScoreHistoryPoint[];
 };
 
@@ -224,7 +240,9 @@ function PerformanceScorePanelContent({
                     ? "個人は締切違反・過去未完了を各5点減点、チームは20点から締切違反サービス1件につき1点減点"
                     : "23:43締切違反・過去未完了を1件につき5点減点";
             case "meeting":
-                return "前月会議参加、または翌月10日までの追加開催で10点";
+                return showingNewScheme
+                    ? "個人は前月会議参加で10点、チームは10点から不参加・未確認1名につき1点減点"
+                    : "前月会議参加、または翌月10日までの追加開催で10点";
             case "jisseki":
                 return showingNewScheme
                     ? "個人は20点から過去未完了を各5点減点、チームは20点から不備・未完了1件につき1点減点"
@@ -557,6 +575,76 @@ function PerformanceScorePanelContent({
                                 );
                             })}
                     </div>
+
+                    {showingNewScheme && (
+                        <div className="mt-6">
+                            <div className="mb-1 text-lg font-bold text-blue-950">
+                                チームランキング
+                            </div>
+                            <div className="mb-3 text-xs text-slate-500">
+                                サービス・訪問記録・実績記録・会議参加を合算した、新制度のチーム成績です。
+                            </div>
+
+                            {score.teamRanking.length === 0 ? (
+                                <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                                    チーム成績を集計中です。
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {score.teamRanking.map((team) => {
+                                        const isTop3 = team.rank <= 3;
+
+                                        return (
+                                            <div
+                                                key={team.teamId}
+                                                className={`rounded-xl border bg-white px-4 py-3 shadow-sm ${isTop3 ? "border-teal-300" : "border-slate-200"}`}
+                                            >
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="flex min-w-0 items-center gap-3">
+                                                        <div
+                                                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold ${team.rank === 1
+                                                                ? "bg-teal-500 text-white"
+                                                                : team.rank === 2
+                                                                    ? "bg-slate-400 text-white"
+                                                                    : team.rank === 3
+                                                                        ? "bg-amber-500 text-white"
+                                                                        : "bg-teal-50 text-teal-800"
+                                                                }`}
+                                                        >
+                                                            {team.rank}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <div className={`truncate font-bold ${isTop3 ? "text-lg text-blue-950" : "text-base text-slate-900"}`}>
+                                                                {team.teamName}
+                                                            </div>
+                                                            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-slate-500">
+                                                                <span>前月比 {team.serviceHoursGrowth >= 0 ? "+" : ""}{team.serviceHoursGrowth}時間</span>
+                                                                <span>訪問不備 {team.visitRecordDeadlineMissCount}件</span>
+                                                                <span>実績不備 {team.jissekiIncompleteCount}件</span>
+                                                                <span>会議不参加 {team.meetingIncompleteCount}名</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="shrink-0 text-right">
+                                                        <div className="text-2xl font-black text-teal-700">
+                                                            {team.score}<span className="ml-0.5 text-sm font-bold">点</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold sm:grid-cols-4">
+                                                    <span className="rounded-lg bg-blue-50 px-2 py-1.5 text-blue-800">サービス +{team.serviceHoursScore}点</span>
+                                                    <span className={`rounded-lg px-2 py-1.5 ${team.visitRecordScore < 0 ? "bg-rose-50 text-rose-700" : "bg-teal-50 text-teal-800"}`}>訪問記録 {team.visitRecordScore >= 0 ? "+" : ""}{team.visitRecordScore}点</span>
+                                                    <span className={`rounded-lg px-2 py-1.5 ${team.jissekiScore < 0 ? "bg-rose-50 text-rose-700" : "bg-violet-50 text-violet-800"}`}>実績記録 {team.jissekiScore >= 0 ? "+" : ""}{team.jissekiScore}点</span>
+                                                    <span className={`rounded-lg px-2 py-1.5 ${team.meetingScore < 0 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-800"}`}>会議 {team.meetingScore >= 0 ? "+" : ""}{team.meetingScore}点</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     <div className="mt-6">
                         <div className="mb-3 text-lg font-bold text-blue-950">

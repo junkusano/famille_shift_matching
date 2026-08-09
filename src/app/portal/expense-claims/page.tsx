@@ -94,6 +94,9 @@ const STATUS_OPTIONS = [
     "却下",
 ] as const;
 
+const PUBLIC_EXPENSE_CLAIM_URL =
+    "https://myfamille.shi-on.net/expense-claim";
+
 function formatCurrency(value: number | null | undefined) {
     return `${new Intl.NumberFormat("ja-JP").format(
         Number(value ?? 0)
@@ -178,6 +181,7 @@ export default function ExpenseClaimsAdminPage() {
     const [claims, setClaims] = useState<ExpenseClaim[]>([]);
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
+    const [copyMessage, setCopyMessage] = useState("");
 
     const [keyword, setKeyword] = useState("");
     const [status, setStatus] = useState("");
@@ -328,6 +332,19 @@ export default function ExpenseClaimsAdminPage() {
         setToDate("");
     }
 
+    async function copyPublicExpenseClaimUrl() {
+        try {
+            await navigator.clipboard.writeText(
+                PUBLIC_EXPENSE_CLAIM_URL
+            );
+            setCopyMessage("コピーしました。");
+        } catch {
+            setCopyMessage(
+                "コピーできませんでした。URLを選択してコピーしてください。"
+            );
+        }
+    }
+
     return (
         <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6">
             <div className="mx-auto max-w-7xl">
@@ -338,7 +355,7 @@ export default function ExpenseClaimsAdminPage() {
                         </p>
 
                         <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">
-                            経費精算管理
+                            ｽｷﾏﾊﾞｲﾄ経費精算管理
                         </h1>
 
                         <p className="mt-2 text-sm text-slate-600">
@@ -353,6 +370,41 @@ export default function ExpenseClaimsAdminPage() {
                         ポータルへ戻る
                     </Link>
                 </div>
+
+                <section className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm sm:p-5">
+                    <p className="font-bold text-blue-950">
+                        スキマバイトスタッフへの案内用リンク
+                    </p>
+
+                    <p className="mt-1 text-sm leading-6 text-blue-900">
+                        この申請フォームはメニューには表示されません。スキマバイトスタッフには、以下の公開URLをご案内してください。
+                    </p>
+
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        <input
+                            type="text"
+                            value={PUBLIC_EXPENSE_CLAIM_URL}
+                            readOnly
+                            aria-label="スキマバイト経費精算フォームの公開URL"
+                            onFocus={(event) => event.currentTarget.select()}
+                            className="min-w-0 flex-1 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-slate-800"
+                        />
+
+                        <button
+                            type="button"
+                            onClick={() => void copyPublicExpenseClaimUrl()}
+                            className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+                        >
+                            URLをコピー
+                        </button>
+                    </div>
+
+                    {copyMessage && (
+                        <p className="mt-2 text-sm font-medium text-blue-800">
+                            {copyMessage}
+                        </p>
+                    )}
+                </section>
 
                 <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                     <SummaryCard

@@ -74,6 +74,21 @@ type MemberOption = {
     org_unit_id: string | null;
 };
 
+type TeamRankingRow = {
+    rank: number;
+    teamId: string;
+    teamName: string;
+    score: number;
+    serviceHoursScore: number;
+    visitRecordScore: number;
+    jissekiScore: number;
+    meetingScore: number;
+    serviceHoursGrowth: number;
+    visitRecordDeadlineMissCount: number;
+    jissekiIncompleteCount: number;
+    meetingIncompleteCount: number;
+};
+
 /*type Metric = {
     key: string;
     label: string;
@@ -474,6 +489,32 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: teamSummaryError.message }, { status: 500 });
     }
 
+    const { data: teamRankingSourceRows, error: teamRankingError } = await supabaseAdmin
+        .from("team_monthly_score_summaries")
+        .select("*")
+        .eq("target_month", targetMonthDate);
+
+    if (teamRankingError) {
+        return NextResponse.json({ error: teamRankingError.message }, { status: 500 });
+    }
+
+    const teamRanking: TeamRankingRow[] = [...(teamRankingSourceRows ?? [])]
+        .sort((a, b) => Number(b.team_score ?? b.total_score ?? 0) - Number(a.team_score ?? a.total_score ?? 0))
+        .map((team, index) => ({
+            rank: index + 1,
+            teamId: String(team.orgunitid),
+            teamName: String(team.team_name ?? team.orgunitname ?? team.orgunitid),
+            score: Number(team.team_score ?? team.total_score ?? 0),
+            serviceHoursScore: Number(team.service_hours_score ?? 0),
+            visitRecordScore: Number(team.visit_record_score ?? 0),
+            jissekiScore: Number(team.jisseki_score ?? 0),
+            meetingScore: Number(team.meeting_score ?? 0),
+            serviceHoursGrowth: Number(team.service_hours_growth ?? 0),
+            visitRecordDeadlineMissCount: Number(team.visit_record_deadline_miss_count ?? 0),
+            jissekiIncompleteCount: Number(team.jisseki_incomplete_count ?? 0),
+            meetingIncompleteCount: Number(team.meeting_incomplete_count ?? 0),
+        }));
+
     const { data: rankingSourceRows } = await supabaseAdmin
         .from("staff_monthly_score_summaries")
         .select("*")
@@ -620,6 +661,7 @@ shift_decline_penalty_score,
     const teamServiceHoursScore = Number(teamSummary?.service_hours_score ?? 0);
     const teamJissekiScore = Number(teamSummary?.jisseki_score ?? 0);
     const teamVisitRecordScore = Number(teamSummary?.visit_record_score ?? 0);
+    const teamMeetingScore = Number(teamSummary?.meeting_score ?? 0);
 
     return NextResponse.json({
         month: ym,
@@ -649,8 +691,8 @@ shift_decline_penalty_score,
         debugTargetMonth: summary.target_month,
         debugUserId: summary.user_id,
 
-        // 現行の個人評価最大140点＋新制度のチーム成績最大60点
-        totalMaxScore: 200,
+        // 現行の個人評価最大140点＋新制度のチーム成績最大70点
+        totalMaxScore: 210,
 
         badge: officialBadge.name,
         metrics: [
@@ -689,6 +731,7 @@ shift_decline_penalty_score,
                 key: "meeting",
                 label: "会議参加",
                 score: meetingScore,
+                teamScore: teamMeetingScore,
                 maxScore: 10,
                 note: `前月参加: ${summary.meeting_previous_month_attended ? "あり" : "なし"} / 過去参加: ${summary.meeting_past_attended ? "あり" : "なし"}`,
                 linkUrl: addParams("/portal/monthly-meeting-check", {
@@ -744,6 +787,7 @@ shift_decline_penalty_score,
         },
         officialRanking: officialRankingRows.slice(0, 100),
         projectedRanking: projectedRankingRows.slice(0, 100),
+        teamRanking,
         topRanking: officialRankingRows.slice(0, 100),
         scoreHistory: (historyRows ?? []).map((row) => {
             const month = String(row.target_month).slice(0, 7);

@@ -121,7 +121,20 @@ const isManagerOrAdmin =
     }
 
     if (data) {
-      const row = data as UserRow;
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('user_id')
+        .eq('auth_user_id', auth.user.id)
+        .maybeSingle();
+
+      if (userError) {
+        console.warn('users user_id load error:', userError);
+      }
+
+      const row: UserRow = {
+        ...(data as Omit<UserRow, 'user_id'>),
+        user_id: userData?.user_id ?? null,
+      };
 
       if ((row.attachments ?? []).some(a => a?.type === 'certificate' || a?.type === 'certification')) {
         const fixed = (row.attachments ?? []).map(a =>
@@ -339,17 +352,31 @@ const isManagerOrAdmin =
       </div>
 
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[160px_1fr] md:items-stretch">
-        {/* 氏名 */}
-        <div>
-          <div className="text-lg font-semibold">氏名</div>
-
-          <div className="mt-2 rounded border-4 border-gray-500 bg-white px-3 py-2 font-semibold">
-            {me.last_name_kanji ?? ''} {me.first_name_kanji ?? ''}
+        {/* プロフィール */}
+        <div className="rounded-2xl bg-gradient-to-br from-slate-50 via-white to-blue-50/70 px-4 py-4 shadow-sm md:px-5">
+          <div className="text-xs font-semibold tracking-[0.18em] text-slate-400">
+            PROFILE
           </div>
 
-          <div className="mt-1 text-sm text-gray-500">
-            ふりがな：{me.last_name_kana ?? ''}{' '}
-            {me.first_name_kana ?? ''}
+          <div className="mt-3 text-xs font-medium tracking-wide text-slate-500">
+            ふりがな
+          </div>
+          <div className="mt-0.5 text-sm text-slate-500">
+            {me.last_name_kana ?? ''}{' '}{me.first_name_kana ?? ''}
+          </div>
+
+          <div className="mt-2 text-xs font-medium tracking-wide text-slate-500">
+            氏名
+          </div>
+          <div className="mt-0.5 text-xl font-bold tracking-wide text-slate-900">
+            {me.last_name_kanji ?? ''}{' '}{me.first_name_kanji ?? ''}
+          </div>
+
+          <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+            <span className="font-medium">user_id</span>
+            <span className="font-mono text-slate-700">
+              {me.user_id || '未設定'}
+            </span>
           </div>
         </div>
 
@@ -752,5 +779,3 @@ const isManagerOrAdmin =
     </div>
   );
 }
-
-

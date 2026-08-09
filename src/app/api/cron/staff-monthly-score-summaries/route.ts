@@ -1144,6 +1144,9 @@ export async function GET(req: NextRequest) {
         const teamScoreById = new Map<string, number>();
         const teamSummaryRows = teamIds
             .map((teamId) => {
+                const memberUserIds = Array.from(userTeamMap.entries())
+                    .filter(([, assignedTeamId]) => assignedTeamId === teamId)
+                    .map(([userId]) => userId);
                 const serviceHours = teamServiceHoursMap.get(teamId) ?? 0;
                 const previousServiceHours = teamPreviousServiceHoursMap.get(teamId) ?? 0;
                 const serviceHoursGrowth = Math.round((serviceHours - previousServiceHours) * 10) / 10;
@@ -1154,7 +1157,14 @@ export async function GET(req: NextRequest) {
                 const visitRecordTotalCount = teamVisitShiftIdsMap.get(teamId)?.size ?? 0;
                 const visitRecordDeadlineMissCount = teamDeadlineMissShiftIdsMap.get(teamId)?.size ?? 0;
                 const visitRecordScore = 20 - visitRecordDeadlineMissCount;
-                const teamScore = serviceHoursScore + jissekiScore + visitRecordScore;
+                const meetingMemberCount = memberUserIds.length;
+                const meetingAttendedCount = memberUserIds.filter(
+                    (userId) => meetingPreviousMonthAttendedMap.get(userId) === true
+                ).length;
+                const meetingIncompleteCount = meetingMemberCount - meetingAttendedCount;
+                // チーム会議点: 全員参加で10点。不参加・未確認1名につき1点減点。
+                const meetingScore = 10 - meetingIncompleteCount;
+                const teamScore = serviceHoursScore + jissekiScore + visitRecordScore + meetingScore;
                 teamScoreById.set(teamId, teamScore);
 
                 const jissekiSubmittedCount = Math.max(0, jissekiTotalCount - jissekiIncompleteCount);
@@ -1164,7 +1174,11 @@ export async function GET(req: NextRequest) {
                     orgunitid: teamId,
                     orgunitname: teamNameMap.get(teamId) ?? teamId,
                     team_name: teamNameMap.get(teamId) ?? teamId,
-                    member_count: Array.from(userTeamMap.values()).filter((value) => value === teamId).length,
+                    member_count: meetingMemberCount,
+                    meeting_member_count: meetingMemberCount,
+                    meeting_attended_count: meetingAttendedCount,
+                    meeting_incomplete_count: meetingIncompleteCount,
+                    meeting_score: meetingScore,
                     service_hours: serviceHours,
                     previous_month_service_hours: previousServiceHours,
                     service_hours_current: serviceHours,
