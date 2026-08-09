@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { isPerformanceBadgeSilverOrHigher } from "@/lib/performanceScoreBadge";
 
 type LoginUser = {
   user_id: string;
@@ -198,6 +199,7 @@ const normalizedRank = String(performanceRank ?? "").trim().toLowerCase();
 
 const isSilverOrHigher =
   isWithinOneMonthFromJoin ||
+  isPerformanceBadgeSilverOrHigher(String(performanceRank ?? "").trim()) ||
   [
     "silver",
     "gold",

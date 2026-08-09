@@ -4,6 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 //指定月のみ更新変更箇所1
 //mport { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import {
+    getPerformanceBadge,
+    isNewPerformanceSchemeOfficial,
+} from "@/lib/performanceScoreBadge";
 
 const EXCLUDED_PERFORMANCE_SCORE_USER_IDS = [
     "satominishio",
@@ -39,6 +43,12 @@ type SummaryRow = {
     shift_decline_3days_count: number | null;
     shift_decline_6hours_count: number | null;
     shift_decline_penalty_score: number | null;
+    team_orgunitid: string | null;
+    individual_score: number | null;
+    team_score: number | null;
+    official_total_score: number | null;
+    projected_total_score: number | null;
+    projected_medal_rank: string | null;
 };
 
 type ShiftRecordViewRow = {
@@ -386,13 +396,6 @@ function calcTotalScore(row: SummaryRow) {
     );
 }
 
-function getMedalRank(score: number) {
-    if (score >= 100) return "プラチナ";
-    if (score >= 80) return "ゴールド";
-    if (score >= 60) return "シルバー";
-    return "ブロンズ";
-}
-
 function getPreviousMonthStartDate(targetMonth: string) {
     const [year, month] = targetMonth.slice(0, 7).split("-").map(Number);
     const previousMonth = new Date(year, month - 2, 1);
@@ -463,6 +466,7 @@ export async function GET(req: NextRequest) {
                 user_id: row.user_id,
                 entry_id: row.entry_id,
                 staff_name: row.staff_name,
+                team_orgunitid: row.team_orgunitid,
                 service_hours: 0,
                 visit_record_total_count: 0,
                 houmon_same_day_done_count: 0,
@@ -521,7 +525,7 @@ export async function GET(req: NextRequest) {
 
         const { data: userRows, error: userRowsError } = await supabaseAdmin
             .from("user_entry_united_view_single")
-            .select("user_id, entry_id, last_name_kanji, first_name_kanji, status, orgunitname")
+            .select("user_id, entry_id, last_name_kanji, first_name_kanji, status, org_unit_id, orgunitname")
             .not("user_id", "is", null)
             .neq("status", "removed_from_lineworks_kaipoke")
             .not("orgunitname", "ilike", "%ケアプランセンター%");
@@ -537,6 +541,7 @@ export async function GET(req: NextRequest) {
                 entry_id: string | null;
                 last_name_kanji: string | null;
                 first_name_kanji: string | null;
+                org_unit_id: string | null;
             }
         >();
 
@@ -551,6 +556,7 @@ export async function GET(req: NextRequest) {
                     entry_id: user.entry_id ?? null,
                     last_name_kanji: user.last_name_kanji ?? null,
                     first_name_kanji: user.first_name_kanji ?? null,
+                    org_unit_id: user.org_unit_id ?? null,
                 });
             }
         }
@@ -560,6 +566,7 @@ export async function GET(req: NextRequest) {
             user_id: user.user_id,
             entry_id: user.entry_id,
             staff_name: `${user.last_name_kanji ?? ""}${user.first_name_kanji ?? ""}`,
+            team_orgunitid: user.org_unit_id,
             service_hours: 0,
             visit_record_total_count: 0,
             houmon_same_day_done_count: 0,
@@ -885,6 +892,46 @@ export async function GET(req: NextRequest) {
         }
 
         const serviceHoursMap = new Map<string, number>();
+        const userTeamMap = new Map<string, string>();
+        const teamNameMap = new Map<string, string>();
+        for (const user of userRows ?? []) {
+            if (!user.user_id || !user.org_unit_id) continue;
+            userTeamMap.set(user.user_id, user.org_unit_id);
+            if (user.orgunitname) teamNameMap.set(user.org_unit_id, user.orgunitname);
+        }
+        // 一度保存した月次所属スナップショットは、過去月再計算でも現在所属で上書きしない。
+        for (const row of rows) {
+            if (row.team_orgunitid) userTeamMap.set(row.user_id, row.team_orgunitid);
+        }
+        const teamIds = Array.from(new Set(userTeamMap.values()));
+        if (teamIds.length > 0) {
+            const { data: orgRows, error: orgRowsError } = await supabaseAdmin
+                .from("orgs")
+                .select("orgunitid, orgunitname")
+                .in("orgunitid", teamIds);
+            if (orgRowsError) throw orgRowsError;
+            for (const org of orgRows ?? []) {
+                teamNameMap.set(org.orgunitid, org.orgunitname);
+            }
+        }
+
+        const previousMonthStart = getPreviousMonthStartDate(targetMonth);
+        const teamServiceHoursMap = new Map<string, number>();
+        const teamPreviousServiceHoursMap = new Map<string, number>();
+        const teamVisitShiftIdsMap = new Map<string, Set<string>>();
+        const teamDeadlineMissShiftIdsMap = new Map<string, Set<string>>();
+        const teamJissekiTotalMap = new Map<string, number>();
+        const teamJissekiIncompleteMap = new Map<string, number>();
+
+        for (const log of deadlineMissLogs ?? []) {
+            const userId = entryIdToUserId.get(log.staff_id);
+            const teamId = userId ? userTeamMap.get(userId) : null;
+            const shiftId = log.action_detail?.match(/\bshift_id=([^\s]+)/)?.[1];
+            if (!teamId || !shiftId) continue;
+            const shiftIds = teamDeadlineMissShiftIdsMap.get(teamId) ?? new Set<string>();
+            shiftIds.add(shiftId);
+            teamDeadlineMissShiftIdsMap.set(teamId, shiftIds);
+        }
         const jissekiPreviousMonthTotalMap = new Map<string, number>();
         const jissekiPreviousMonthDoneMap = new Map<string, number>();
         const jissekiPastIncompleteMap = new Map<string, number>();
@@ -935,6 +982,17 @@ export async function GET(req: NextRequest) {
                 continue;
             }
 
+            const teamId = userTeamMap.get(staffId);
+            if (teamId) {
+                teamJissekiTotalMap.set(teamId, (teamJissekiTotalMap.get(teamId) ?? 0) + 1);
+                if (row.application_check === false) {
+                    teamJissekiIncompleteMap.set(
+                        teamId,
+                        (teamJissekiIncompleteMap.get(teamId) ?? 0) + 1
+                    );
+                }
+            }
+
             /*
              * 対象月の実績記録は、完了・未完了を問わず
              * チーム回収率の対象件数に含める
@@ -983,6 +1041,7 @@ export async function GET(req: NextRequest) {
                 shift.shift_start_date < nextMonthStart
             ) {
                 const hours = calcShiftHours(shift);
+                const participatingUserIds = getParticipatingUserIds(shift);
 
                 addServiceHours(serviceHoursMap, shift.staff_01_user_id, hours);
 
@@ -992,6 +1051,29 @@ export async function GET(req: NextRequest) {
 
                 if (shift.staff_03_attend_flg === true) {
                     addServiceHours(serviceHoursMap, shift.staff_03_user_id, hours);
+                }
+
+                for (const userId of participatingUserIds) {
+                    const teamId = userTeamMap.get(userId);
+                    if (!teamId) continue;
+                    addServiceHours(teamServiceHoursMap, teamId, hours);
+                    if (shift.shift_id) {
+                        const shiftIds = teamVisitShiftIdsMap.get(teamId) ?? new Set<string>();
+                        shiftIds.add(String(shift.shift_id));
+                        teamVisitShiftIdsMap.set(teamId, shiftIds);
+                    }
+                }
+            }
+
+            if (
+                shift.shift_start_date &&
+                shift.shift_start_date >= previousMonthStart &&
+                shift.shift_start_date < targetMonth
+            ) {
+                const hours = calcShiftHours(shift);
+                for (const userId of getParticipatingUserIds(shift)) {
+                    const teamId = userTeamMap.get(userId);
+                    if (teamId) addServiceHours(teamPreviousServiceHoursMap, teamId, hours);
                 }
             }
 
@@ -1059,6 +1141,67 @@ export async function GET(req: NextRequest) {
             }
         }
 
+        const teamScoreById = new Map<string, number>();
+        const teamSummaryRows = teamIds
+            .map((teamId) => {
+                const serviceHours = teamServiceHoursMap.get(teamId) ?? 0;
+                const previousServiceHours = teamPreviousServiceHoursMap.get(teamId) ?? 0;
+                const serviceHoursGrowth = Math.round((serviceHours - previousServiceHours) * 10) / 10;
+                const serviceHoursScore = Math.min(20, Math.max(0, Math.floor(serviceHoursGrowth / 10)));
+                const jissekiTotalCount = teamJissekiTotalMap.get(teamId) ?? 0;
+                const jissekiIncompleteCount = teamJissekiIncompleteMap.get(teamId) ?? 0;
+                const jissekiScore = 20 - jissekiIncompleteCount;
+                const visitRecordTotalCount = teamVisitShiftIdsMap.get(teamId)?.size ?? 0;
+                const visitRecordDeadlineMissCount = teamDeadlineMissShiftIdsMap.get(teamId)?.size ?? 0;
+                const visitRecordScore = 20 - visitRecordDeadlineMissCount;
+                const teamScore = serviceHoursScore + jissekiScore + visitRecordScore;
+                teamScoreById.set(teamId, teamScore);
+
+                const jissekiSubmittedCount = Math.max(0, jissekiTotalCount - jissekiIncompleteCount);
+                const visitRecordSameDayCount = Math.max(0, visitRecordTotalCount - visitRecordDeadlineMissCount);
+                return {
+                    target_month: targetMonth,
+                    orgunitid: teamId,
+                    orgunitname: teamNameMap.get(teamId) ?? teamId,
+                    team_name: teamNameMap.get(teamId) ?? teamId,
+                    member_count: Array.from(userTeamMap.values()).filter((value) => value === teamId).length,
+                    service_hours: serviceHours,
+                    previous_month_service_hours: previousServiceHours,
+                    service_hours_current: serviceHours,
+                    service_hours_previous: previousServiceHours,
+                    service_hours_growth: serviceHoursGrowth,
+                    service_hours_base_score: 0,
+                    service_hours_growth_score: serviceHoursScore,
+                    service_hours_score: serviceHoursScore,
+                    jisseki_total_count: jissekiTotalCount,
+                    jisseki_incomplete_count: jissekiIncompleteCount,
+                    jisseki_target_count: jissekiTotalCount,
+                    jisseki_submitted_count: jissekiSubmittedCount,
+                    jisseki_submission_rate:
+                        jissekiTotalCount > 0 ? (jissekiSubmittedCount / jissekiTotalCount) * 100 : 100,
+                    jisseki_score: jissekiScore,
+                    visit_record_total_count: visitRecordTotalCount,
+                    visit_record_deadline_miss_count: visitRecordDeadlineMissCount,
+                    visit_record_target_count: visitRecordTotalCount,
+                    visit_record_same_day_count: visitRecordSameDayCount,
+                    visit_record_submission_rate:
+                        visitRecordTotalCount > 0 ? (visitRecordSameDayCount / visitRecordTotalCount) * 100 : 100,
+                    visit_record_score: visitRecordScore,
+                    team_score: teamScore,
+                    total_score: teamScore,
+                    updated_at: new Date().toISOString(),
+                };
+            })
+            .sort((a, b) => b.team_score - a.team_score)
+            .map((row, index) => ({ ...row, rank_no: index + 1 }));
+
+        if (teamSummaryRows.length > 0) {
+            const { error: teamSummaryError } = await supabaseAdmin
+                .from("team_monthly_score_summaries")
+                .upsert(teamSummaryRows, { onConflict: "target_month,orgunitid" });
+            if (teamSummaryError) throw teamSummaryError;
+        }
+
         const scoredRows = (rows ?? [])
             .map((row) => {
                 const decline3DaysCount =
@@ -1107,9 +1250,26 @@ export async function GET(req: NextRequest) {
                     shift_decline_penalty_score: shiftDeclinePenaltyScore,
                 };
 
+                const individualScore = calcTotalScore(rowWithIncompleteCounts);
+                const teamOrgunitId = row.team_orgunitid ?? userTeamMap.get(row.user_id) ?? null;
+                const teamScore = teamOrgunitId ? teamScoreById.get(teamOrgunitId) ?? 0 : 0;
+                const projectedTotalScore = individualScore + teamScore;
+                const newSchemeOfficial = isNewPerformanceSchemeOfficial(targetMonth);
+                const officialTotalScore = newSchemeOfficial ? projectedTotalScore : individualScore;
+
                 return {
                     ...rowWithIncompleteCounts,
-                    total_score: calcTotalScore(rowWithIncompleteCounts),
+                    team_orgunitid: teamOrgunitId,
+                    individual_score: individualScore,
+                    team_score: teamScore,
+                    official_total_score: officialTotalScore,
+                    projected_total_score: projectedTotalScore,
+                    total_score: officialTotalScore,
+                    medal_rank: getPerformanceBadge(
+                        officialTotalScore,
+                        newSchemeOfficial ? "new" : "current"
+                    ).name,
+                    projected_medal_rank: getPerformanceBadge(projectedTotalScore, "new").name,
                 };
             })
             .sort((a, b) => b.total_score - a.total_score);
@@ -1156,9 +1316,15 @@ export async function GET(req: NextRequest) {
                 row.shift_decline_6hours_count ?? 0,
             shift_decline_penalty_score:
                 row.shift_decline_penalty_score ?? 0,
+            team_orgunitid: row.team_orgunitid,
+            individual_score: row.individual_score,
+            team_score: row.team_score,
+            official_total_score: row.official_total_score,
+            projected_total_score: row.projected_total_score,
+            projected_medal_rank: row.projected_medal_rank,
             total_score: row.total_score,
             rank_no: index + 1,
-            medal_rank: getMedalRank(row.total_score),
+            medal_rank: row.medal_rank,
             updated_at: new Date().toISOString(),
         }));
 

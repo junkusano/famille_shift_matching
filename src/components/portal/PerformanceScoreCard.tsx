@@ -5,11 +5,17 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
+import {
+    getPerformanceBadge,
+    getPerformanceBadgeDefinitions,
+    type PerformanceScoreScheme,
+} from "@/lib/performanceScoreBadge";
 
 type ScoreMetric = {
     key: string;
     label: string;
     score: number;
+    teamScore?: number;
     maxScore: number;
     note: string;
     linkUrl?: string;
@@ -42,6 +48,8 @@ type ScoreHistoryPoint = {
     month: string;
     label: string;
     score: number;
+    officialScore: number;
+    projectedScore: number;
     rank: number | null;
 };
 
@@ -51,12 +59,20 @@ type PortalScore = {
     userId: string;
     userName: string;
     totalScore: number;
+    individualScore: number;
+    teamScore: number;
+    officialTotalScore: number;
+    projectedTotalScore: number;
+    newSchemeOfficial: boolean;
+    teamName: string | null;
     totalMaxScore: number;
     badge: string;
     metrics: ScoreMetric[];
     members: MemberOption[];
     ranking: Ranking;
     topRanking: RankingUser[];
+    officialRanking: RankingUser[];
+    projectedRanking: RankingUser[];
     scoreHistory: ScoreHistoryPoint[];
 };
 
@@ -82,6 +98,7 @@ function PerformanceScorePanelContent({
     );
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
+    const [displayScheme, setDisplayScheme] = useState<PerformanceScoreScheme>("current");
 
     useEffect(() => {
         const load = async () => {
@@ -118,6 +135,7 @@ function PerformanceScorePanelContent({
 
             const json = (await res.json()) as PortalScore;
             setScore(json);
+            setDisplayScheme(json.newSchemeOfficial ? "new" : "current");
 
             if (!selectedUserId) setSelectedUserId(json.userId);
             if (!selectedMonth) setSelectedMonth(json.month);
@@ -145,29 +163,18 @@ function PerformanceScorePanelContent({
         );
     }, [selectedMonth, selectedUserId, router, syncUrl]);
 
-    const badgeIcon =
-        score?.badge === "プラチナ"
-            ? "🏆"
-            : score?.badge === "ゴールド"
-                ? "🥇"
-                : score?.badge === "シルバー"
-                    ? "🥈"
-                    : score?.badge === "ブロンズ"
-                        ? "🥉"
-                        : "🏅";
-
-    const badgeClass =
-        score?.badge === "プラチナ"
-            ? "border-purple-300 bg-purple-50 text-purple-700"
-            : score?.badge === "ゴールド"
-                ? "border-yellow-300 bg-yellow-50 text-yellow-700"
-                : score?.badge === "シルバー"
-                    ? "border-slate-300 bg-slate-50 text-slate-700"
-                    : score?.badge === "ブロンズ"
-                        ? "border-orange-300 bg-orange-50 text-orange-700"
-                        : "border-gray-300 bg-gray-50 text-gray-700";
-
-    const chartPoints = score?.scoreHistory ?? [];
+    const showingNewScheme = displayScheme === "new";
+    const displayedTotalScore = score
+        ? showingNewScheme ? score.projectedTotalScore : score.officialTotalScore
+        : 0;
+    const displayedBadge = getPerformanceBadge(displayedTotalScore, displayScheme);
+    const activeRanking = score
+        ? showingNewScheme ? score.projectedRanking : score.officialRanking
+        : [];
+    const chartPoints = (score?.scoreHistory ?? []).map((point) => ({
+        ...point,
+        score: showingNewScheme ? point.projectedScore : point.officialScore,
+    }));
 
     const getProgressPercent = (m: ScoreMetric) => {
         if (m.maxScore <= 0) return 0;
@@ -207,15 +214,21 @@ function PerformanceScorePanelContent({
     const getMetricDescription = (key: string) => {
         switch (key) {
             case "service_hours":
-                return "20時間ごとに10点加算（160時間で80点満点）";
+                return showingNewScheme
+                    ? "個人は20時間ごとに10点、チームは前月から10時間増加ごとに1点（最大20点）"
+                    : "20時間ごとに10点加算（160時間で80点満点）";
             case "shift_decline_penalty":
                 return "シフト開始6時間以内は1件10点減点、3日以内は1件5点減点（勘案すべき事情がある場合はマネージャーに相談してください）";
             case "visit_record":
-                return "30点 − 過去未完了1件につき5点";
+                return showingNewScheme
+                    ? "個人は締切違反・過去未完了を各5点減点、チームは20点から締切違反サービス1件につき1点減点"
+                    : "23:43締切違反・過去未完了を1件につき5点減点";
             case "meeting":
                 return "前月会議参加、または翌月10日までの追加開催で10点";
             case "jisseki":
-                return "実績記録完了点20点 − 過去未完了1件につき5点";
+                return showingNewScheme
+                    ? "個人は20点から過去未完了を各5点減点、チームは20点から不備・未完了1件につき1点減点"
+                    : "実績記録完了点20点 − 過去未完了1件につき5点";
             case "training_goal":
                 return "当月選択した目標・研修を視聴完了すると1件5点（最大20点）";
             default:
@@ -254,14 +267,17 @@ function PerformanceScorePanelContent({
 
                     <div className="mt-4 rounded-2xl border-2 border-yellow-300 bg-yellow-50 p-4 shadow-sm">
                         <div className="mb-2 text-lg font-bold text-yellow-800">
-                            メダルランク制度
+                            {showingNewScheme ? "2026年10月からの新バッジ制度" : "現在のメダルランク制度"}
                         </div>
 
                         <div className="space-y-1 text-sm font-medium text-yellow-900">
-                            <div>🏆 プラチナ（100点以上） → 時給30円UP</div>
-                            <div>🥇 ゴールド（80点以上） → 時給20円UP</div>
-                            <div>🥈 シルバー（60点以上） → 時給10円UP</div>
-                            <div>🥉 ブロンズ（60点未満） → 時給UPなし</div>
+                            {getPerformanceBadgeDefinitions(displayScheme).map((badge) => (
+                                <div key={badge.name}>
+                                    {badge.icon} {badge.name}
+                                    {Number.isFinite(badge.minimumScore) ? `（${badge.minimumScore}点以上）` : "（基準未満）"}
+                                    {` → 時給${badge.hourlyWageBonus > 0 ? `${badge.hourlyWageBonus}円UP` : "UPなし"}`}
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -342,6 +358,31 @@ function PerformanceScorePanelContent({
 
             {score && (
                 <div className="rounded-lg border bg-white p-6 shadow-sm">
+                    <div className="mb-5 inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1">
+                        <button
+                            type="button"
+                            onClick={() => setDisplayScheme(score.newSchemeOfficial ? "new" : "current")}
+                            className={`rounded-lg px-4 py-2 text-sm font-bold transition ${!showingNewScheme ? "bg-white text-blue-800 shadow-sm" : "text-slate-600"}`}
+                        >
+                            現在の制度
+                        </button>
+                        {!score.newSchemeOfficial && (
+                            <button
+                                type="button"
+                                onClick={() => setDisplayScheme("new")}
+                                className={`rounded-lg px-4 py-2 text-sm font-bold transition ${showingNewScheme ? "bg-white text-indigo-800 shadow-sm" : "text-slate-600"}`}
+                            >
+                                2026年10月からの新制度
+                            </button>
+                        )}
+                    </div>
+
+                    {showingNewScheme && !score.newSchemeOfficial && (
+                        <div className="mb-5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm leading-6 text-indigo-900">
+                            2026年10月から適用予定の新制度による参考スコアです。現在の正式なパフォーマンススコア・時給にはまだ反映されません。2026年10月以降、チーム成績が正式に加減点へ反映されます。
+                        </div>
+                    )}
+
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <div className="text-sm text-gray-500">
@@ -364,7 +405,7 @@ function PerformanceScorePanelContent({
                                 </div>
                                 <div>
                                     <span className="text-5xl font-black text-blue-700">
-                                        {score.totalScore}
+                                        {displayedTotalScore}
                                     </span>
                                     <span className="ml-2 text-2xl font-bold text-slate-700">
                                         点
@@ -373,11 +414,17 @@ function PerformanceScorePanelContent({
                             </div>
 
                             <div
-                                className={`mt-2 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${badgeClass}`}
+                                className={`mt-2 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${displayedBadge.pillClass}`}
                             >
-                                <span className="text-xl">{badgeIcon}</span>
-                                <span>{score.badge}</span>
+                                <span className="text-xl">{displayedBadge.icon}</span>
+                                <span>{displayedBadge.name}・時給 +{displayedBadge.hourlyWageBonus}円</span>
                             </div>
+                            {showingNewScheme && (
+                                <div className="mt-3 text-sm font-bold text-slate-700">
+                                    個人 {score.individualScore}点 <span className="mx-1 text-slate-400">＋</span>
+                                    チーム {score.teamScore >= 0 ? "+" : ""}{score.teamScore}点
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -386,6 +433,9 @@ function PerformanceScorePanelContent({
                             .filter((m) => m.key !== "jisseki_team_bonus")
                             .map((m) => {
                                 const percent = getProgressPercent(m);
+                                const hasTeamBreakdown = showingNewScheme && typeof m.teamScore === "number";
+                                const teamMetricScore = hasTeamBreakdown ? m.teamScore ?? 0 : 0;
+                                const combinedMetricScore = m.score + teamMetricScore;
 
                                 return (
                                     <div
@@ -435,7 +485,7 @@ function PerformanceScorePanelContent({
 
                                             <div className="shrink-0 text-right">
                                                 <span className="text-3xl font-black text-blue-700">
-                                                    {m.score}
+                                                    {combinedMetricScore}
                                                 </span>
                                                 <span className="ml-1 text-sm font-bold text-slate-600">
                                                     点
@@ -443,12 +493,40 @@ function PerformanceScorePanelContent({
                                             </div>
                                         </div>
 
-                                        <div className="h-4 overflow-hidden rounded-full bg-slate-200">
-                                            <div
-                                                className="h-full rounded-full bg-gradient-to-r from-gray-300 via-blue-300 to-blue-700 transition-all"
-                                                style={{ width: `${percent}%` }}
-                                            />
-                                        </div>
+                                        {hasTeamBreakdown && (
+                                            <div className="mb-3 flex flex-wrap gap-2 text-xs font-bold">
+                                                <span className="rounded-full bg-blue-50 px-3 py-1.5 text-blue-800">
+                                                    個人 {m.score >= 0 ? "+" : ""}{m.score}
+                                                </span>
+                                                <span className={`rounded-full px-3 py-1.5 ${teamMetricScore < 0 ? "bg-rose-50 text-rose-700" : "bg-teal-50 text-teal-800"}`}>
+                                                    チーム {teamMetricScore >= 0 ? "+" : ""}{teamMetricScore}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {hasTeamBreakdown ? (
+                                            <div className="relative h-5 overflow-hidden rounded-full bg-slate-100">
+                                                <div className="absolute inset-y-0 left-1/2 w-px bg-slate-400" />
+                                                {combinedMetricScore >= 0 ? (
+                                                    <div
+                                                        className="absolute bottom-0 left-1/2 top-0 bg-gradient-to-r from-blue-500 to-teal-400"
+                                                        style={{ width: `${Math.min(50, Math.abs(combinedMetricScore) / 2)}%` }}
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        className="absolute bottom-0 right-1/2 top-0 bg-gradient-to-l from-rose-500 to-orange-400"
+                                                        style={{ width: `${Math.min(50, Math.abs(combinedMetricScore) / 2)}%` }}
+                                                    />
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="h-4 overflow-hidden rounded-full bg-slate-200">
+                                                <div
+                                                    className="h-full rounded-full bg-gradient-to-r from-gray-300 via-blue-300 to-blue-700 transition-all"
+                                                    style={{ width: `${percent}%` }}
+                                                />
+                                            </div>
+                                        )}
 
                                         {m.key === "service_hours" && (
                                             <div className="mt-4">
@@ -482,12 +560,19 @@ function PerformanceScorePanelContent({
 
                     <div className="mt-6">
                         <div className="mb-3 text-lg font-bold text-blue-950">
-                            ランキング TOP100
+                            {showingNewScheme && !score.newSchemeOfficial ? "新制度参考ランキング" : "ランキング"} TOP100
                         </div>
 
+                        {showingNewScheme && !score.newSchemeOfficial && (
+                            <div className="mb-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+                                このランキングは2026年10月からの新制度を適用した場合の参考順位です。現在の正式ランキングにはまだ反映されていません。
+                            </div>
+                        )}
+
                         <div className="space-y-2">
-                            {score.topRanking.slice(0, 100).map((user) => {
+                            {activeRanking.slice(0, 100).map((user) => {
                                 const isTop3 = user.rank <= 3;
+                                const userBadge = getPerformanceBadge(user.score, displayScheme);
 
                                 return (
                                     <div
@@ -528,27 +613,9 @@ function PerformanceScorePanelContent({
                                         </div>
 
                                         <div
-                                            className={`rounded-full px-3 py-1 text-xs font-bold ${user.badge === "プラチナ"
-                                                ? "bg-slate-900 text-white"
-                                                : user.badge === "ゴールド"
-                                                    ? "bg-yellow-100 text-yellow-800"
-                                                    : user.badge === "シルバー"
-                                                        ? "bg-gray-100 text-gray-700"
-                                                        : user.badge ===
-                                                            "ブロンズ"
-                                                            ? "bg-orange-100 text-orange-800"
-                                                            : "bg-gray-100 text-gray-700"
-                                                }`}
+                                            className={`rounded-full border px-3 py-1 text-xs font-bold ${userBadge.pillClass}`}
                                         >
-                                            {user.badge === "プラチナ"
-                                                ? "🏆 プラチナ"
-                                                : user.badge === "ゴールド"
-                                                    ? "🥇 ゴールド"
-                                                    : user.badge === "シルバー"
-                                                        ? "🥈 シルバー"
-                                                        : user.badge === "ブロンズ"
-                                                            ? "🥉 ブロンズ"
-                                                            : user.badge}
+                                            {userBadge.icon} {userBadge.name}
                                         </div>
                                     </div>
                                 );

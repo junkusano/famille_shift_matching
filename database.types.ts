@@ -7602,6 +7602,7 @@ export type Database = {
           houmon_late_done_count: number
           houmon_same_day_done_count: number
           id: string
+          individual_score: number
           jisseki_past_incomplete_count: number
           jisseki_previous_month_done_count: number
           jisseki_previous_month_total_count: number
@@ -7612,6 +7613,9 @@ export type Database = {
           medal_rank: string
           meeting_past_attended: boolean | null
           meeting_previous_month_attended: boolean
+          official_total_score: number
+          projected_medal_rank: string
+          projected_total_score: number
           rank_no: number | null
           service_hours: number
           shift_decline_3days_count: number
@@ -7619,12 +7623,13 @@ export type Database = {
           shift_decline_penalty_score: number
           staff_name: string | null
           target_month: string
+          team_orgunitid: string | null
+          team_score: number
           total_score: number
           training_goal_selected_count: number
           updated_at: string
           user_id: string
           visit_record_current_month_incomplete_count: number
-          visit_record_deadline_miss_count: number
           visit_record_past_incomplete_count: number
           visit_record_total_count: number
         }
@@ -7635,6 +7640,7 @@ export type Database = {
           houmon_late_done_count?: number
           houmon_same_day_done_count?: number
           id?: string
+          individual_score?: number
           jisseki_past_incomplete_count?: number
           jisseki_previous_month_done_count?: number
           jisseki_previous_month_total_count?: number
@@ -7645,6 +7651,9 @@ export type Database = {
           medal_rank?: string
           meeting_past_attended?: boolean | null
           meeting_previous_month_attended?: boolean
+          official_total_score?: number
+          projected_medal_rank?: string
+          projected_total_score?: number
           rank_no?: number | null
           service_hours?: number
           shift_decline_3days_count?: number
@@ -7652,12 +7661,13 @@ export type Database = {
           shift_decline_penalty_score?: number
           staff_name?: string | null
           target_month: string
+          team_orgunitid?: string | null
+          team_score?: number
           total_score?: number
           training_goal_selected_count?: number
           updated_at?: string
           user_id: string
           visit_record_current_month_incomplete_count?: number
-          visit_record_deadline_miss_count?: number
           visit_record_past_incomplete_count?: number
           visit_record_total_count?: number
         }
@@ -7668,6 +7678,7 @@ export type Database = {
           houmon_late_done_count?: number
           houmon_same_day_done_count?: number
           id?: string
+          individual_score?: number
           jisseki_past_incomplete_count?: number
           jisseki_previous_month_done_count?: number
           jisseki_previous_month_total_count?: number
@@ -7678,6 +7689,9 @@ export type Database = {
           medal_rank?: string
           meeting_past_attended?: boolean | null
           meeting_previous_month_attended?: boolean
+          official_total_score?: number
+          projected_medal_rank?: string
+          projected_total_score?: number
           rank_no?: number | null
           service_hours?: number
           shift_decline_3days_count?: number
@@ -7685,34 +7699,39 @@ export type Database = {
           shift_decline_penalty_score?: number
           staff_name?: string | null
           target_month?: string
+          team_orgunitid?: string | null
+          team_score?: number
           total_score?: number
           training_goal_selected_count?: number
           updated_at?: string
           user_id?: string
           visit_record_current_month_incomplete_count?: number
-          visit_record_deadline_miss_count?: number
           visit_record_past_incomplete_count?: number
           visit_record_total_count?: number
         }
-        Relationships: []
-      }
-      visit_record_daily_reminder_logs: {
-        Row: {
-          attempted_at: string
-          reminder_date: string
-          sent_at: string | null
-        }
-        Insert: {
-          attempted_at?: string
-          reminder_date: string
-          sent_at?: string | null
-        }
-        Update: {
-          attempted_at?: string
-          reminder_date?: string
-          sent_at?: string | null
-        }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "staff_monthly_score_summaries_team_orgunitid_fkey"
+            columns: ["team_orgunitid"]
+            isOneToOne: false
+            referencedRelation: "org_manager_view"
+            referencedColumns: ["orgunitid"]
+          },
+          {
+            foreignKeyName: "staff_monthly_score_summaries_team_orgunitid_fkey"
+            columns: ["team_orgunitid"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["orgunitid"]
+          },
+          {
+            foreignKeyName: "staff_monthly_score_summaries_team_orgunitid_fkey"
+            columns: ["team_orgunitid"]
+            isOneToOne: false
+            referencedRelation: "orgs_sort"
+            referencedColumns: ["orgunitid"]
+          },
+        ]
       }
       system_role_master: {
         Row: {
@@ -8157,14 +8176,18 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          jisseki_incomplete_count: number
           jisseki_score: number
           jisseki_submission_rate: number
           jisseki_submitted_count: number
           jisseki_target_count: number
+          jisseki_total_count: number
           member_count: number
           orgunitid: string
           orgunitname: string
+          previous_month_service_hours: number
           rank_no: number | null
+          service_hours: number
           service_hours_base_score: number
           service_hours_current: number
           service_hours_growth: number
@@ -8172,24 +8195,32 @@ export type Database = {
           service_hours_previous: number
           service_hours_score: number
           target_month: string
+          team_name: string | null
+          team_score: number
           total_score: number
           updated_at: string
+          visit_record_deadline_miss_count: number
           visit_record_same_day_count: number
           visit_record_score: number
           visit_record_submission_rate: number
           visit_record_target_count: number
+          visit_record_total_count: number
         }
         Insert: {
           created_at?: string
           id?: string
+          jisseki_incomplete_count?: number
           jisseki_score?: number
           jisseki_submission_rate?: number
           jisseki_submitted_count?: number
           jisseki_target_count?: number
+          jisseki_total_count?: number
           member_count?: number
           orgunitid: string
           orgunitname: string
+          previous_month_service_hours?: number
           rank_no?: number | null
+          service_hours?: number
           service_hours_base_score?: number
           service_hours_current?: number
           service_hours_growth?: number
@@ -8197,24 +8228,32 @@ export type Database = {
           service_hours_previous?: number
           service_hours_score?: number
           target_month: string
+          team_name?: string | null
+          team_score?: number
           total_score?: number
           updated_at?: string
+          visit_record_deadline_miss_count?: number
           visit_record_same_day_count?: number
           visit_record_score?: number
           visit_record_submission_rate?: number
           visit_record_target_count?: number
+          visit_record_total_count?: number
         }
         Update: {
           created_at?: string
           id?: string
+          jisseki_incomplete_count?: number
           jisseki_score?: number
           jisseki_submission_rate?: number
           jisseki_submitted_count?: number
           jisseki_target_count?: number
+          jisseki_total_count?: number
           member_count?: number
           orgunitid?: string
           orgunitname?: string
+          previous_month_service_hours?: number
           rank_no?: number | null
+          service_hours?: number
           service_hours_base_score?: number
           service_hours_current?: number
           service_hours_growth?: number
@@ -8222,12 +8261,16 @@ export type Database = {
           service_hours_previous?: number
           service_hours_score?: number
           target_month?: string
+          team_name?: string | null
+          team_score?: number
           total_score?: number
           updated_at?: string
+          visit_record_deadline_miss_count?: number
           visit_record_same_day_count?: number
           visit_record_score?: number
           visit_record_submission_rate?: number
           visit_record_target_count?: number
+          visit_record_total_count?: number
         }
         Relationships: []
       }

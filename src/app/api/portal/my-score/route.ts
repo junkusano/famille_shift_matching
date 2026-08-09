@@ -1,6 +1,10 @@
 //api/portal/my-score/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import {
+    getPerformanceBadge,
+    isNewPerformanceSchemeOfficial,
+} from "@/lib/performanceScoreBadge";
 
 const EXCLUDED_PERFORMANCE_SCORE_USER_IDS = [
     "satominishio",
@@ -208,13 +212,6 @@ function calcMinutes(
     return diff > 0 ? Math.round(diff / 60000) : 0;
 }*/
 
-function getBadge(score: number) {
-    if (score >= 100) return "プラチナ";
-    if (score >= 80) return "ゴールド";
-    if (score >= 60) return "シルバー";
-    if (score < 60) return "ブロンズ";
-}
-
 type ScoreRow = {
     service_hours: number | string | null;
     visit_record_total_count: number | null;
@@ -233,9 +230,16 @@ type ScoreRow = {
     shift_decline_6hours_count: number | null;
     shift_decline_penalty_score: number | null;
     jisseki_team_bonus_score: number | null;
+    individual_score?: number | null;
+    team_score?: number | null;
+    official_total_score: number | null;
+    projected_total_score: number | null;
 };
 
 function calcDisplayTotalScore(row: ScoreRow) {
+    if (row.official_total_score !== null && row.official_total_score !== undefined) {
+        return Number(row.official_total_score);
+    }
     const serviceHoursScore = Math.min(
         80,
         Math.floor(Number(row.service_hours ?? 0) / 20) * 10
@@ -457,26 +461,66 @@ export async function GET(req: NextRequest) {
         );
     }
 
+    const { data: teamSummary, error: teamSummaryError } = summary.team_orgunitid
+        ? await supabaseAdmin
+            .from("team_monthly_score_summaries")
+            .select("*")
+            .eq("target_month", targetMonthDate)
+            .eq("orgunitid", summary.team_orgunitid)
+            .maybeSingle()
+        : { data: null, error: null };
+
+    if (teamSummaryError) {
+        return NextResponse.json({ error: teamSummaryError.message }, { status: 500 });
+    }
+
     const { data: rankingSourceRows } = await supabaseAdmin
         .from("staff_monthly_score_summaries")
         .select("*")
         .eq("target_month", targetMonthDate);
 
-    const rankingRows = (rankingSourceRows ?? [])
+    const baseRankingRows = (rankingSourceRows ?? [])
+        .filter((row) => !EXCLUDED_PERFORMANCE_SCORE_USER_IDS.includes(row.user_id))
         .map((row) => ({
             user_id: row.user_id,
             staff_name: row.staff_name,
-            score: Number(row.total_score ?? 0),
-            rank_no: Number(row.rank_no ?? 0),
-            medal_rank: row.medal_rank ?? getBadge(Number(row.total_score ?? 0)),
-        }))
-        .sort((a, b) => a.rank_no - b.rank_no);
+            officialScore: Number(row.official_total_score ?? row.total_score ?? 0),
+            projectedScore: Number(row.projected_total_score ?? row.total_score ?? 0),
+        }));
+
+    const buildRanking = (mode: "official" | "projected") =>
+        [...baseRankingRows]
+            .sort((a, b) =>
+                mode === "official"
+                    ? b.officialScore - a.officialScore
+                    : b.projectedScore - a.projectedScore
+            )
+            .map((row, index) => {
+                const score = mode === "official" ? row.officialScore : row.projectedScore;
+                const badgeScheme = mode === "projected" || isNewPerformanceSchemeOfficial(targetMonthDate)
+                    ? "new"
+                    : "current";
+                const badge = getPerformanceBadge(score, badgeScheme);
+                return {
+                    rank: index + 1,
+                    userId: row.user_id,
+                    score,
+                    name: row.staff_name ?? row.user_id,
+                    badge: badge.name,
+                    hourlyWageBonus: badge.hourlyWageBonus,
+                };
+            });
+
+    const officialRankingRows = buildRanking("official");
+    const projectedRankingRows = buildRanking("projected");
 
     const { data: historyRows } = await supabaseAdmin
         .from("staff_monthly_score_summaries")
         .select(`
             target_month,
             rank_no,
+            official_total_score,
+            projected_total_score,
             service_hours,
             visit_record_total_count,
             houmon_same_day_done_count,
@@ -563,9 +607,19 @@ shift_decline_penalty_score,
         summary.jisseki_team_bonus_score ?? 0
     );
 
-    const totalScore = Number(summary.total_score ?? 0);
-    //const rankNo = Number(summary.rank_no ?? 0);
-    //const medalRank = summary.medal_rank ?? "ブロンズ";
+    const individualScore = Number(summary.individual_score ?? summary.total_score ?? 0);
+    const teamScore = Number(summary.team_score ?? 0);
+    const officialTotalScore = Number(summary.official_total_score ?? summary.total_score ?? individualScore);
+    const projectedTotalScore = Number(summary.projected_total_score ?? individualScore + teamScore);
+    const newSchemeOfficial = isNewPerformanceSchemeOfficial(targetMonthDate);
+    const officialBadge = getPerformanceBadge(
+        officialTotalScore,
+        newSchemeOfficial ? "new" : "current"
+    );
+    const projectedBadge = getPerformanceBadge(projectedTotalScore, "new");
+    const teamServiceHoursScore = Number(teamSummary?.service_hours_score ?? 0);
+    const teamJissekiScore = Number(teamSummary?.jisseki_score ?? 0);
+    const teamVisitRecordScore = Number(teamSummary?.visit_record_score ?? 0);
 
     return NextResponse.json({
         month: ym,
@@ -575,7 +629,15 @@ shift_decline_penalty_score,
             summary.staff_name ??
             `${me.last_name_kanji ?? ""}${me.first_name_kanji ?? ""}`,
 
-        totalScore,
+        totalScore: officialTotalScore,
+        individualScore,
+        teamScore,
+        officialTotalScore,
+        projectedTotalScore,
+        newSchemeOfficial,
+        teamName: teamSummary?.team_name ?? teamSummary?.orgunitname ?? null,
+        officialBadge,
+        projectedBadge,
 
         // 追加
         jissekiTeamTotalCount,
@@ -587,15 +649,16 @@ shift_decline_penalty_score,
         debugTargetMonth: summary.target_month,
         debugUserId: summary.user_id,
 
-        // 個人最大170点＋チームボーナス最大20点
-        totalMaxScore: 190,
+        // 現行の個人評価最大140点＋新制度のチーム成績最大60点
+        totalMaxScore: 200,
 
-        badge: getBadge(totalScore),
+        badge: officialBadge.name,
         metrics: [
             {
                 key: "service_hours",
                 label: "サービス時間",
                 score: serviceHoursScore,
+                teamScore: teamServiceHoursScore,
                 maxScore: 80,
                 note: `${summary.service_hours ?? 0}時間`,
                 linkUrl: addParams("/portal/shift-view", {
@@ -614,6 +677,7 @@ shift_decline_penalty_score,
                 key: "visit_record",
                 label: "訪問記録",
                 score: visitRecordScore,
+                teamScore: teamVisitRecordScore,
                 maxScore: 0,
                 note: `23:43締切違反 ${visitRecordDeadlineMissCount}件 / 過去未完了 ${visitRecordPastIncompleteCount}件`,
                 linkUrl: addParams("/portal/shift-view", {
@@ -636,6 +700,7 @@ shift_decline_penalty_score,
                 key: "jisseki",
                 label: "実績記録",
                 score: jissekiScore,
+                teamScore: teamJissekiScore,
                 maxScore: 20,
                 note:
                     `前月完了 ${summary.jisseki_previous_month_done_count ?? 0}件` +
@@ -674,22 +739,20 @@ shift_decline_penalty_score,
             },
         ],
         ranking: {
-            rank: rankingRows.find((row) => row.user_id === userId)?.rank_no ?? null,
-            totalMembers: rankingRows.length,
+            rank: officialRankingRows.find((row) => row.userId === userId)?.rank ?? null,
+            totalMembers: officialRankingRows.length,
         },
-        topRanking: (rankingRows ?? []).slice(0, 100).map((row) => ({
-            rank: row.rank_no ?? 0,
-            userId: row.user_id,
-            score: row.score,
-            name: row.staff_name ?? row.user_id,
-            badge: row.medal_rank,
-        })),
+        officialRanking: officialRankingRows.slice(0, 100),
+        projectedRanking: projectedRankingRows.slice(0, 100),
+        topRanking: officialRankingRows.slice(0, 100),
         scoreHistory: (historyRows ?? []).map((row) => {
             const month = String(row.target_month).slice(0, 7);
             return {
                 month,
                 label: `${Number(month.slice(5, 7))}月`,
                 score: calcDisplayTotalScore(row),
+                officialScore: Number(row.official_total_score ?? calcDisplayTotalScore(row)),
+                projectedScore: Number(row.projected_total_score ?? calcDisplayTotalScore(row)),
                 rank: row.rank_no,
             };
         }),
