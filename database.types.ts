@@ -8183,10 +8183,6 @@ export type Database = {
           jisseki_target_count: number
           jisseki_total_count: number
           member_count: number
-          meeting_attended_count: number
-          meeting_incomplete_count: number
-          meeting_member_count: number
-          meeting_score: number
           orgunitid: string
           orgunitname: string
           previous_month_service_hours: number
@@ -8220,10 +8216,6 @@ export type Database = {
           jisseki_target_count?: number
           jisseki_total_count?: number
           member_count?: number
-          meeting_attended_count?: number
-          meeting_incomplete_count?: number
-          meeting_member_count?: number
-          meeting_score?: number
           orgunitid: string
           orgunitname: string
           previous_month_service_hours?: number
@@ -8257,10 +8249,6 @@ export type Database = {
           jisseki_target_count?: number
           jisseki_total_count?: number
           member_count?: number
-          meeting_attended_count?: number
-          meeting_incomplete_count?: number
-          meeting_member_count?: number
-          meeting_score?: number
           orgunitid?: string
           orgunitname?: string
           previous_month_service_hours?: number
