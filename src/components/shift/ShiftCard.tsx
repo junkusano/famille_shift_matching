@@ -1809,20 +1809,22 @@ if (!res.ok || json?.ok !== true) {
             </>
           )}
 
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              {mode === "view" ? (
-                null
-              ) : mode === "request" ? (
-  <Button>
-    このシフトを希望する
-  </Button>
-) : (
-  <Button className={REJECT_BTN_CLASS}>
-    このシフトに入れない
-  </Button>
+          {mode !== "view" && (
+  mode === "request" ? (
+    <Button onClick={() => setOpen(true)}>
+      このシフトを希望する
+    </Button>
+  ) : (
+    <Button
+      className={REJECT_BTN_CLASS}
+      onClick={() => setOpen(true)}
+    >
+      このシフトに入れない
+    </Button>
+  )
 )}
-            </DialogTrigger>
+
+<Dialog open={open} onOpenChange={setOpen}>
             <DialogPortal>
               <DialogOverlay className="overlay-avoid-sidebar" />
               <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-4 mr-0">

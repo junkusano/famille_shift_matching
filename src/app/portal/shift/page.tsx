@@ -4,6 +4,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogOverlay,
+    DialogPortal,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import type { ShiftData } from "@/types/shift";
 // ▼ 追加
 import { createTimeAdjustAlertFromShift } from "@/lib/shift/shift_card_alert";
@@ -404,6 +412,7 @@ function MonthCalendar({
 
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]);
+    const [dayOffDialogOpen, setDayOffDialogOpen] = useState(false);
     const [currentPage] = useState(1);
     const [userId, setUserId] = useState<string>("");
     void userId;
@@ -412,6 +421,7 @@ export default function ShiftPage() {
     void accountId;
     const [kaipokeUserId, setKaipokeUserId] = useState<string>("");
     void kaipokeUserId;
+
 
     const [showMonth, setShowMonth] = useState(false);
     const [monthCursor, setMonthCursor] = useState<Date>(new Date());
@@ -980,11 +990,12 @@ export default function ShiftPage() {
     const handlePrevDay = () => setShiftDate(subDays(shiftDate, 1));
     const handleNextDay = () => setShiftDate(addDays(shiftDate, 1));
     const handleDeleteAll = () => {
-        if (!shifts.length) return;
-        if (confirm("本当にこの日の全シフトをお休み処理しますか？")) {
-            shifts.forEach((shift) => void handleShiftReject(shift, "お休み希望"));
-        }
-    };
+    if (!shifts.length) return;
+
+    shifts.forEach((shift) => {
+        void handleShiftReject(shift, "お休み希望");
+    });
+};
 
     const start = (currentPage - 1) * PAGE_SIZE;
     const paginatedShifts = shifts.slice(start, start + PAGE_SIZE);
@@ -1250,8 +1261,52 @@ export default function ShiftPage() {
             </div>
 
             <div className="text-right mb-4">
-                <Button onClick={handleDeleteAll} className={REJECT_BTN_CLASS}>この日はお休み希望</Button>
-            </div>
+    <Button
+        onClick={() => setDayOffDialogOpen(true)}
+        className={REJECT_BTN_CLASS}
+    >
+        この日はお休み希望
+    </Button>
+    
+</div>
+
+<Dialog
+    open={dayOffDialogOpen}
+    onOpenChange={setDayOffDialogOpen}
+>
+    <DialogPortal>
+        <DialogOverlay className="overlay-avoid-sidebar" />
+
+        <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-4 mr-0">
+    <DialogTitle>
+        この日はお休み希望
+    </DialogTitle>
+
+    <DialogDescription>
+        本当にこの日の全シフトをお休み処理しますか？
+    </DialogDescription>
+
+    <div className="flex justify-end gap-2 mt-4">
+        <Button
+            variant="outline"
+            onClick={() => setDayOffDialogOpen(false)}
+        >
+            キャンセル
+        </Button>
+
+        <Button
+            className={REJECT_BTN_CLASS}
+            onClick={() => {
+                setDayOffDialogOpen(false);
+                handleDeleteAll();
+            }}
+        >
+            OK
+        </Button>
+    </div>
+</DialogContent>
+</DialogPortal>
+</Dialog>
 
             {showMonth && (
                 <MonthCalendar
