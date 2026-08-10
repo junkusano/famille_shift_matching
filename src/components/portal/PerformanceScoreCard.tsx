@@ -114,7 +114,7 @@ function PerformanceScorePanelContent({
     );
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
-    const [displayScheme, setDisplayScheme] = useState<PerformanceScoreScheme>("current");
+    const [displayScheme, setDisplayScheme] = useState<PerformanceScoreScheme>("new");
 
     useEffect(() => {
         const load = async () => {
@@ -151,7 +151,8 @@ function PerformanceScorePanelContent({
 
             const json = (await res.json()) as PortalScore;
             setScore(json);
-            setDisplayScheme(json.newSchemeOfficial ? "new" : "current");
+            // 2026年10月より前も、新制度を当月データへ当てはめた参考値を初期表示する。
+            setDisplayScheme("new");
 
             if (!selectedUserId) setSelectedUserId(json.userId);
             if (!selectedMonth) setSelectedMonth(json.month);
@@ -576,10 +577,9 @@ function PerformanceScorePanelContent({
                             })}
                     </div>
 
-                    {showingNewScheme && (
-                        <div className="mt-6">
+                    <div className="mt-6">
                             <div className="mb-1 text-lg font-bold text-blue-950">
-                                チームランキング
+                                {score.newSchemeOfficial ? "チームランキング" : "新制度参考・チームランキング"}
                             </div>
                             <div className="mb-3 text-xs text-slate-500">
                                 サービス・訪問記録・実績記録・会議参加を合算した、新制度のチーム成績です。
@@ -587,7 +587,7 @@ function PerformanceScorePanelContent({
 
                             {score.teamRanking.length === 0 ? (
                                 <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                                    チーム成績を集計中です。
+                                    チーム成績がまだありません。月次成績Cronの再集計後に表示されます。
                                 </div>
                             ) : (
                                 <div className="space-y-2">
@@ -643,8 +643,7 @@ function PerformanceScorePanelContent({
                                     })}
                                 </div>
                             )}
-                        </div>
-                    )}
+                    </div>
 
                     <div className="mt-6">
                         <div className="mb-3 text-lg font-bold text-blue-950">

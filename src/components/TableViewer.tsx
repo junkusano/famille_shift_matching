@@ -35,6 +35,7 @@ export type TableViewerProps = {
   emptyMessage?: string;
   className?: string;
   initialColumnFilters?: Record<string, string>;
+  exactCount?: boolean;
 };
 
 type SortState = {
@@ -77,6 +78,7 @@ export default function TableViewer({
   emptyMessage = "データがありません",
   className = "",
   initialColumnFilters,
+  exactCount = true,
 }: TableViewerProps) {
   const [rows, setRows] = useState<TableRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -134,6 +136,7 @@ export default function TableViewer({
         `&select=${encodeURIComponent(selectClause)}` +
         `&limit=${encodeURIComponent(String(pageSize))}` +
         `&offset=${encodeURIComponent(String(offset))}` +
+        `&exactCount=${encodeURIComponent(String(exactCount))}` +
         `&filters=${encodeURIComponent(JSON.stringify(serverFilters))}` +
         (sort?.column
           ? `&sortColumn=${encodeURIComponent(sort.column)}&sortAscending=${encodeURIComponent(
@@ -161,7 +164,7 @@ export default function TableViewer({
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, selectClause, serverFilters, sort, tableName]);
+  }, [exactCount, page, pageSize, selectClause, serverFilters, sort, tableName]);
 
   useEffect(() => {
     fetchRows();

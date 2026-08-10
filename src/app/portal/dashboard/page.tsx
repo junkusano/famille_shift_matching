@@ -47,7 +47,8 @@ export default function DashboardPage() {
           },
         ]}
         defaultSort={{ column: "year_month", ascending: false }}
-        pageSize={50}
+        pageSize={500}
+        exactCount={false}
       />
       <TableViewer
         title="サービス区分別・資格者サービス時間比率"
@@ -69,7 +70,30 @@ export default function DashboardPage() {
           },
         ]}
         defaultSort={{ column: "category_order", ascending: true }}
-        pageSize={50}
+        pageSize={500}
+        exactCount={false}
+      />
+      <TableViewer
+        title="スタッフ別・資格と担当サービス時間"
+        tableName="dashboard_service_time_qualification_staff_detail_view"
+        columns={[
+          { key: "year_month", label: "月", filterMode: "exact" },
+          { key: "service_category", label: "区分" },
+          { key: "staff_name", label: "スタッフ" },
+          { key: "staff_user_id", label: "ユーザーID", filterMode: "exact" },
+          { key: "qualifications", label: "対象資格（取得日）" },
+          { key: "qualification_status", label: "判定" },
+          { key: "total_service_hours", label: "担当時間", format: (value) => `${formatHours2(value)}h` },
+          { key: "qualified_service_hours", label: "資格者時間", format: (value) => `${formatHours2(value)}h` },
+          { key: "qualified_ratio", label: "資格者割合", format: (value) => `${Number(value ?? 0).toFixed(1)}%` },
+        ]}
+        defaultSort={{ column: "total_service_hours", ascending: false }}
+        initialColumnFilters={{
+          year_month: getNextYearMonth(),
+          service_category: "訪問介護",
+        }}
+        pageSize={500}
+        exactCount={false}
       />
       <DefectSum />
       <EntrySumBizStats />

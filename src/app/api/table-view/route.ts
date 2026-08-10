@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
     const sortColumn = searchParams.get("sortColumn");
     const sortAscending = searchParams.get("sortAscending") !== "false";
     const filtersRaw = searchParams.get("filters");
+    const exactCount = searchParams.get("exactCount") !== "false";
 
     if (!tableName) {
       return NextResponse.json(
@@ -62,20 +63,20 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    let countQuery = supabaseAdmin
-      .from(tableName)
-      .select("*", { count: "exact", head: true });
-
     let dataQuery = supabaseAdmin
       .from(tableName)
-      .select(select, { count: "exact" });
+      .select(select);
+
+    let countQuery = exactCount
+      ? supabaseAdmin.from(tableName).select("*", { count: "exact", head: true })
+      : null;
 
     for (const filter of filters) {
       if (filter.operator === "eq") {
-        countQuery = countQuery.eq(filter.column, filter.value);
+        countQuery = countQuery?.eq(filter.column, filter.value) ?? null;
         dataQuery = dataQuery.eq(filter.column, filter.value);
       } else {
-        countQuery = countQuery.ilike(filter.column, `%${filter.value}%`);
+        countQuery = countQuery?.ilike(filter.column, `%${filter.value}%`) ?? null;
         dataQuery = dataQuery.ilike(filter.column, `%${filter.value}%`);
       }
     }
@@ -86,15 +87,18 @@ export async function GET(req: NextRequest) {
 
     dataQuery = dataQuery.range(safeOffset, safeOffset + safeLimit - 1);
 
-    const [{ count, error: countError }, { data, error: dataError }] =
-      await Promise.all([countQuery, dataQuery]);
+    const [countResult, dataResult] = countQuery
+      ? await Promise.all([countQuery, dataQuery])
+      : [null, await dataQuery];
 
-    if (countError) {
+    if (countResult?.error) {
       return NextResponse.json(
-        { ok: false, error: countError.message },
+        { ok: false, error: countResult.error.message },
         { status: 500 }
       );
     }
+
+    const { data, error: dataError } = dataResult;
 
     if (dataError) {
       return NextResponse.json(
@@ -106,7 +110,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       rows: Array.isArray(data) ? data : [],
-      totalCount: count ?? 0,
+      totalCount: exactCount ? countResult?.count ?? 0 : safeOffset + (data?.length ?? 0),
       limit: safeLimit,
       offset: safeOffset,
     });

@@ -8182,6 +8182,10 @@ export type Database = {
           jisseki_submitted_count: number
           jisseki_target_count: number
           jisseki_total_count: number
+          meeting_attended_count: number
+          meeting_incomplete_count: number
+          meeting_member_count: number
+          meeting_score: number
           member_count: number
           orgunitid: string
           orgunitname: string
@@ -8215,6 +8219,10 @@ export type Database = {
           jisseki_submitted_count?: number
           jisseki_target_count?: number
           jisseki_total_count?: number
+          meeting_attended_count?: number
+          meeting_incomplete_count?: number
+          meeting_member_count?: number
+          meeting_score?: number
           member_count?: number
           orgunitid: string
           orgunitname: string
@@ -8248,6 +8256,10 @@ export type Database = {
           jisseki_submitted_count?: number
           jisseki_target_count?: number
           jisseki_total_count?: number
+          meeting_attended_count?: number
+          meeting_incomplete_count?: number
+          meeting_member_count?: number
+          meeting_score?: number
           member_count?: number
           orgunitid?: string
           orgunitname?: string
@@ -9842,6 +9854,21 @@ export type Database = {
           qualified_ratio: number | null
           qualified_service_hours: number | null
           threshold_status: string | null
+          total_service_hours: number | null
+          year_month: string | null
+        }
+        Relationships: []
+      }
+      dashboard_service_time_qualification_staff_detail_view: {
+        Row: {
+          qualification_from: string | null
+          qualification_status: string | null
+          qualifications: string | null
+          qualified_ratio: number | null
+          qualified_service_hours: number | null
+          service_category: string | null
+          staff_name: string | null
+          staff_user_id: string | null
           total_service_hours: number | null
           year_month: string | null
         }
