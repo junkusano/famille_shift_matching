@@ -9825,6 +9825,28 @@ export type Database = {
           },
         ]
       }
+      dashboard_service_time_qualification_breakdown_view: {
+        Row: {
+          category_order: number | null
+          qualified_ratio: number | null
+          qualified_service_hours: number | null
+          service_category: string | null
+          threshold_status: string | null
+          total_service_hours: number | null
+          year_month: string | null
+        }
+        Relationships: []
+      }
+      dashboard_service_time_qualification_monthly_view: {
+        Row: {
+          qualified_ratio: number | null
+          qualified_service_hours: number | null
+          threshold_status: string | null
+          total_service_hours: number | null
+          year_month: string | null
+        }
+        Relationships: []
+      }
       disability_check_view: {
         Row: {
           application_check: boolean | null
@@ -12250,6 +12272,17 @@ export type Database = {
           relabeled_documents: number
           unresolved: number
           updated_infos: number
+        }[]
+      }
+      dashboard_service_time_qualification_staff_rows: {
+        Args: never
+        Returns: {
+          qualified: boolean
+          service_category: string
+          service_date: string
+          staff_user_id: string
+          total_hours: number
+          year_month: string
         }[]
       }
       deploy_weekly_template: {

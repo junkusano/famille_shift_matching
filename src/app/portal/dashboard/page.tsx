@@ -28,6 +28,49 @@ export default function DashboardPage() {
 
       {/* ===== 個別ウィジェット ===== */}
       <ShiftSumBizStats />
+      <TableViewer
+        title="資格者サービス時間比率（月次サマリー）"
+        tableName="dashboard_service_time_qualification_monthly_view"
+        columns={[
+          { key: "year_month", label: "月", filterMode: "exact" },
+          { key: "total_service_hours", label: "総サービス時間", format: (value) => `${formatHours2(value)}h` },
+          { key: "qualified_service_hours", label: "資格者時間", format: (value) => `${formatHours2(value)}h` },
+          { key: "qualified_ratio", label: "合計資格者割合", format: (value) => `${Number(value ?? 0).toFixed(1)}%` },
+          {
+            key: "threshold_status",
+            label: "50%基準",
+            format: (value) => (
+              <span className={value === "基準クリア" ? "font-semibold text-emerald-700" : "font-semibold text-red-700"}>
+                {String(value ?? "要確認")}
+              </span>
+            ),
+          },
+        ]}
+        defaultSort={{ column: "year_month", ascending: false }}
+        pageSize={50}
+      />
+      <TableViewer
+        title="サービス区分別・資格者サービス時間比率"
+        tableName="dashboard_service_time_qualification_breakdown_view"
+        columns={[
+          { key: "year_month", label: "月", filterMode: "exact" },
+          { key: "service_category", label: "区分" },
+          { key: "total_service_hours", label: "総サービス時間", format: (value) => `${formatHours2(value)}h` },
+          { key: "qualified_service_hours", label: "資格者時間", format: (value) => `${formatHours2(value)}h` },
+          { key: "qualified_ratio", label: "資格者割合", format: (value) => `${Number(value ?? 0).toFixed(1)}%` },
+          {
+            key: "threshold_status",
+            label: "50%基準",
+            format: (value) => (
+              <span className={value === "基準クリア" ? "font-semibold text-emerald-700" : "font-semibold text-red-700"}>
+                {String(value ?? "要確認")}
+              </span>
+            ),
+          },
+        ]}
+        defaultSort={{ column: "category_order", ascending: true }}
+        pageSize={50}
+      />
       <DefectSum />
       <EntrySumBizStats />
         <TableViewer
