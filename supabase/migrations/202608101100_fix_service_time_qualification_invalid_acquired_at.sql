@@ -1,8 +1,5 @@
--- Dashboard: サービス時間 × 介護福祉士・実務者研修修了者比率
---
--- 集計の母データは既存のチーム別サービス時間実績と同じ
--- shift_shift_record_view と、参加スタッフ（staff_01 / attend_flg が true の staff_02, 03）である。
--- この view は削除済みシフトを除いた既存のシフト記録 view を起点にする。
+-- attachments.acquired_at には手入力由来の不正な日付が混在しているため、
+-- 不正値でダッシュボード全体が失敗しないよう資格判定を安全化する。
 
 create or replace function public.dashboard_service_time_qualification_staff_rows()
 returns table (
@@ -47,7 +44,6 @@ as $$
         (s.staff_03_user_id, coalesce(s.staff_03_attend_flg, false))
     ) as participant(staff_user_id, is_participating)
     where s.shift_start_date >= date '2025-11-01'
-      -- 既存のチーム別集計と同じテスト利用者除外。
       and coalesce(s.kaipoke_cs_id, '') not in (
         '999999999', '9999999998', '9999999996', '9999999994', '9999999980'
       )
@@ -97,7 +93,6 @@ as $$
         on qm.label = attachment.value ->> 'label'
       where fe.auth_uid = cs.auth_uid
         and attachment.value ->> 'type' in ('資格証明書', 'certificate', 'certification')
-        -- acquired_at は資格証明書の取得・交付日として portal で扱っている日付。
         and acquired.acquired_date is not null
         and to_char(acquired.acquired_date, 'YYYY-MM-DD') = left(attachment.value ->> 'acquired_at', 10)
         and acquired.acquired_date <= cs.service_date
@@ -106,65 +101,3 @@ as $$
   where cs.service_category is not null
     and cs.hours > 0;
 $$;
-
-create or replace view public.dashboard_service_time_qualification_breakdown_view as
-with category_totals as (
-  select
-    year_month,
-    service_category,
-    sum(total_hours) as total_service_hours,
-    sum(total_hours) filter (where qualified) as qualified_service_hours,
-    case service_category
-      when '障害福祉（家事・身体・通院等介助）' then 1
-      when '行動援護' then 2
-      when '同行援護' then 3
-      when '重度訪問' then 4
-      when '移動支援' then 5
-      when '訪問介護（要介護）' then 6
-      when '訪問介護（要支援）' then 7
-      when '自費' then 8
-    end as category_order
-  from public.dashboard_service_time_qualification_staff_rows()
-  group by year_month, service_category
-), rows_with_total as (
-  select * from category_totals
-  union all
-  select
-    year_month,
-    '合計',
-    sum(total_service_hours),
-    sum(qualified_service_hours),
-    9
-  from category_totals
-  group by year_month
-)
-select
-  year_month,
-  service_category,
-  round(total_service_hours, 2) as total_service_hours,
-  round(qualified_service_hours, 2) as qualified_service_hours,
-  round(100 * qualified_service_hours / nullif(total_service_hours, 0), 1) as qualified_ratio,
-  case
-    when 100 * qualified_service_hours / nullif(total_service_hours, 0) >= 50 then '基準クリア'
-    else '要確認'
-  end as threshold_status,
-  category_order
-from rows_with_total;
-
-create or replace view public.dashboard_service_time_qualification_monthly_view as
-select
-  year_month,
-  round(sum(total_service_hours), 2) as total_service_hours,
-  round(sum(qualified_service_hours), 2) as qualified_service_hours,
-  round(100 * sum(qualified_service_hours) / nullif(sum(total_service_hours), 0), 1) as qualified_ratio,
-  case
-    when 100 * sum(qualified_service_hours) / nullif(sum(total_service_hours), 0) >= 50
-      then '基準クリア'
-    else '要確認'
-  end as threshold_status
-from public.dashboard_service_time_qualification_breakdown_view
-where category_order = 9
-group by year_month;
-
-comment on function public.dashboard_service_time_qualification_staff_rows() is
-  '既存のチーム別サービス時間と同じシフト・参加者定義で、資格取得日をサービス日と比較するスタッフ別母データ。';

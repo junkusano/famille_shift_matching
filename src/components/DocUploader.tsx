@@ -70,6 +70,28 @@ const extractFileId = (u?: string | null) => {
 const stableIdOf = (d: Partial<DocItem>) =>
     d.id ?? (d.url ? `u:${extractFileId(d.url)}` : d.label ? `l:${d.label}` : undefined);
 
+/** YYYYMM / YYYYMMDD を実在する日付だけ ISO 文字列へ正規化する。 */
+const parseAcquiredInput = (raw?: string | null) => {
+    const s = (raw ?? "").replace(/\D/g, "");
+    const match = s.match(/^(\d{4})(\d{2})(\d{2})?$/);
+    if (!match) return undefined;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = match[3] ? Number(match[3]) : 1;
+    const date = new Date(Date.UTC(year, month - 1, day));
+
+    if (
+        date.getUTCFullYear() !== year ||
+        date.getUTCMonth() !== month - 1 ||
+        date.getUTCDate() !== day
+    ) {
+        return undefined;
+    }
+
+    return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00+09:00`;
+};
+
 export default function DocUploader({
     value,
     onChange,
@@ -123,13 +145,6 @@ export default function DocUploader({
     };
 
     // ===== 日付ヘルパ
-    const parseAcquired = (raw?: string | null) => {
-        const s = (raw ?? "").replace(/\D/g, "");
-        if (/^\d{8}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T00:00:00+09:00`;
-        if (/^\d{6}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-01T00:00:00+09:00`;
-        return undefined;
-    };
-
     const formatAcquired = (iso?: string) => {
         if (!iso) return "未設定";
         const d = new Date(iso);
@@ -194,10 +209,14 @@ export default function DocUploader({
             alert("書類名を選択または入力してください");
             return;
         }
+        const acquired = parseAcquiredInput(acquiredRaw);
+        if (acquiredRaw.trim() && !acquired) {
+            alert("取得日は実在する YYYYMM または YYYYMMDD で入力してください（例: 202507 または 20250701）");
+            return;
+        }
         setBusyId("__new__");
         try {
             const { url, mimeType } = await uploadFileViaApi(file);
-            const acquired = parseAcquired(acquiredRaw);
             const item: DocItem = {
                 id: crypto.randomUUID(),
                 url,
@@ -219,10 +238,14 @@ export default function DocUploader({
 
     const handleAddWithLabel = async (label: string, file: File) => {
         if (!ensureSizeOK(file)) return;
+        const acquired = parseAcquiredInput(acquiredRaw);
+        if (acquiredRaw.trim() && !acquired) {
+            alert("取得日は実在する YYYYMM または YYYYMMDD で入力してください（例: 202507 または 20250701）");
+            return;
+        }
         setBusyId("__new__");
         try {
             const { url, mimeType } = await uploadFileViaApi(file);
-            const acquired = parseAcquired(acquiredRaw);
             const item: DocItem = {
                 id: crypto.randomUUID(),
                 url,
@@ -417,10 +440,7 @@ export const toAttachment = (d: DocItem, fallbackType = "その他"): Attachment
 
 // 既存の取得日ヘルパ（必要なら利用）
 export const parseDocAcquired = (raw?: string | null) => {
-    const s = (raw ?? "").replace(/\D/g, "");
-    if (/^\d{8}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T00:00:00+09:00`;
-    if (/^\d{6}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-01T00:00:00+09:00`;
-    return undefined;
+    return parseAcquiredInput(raw);
 };
 export const formatDocAcquired = (iso: string) => {
     const d = new Date(iso);
