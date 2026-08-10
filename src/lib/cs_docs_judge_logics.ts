@@ -155,7 +155,6 @@ async function callLLM(params: {
     },
     body: safeJsonStringify({
       model: OPENAI_PROFILES.light.model,
-      temperature: 0.2,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },

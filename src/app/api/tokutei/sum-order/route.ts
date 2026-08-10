@@ -359,7 +359,6 @@ async function generateInstruction(
       { role: "system", content: sys },
       { role: "user", content: usr },
     ],
-    temperature: 0.45, // 季節テンプレ回避しつつ、表現のバリエーションを少し確保
     max_tokens: 220,
   });
 

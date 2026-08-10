@@ -721,7 +721,6 @@ ${lines || "記録内容がほとんどありません。"}
             { role: "user", content: prompt },
         ],
         max_tokens: 400,
-        temperature: 0.4,
     });
 
     const content = res.choices[0]?.message?.content;

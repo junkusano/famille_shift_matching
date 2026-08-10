@@ -630,7 +630,6 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
         const ai = await openai.chat.completions.create({
             model: OPENAI_PROFILES.critical.model,
             messages,
-            temperature: 0,
         });
 
         const responseText = (ai.choices?.[0]?.message?.content ?? "").trim();

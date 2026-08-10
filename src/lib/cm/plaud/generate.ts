@@ -29,7 +29,6 @@ const openai = new OpenAI({
 // =============================================================
 
 const MAX_TOKENS = 2000;
-const TEMPERATURE = 0.7;
 
 // =============================================================
 // Types
@@ -115,7 +114,6 @@ export async function generateWithTemplates(
             const response = await openai.chat.completions.create({
               model: OPENAI_PROFILES.standard.model,
               max_tokens: MAX_TOKENS,
-              temperature: TEMPERATURE,
               messages: [
                 {
                   role: "system",

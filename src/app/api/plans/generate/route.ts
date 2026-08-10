@@ -880,7 +880,6 @@ ${params.sourceText}
 
     const resp = await openai.chat.completions.create({
       model: OPENAI_PROFILES.heavy.model,
-      temperature: 0.2,
       messages: [
         {
           role: "system",
@@ -1317,7 +1316,6 @@ ${sourceText}
 
     const resp = await openai.chat.completions.create({
       model: OPENAI_PROFILES.heavy.model,
-      temperature: 0.2,
       messages: [
         {
           role: "system",
@@ -1501,7 +1499,6 @@ ${sourceText}
     const resp =
       await openai.chat.completions.create({
         model: OPENAI_PROFILES.heavy.model,
-        temperature: 0.1,
         messages: [
           {
             role: "system",

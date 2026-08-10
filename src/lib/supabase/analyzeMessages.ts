@@ -50,7 +50,6 @@ Bot自身が投稿した通知は除外してください。
             { role: 'system', content: prompt },
             { role: 'user', content: formattedLogs },
         ],
-        temperature: 0.2,
     });
 
     const content = response.choices[0].message.content ?? '';

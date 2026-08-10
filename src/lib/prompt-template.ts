@@ -103,7 +103,6 @@ export class PromptTemplateError extends Error {
  * const response = await openai.chat.completions.create({
  *   model: result.model,
  *   max_tokens: result.max_tokens,
- *   temperature: result.temperature,
  *   messages: [{ role: "user", content: result.prompt }],
  * });
  */

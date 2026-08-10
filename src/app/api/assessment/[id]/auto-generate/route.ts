@@ -1648,7 +1648,6 @@ template_contentのsheet.key、row.key、labelを変更しないでください�
 
         const resp = await openai.chat.completions.create({
             model: OPENAI_PROFILES.critical.model,
-            temperature: 0.2,
             response_format: {
                 type: "json_object",
             },

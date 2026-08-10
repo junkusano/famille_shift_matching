@@ -798,7 +798,6 @@ async function generateSummary(
   const response = await openai.chat.completions.create({
     model: OPENAI_PROFILES.standard.model,
     max_tokens: promptResult.max_tokens,
-    temperature: promptResult.temperature,
     messages: [
       { role: "user", content: finalPrompt },
     ],
