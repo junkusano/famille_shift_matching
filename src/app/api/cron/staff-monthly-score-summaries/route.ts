@@ -800,6 +800,8 @@ export async function GET(req: NextRequest) {
         const selectShiftColumns =
             "shift_id, client_name, shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_01_role_code, staff_02_user_id, staff_02_role_code, staff_03_user_id, staff_03_role_code, staff_02_attend_flg, staff_03_attend_flg, record_status, record_created_at";
 
+        const jstNow = getJstDateTime();
+
         const currentMonthShiftRows = await fetchAllShiftRows(
             targetMonth,
             nextMonthStart,
@@ -815,7 +817,6 @@ export async function GET(req: NextRequest) {
         );
 
         // 締切違反は、過去月の再計算では作らず、実際の23:43 JST実行時だけ確定する。
-        const jstNow = getJstDateTime();
         const isLiveDeadlineRun =
             !req.nextUrl.searchParams.has("ym") &&
             jstNow.hour === 23 &&
