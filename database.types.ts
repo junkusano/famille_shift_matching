@@ -3562,6 +3562,8 @@ export type Database = {
           service_kind: string | null
           shogai_end_at: string | null
           shogai_jukyusha_no: string | null
+          shogai_jukyusha_penalty_exempt: boolean
+          shogai_jukyusha_penalty_exempt_at: string | null
           shogai_start_at: string | null
           standard_purpose: string | null
           standard_route: string | null
@@ -3603,6 +3605,8 @@ export type Database = {
           service_kind?: string | null
           shogai_end_at?: string | null
           shogai_jukyusha_no?: string | null
+          shogai_jukyusha_penalty_exempt?: boolean
+          shogai_jukyusha_penalty_exempt_at?: string | null
           shogai_start_at?: string | null
           standard_purpose?: string | null
           standard_route?: string | null
@@ -3644,6 +3648,8 @@ export type Database = {
           service_kind?: string | null
           shogai_end_at?: string | null
           shogai_jukyusha_no?: string | null
+          shogai_jukyusha_penalty_exempt?: boolean
+          shogai_jukyusha_penalty_exempt_at?: string | null
           shogai_start_at?: string | null
           standard_purpose?: string | null
           standard_route?: string | null

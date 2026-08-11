@@ -147,6 +147,9 @@ type KaipokeInfo = {
     asigned_jisseki_staff: string | null;
     documents: Attachment[] | null; // JSONB
     time_adjustability_id: string | null; // マスタ参照
+    shogai_start_at: string | null;
+    shogai_end_at: string | null;
+    shogai_jukyusha_penalty_exempt: boolean;
 
     kodoengo_plan_link: string | null;
 };
@@ -862,6 +865,8 @@ export default function KaipokeInfoDetailPage() {
                     kaipoke_cs_id: (row.kaipoke_cs_id ?? '').trim() || null,
                     end_at: row.end_at || null,
                     service_kind: (row.service_kind ?? '').trim() || null,
+                    shogai_start_at: row.shogai_start_at || null,
+                    shogai_end_at: row.shogai_end_at || null,
                     email: (row.email ?? '').trim() || null,
                     biko: (row.biko ?? '').trim() || null,
                     gender_request: row.gender_request || null,
@@ -883,6 +888,9 @@ export default function KaipokeInfoDetailPage() {
                     standard_trans_ways: (row.standard_trans_ways ?? '').trim() || null,
                     standard_purpose: (row.standard_purpose ?? '').trim() || null,
                     time_adjustability_id: row.time_adjustability_id || null,
+                    shogai_jukyusha_penalty_exempt: row.shogai_jukyusha_penalty_exempt === true,
+                    shogai_jukyusha_penalty_exempt_at:
+                        row.shogai_jukyusha_penalty_exempt ? new Date().toISOString() : null,
                     kodoengo_plan_link: (row.kodoengo_plan_link ?? '').trim() || null,
                     care_consultant: row.care_consultant || null,
                 })
@@ -987,6 +995,39 @@ export default function KaipokeInfoDetailPage() {
                         value={row.service_kind ?? ''}
                         onChange={(e) => setRow({ ...row, service_kind: e.target.value })}
                     />
+                </div>
+
+                <div className="space-y-2 md:col-span-2 rounded border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-sm font-medium text-amber-900">障害サービス受給者証</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                            <label className="block text-xs text-gray-600">有効期間開始日</label>
+                            <input
+                                type="date"
+                                className="mt-1 w-full rounded border px-2 py-1"
+                                value={toDateInputValueFromStoredDate(row.shogai_start_at)}
+                                onChange={(e) => setRow({ ...row, shogai_start_at: e.target.value || null })}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-600">有効期間終了日</label>
+                            <input
+                                type="date"
+                                className="mt-1 w-full rounded border px-2 py-1"
+                                value={toDateInputValueFromStoredDate(row.shogai_end_at)}
+                                onChange={(e) => setRow({ ...row, shogai_end_at: e.target.value || null })}
+                            />
+                        </div>
+                    </div>
+                    <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-amber-950">
+                        <input
+                            type="checkbox"
+                            checked={row.shogai_jukyusha_penalty_exempt === true}
+                            onChange={(e) => setRow({ ...row, shogai_jukyusha_penalty_exempt: e.target.checked })}
+                        />
+                        受給者証更新翌月ペナルティを除外する
+                    </label>
+                    <p className="text-xs text-amber-800">市町村の発行遅れ等で翌月に受給者証が届かない場合に使用します。翌々月に自動で解除されます。</p>
                 </div>
                 {/* 郵便番号 */}
                 <div className="space-y-2">

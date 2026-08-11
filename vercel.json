@@ -177,6 +177,10 @@
       "schedule": "51 8 */3 * *"
     },
     {
+      "path": "/api/cron/alert-shogai-jukyusha-renewal",
+      "schedule": "21 0 * * *"
+    },
+    {
       "path": "/api/cron/disability-check-collected",
       "schedule": "17 4 * * *"
     },
