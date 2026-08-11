@@ -5,8 +5,14 @@
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getAccessToken } from "@/lib/getAccessToken";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+import { sendLWBotMentionMessage, type MentionTarget } from "@/lib/lineworks/sendLWBotMentionMessage";
 
 const FIXED_CHANNEL_ID = "99142491";
+const LW_BOT_NO =
+    process.env.LINEWORKS_BOT_NO ||
+    process.env.WORKS_BOT_NO ||
+    process.env.LW_BOT_NO ||
+    "6807751";
 const JST_OFFSET = "+09:00";
 
 type RosterRow = {
@@ -29,6 +35,7 @@ type UserRow = {
     entry_date_original?: string | null; // YYYY-MM-DD
     entry_date_latest?: string | null; // YYYY-MM-DD
     status?: string | null;
+    org_unit_id?: string | null;
 };
 
 export type ShiftStaffCheckResult = {
@@ -36,6 +43,7 @@ export type ShiftStaffCheckResult = {
     alerts: number;
     checkedShifts: number;
     sent: boolean;
+    clientGroupAlertsSent?: number;
     params: {
         dryRun: boolean;
         daysAhead: number;
@@ -91,6 +99,18 @@ function staffMention(u?: UserRow | null) {
     const name = staffName(u);
     const uid = (u?.user_id ?? "").trim();
     return uid ? `${name}さん（${uid}）` : `${name}さん`;
+}
+
+function isNoLongerActiveStaff(status?: string | null) {
+    return ["inactive", "removed_from_lineworks_kaipoke"].includes(
+        (status ?? "").trim().toLowerCase()
+    );
+}
+
+function formatMentionText(mentions: MentionTarget[]) {
+    return mentions.length > 0
+        ? mentions.map((mention) => `<m userId="${mention.userId}">`).join(" ")
+        : "（担当チームのmanager/adminを取得できませんでした）";
 }
 
 function clientDisplay(name: string) {
@@ -190,13 +210,11 @@ export async function runShiftStaffCheck(opts: {
         const staffIdList = Array.from(staffIds);
         if (staffIdList.length === 0) return result;
 
-        // 3) スタッフ情報（入社日・lw_userid・氏名）
+        // 3) スタッフ情報（入社日・LW ID・所属チーム・在籍状態）
         const { data: usersRaw, error: usersErr } = await supabaseAdmin
             .from("user_entry_united_view_single")
-            .select("user_id, lw_userid, last_name_kanji, first_name_kanji, entry_date_original, entry_date_latest, status")
-            .in("user_id", staffIdList)
-            .neq("status", "removed_from_lineworks_kaipoke")
-            .neq("status", "inactive");
+            .select("user_id, lw_userid, last_name_kanji, first_name_kanji, entry_date_original, entry_date_latest, status, org_unit_id")
+            .in("user_id", staffIdList);
 
         if (usersErr) throw usersErr;
 
@@ -267,6 +285,33 @@ export async function runShiftStaffCheck(opts: {
         const thresholdMs = inactiveDays * 24 * 60 * 60 * 1000;
 
         const alertLines: string[] = [];
+        const clientAlerts = new Map<string, {
+            clientName: string;
+            lines: string[];
+            teamOrgIds: Set<string>;
+        }>();
+        const addClientAlert = (
+            csId: string,
+            clientName: string,
+            line: string,
+            staffUserIds: Array<string | null | undefined> = []
+        ) => {
+            const normalizedCsId = csId.trim();
+            if (!normalizedCsId) return;
+
+            const current = clientAlerts.get(normalizedCsId) ?? {
+                clientName,
+                lines: [],
+                teamOrgIds: new Set<string>(),
+            };
+            current.clientName = current.clientName || clientName;
+            current.lines.push(line);
+            for (const staffUserId of staffUserIds) {
+                const orgUnitId = userMap.get((staffUserId ?? "").trim())?.org_unit_id?.trim();
+                if (orgUnitId) current.teamOrgIds.add(orgUnitId);
+            }
+            clientAlerts.set(normalizedCsId, current);
+        };
         const dedupe = new Set<string>();
 
         // ------------------------------
@@ -308,9 +353,15 @@ export async function runShiftStaffCheck(opts: {
 
                 if (shiftMs - refMs >= thresholdMs) {
                     const who = staffMention(u);
-                    alertLines.push(
-                        `・${dateDisp} ${startHHmm}　${clientName} のシフトに ${who} が入っていますが、直近${inactiveDays}日はシフト勤務がありません。正しいシフトか確認をしてください。`
-                    );
+                    const line = `・${dateDisp} ${startHHmm}　${clientName} のシフトに ${who} が入っていますが、直近${inactiveDays}日はシフト勤務がありません。正しいシフトか確認をしてください。`;
+                    alertLines.push(line);
+                    const csId = (r.kaipoke_cs_id ?? "").trim();
+                    if (csId) {
+                        const groupLine = isNoLongerActiveStaff(u?.status)
+                            ? `・${dateDisp} ${startHHmm}　${who} は現在在籍外扱いですが、サービス担当に設定されています。離任済みで問題ないか、シフト設定をご確認ください。`
+                            : `・${dateDisp} ${startHHmm}　${who} は直近${inactiveDays}日以上シフト勤務がありません。本日のサービス対応に問題ないかご確認ください。`;
+                        addClientAlert(csId, clientName, groupLine, [sid]);
+                    }
                 }
             }
         }
@@ -386,9 +437,21 @@ export async function runShiftStaffCheck(opts: {
                 dateMap.get(date)!.add(st);
             }
 
-            const criticalMissingLines: string[] = [];
-            const patternDiffLines: string[] = [];
+            const criticalMissingLines: Array<{ line: string; csId: string; clientName: string }> = [];
+            const patternDiffLines: Array<{ line: string; csId: string; clientName: string }> = [];
             const dedupe2 = new Set<string>();
+            const staffIdsByClient = new Map<string, string[]>();
+            for (const shift of upcoming) {
+                const csId = (shift.kaipoke_cs_id ?? "").trim();
+                if (!csId) continue;
+                const staffIds = [shift.staff_id_1, shift.staff_id_2, shift.staff_id_3]
+                    .map((staffId) => (staffId ?? "").trim())
+                    .filter(Boolean);
+                staffIdsByClient.set(csId, [
+                    ...(staffIdsByClient.get(csId) ?? []),
+                    ...staffIds,
+                ]);
+            }
 
             for (const [wkKey, r] of rep.entries()) {
                 const [clientKey, wdStr] = wkKey.split("|");
@@ -411,22 +474,34 @@ export async function runShiftStaffCheck(opts: {
                     const wdJa = WEEKDAY_JA[wd];
 
                     if (startsSet.size === 0) {
-                        criticalMissingLines.push(
-                            `【最優先】${yyyymmddSlash(date)} ${expected}　${clientDisp}　通常の同曜日シフト（${wdJa} ${expected}）が存在しません。シフト漏れの可能性高い`
-                        );
+                        criticalMissingLines.push({
+                            line: `【最優先】${yyyymmddSlash(date)} ${expected}　${clientDisp}　通常の同曜日シフト（${wdJa} ${expected}）が存在しません。シフト漏れの可能性高い`,
+                            csId: clientKey,
+                            clientName: clientDisp,
+                        });
                         continue;
                     }
 
                     if (!startsSet.has(expected)) {
-                        patternDiffLines.push(
-                            `・${yyyymmddSlash(date)} ${expected}　${clientDisp}　通常の同じ曜日のシフト（${wdJa} ${expected}）が、この日は見当たりません（時間が変更されています）。間違いありませんか？（当日登録: ${actualList.join(", ")}）`
-                        );
+                        patternDiffLines.push({
+                            line: `・${yyyymmddSlash(date)} ${expected}　${clientDisp}　通常の同じ曜日のシフト（${wdJa} ${expected}）が、この日は見当たりません（時間が変更されています）。間違いありませんか？（当日登録: ${actualList.join(", ")}）`,
+                            csId: clientKey,
+                            clientName: clientDisp,
+                        });
                     }
                 }
             }
 
             // 最優先を先頭へ
-            alertLines.push(...criticalMissingLines, ...patternDiffLines);
+            for (const alert of [...criticalMissingLines, ...patternDiffLines]) {
+                alertLines.push(alert.line);
+                addClientAlert(
+                    alert.csId,
+                    alert.clientName,
+                    alert.line,
+                    staffIdsByClient.get(alert.csId) ?? []
+                );
+            }
         }
 
         // ------------------------------
@@ -435,7 +510,13 @@ export async function runShiftStaffCheck(opts: {
         // ------------------------------
         {
             // まず、未来15日の roster（upcoming）から shift_id -> client_name を引けるようにする
-            const rosterByShiftId = new Map<number, { clientName: string; date: string; startAt: string }>();
+            const rosterByShiftId = new Map<number, {
+                clientName: string;
+                csId: string;
+                date: string;
+                startAt: string;
+                staffIds: Array<string | null | undefined>;
+            }>();
             for (const r of upcoming) {
                 // 99999999% は upcoming 側で除外している想定だが念のため
                 const csid = (r.kaipoke_cs_id ?? "").trim();
@@ -443,8 +524,10 @@ export async function runShiftStaffCheck(opts: {
 
                 rosterByShiftId.set(r.shift_id, {
                     clientName: clientDisplay(r.client_name ?? ""),
+                    csId: csid,
                     date: r.shift_date,
                     startAt: hhmm(r.start_at),
+                    staffIds: [r.staff_id_1, r.staff_id_2, r.staff_id_3],
                 });
             }
 
@@ -555,9 +638,9 @@ export async function runShiftStaffCheck(opts: {
 
                     if (reason) {
                         // 表示形式：〇月〇日 〇時 ・・・様 のシフト担当者が特定されていない
-                        alertLines.push(
-                            `・${yyyymmddSlash(info.date)} ${info.startAt}　${info.clientName} のシフト担当者が特定されていません（${reason}）`
-                        );
+                        const line = `・${yyyymmddSlash(info.date)} ${info.startAt}　${info.clientName} のシフト担当者が特定されていません（${reason}）`;
+                        alertLines.push(line);
+                        addClientAlert(info.csId, info.clientName, line, info.staffIds);
                     }
                 }
             }
@@ -569,15 +652,23 @@ export async function runShiftStaffCheck(opts: {
         // ------------------------------
         {
             // upcoming から shift_id -> client/date/time を作る
-            const rosterByShiftId = new Map<number, { clientName: string; date: string; startAt: string }>();
+            const rosterByShiftId = new Map<number, {
+                clientName: string;
+                csId: string;
+                date: string;
+                startAt: string;
+                staffIds: Array<string | null | undefined>;
+            }>();
             for (const r of upcoming) {
                 const csid = (r.kaipoke_cs_id ?? "").trim();
                 if (csid.startsWith("99999999")) continue;
 
                 rosterByShiftId.set(r.shift_id, {
                     clientName: clientDisplay(r.client_name ?? ""),
+                    csId: csid,
                     date: r.shift_date,
                     startAt: hhmm(r.start_at),
+                    staffIds: [r.staff_id_1, r.staff_id_2, r.staff_id_3],
                 });
             }
 
@@ -605,9 +696,9 @@ export async function runShiftStaffCheck(opts: {
                         const info = rosterByShiftId.get(s.shift_id);
                         if (!info) continue;
 
-                        alertLines.push(
-                            `・${yyyymmddSlash(info.date)} ${info.startAt}　${info.clientName} のシフトのサービスコードが未設定です`
-                        );
+                        const line = `・${yyyymmddSlash(info.date)} ${info.startAt}　${info.clientName} のシフトのサービスコードが未設定です`;
+                        alertLines.push(line);
+                        addClientAlert(info.csId, info.clientName, line, info.staffIds);
                     }
                 }
             }
@@ -719,7 +810,102 @@ export async function runShiftStaffCheck(opts: {
             await sendLWBotMessage(FIXED_CHANNEL_ID, sendParts[i] + suffix, accessToken);
         }
 
+        const clientIds = Array.from(clientAlerts.keys());
+        let clientGroupAlertsSent = 0;
+        if (clientIds.length > 0) {
+            const { data: channelRows, error: channelError } = await supabaseAdmin
+                .from("group_lw_channel_view")
+                .select("group_account, channel_id")
+                .in("group_account", clientIds);
+            if (channelError) throw channelError;
+
+            const channelByClientId = new Map<string, string>();
+            for (const row of channelRows ?? []) {
+                const clientId = String(row.group_account ?? "").trim();
+                const channelId = String(row.channel_id ?? "").trim();
+                if (clientId && channelId && !channelByClientId.has(clientId)) {
+                    channelByClientId.set(clientId, channelId);
+                }
+            }
+
+            const allTeamOrgIds = Array.from(
+                new Set(
+                    Array.from(clientAlerts.values()).flatMap((alert) => Array.from(alert.teamOrgIds))
+                )
+            );
+            type ManagerRow = {
+                user_id: string;
+                lw_userid: string | null;
+                org_unit_id: string | null;
+                system_role: string | null;
+                status: string | null;
+            };
+            const managersByOrgId = new Map<string, ManagerRow[]>();
+            if (allTeamOrgIds.length > 0) {
+                const { data: managerRows, error: managerError } = await supabaseAdmin
+                    .from("users")
+                    .select("user_id, lw_userid, org_unit_id, system_role, status")
+                    .in("org_unit_id", allTeamOrgIds)
+                    .in("system_role", ["manager", "admin"])
+                    .or("status.is.null,status.neq.removed_from_lineworks_kaipoke");
+                if (managerError) throw managerError;
+
+                for (const manager of (managerRows as ManagerRow[] | null) ?? []) {
+                    const orgUnitId = String(manager.org_unit_id ?? "").trim();
+                    if (!orgUnitId) continue;
+                    managersByOrgId.set(orgUnitId, [
+                        ...(managersByOrgId.get(orgUnitId) ?? []),
+                        manager,
+                    ]);
+                }
+            }
+
+            for (const [clientId, alert] of clientAlerts) {
+                const channelId = channelByClientId.get(clientId);
+                if (!channelId) {
+                    console.warn("[shift-staff-check] client LINE WORKS channel not found", { clientId });
+                    continue;
+                }
+
+                const mentions: MentionTarget[] = Array.from(alert.teamOrgIds)
+                    .flatMap((orgUnitId) => managersByOrgId.get(orgUnitId) ?? [])
+                    .filter((manager) =>
+                        Boolean(manager.lw_userid) &&
+                        manager.status !== "removed_from_lineworks_kaipoke"
+                    )
+                    .map((manager) => ({
+                        userId: String(manager.lw_userid),
+                        label: `担当チーム${manager.system_role ?? "manager"}（${manager.user_id}）`,
+                    }));
+
+                try {
+                    await sendLWBotMentionMessage({
+                        botId: LW_BOT_NO,
+                        channelId,
+                        accessToken,
+                        mentions,
+                        buildText: (activeMentions, recoveryNotes) => [
+                            "【シフト確認のお願い】",
+                            `${alert.clientName} のシフトに、確認が必要な内容があります。`,
+                            `担当チーム：${formatMentionText(activeMentions)}`,
+                            "",
+                            ...alert.lines,
+                            ...(recoveryNotes.length > 0 ? ["", "----", ...recoveryNotes] : []),
+                        ].join("\n"),
+                    });
+                    clientGroupAlertsSent += 1;
+                } catch (error) {
+                    console.error("[shift-staff-check] client group alert failed", {
+                        clientId,
+                        channelId,
+                        error: error instanceof Error ? error.message : String(error),
+                    });
+                }
+            }
+        }
+
         result.sent = true;
+        result.clientGroupAlertsSent = clientGroupAlertsSent;
 
 
         return result;
