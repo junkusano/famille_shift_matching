@@ -7630,6 +7630,7 @@ export type Database = {
           updated_at: string
           user_id: string
           visit_record_current_month_incomplete_count: number
+          visit_record_deadline_miss_count: number
           visit_record_past_incomplete_count: number
           visit_record_total_count: number
         }
@@ -7668,6 +7669,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           visit_record_current_month_incomplete_count?: number
+          visit_record_deadline_miss_count?: number
           visit_record_past_incomplete_count?: number
           visit_record_total_count?: number
         }
@@ -7706,6 +7708,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           visit_record_current_month_incomplete_count?: number
+          visit_record_deadline_miss_count?: number
           visit_record_past_incomplete_count?: number
           visit_record_total_count?: number
         }
@@ -8177,6 +8180,7 @@ export type Database = {
           created_at: string
           id: string
           jisseki_incomplete_count: number
+          jisseki_incomplete_details: Json
           jisseki_score: number
           jisseki_submission_rate: number
           jisseki_submitted_count: number
@@ -8184,6 +8188,7 @@ export type Database = {
           jisseki_total_count: number
           meeting_attended_count: number
           meeting_incomplete_count: number
+          meeting_incomplete_details: Json
           meeting_member_count: number
           meeting_score: number
           member_count: number
@@ -8204,6 +8209,7 @@ export type Database = {
           total_score: number
           updated_at: string
           visit_record_deadline_miss_count: number
+          visit_record_deadline_miss_details: Json
           visit_record_same_day_count: number
           visit_record_score: number
           visit_record_submission_rate: number
@@ -8214,6 +8220,7 @@ export type Database = {
           created_at?: string
           id?: string
           jisseki_incomplete_count?: number
+          jisseki_incomplete_details?: Json
           jisseki_score?: number
           jisseki_submission_rate?: number
           jisseki_submitted_count?: number
@@ -8221,6 +8228,7 @@ export type Database = {
           jisseki_total_count?: number
           meeting_attended_count?: number
           meeting_incomplete_count?: number
+          meeting_incomplete_details?: Json
           meeting_member_count?: number
           meeting_score?: number
           member_count?: number
@@ -8241,6 +8249,7 @@ export type Database = {
           total_score?: number
           updated_at?: string
           visit_record_deadline_miss_count?: number
+          visit_record_deadline_miss_details?: Json
           visit_record_same_day_count?: number
           visit_record_score?: number
           visit_record_submission_rate?: number
@@ -8251,6 +8260,7 @@ export type Database = {
           created_at?: string
           id?: string
           jisseki_incomplete_count?: number
+          jisseki_incomplete_details?: Json
           jisseki_score?: number
           jisseki_submission_rate?: number
           jisseki_submitted_count?: number
@@ -8258,6 +8268,7 @@ export type Database = {
           jisseki_total_count?: number
           meeting_attended_count?: number
           meeting_incomplete_count?: number
+          meeting_incomplete_details?: Json
           meeting_member_count?: number
           meeting_score?: number
           member_count?: number
@@ -8278,6 +8289,7 @@ export type Database = {
           total_score?: number
           updated_at?: string
           visit_record_deadline_miss_count?: number
+          visit_record_deadline_miss_details?: Json
           visit_record_same_day_count?: number
           visit_record_score?: number
           visit_record_submission_rate?: number

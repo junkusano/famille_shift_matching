@@ -114,7 +114,11 @@ export default function DashboardPage() {
           { key: "staff_name", label: "スタッフ" },
           { key: "staff_user_id", label: "ユーザーID", filterMode: "exact" },
           { key: "qualifications", label: "サ責資格（取得日）" },
-          { key: "qualification_status", label: "判定" },
+          {
+            key: "qualification_status",
+            label: "判定",
+            format: (value) => String(value ?? "").replace("資格者", "サ責資格者"),
+          },
           { key: "total_service_hours", label: "担当時間", format: (value) => `${formatHours2(value)}h` },
           { key: "qualified_service_hours", label: "サ責資格者時間", format: (value) => `${formatHours2(value)}h` },
           { key: "qualified_ratio", label: "サ責資格者割合", format: (value) => `${Number(value ?? 0).toFixed(1)}%` },

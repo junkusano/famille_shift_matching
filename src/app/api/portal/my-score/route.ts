@@ -87,7 +87,41 @@ type TeamRankingRow = {
     visitRecordDeadlineMissCount: number;
     jissekiIncompleteCount: number;
     meetingIncompleteCount: number;
+    jissekiIncompleteDetails: TeamScoreDetail[];
+    visitRecordDeadlineMissDetails: TeamScoreDetail[];
+    meetingIncompleteDetails: TeamScoreDetail[];
 };
+
+type TeamScoreDetail = {
+    id: string;
+    clientId: string | null;
+    clientName: string | null;
+    targetDate: string;
+    staffUserIds: string[];
+    staffNames: string[];
+    reason: string;
+};
+
+function parseTeamScoreDetails(value: unknown): TeamScoreDetail[] {
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((item, index) => {
+        if (!item || typeof item !== "object") return [];
+        const detail = item as Record<string, unknown>;
+        return [{
+            id: String(detail.id ?? `detail-${index}`),
+            clientId: detail.clientId == null ? null : String(detail.clientId),
+            clientName: detail.clientName == null ? null : String(detail.clientName),
+            targetDate: String(detail.targetDate ?? ""),
+            staffUserIds: Array.isArray(detail.staffUserIds)
+                ? detail.staffUserIds.map(String)
+                : [],
+            staffNames: Array.isArray(detail.staffNames)
+                ? detail.staffNames.map(String)
+                : [],
+            reason: String(detail.reason ?? ""),
+        }];
+    });
+}
 
 /*type Metric = {
     key: string;
@@ -499,6 +533,7 @@ export async function GET(req: NextRequest) {
     }
 
     const teamRanking: TeamRankingRow[] = [...(teamRankingSourceRows ?? [])]
+        .filter((team) => Number(team.service_hours ?? 0) > 0)
         .sort((a, b) => Number(b.team_score ?? b.total_score ?? 0) - Number(a.team_score ?? a.total_score ?? 0))
         .map((team, index) => ({
             rank: index + 1,
@@ -513,6 +548,9 @@ export async function GET(req: NextRequest) {
             visitRecordDeadlineMissCount: Number(team.visit_record_deadline_miss_count ?? 0),
             jissekiIncompleteCount: Number(team.jisseki_incomplete_count ?? 0),
             meetingIncompleteCount: Number(team.meeting_incomplete_count ?? 0),
+            jissekiIncompleteDetails: parseTeamScoreDetails(team.jisseki_incomplete_details),
+            visitRecordDeadlineMissDetails: parseTeamScoreDetails(team.visit_record_deadline_miss_details),
+            meetingIncompleteDetails: parseTeamScoreDetails(team.meeting_incomplete_details),
         }));
 
     const { data: rankingSourceRows } = await supabaseAdmin
@@ -702,6 +740,7 @@ shift_decline_penalty_score,
                 score: serviceHoursScore,
                 teamScore: teamServiceHoursScore,
                 maxScore: 80,
+                combinedMaxScore: 100,
                 note: `${summary.service_hours ?? 0}時間`,
                 linkUrl: addParams("/portal/shift-view", {
                     user_id: userId,
@@ -721,6 +760,7 @@ shift_decline_penalty_score,
                 score: visitRecordScore,
                 teamScore: teamVisitRecordScore,
                 maxScore: 0,
+                combinedMaxScore: 20,
                 note: `23:43締切違反 ${visitRecordDeadlineMissCount}件 / 過去未完了 ${visitRecordPastIncompleteCount}件`,
                 linkUrl: addParams("/portal/shift-view", {
                     user_id: userId,
@@ -733,6 +773,7 @@ shift_decline_penalty_score,
                 score: meetingScore,
                 teamScore: teamMeetingScore,
                 maxScore: 10,
+                combinedMaxScore: 20,
                 note: `前月参加: ${summary.meeting_previous_month_attended ? "あり" : "なし"} / 過去参加: ${summary.meeting_past_attended ? "あり" : "なし"}`,
                 linkUrl: addParams("/portal/monthly-meeting-check", {
                     ym: previousYm,
@@ -745,6 +786,7 @@ shift_decline_penalty_score,
                 score: jissekiScore,
                 teamScore: teamJissekiScore,
                 maxScore: 20,
+                combinedMaxScore: 40,
                 note:
                     `前月完了 ${summary.jisseki_previous_month_done_count ?? 0}件` +
                     ` / 前月対象 ${summary.jisseki_previous_month_total_count ?? 0}件` +

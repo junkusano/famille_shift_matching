@@ -17,6 +17,7 @@ type ScoreMetric = {
     score: number;
     teamScore?: number;
     maxScore: number;
+    combinedMaxScore?: number;
     note: string;
     linkUrl?: string;
 };
@@ -57,7 +58,51 @@ type TeamRankingRow = {
     visitRecordDeadlineMissCount: number;
     jissekiIncompleteCount: number;
     meetingIncompleteCount: number;
+    jissekiIncompleteDetails: TeamScoreDetail[];
+    visitRecordDeadlineMissDetails: TeamScoreDetail[];
+    meetingIncompleteDetails: TeamScoreDetail[];
 };
+
+type TeamScoreDetail = {
+    id: string;
+    clientId: string | null;
+    clientName: string | null;
+    targetDate: string;
+    staffUserIds: string[];
+    staffNames: string[];
+    reason: string;
+};
+
+function TeamPenaltyDetails({
+    label,
+    details,
+}: {
+    label: string;
+    details: TeamScoreDetail[];
+}) {
+    if (details.length === 0) return null;
+
+    return (
+        <details className="rounded-lg border border-rose-100 bg-rose-50/60 px-3 py-2">
+            <summary className="cursor-pointer text-xs font-bold text-rose-800">
+                ▼ {label}（{details.length}件）
+            </summary>
+            <div className="mt-2 divide-y divide-rose-100">
+                {details.map((detail) => (
+                    <div key={detail.id} className="py-2 text-xs leading-5 text-slate-700">
+                        <div className="font-bold text-slate-900">
+                            {detail.clientName || "対象者なし"}
+                            {detail.clientId ? `（${detail.clientId}）` : ""}
+                        </div>
+                        <div>対象: {detail.targetDate || "不明"}</div>
+                        <div>担当: {detail.staffNames.length > 0 ? detail.staffNames.join("、") : "不明"}</div>
+                        <div className="text-rose-700">{detail.reason}</div>
+                    </div>
+                ))}
+            </div>
+        </details>
+    );
+}
 
 type ScoreHistoryPoint = {
     month: string;
@@ -454,6 +499,11 @@ function PerformanceScorePanelContent({
                                 const hasTeamBreakdown = showingNewScheme && typeof m.teamScore === "number";
                                 const teamMetricScore = hasTeamBreakdown ? m.teamScore ?? 0 : 0;
                                 const combinedMetricScore = m.score + teamMetricScore;
+                                const combinedMaxScore = Math.max(1, m.combinedMaxScore ?? m.maxScore);
+                                const combinedBarWidth = Math.min(
+                                    50,
+                                    (Math.abs(combinedMetricScore) / combinedMaxScore) * 50
+                                );
 
                                 return (
                                     <div
@@ -528,12 +578,12 @@ function PerformanceScorePanelContent({
                                                 {combinedMetricScore >= 0 ? (
                                                     <div
                                                         className="absolute bottom-0 left-1/2 top-0 bg-gradient-to-r from-blue-500 to-teal-400"
-                                                        style={{ width: `${Math.min(50, Math.abs(combinedMetricScore) / 2)}%` }}
+                                                        style={{ width: `${combinedBarWidth}%` }}
                                                     />
                                                 ) : (
                                                     <div
                                                         className="absolute bottom-0 right-1/2 top-0 bg-gradient-to-l from-rose-500 to-orange-400"
-                                                        style={{ width: `${Math.min(50, Math.abs(combinedMetricScore) / 2)}%` }}
+                                                        style={{ width: `${combinedBarWidth}%` }}
                                                     />
                                                 )}
                                             </div>
@@ -637,6 +687,21 @@ function PerformanceScorePanelContent({
                                                     <span className={`rounded-lg px-2 py-1.5 ${team.visitRecordScore < 0 ? "bg-rose-50 text-rose-700" : "bg-teal-50 text-teal-800"}`}>訪問記録 {team.visitRecordScore >= 0 ? "+" : ""}{team.visitRecordScore}点</span>
                                                     <span className={`rounded-lg px-2 py-1.5 ${team.jissekiScore < 0 ? "bg-rose-50 text-rose-700" : "bg-violet-50 text-violet-800"}`}>実績記録 {team.jissekiScore >= 0 ? "+" : ""}{team.jissekiScore}点</span>
                                                     <span className={`rounded-lg px-2 py-1.5 ${team.meetingScore < 0 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-800"}`}>会議 {team.meetingScore >= 0 ? "+" : ""}{team.meetingScore}点</span>
+                                                </div>
+
+                                                <div className="mt-3 space-y-2">
+                                                    <TeamPenaltyDetails
+                                                        label="訪問記録の減点明細"
+                                                        details={team.visitRecordDeadlineMissDetails}
+                                                    />
+                                                    <TeamPenaltyDetails
+                                                        label="実績記録の減点明細"
+                                                        details={team.jissekiIncompleteDetails}
+                                                    />
+                                                    <TeamPenaltyDetails
+                                                        label="会議参加の減点明細"
+                                                        details={team.meetingIncompleteDetails}
+                                                    />
                                                 </div>
                                             </div>
                                         );

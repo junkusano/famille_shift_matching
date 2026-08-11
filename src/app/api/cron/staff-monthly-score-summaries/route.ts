@@ -52,15 +52,19 @@ type SummaryRow = {
 };
 
 type ShiftRecordViewRow = {
-    shift_id: string | null;
+    shift_id: string | number | null;
+    client_name: string | null;
     shift_start_date: string | null;
     shift_start_time: string | null;
     shift_end_date: string | null;
     shift_end_time: string | null;
     kaipoke_cs_id: string | null;
     staff_01_user_id: string | null;
+    staff_01_role_code: string | null;
     staff_02_user_id: string | null;
+    staff_02_role_code: string | null;
     staff_03_user_id: string | null;
+    staff_03_role_code: string | null;
     staff_02_attend_flg: boolean | null;
     staff_03_attend_flg: boolean | null;
     record_status: string | null;
@@ -112,6 +116,27 @@ type DisabilityCheckRow = {
     year_month: string | null;
     application_check: boolean | null;
     asigned_jisseki_staff_id: string | null;
+    asigned_jisseki_staff_name: string | null;
+    kaipoke_cs_id: string | null;
+    client_name: string | null;
+    kaipoke_servicek: string | null;
+};
+
+type DashboardTeamServiceHoursRow = {
+    year_month: string | null;
+    orgunitid: string | null;
+    orgunitname: string | null;
+    value: number | string | null;
+};
+
+type TeamScoreDetail = {
+    id: string;
+    clientId: string | null;
+    clientName: string | null;
+    targetDate: string;
+    staffUserIds: string[];
+    staffNames: string[];
+    reason: string;
 };
 
 function getNextMonthStartDate(targetMonth: string) {
@@ -773,7 +798,7 @@ export async function GET(req: NextRequest) {
             */
 
         const selectShiftColumns =
-            "shift_id, shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, staff_02_attend_flg, staff_03_attend_flg, record_status, record_created_at";
+            "shift_id, client_name, shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_01_role_code, staff_02_user_id, staff_02_role_code, staff_03_user_id, staff_03_role_code, staff_02_attend_flg, staff_03_attend_flg, record_status, record_created_at";
 
         const currentMonthShiftRows = await fetchAllShiftRows(
             targetMonth,
@@ -893,9 +918,15 @@ export async function GET(req: NextRequest) {
 
         const serviceHoursMap = new Map<string, number>();
         const userTeamMap = new Map<string, string>();
+        const staffNameMap = new Map<string, string>();
         const teamNameMap = new Map<string, string>();
         for (const user of userRows ?? []) {
-            if (!user.user_id || !user.org_unit_id) continue;
+            if (!user.user_id) continue;
+            staffNameMap.set(
+                user.user_id,
+                `${user.last_name_kanji ?? ""}${user.first_name_kanji ?? ""}` || user.user_id
+            );
+            if (!user.org_unit_id) continue;
             userTeamMap.set(user.user_id, user.org_unit_id);
             if (user.orgunitname) teamNameMap.set(user.org_unit_id, user.orgunitname);
         }
@@ -922,6 +953,33 @@ export async function GET(req: NextRequest) {
         const teamDeadlineMissShiftIdsMap = new Map<string, Set<string>>();
         const teamJissekiTotalMap = new Map<string, number>();
         const teamJissekiIncompleteMap = new Map<string, number>();
+        const teamJissekiIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
+        const teamVisitDeadlineMissDetailsMap = new Map<string, TeamScoreDetail[]>();
+
+        // ダッシュボードの「チーム別サービス時間実績」と同じ確定値を使う。
+        // このビュー側でテスト利用者、同行、キャンセル等の除外条件が適用される。
+        const targetYearMonth = targetMonth.slice(0, 7).replace("-", "");
+        const previousYearMonth = previousMonthStart.slice(0, 7).replace("-", "");
+        const { data: dashboardTeamHoursRows, error: dashboardTeamHoursError } = await supabaseAdmin
+            .from("biz_stats_shift_sum_display_view")
+            .select("year_month, orgunitid, orgunitname, value")
+            .eq("metric", "team_service_hours")
+            .eq("displaylevel", 3)
+            .in("year_month", [targetYearMonth, previousYearMonth])
+            .returns<DashboardTeamServiceHoursRow[]>();
+
+        if (dashboardTeamHoursError) throw dashboardTeamHoursError;
+
+        for (const row of dashboardTeamHoursRows ?? []) {
+            if (!row.orgunitid || !row.year_month) continue;
+            const hours = Math.round(Number(row.value ?? 0) * 10) / 10;
+            if (row.year_month === targetYearMonth) {
+                teamServiceHoursMap.set(row.orgunitid, hours);
+            } else if (row.year_month === previousYearMonth) {
+                teamPreviousServiceHoursMap.set(row.orgunitid, hours);
+            }
+            if (row.orgunitname) teamNameMap.set(row.orgunitid, row.orgunitname);
+        }
 
         for (const log of deadlineMissLogs ?? []) {
             const userId = entryIdToUserId.get(log.staff_id);
@@ -932,6 +990,28 @@ export async function GET(req: NextRequest) {
             shiftIds.add(shiftId);
             teamDeadlineMissShiftIdsMap.set(teamId, shiftIds);
         }
+
+        const currentShiftById = new Map<string, ShiftRecordViewRow>();
+        for (const shift of currentMonthShiftRows) {
+            if (shift.shift_id != null) currentShiftById.set(String(shift.shift_id), shift);
+        }
+        for (const [teamId, shiftIds] of teamDeadlineMissShiftIdsMap) {
+            const details: TeamScoreDetail[] = [];
+            for (const shiftId of shiftIds) {
+                const shift = currentShiftById.get(shiftId);
+                const staffUserIds = shift ? getParticipatingUserIds(shift) : [];
+                details.push({
+                    id: `visit:${shiftId}`,
+                    clientId: shift?.kaipoke_cs_id ?? null,
+                    clientName: shift?.client_name ?? null,
+                    targetDate: shift?.shift_start_date ?? targetMonth.slice(0, 7),
+                    staffUserIds,
+                    staffNames: staffUserIds.map((userId) => staffNameMap.get(userId) ?? userId),
+                    reason: "23:43時点で訪問記録が未完了",
+                });
+            }
+            teamVisitDeadlineMissDetailsMap.set(teamId, details);
+        }
         const jissekiPreviousMonthTotalMap = new Map<string, number>();
         const jissekiPreviousMonthDoneMap = new Map<string, number>();
         const jissekiPastIncompleteMap = new Map<string, number>();
@@ -939,6 +1019,20 @@ export async function GET(req: NextRequest) {
         const jissekiBaseYearMonth = getJissekiBaseYearMonth();
 
         const meetingPreviousMonthAttendedMap = new Map<string, boolean>();
+        const meetingEligibleUserIds = new Set<string>();
+
+        for (const shift of pastShiftRows) {
+            if (
+                shift.shift_start_date &&
+                shift.shift_start_date >= previousMonthStart &&
+                shift.shift_start_date < targetMonth &&
+                !String(shift.kaipoke_cs_id ?? "").startsWith("9999999")
+            ) {
+                for (const userId of getParticipatingUserIds(shift)) {
+                    meetingEligibleUserIds.add(userId);
+                }
+            }
+        }
 
         const previousMeetingMonth = getPreviousMonthStartDate(targetMonth);
 
@@ -963,7 +1057,7 @@ export async function GET(req: NextRequest) {
 
         const { data: disabilityRows, error: disabilityError } = await supabaseAdmin
             .from("disability_check_view")
-            .select("year_month, application_check, asigned_jisseki_staff_id")
+            .select("year_month, application_check, asigned_jisseki_staff_id, asigned_jisseki_staff_name, kaipoke_cs_id, client_name, kaipoke_servicek")
             .not("asigned_jisseki_staff_id", "is", null)
             .gte("year_month", "2025-11")
             .lte("year_month", jissekiBaseYearMonth)
@@ -990,6 +1084,17 @@ export async function GET(req: NextRequest) {
                         teamId,
                         (teamJissekiIncompleteMap.get(teamId) ?? 0) + 1
                     );
+                    const details = teamJissekiIncompleteDetailsMap.get(teamId) ?? [];
+                    details.push({
+                        id: `jisseki:${row.year_month}:${row.kaipoke_cs_id ?? "unknown"}:${staffId}:${details.length}`,
+                        clientId: row.kaipoke_cs_id,
+                        clientName: row.client_name,
+                        targetDate: row.year_month,
+                        staffUserIds: [staffId],
+                        staffNames: [row.asigned_jisseki_staff_name ?? staffNameMap.get(staffId) ?? staffId],
+                        reason: `${row.kaipoke_servicek ? `${row.kaipoke_servicek}・` : ""}実績記録が未回収・未完了`,
+                    });
+                    teamJissekiIncompleteDetailsMap.set(teamId, details);
                 }
             }
 
@@ -1022,16 +1127,8 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        const excludedKaipokeIds = [
-            "999999999",
-            "9999999998",
-            "9999999996",
-            "9999999994",
-            "9999999980",
-        ];
-
         for (const shift of shiftRecordRows ?? []) {
-            if (excludedKaipokeIds.includes(String(shift.kaipoke_cs_id))) {
+            if (String(shift.kaipoke_cs_id ?? "").startsWith("9999999")) {
                 continue;
             }
 
@@ -1056,7 +1153,6 @@ export async function GET(req: NextRequest) {
                 for (const userId of participatingUserIds) {
                     const teamId = userTeamMap.get(userId);
                     if (!teamId) continue;
-                    addServiceHours(teamServiceHoursMap, teamId, hours);
                     if (shift.shift_id) {
                         const shiftIds = teamVisitShiftIdsMap.get(teamId) ?? new Set<string>();
                         shiftIds.add(String(shift.shift_id));
@@ -1070,11 +1166,7 @@ export async function GET(req: NextRequest) {
                 shift.shift_start_date >= previousMonthStart &&
                 shift.shift_start_date < targetMonth
             ) {
-                const hours = calcShiftHours(shift);
-                for (const userId of getParticipatingUserIds(shift)) {
-                    const teamId = userTeamMap.get(userId);
-                    if (teamId) addServiceHours(teamPreviousServiceHoursMap, teamId, hours);
-                }
+                // チームの前月サービス時間はダッシュボード集計値を利用する。
             }
 
             if (
@@ -1142,10 +1234,13 @@ export async function GET(req: NextRequest) {
         }
 
         const teamScoreById = new Map<string, number>();
-        const teamSummaryRows = teamIds
+        const scoredTeamIds = teamIds.filter((teamId) => (teamServiceHoursMap.get(teamId) ?? 0) > 0);
+        const teamSummaryRows = scoredTeamIds
             .map((teamId) => {
                 const memberUserIds = Array.from(userTeamMap.entries())
-                    .filter(([, assignedTeamId]) => assignedTeamId === teamId)
+                    .filter(([userId, assignedTeamId]) =>
+                        assignedTeamId === teamId && meetingEligibleUserIds.has(userId)
+                    )
                     .map(([userId]) => userId);
                 const serviceHours = teamServiceHoursMap.get(teamId) ?? 0;
                 const previousServiceHours = teamPreviousServiceHoursMap.get(teamId) ?? 0;
@@ -1162,6 +1257,17 @@ export async function GET(req: NextRequest) {
                     (userId) => meetingPreviousMonthAttendedMap.get(userId) === true
                 ).length;
                 const meetingIncompleteCount = meetingMemberCount - meetingAttendedCount;
+                const meetingIncompleteDetails: TeamScoreDetail[] = memberUserIds
+                    .filter((userId) => meetingPreviousMonthAttendedMap.get(userId) !== true)
+                    .map((userId) => ({
+                        id: `meeting:${previousYearMonth}:${userId}`,
+                        clientId: null,
+                        clientName: null,
+                        targetDate: previousMonthStart.slice(0, 7),
+                        staffUserIds: [userId],
+                        staffNames: [staffNameMap.get(userId) ?? userId],
+                        reason: "前月会議の参加・確認なし",
+                    }));
                 // チーム会議点: 全員参加で10点。不参加・未確認1名につき1点減点。
                 const meetingScore = 10 - meetingIncompleteCount;
                 const teamScore = serviceHoursScore + jissekiScore + visitRecordScore + meetingScore;
@@ -1189,6 +1295,7 @@ export async function GET(req: NextRequest) {
                     service_hours_score: serviceHoursScore,
                     jisseki_total_count: jissekiTotalCount,
                     jisseki_incomplete_count: jissekiIncompleteCount,
+                    jisseki_incomplete_details: teamJissekiIncompleteDetailsMap.get(teamId) ?? [],
                     jisseki_target_count: jissekiTotalCount,
                     jisseki_submitted_count: jissekiSubmittedCount,
                     jisseki_submission_rate:
@@ -1196,11 +1303,13 @@ export async function GET(req: NextRequest) {
                     jisseki_score: jissekiScore,
                     visit_record_total_count: visitRecordTotalCount,
                     visit_record_deadline_miss_count: visitRecordDeadlineMissCount,
+                    visit_record_deadline_miss_details: teamVisitDeadlineMissDetailsMap.get(teamId) ?? [],
                     visit_record_target_count: visitRecordTotalCount,
                     visit_record_same_day_count: visitRecordSameDayCount,
                     visit_record_submission_rate:
                         visitRecordTotalCount > 0 ? (visitRecordSameDayCount / visitRecordTotalCount) * 100 : 100,
                     visit_record_score: visitRecordScore,
+                    meeting_incomplete_details: meetingIncompleteDetails,
                     team_score: teamScore,
                     total_score: teamScore,
                     updated_at: new Date().toISOString(),
