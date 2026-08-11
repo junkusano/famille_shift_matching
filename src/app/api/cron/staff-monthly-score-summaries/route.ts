@@ -1266,7 +1266,7 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
         const teamScoreById = new Map<string, number>();
         const scoredTeamIds = teamIds.filter((teamId) => {
             const memberUserIds = Array.from(userTeamMap.entries())
-                .filter(([userId, assignedTeamId]) => assignedTeamId === teamId)
+                .filter(([, assignedTeamId]) => assignedTeamId === teamId)
                 .map(([userId]) => userId);
             return (
                 (teamServiceHoursMap.get(teamId) ?? 0) > 0 ||
@@ -1279,7 +1279,7 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
         const teamSummaryRows = scoredTeamIds
             .map((teamId) => {
                 const memberUserIds = Array.from(userTeamMap.entries())
-                    .filter(([userId, assignedTeamId]) => assignedTeamId === teamId)
+                    .filter(([, assignedTeamId]) => assignedTeamId === teamId)
                     .map(([userId]) => userId);
                 const serviceHours = teamServiceHoursMap.get(teamId) ?? 0;
                 const previousServiceHours = teamPreviousServiceHoursMap.get(teamId) ?? 0;
