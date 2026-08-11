@@ -28,73 +28,6 @@ export default function DashboardPage() {
 
       {/* ===== 個別ウィジェット ===== */}
       <ShiftSumBizStats />
-      <TableViewer
-        title="資格者サービス時間比率（月次サマリー）"
-        tableName="dashboard_service_time_qualification_monthly_view"
-        columns={[
-          { key: "year_month", label: "月", filterMode: "exact" },
-          { key: "total_service_hours", label: "総サービス時間", format: (value) => `${formatHours2(value)}h` },
-          { key: "qualified_service_hours", label: "資格者時間", format: (value) => `${formatHours2(value)}h` },
-          { key: "qualified_ratio", label: "合計資格者割合", format: (value) => `${Number(value ?? 0).toFixed(1)}%` },
-          {
-            key: "threshold_status",
-            label: "50%基準",
-            format: (value) => (
-              <span className={value === "基準クリア" ? "font-semibold text-emerald-700" : "font-semibold text-red-700"}>
-                {String(value ?? "要確認")}
-              </span>
-            ),
-          },
-        ]}
-        defaultSort={{ column: "year_month", ascending: false }}
-        pageSize={500}
-        exactCount={false}
-      />
-      <TableViewer
-        title="サービス区分別・資格者サービス時間比率"
-        tableName="dashboard_service_time_qualification_breakdown_view"
-        columns={[
-          { key: "year_month", label: "月", filterMode: "exact" },
-          { key: "service_category", label: "区分" },
-          { key: "total_service_hours", label: "総サービス時間", format: (value) => `${formatHours2(value)}h` },
-          { key: "qualified_service_hours", label: "資格者時間", format: (value) => `${formatHours2(value)}h` },
-          { key: "qualified_ratio", label: "資格者割合", format: (value) => `${Number(value ?? 0).toFixed(1)}%` },
-          {
-            key: "threshold_status",
-            label: "50%基準",
-            format: (value) => (
-              <span className={value === "基準クリア" ? "font-semibold text-emerald-700" : "font-semibold text-red-700"}>
-                {String(value ?? "要確認")}
-              </span>
-            ),
-          },
-        ]}
-        defaultSort={{ column: "category_order", ascending: true }}
-        pageSize={500}
-        exactCount={false}
-      />
-      <TableViewer
-        title="スタッフ別・資格と担当サービス時間"
-        tableName="dashboard_service_time_qualification_staff_detail_view"
-        columns={[
-          { key: "year_month", label: "月", filterMode: "exact" },
-          { key: "service_category", label: "区分" },
-          { key: "staff_name", label: "スタッフ" },
-          { key: "staff_user_id", label: "ユーザーID", filterMode: "exact" },
-          { key: "qualifications", label: "対象資格（取得日）" },
-          { key: "qualification_status", label: "判定" },
-          { key: "total_service_hours", label: "担当時間", format: (value) => `${formatHours2(value)}h` },
-          { key: "qualified_service_hours", label: "資格者時間", format: (value) => `${formatHours2(value)}h` },
-          { key: "qualified_ratio", label: "資格者割合", format: (value) => `${Number(value ?? 0).toFixed(1)}%` },
-        ]}
-        defaultSort={{ column: "total_service_hours", ascending: false }}
-        initialColumnFilters={{
-          year_month: getNextYearMonth(),
-          service_category: "訪問介護",
-        }}
-        pageSize={500}
-        exactCount={false}
-      />
       <DefectSum />
       <EntrySumBizStats />
         <TableViewer
@@ -127,6 +60,73 @@ export default function DashboardPage() {
             year_month: getNextYearMonth(),
           }}
         />
+      <TableViewer
+        title="サ責資格者サービス時間比率（月次サマリー）"
+        tableName="dashboard_service_time_qualification_monthly_view"
+        columns={[
+          { key: "year_month", label: "月", filterMode: "exact" },
+          { key: "total_service_hours", label: "総サービス時間", format: (value) => `${formatHours2(value)}h` },
+          { key: "qualified_service_hours", label: "サ責資格者時間", format: (value) => `${formatHours2(value)}h` },
+          { key: "qualified_ratio", label: "合計サ責資格者割合", format: (value) => `${Number(value ?? 0).toFixed(1)}%` },
+          {
+            key: "threshold_status",
+            label: "50%基準",
+            format: (value) => (
+              <span className={value === "基準クリア" ? "font-semibold text-emerald-700" : "font-semibold text-red-700"}>
+                {String(value ?? "要確認")}
+              </span>
+            ),
+          },
+        ]}
+        defaultSort={{ column: "year_month", ascending: false }}
+        pageSize={500}
+        exactCount={false}
+      />
+      <TableViewer
+        title="サービス区分別・サ責資格者サービス時間比率"
+        tableName="dashboard_service_time_qualification_breakdown_view"
+        columns={[
+          { key: "year_month", label: "月", filterMode: "exact" },
+          { key: "service_category", label: "区分" },
+          { key: "total_service_hours", label: "総サービス時間", format: (value) => `${formatHours2(value)}h` },
+          { key: "qualified_service_hours", label: "サ責資格者時間", format: (value) => `${formatHours2(value)}h` },
+          { key: "qualified_ratio", label: "サ責資格者割合", format: (value) => `${Number(value ?? 0).toFixed(1)}%` },
+          {
+            key: "threshold_status",
+            label: "50%基準",
+            format: (value) => (
+              <span className={value === "基準クリア" ? "font-semibold text-emerald-700" : "font-semibold text-red-700"}>
+                {String(value ?? "要確認")}
+              </span>
+            ),
+          },
+        ]}
+        defaultSort={{ column: "year_month", ascending: false }}
+        pageSize={500}
+        exactCount={false}
+      />
+      <TableViewer
+        title="スタッフ別・サ責資格と担当サービス時間"
+        tableName="dashboard_service_time_qualification_staff_detail_view"
+        columns={[
+          { key: "year_month", label: "月", filterMode: "exact" },
+          { key: "service_category", label: "区分" },
+          { key: "staff_name", label: "スタッフ" },
+          { key: "staff_user_id", label: "ユーザーID", filterMode: "exact" },
+          { key: "qualifications", label: "サ責資格（取得日）" },
+          { key: "qualification_status", label: "判定" },
+          { key: "total_service_hours", label: "担当時間", format: (value) => `${formatHours2(value)}h` },
+          { key: "qualified_service_hours", label: "サ責資格者時間", format: (value) => `${formatHours2(value)}h` },
+          { key: "qualified_ratio", label: "サ責資格者割合", format: (value) => `${Number(value ?? 0).toFixed(1)}%` },
+        ]}
+        defaultSort={{ column: "year_month", ascending: false }}
+        initialColumnFilters={{
+          year_month: getNextYearMonth(),
+          service_category: "訪問介護",
+        }}
+        pageSize={500}
+        exactCount={false}
+      />
     </div>
   );
 }

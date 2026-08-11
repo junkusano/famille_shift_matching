@@ -114,7 +114,7 @@ function PerformanceScorePanelContent({
     );
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
-    const [displayScheme, setDisplayScheme] = useState<PerformanceScoreScheme>("new");
+    const [displayScheme, setDisplayScheme] = useState<PerformanceScoreScheme>("current");
 
     useEffect(() => {
         const load = async () => {
@@ -151,8 +151,7 @@ function PerformanceScorePanelContent({
 
             const json = (await res.json()) as PortalScore;
             setScore(json);
-            // 2026年10月より前も、新制度を当月データへ当てはめた参考値を初期表示する。
-            setDisplayScheme("new");
+            setDisplayScheme(json.newSchemeOfficial ? "new" : "current");
 
             if (!selectedUserId) setSelectedUserId(json.userId);
             if (!selectedMonth) setSelectedMonth(json.month);
@@ -577,7 +576,8 @@ function PerformanceScorePanelContent({
                             })}
                     </div>
 
-                    <div className="mt-6">
+                    {showingNewScheme && (
+                        <div className="mt-6">
                             <div className="mb-1 text-lg font-bold text-blue-950">
                                 {score.newSchemeOfficial ? "チームランキング" : "新制度参考・チームランキング"}
                             </div>
@@ -643,7 +643,8 @@ function PerformanceScorePanelContent({
                                     })}
                                 </div>
                             )}
-                    </div>
+                        </div>
+                    )}
 
                     <div className="mt-6">
                         <div className="mb-3 text-lg font-bold text-blue-950">
