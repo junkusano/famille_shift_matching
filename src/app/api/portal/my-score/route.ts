@@ -89,6 +89,7 @@ type TeamRankingRow = {
     meetingIncompleteCount: number;
     jissekiIncompleteDetails: TeamScoreDetail[];
     visitRecordDeadlineMissDetails: TeamScoreDetail[];
+    visitRecordIncompleteDetails: TeamScoreDetail[];
     meetingIncompleteDetails: TeamScoreDetail[];
 };
 
@@ -298,7 +299,7 @@ function calcDisplayTotalScore(row: ScoreRow) {
 
     const visitRecordDeadlineMissCount = Number(row.visit_record_deadline_miss_count ?? 0);
     const visitRecordPastIncompleteCount = Number(row.visit_record_past_incomplete_count ?? 0);
-    const visitRecordScore = -(visitRecordDeadlineMissCount * 5) - (visitRecordPastIncompleteCount * 5);
+    const visitRecordScore = Math.max(0, 20 - visitRecordDeadlineMissCount * 5 - visitRecordPastIncompleteCount * 5);
 
     const meetingScore =
         row.meeting_previous_month_attended === true ||
@@ -550,6 +551,7 @@ export async function GET(req: NextRequest) {
             meetingIncompleteCount: Number(team.meeting_incomplete_count ?? 0),
             jissekiIncompleteDetails: parseTeamScoreDetails(team.jisseki_incomplete_details),
             visitRecordDeadlineMissDetails: parseTeamScoreDetails(team.visit_record_deadline_miss_details),
+            visitRecordIncompleteDetails: parseTeamScoreDetails(team.visit_record_incomplete_details),
             meetingIncompleteDetails: parseTeamScoreDetails(team.meeting_incomplete_details),
         }));
 
@@ -635,9 +637,7 @@ shift_decline_penalty_score,
     const visitRecordPastIncompleteCount = Number(
         summary.visit_record_past_incomplete_count ?? 0
     );
-    const visitRecordScore =
-        -(visitRecordDeadlineMissCount * 5) -
-        (visitRecordPastIncompleteCount * 5);
+    const visitRecordScore = Math.max(0, 20 - visitRecordDeadlineMissCount * 5 - visitRecordPastIncompleteCount * 5);
     const meetingScore =
         summary.meeting_previous_month_attended === true ||
             summary.meeting_past_attended === true

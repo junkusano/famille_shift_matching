@@ -60,6 +60,7 @@ type TeamRankingRow = {
     meetingIncompleteCount: number;
     jissekiIncompleteDetails: TeamScoreDetail[];
     visitRecordDeadlineMissDetails: TeamScoreDetail[];
+    visitRecordIncompleteDetails: TeamScoreDetail[];
     meetingIncompleteDetails: TeamScoreDetail[];
 };
 
@@ -282,8 +283,8 @@ function PerformanceScorePanelContent({
                 return "シフト開始6時間以内は1件10点減点、3日以内は1件5点減点（勘案すべき事情がある場合はマネージャーに相談してください）";
             case "visit_record":
                 return showingNewScheme
-                    ? "個人は締切違反・過去未完了を各5点減点、チームは20点から締切違反サービス1件につき1点減点"
-                    : "23:43締切違反・過去未完了を1件につき5点減点";
+                    ? "個人は20点満点から締切違反・過去未完了を各5点減点、チームは20点満点から締切違反1件につき5点減点"
+                    : "20点満点から、23:43締切違反・過去未完了を1件につき5点減点";
             case "meeting":
                 return showingNewScheme
                     ? "個人は前月会議参加で10点、チームは10点から不参加・未確認1名につき1点減点"
@@ -691,15 +692,19 @@ function PerformanceScorePanelContent({
 
                                                 <div className="mt-3 space-y-2">
                                                     <TeamPenaltyDetails
-                                                        label="訪問記録の減点明細"
+                                                        label="訪問記録の未完了一覧"
+                                                        details={team.visitRecordIncompleteDetails}
+                                                    />
+                                                    <TeamPenaltyDetails
+                                                        label="訪問記録の締切未完了一覧"
                                                         details={team.visitRecordDeadlineMissDetails}
                                                     />
                                                     <TeamPenaltyDetails
-                                                        label="実績記録の減点明細"
+                                                        label="実績記録未提出一覧"
                                                         details={team.jissekiIncompleteDetails}
                                                     />
                                                     <TeamPenaltyDetails
-                                                        label="会議参加の減点明細"
+                                                        label="会議未参加一覧"
                                                         details={team.meetingIncompleteDetails}
                                                     />
                                                 </div>

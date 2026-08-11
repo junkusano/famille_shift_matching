@@ -351,7 +351,7 @@ function addServiceHours(
 function calcVisitRecordScore(row: SummaryRow) {
     const deadlineMissCount = Number(row.visit_record_deadline_miss_count ?? 0);
     const pastIncomplete = Number(row.visit_record_past_incomplete_count ?? 0);
-    return -(deadlineMissCount * 5) - (pastIncomplete * 5);
+    return Math.max(0, 20 - deadlineMissCount * 5 - pastIncomplete * 5);
 }
 
 function getJstDateTime(now = new Date()) {
@@ -955,8 +955,7 @@ export async function GET(req: NextRequest) {
         const teamJissekiIncompleteMap = new Map<string, number>();
         const teamJissekiIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
         const teamVisitDeadlineMissDetailsMap = new Map<string, TeamScoreDetail[]>();
-
-        // ダッシュボードの「チーム別サービス時間実績」と同じ確定値を使う。
+const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
         // このビュー側でテスト利用者、同行、キャンセル等の除外条件が適用される。
         const targetYearMonth = targetMonth.slice(0, 7).replace("-", "");
         const previousYearMonth = previousMonthStart.slice(0, 7).replace("-", "");
@@ -1001,7 +1000,7 @@ export async function GET(req: NextRequest) {
                 const shift = currentShiftById.get(shiftId);
                 const staffUserIds = shift ? getParticipatingUserIds(shift) : [];
                 details.push({
-                    id: `visit:${shiftId}`,
+                    id: `visit-deadline:${shiftId}`,
                     clientId: shift?.kaipoke_cs_id ?? null,
                     clientName: shift?.client_name ?? null,
                     targetDate: shift?.shift_start_date ?? targetMonth.slice(0, 7),
@@ -1011,6 +1010,28 @@ export async function GET(req: NextRequest) {
                 });
             }
             teamVisitDeadlineMissDetailsMap.set(teamId, details);
+        }
+
+        for (const shift of currentMonthShiftRows) {
+            if (!shift.shift_id || !shift.shift_start_date || String(shift.kaipoke_cs_id ?? "").startsWith("9999999")) continue;
+            const isIncomplete = !isVisitRecordComplete(shift.record_status);
+            if (!isIncomplete) continue;
+            const participatingUserIds = getParticipatingUserIds(shift);
+            for (const userId of participatingUserIds) {
+                const teamId = userTeamMap.get(userId);
+                if (!teamId) continue;
+                const details = teamVisitIncompleteDetailsMap.get(teamId) ?? [];
+                details.push({
+                    id: `visit-incomplete:${shift.shift_id}:${userId}`,
+                    clientId: shift.kaipoke_cs_id ?? null,
+                    clientName: shift.client_name ?? null,
+                    targetDate: shift.shift_start_date,
+                    staffUserIds: [userId],
+                    staffNames: [staffNameMap.get(userId) ?? userId],
+                    reason: "当日未完了",
+                });
+                teamVisitIncompleteDetailsMap.set(teamId, details);
+            }
         }
         const jissekiPreviousMonthTotalMap = new Map<string, number>();
         const jissekiPreviousMonthDoneMap = new Map<string, number>();
@@ -1092,7 +1113,7 @@ export async function GET(req: NextRequest) {
                         targetDate: row.year_month,
                         staffUserIds: [staffId],
                         staffNames: [row.asigned_jisseki_staff_name ?? staffNameMap.get(staffId) ?? staffId],
-                        reason: `${row.kaipoke_servicek ? `${row.kaipoke_servicek}・` : ""}実績記録が未回収・未完了`,
+                        reason: `${row.kaipoke_servicek ? `${row.kaipoke_servicek}・` : ""}実績記録が未提出`,
                     });
                     teamJissekiIncompleteDetailsMap.set(teamId, details);
                 }
@@ -1234,7 +1255,20 @@ export async function GET(req: NextRequest) {
         }
 
         const teamScoreById = new Map<string, number>();
-        const scoredTeamIds = teamIds.filter((teamId) => (teamServiceHoursMap.get(teamId) ?? 0) > 0);
+        const scoredTeamIds = teamIds.filter((teamId) => {
+            const memberUserIds = Array.from(userTeamMap.entries())
+                .filter(([userId, assignedTeamId]) =>
+                    assignedTeamId === teamId && meetingEligibleUserIds.has(userId)
+                )
+                .map(([userId]) => userId);
+            return (
+                (teamServiceHoursMap.get(teamId) ?? 0) > 0 ||
+                memberUserIds.length > 0 ||
+                (teamJissekiIncompleteMap.get(teamId) ?? 0) > 0 ||
+                (teamDeadlineMissShiftIdsMap.get(teamId)?.size ?? 0) > 0 ||
+                (teamVisitIncompleteDetailsMap.get(teamId)?.length ?? 0) > 0
+            );
+        });
         const teamSummaryRows = scoredTeamIds
             .map((teamId) => {
                 const memberUserIds = Array.from(userTeamMap.entries())
@@ -1251,7 +1285,7 @@ export async function GET(req: NextRequest) {
                 const jissekiScore = 20 - jissekiIncompleteCount;
                 const visitRecordTotalCount = teamVisitShiftIdsMap.get(teamId)?.size ?? 0;
                 const visitRecordDeadlineMissCount = teamDeadlineMissShiftIdsMap.get(teamId)?.size ?? 0;
-                const visitRecordScore = 20 - visitRecordDeadlineMissCount;
+                const visitRecordScore = Math.max(0, 20 - visitRecordDeadlineMissCount * 5);
                 const meetingMemberCount = memberUserIds.length;
                 const meetingAttendedCount = memberUserIds.filter(
                     (userId) => meetingPreviousMonthAttendedMap.get(userId) === true
@@ -1304,6 +1338,7 @@ export async function GET(req: NextRequest) {
                     visit_record_total_count: visitRecordTotalCount,
                     visit_record_deadline_miss_count: visitRecordDeadlineMissCount,
                     visit_record_deadline_miss_details: teamVisitDeadlineMissDetailsMap.get(teamId) ?? [],
+                    visit_record_incomplete_details: teamVisitIncompleteDetailsMap.get(teamId) ?? [],
                     visit_record_target_count: visitRecordTotalCount,
                     visit_record_same_day_count: visitRecordSameDayCount,
                     visit_record_submission_rate:
