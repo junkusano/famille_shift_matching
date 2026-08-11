@@ -110,7 +110,7 @@ function isNoLongerActiveStaff(status?: string | null) {
 function formatMentionText(mentions: MentionTarget[]) {
     return mentions.length > 0
         ? mentions.map((mention) => `<m userId="${mention.userId}">`).join(" ")
-        : "（担当チームのmanager/adminを取得できませんでした）";
+        : "（担当チームのmanagerを取得できませんでした）";
 }
 
 function clientDisplay(name: string) {
@@ -813,6 +813,25 @@ export async function runShiftStaffCheck(opts: {
         const clientIds = Array.from(clientAlerts.keys());
         let clientGroupAlertsSent = 0;
         if (clientIds.length > 0) {
+            type ClientTeamRow = { kaipoke_cs_id: string; asigned_org: string | null };
+            const { data: clientTeamRows, error: clientTeamError } = await supabaseAdmin
+                .from("cs_kaipoke_info")
+                .select("kaipoke_cs_id, asigned_org")
+                .in("kaipoke_cs_id", clientIds);
+            if (clientTeamError) throw clientTeamError;
+
+            // 利用者の担当チームは、シフトに入っているスタッフの所属ではなく
+            // cs_kaipoke_info.asigned_org を正とする。
+            for (const clientTeam of (clientTeamRows as ClientTeamRow[] | null) ?? []) {
+                const clientId = String(clientTeam.kaipoke_cs_id ?? "").trim();
+                const alert = clientAlerts.get(clientId);
+                if (!alert) continue;
+
+                alert.teamOrgIds.clear();
+                const assignedOrgId = String(clientTeam.asigned_org ?? "").trim();
+                if (assignedOrgId) alert.teamOrgIds.add(assignedOrgId);
+            }
+
             const { data: channelRows, error: channelError } = await supabaseAdmin
                 .from("group_lw_channel_view")
                 .select("group_account, channel_id")
@@ -846,7 +865,7 @@ export async function runShiftStaffCheck(opts: {
                     .from("users")
                     .select("user_id, lw_userid, org_unit_id, system_role, status")
                     .in("org_unit_id", allTeamOrgIds)
-                    .in("system_role", ["manager", "admin"])
+                    .eq("system_role", "manager")
                     .or("status.is.null,status.neq.removed_from_lineworks_kaipoke");
                 if (managerError) throw managerError;
 
@@ -875,7 +894,7 @@ export async function runShiftStaffCheck(opts: {
                     )
                     .map((manager) => ({
                         userId: String(manager.lw_userid),
-                        label: `担当チーム${manager.system_role ?? "manager"}（${manager.user_id}）`,
+                        label: `担当チームmanager（${manager.user_id}）`,
                     }));
 
                 try {
