@@ -1292,12 +1292,16 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                 const visitRecordTotalCount = teamVisitShiftIdsMap.get(teamId)?.size ?? 0;
                 const visitRecordDeadlineMissCount = teamDeadlineMissShiftIdsMap.get(teamId)?.size ?? 0;
                 const visitRecordScore = Math.max(0, 20 - visitRecordDeadlineMissCount * 5);
-                const meetingMemberCount = memberUserIds.length;
-                const meetingAttendedCount = memberUserIds.filter(
+                // 前月に勤務実績があるメンバーだけを会議参加の採点対象にする。
+                const meetingMemberUserIds = memberUserIds.filter((userId) =>
+                    meetingEligibleUserIds.has(userId)
+                );
+                const meetingMemberCount = meetingMemberUserIds.length;
+                const meetingAttendedCount = meetingMemberUserIds.filter(
                     (userId) => meetingPreviousMonthAttendedMap.get(userId) === true
                 ).length;
                 const meetingIncompleteCount = meetingMemberCount - meetingAttendedCount;
-                const meetingIncompleteDetails: TeamScoreDetail[] = memberUserIds
+                const meetingIncompleteDetails: TeamScoreDetail[] = meetingMemberUserIds
                     .filter((userId) => meetingPreviousMonthAttendedMap.get(userId) !== true)
                     .map((userId) => ({
                         id: `meeting:${previousYearMonth}:${userId}`,
@@ -1438,7 +1442,13 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
             })
             .sort((a, b) => b.total_score - a.total_score);
 
-        const updates = scoredRows.map((row, index) => ({
+        const rankNoByUserId = new Map(
+            scoredRows
+                .filter((row) => Number(row.visit_record_total_count ?? 0) > 0)
+                .map((row, index) => [row.user_id, index + 1])
+        );
+
+        const updates = scoredRows.map((row) => ({
             id: row.id,
             target_month: row.target_month,
             user_id: row.user_id,
@@ -1460,7 +1470,8 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
             visit_record_past_incomplete_count:
                 incompleteCountMap.get(row.user_id)?.past ?? 0,
             meeting_previous_month_attended:
-                meetingPreviousMonthAttendedMap.get(row.user_id) ?? false,
+                !meetingEligibleUserIds.has(row.user_id) ||
+                meetingPreviousMonthAttendedMap.get(row.user_id) === true,
             meeting_past_attended: row.meeting_past_attended ?? false,
             jisseki_previous_month_total_count:
                 jissekiPreviousMonthTotalMap.get(row.user_id) ?? 0,
@@ -1487,7 +1498,7 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
             projected_total_score: row.projected_total_score,
             projected_medal_rank: row.projected_medal_rank,
             total_score: row.total_score,
-            rank_no: index + 1,
+            rank_no: rankNoByUserId.get(row.user_id) ?? null,
             medal_rank: row.medal_rank,
             updated_at: new Date().toISOString(),
         }));
