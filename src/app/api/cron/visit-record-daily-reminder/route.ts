@@ -7,13 +7,19 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CHANNEL_ID = "146763225";
-const REMINDER_MESSAGE = `📣 訪問記録の入力をお願いします
+function buildReminderMessage(date: string) {
+    const teamScoreTestPeriodNote = date <= "2026-09-30"
+        ? "\n\n※ 現在、チームスコアはテスト期間です（2026年9月30日まで）。"
+        : "";
+
+    return `📣 訪問記録の入力をお願いします
 
 本日実施したサービスの訪問記録は、本日23:43までに完了してください。
 
 23:43時点で訪問記録が未完了の場合、未完了1件につき個人のパフォーマンススコアが5点、所属チームの訪問記録スコアが1点減点されます。
 
-まだ入力していない訪問記録がある方は、忘れずに本日中の入力をお願いします。`;
+まだ入力していない訪問記録がある方は、忘れずに本日中の入力をお願いします。${teamScoreTestPeriodNote}`;
+}
 
 function getJstNow(now = new Date()) {
     const parts = new Intl.DateTimeFormat("en-CA", {
@@ -49,7 +55,7 @@ export async function GET() {
 
     try {
         const accessToken = await getAccessToken();
-        await sendLWBotMessage(CHANNEL_ID, REMINDER_MESSAGE, accessToken);
+        await sendLWBotMessage(CHANNEL_ID, buildReminderMessage(jstNow.date), accessToken);
         const { error: sentAtError } = await supabaseAdmin
             .from("visit_record_daily_reminder_logs")
             .update({ sent_at: new Date().toISOString() })

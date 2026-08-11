@@ -9249,6 +9249,24 @@ export type Database = {
         }
         Relationships: []
       }
+      visit_record_daily_reminder_logs: {
+        Row: {
+          attempted_at: string
+          reminder_date: string
+          sent_at: string | null
+        }
+        Insert: {
+          attempted_at?: string
+          reminder_date: string
+          sent_at?: string | null
+        }
+        Update: {
+          attempted_at?: string
+          reminder_date?: string
+          sent_at?: string | null
+        }
+        Relationships: []
+      }
       wf_approval_step: {
         Row: {
           acted_at: string | null
