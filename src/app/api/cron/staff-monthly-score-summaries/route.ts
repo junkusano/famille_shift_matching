@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 //指定月のみ更新変更箇所1
 //mport { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { getAccessToken } from "@/lib/getAccessToken";
+import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import {
     getPerformanceBadge,
     isNewPerformanceSchemeOfficial,
@@ -81,6 +83,7 @@ type DeadlineMissRecorder = {
 
 const VISIT_RECORD_DEADLINE_EVENT = "[VISIT_RECORD_DEADLINE_MISS]";
 const VISIT_RECORD_DEADLINE_REGISTERED_BY = "cron:visit-record-deadline";
+const VISIT_RECORD_REMINDER_CHANNEL_ID = "146763225";
 
 type IncompleteCount = {
     currentMonth: number;
@@ -864,6 +867,23 @@ export async function GET(req: NextRequest) {
                     .filter((row): row is NonNullable<typeof row> => row !== null);
 
                 if (deadlineMissRows.length > 0) {
+                    const deadlineMissActionDetails = deadlineMissRows.map(
+                        (row) => row.action_detail
+                    );
+                    const { data: existingDeadlineMissLogs, error: existingDeadlineMissLogsError } = await supabaseAdmin
+                        .from("staff_log")
+                        .select("action_detail")
+                        .eq("registered_by", VISIT_RECORD_DEADLINE_REGISTERED_BY)
+                        .in("action_detail", deadlineMissActionDetails);
+
+                    if (existingDeadlineMissLogsError) throw existingDeadlineMissLogsError;
+
+                    const existingActionDetails = new Set(
+                        (existingDeadlineMissLogs ?? []).map((log) => log.action_detail)
+                    );
+                    const newDeadlineMissCount = deadlineMissRows.filter(
+                        (row) => !existingActionDetails.has(row.action_detail)
+                    ).length;
                     const recorder = supabaseAdmin as unknown as DeadlineMissRecorder;
                     const results = await Promise.all(deadlineMissRows.map((row) =>
                         recorder.rpc("record_visit_record_deadline_miss", {
@@ -874,6 +894,15 @@ export async function GET(req: NextRequest) {
                     ));
                     const deadlineMissError = results.find((result) => result.error)?.error;
                     if (deadlineMissError) throw new Error(deadlineMissError.message);
+
+                    if (newDeadlineMissCount > 0) {
+                        const accessToken = await getAccessToken();
+                        await sendLWBotMessage(
+                            VISIT_RECORD_REMINDER_CHANNEL_ID,
+                            `⚠️ 訪問記録の締切時刻です\n\n23:43時点で未完了の訪問記録 ${newDeadlineMissCount}件を記録しました。\n未完了1件につき、対象スタッフの個人スコアは5点、所属チームの訪問記録スコアは1点減点されます。`,
+                            accessToken
+                        );
+                    }
                 }
             }
         }
@@ -1283,7 +1312,7 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                 const jissekiScore = 20 - jissekiIncompleteCount;
                 const visitRecordTotalCount = teamVisitShiftIdsMap.get(teamId)?.size ?? 0;
                 const visitRecordDeadlineMissCount = teamDeadlineMissShiftIdsMap.get(teamId)?.size ?? 0;
-                const visitRecordScore = Math.max(0, 20 - visitRecordDeadlineMissCount * 5);
+                const visitRecordScore = Math.max(0, 20 - visitRecordDeadlineMissCount);
                 // 前月に勤務実績があるメンバーだけを会議参加の採点対象にする。
                 const meetingMemberUserIds = memberUserIds.filter((userId) =>
                     meetingEligibleUserIds.has(userId)

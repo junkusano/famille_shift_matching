@@ -284,7 +284,7 @@ function PerformanceScorePanelContent({
                 return "シフト開始6時間以内は1件10点減点、3日以内は1件5点減点（勘案すべき事情がある場合はマネージャーに相談してください）";
             case "visit_record":
                 return showingNewScheme
-                    ? "個人は20点満点から締切違反・過去未完了を各5点減点、チームは20点満点から締切違反1件につき5点減点"
+                    ? "個人は20点満点から締切違反・過去未完了を各5点減点、チームは20点満点から締切違反1件につき1点減点"
                     : "20点満点から、23:43締切違反・過去未完了を1件につき5点減点";
             case "meeting":
                 return showingNewScheme
