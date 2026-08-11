@@ -75,6 +75,11 @@ type TeamScoreDetail = {
     reason: string;
 };
 
+function formatClientName(name: string | null) {
+    if (!name) return "";
+    return /様\s*$/.test(name) ? name : `${name}様`;
+}
+
 function TeamPenaltyDetails({
     label,
     details,
@@ -92,10 +97,12 @@ function TeamPenaltyDetails({
             <div className="mt-2 divide-y divide-rose-100">
                 {details.map((detail) => (
                     <div key={detail.id} className="py-2 text-xs leading-5 text-slate-700">
-                        <div className="font-bold text-slate-900">
-                            {detail.clientName || "対象者なし"}
-                            {detail.clientId ? `（${detail.clientId}）` : ""}
-                        </div>
+                        {(detail.clientName || detail.clientId) && (
+                            <div className="font-bold text-slate-900">
+                                {formatClientName(detail.clientName)}
+                                {detail.clientId ? `（${detail.clientId}）` : ""}
+                            </div>
+                        )}
                         <div>対象: {detail.targetDate || "不明"}</div>
                         <div>担当: {detail.staffNames.length > 0 ? detail.staffNames.join("、") : "不明"}</div>
                         <div className="text-rose-700">{detail.reason}</div>

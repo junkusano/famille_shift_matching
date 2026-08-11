@@ -231,6 +231,29 @@ function buildMonthOptions() {
     return options.reverse();
 }
 
+function getJissekiLinkYearMonth(now = new Date()) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Tokyo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).formatToParts(now);
+    const value = (type: string) =>
+        parts.find((part) => part.type === type)?.value ?? "";
+    const year = Number(value("year"));
+    const month = Number(value("month"));
+    const day = Number(value("day"));
+
+    if (day >= 20) {
+        return `${year}-${String(month).padStart(2, "0")}`;
+    }
+
+    const previousMonth = new Date(Date.UTC(year, month - 2, 1));
+    return `${previousMonth.getUTCFullYear()}-${String(
+        previousMonth.getUTCMonth() + 1
+    ).padStart(2, "0")}`;
+}
+
 /*function buildRecentMonthsByYm(baseYm: string, count: number) {
     const [yearText, monthText] = baseYm.split("-");
     const year = Number(yearText);
@@ -486,6 +509,7 @@ export async function GET(req: NextRequest) {
     }
 
     const previousYm = getPreviousYm(ym);
+    const jissekiLinkYm = getJissekiLinkYearMonth();
 
     const targetMonthDate = `${ym}-01`;
 
@@ -808,7 +832,7 @@ shift_decline_penalty_score,
                     ` / 前月対象 ${summary.jisseki_previous_month_total_count ?? 0}件` +
                     ` / 過去未完了 ${summary.jisseki_past_incomplete_count ?? 0}件`,
                 linkUrl: addParams("/portal/disability-check", {
-                    ym: previousYm,
+                    ym: jissekiLinkYm,
                     user_id: userId,
                 }),
             },
