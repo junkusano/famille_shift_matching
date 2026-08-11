@@ -1266,16 +1266,8 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
 
         const teamScoreById = new Map<string, number>();
         const scoredTeamIds = teamIds.filter((teamId) => {
-            const memberUserIds = Array.from(userTeamMap.entries())
-                .filter(([, assignedTeamId]) => assignedTeamId === teamId)
-                .map(([userId]) => userId);
-            return (
-                (teamServiceHoursMap.get(teamId) ?? 0) > 0 ||
-                memberUserIds.length > 0 ||
-                (teamJissekiIncompleteMap.get(teamId) ?? 0) > 0 ||
-                (teamDeadlineMissShiftIdsMap.get(teamId)?.size ?? 0) > 0 ||
-                (teamVisitIncompleteDetailsMap.get(teamId)?.length ?? 0) > 0
-            );
+            // 当月に訪問シフトへ入った人がいるチームだけをランキング対象にする。
+            return (teamVisitShiftIdsMap.get(teamId)?.size ?? 0) > 0;
         });
         const teamSummaryRows = scoredTeamIds
             .map((teamId) => {

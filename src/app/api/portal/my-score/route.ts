@@ -534,6 +534,7 @@ export async function GET(req: NextRequest) {
     }
 
     const teamRanking: TeamRankingRow[] = [...(teamRankingSourceRows ?? [])]
+        .filter((team) => Number(team.visit_record_total_count ?? 0) > 0)
         .sort((a, b) => Number(b.team_score ?? b.total_score ?? 0) - Number(a.team_score ?? a.total_score ?? 0))
         .map((team, index) => ({
             rank: index + 1,
