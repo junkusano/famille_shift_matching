@@ -560,11 +560,25 @@ export async function GET(req: NextRequest) {
         .select("*")
         .eq("target_month", targetMonthDate);
 
+    const teamNameByUserId = new Map<string, string>();
+    for (const row of rankingSourceRows ?? []) {
+        if (!row.user_id) continue;
+        const teamName = row.team_orgunitid
+            ? (teamRankingSourceRows ?? []).find((team) => String(team.orgunitid) === String(row.team_orgunitid))?.team_name
+                ?? (teamRankingSourceRows ?? []).find((team) => String(team.orgunitid) === String(row.team_orgunitid))?.orgunitname
+                ?? null
+            : null;
+        if (teamName) {
+            teamNameByUserId.set(row.user_id, String(teamName));
+        }
+    }
+
     const baseRankingRows = (rankingSourceRows ?? [])
         .filter((row) => !EXCLUDED_PERFORMANCE_SCORE_USER_IDS.includes(row.user_id))
         .map((row) => ({
             user_id: row.user_id,
             staff_name: row.staff_name,
+            team_name: teamNameByUserId.get(row.user_id) ?? null,
             officialScore: Number(row.official_total_score ?? row.total_score ?? 0),
             projectedScore: Number(row.projected_total_score ?? row.total_score ?? 0),
         }));
@@ -587,6 +601,7 @@ export async function GET(req: NextRequest) {
                     userId: row.user_id,
                     score,
                     name: row.staff_name ?? row.user_id,
+                    teamName: row.team_name ?? null,
                     badge: badge.name,
                     hourlyWageBonus: badge.hourlyWageBonus,
                 };
@@ -759,8 +774,8 @@ shift_decline_penalty_score,
                 label: "訪問記録",
                 score: visitRecordScore,
                 teamScore: teamVisitRecordScore,
-                maxScore: 0,
-                combinedMaxScore: 20,
+                maxScore: 20,
+                combinedMaxScore: 40,
                 note: `23:43締切違反 ${visitRecordDeadlineMissCount}件 / 過去未完了 ${visitRecordPastIncompleteCount}件`,
                 linkUrl: addParams("/portal/shift-view", {
                     user_id: userId,

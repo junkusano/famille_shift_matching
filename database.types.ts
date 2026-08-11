@@ -8210,6 +8210,7 @@ export type Database = {
           updated_at: string
           visit_record_deadline_miss_count: number
           visit_record_deadline_miss_details: Json
+          visit_record_incomplete_details: Json
           visit_record_same_day_count: number
           visit_record_score: number
           visit_record_submission_rate: number
@@ -8250,6 +8251,7 @@ export type Database = {
           updated_at?: string
           visit_record_deadline_miss_count?: number
           visit_record_deadline_miss_details?: Json
+          visit_record_incomplete_details?: Json
           visit_record_same_day_count?: number
           visit_record_score?: number
           visit_record_submission_rate?: number
@@ -8290,6 +8292,7 @@ export type Database = {
           updated_at?: string
           visit_record_deadline_miss_count?: number
           visit_record_deadline_miss_details?: Json
+          visit_record_incomplete_details?: Json
           visit_record_same_day_count?: number
           visit_record_score?: number
           visit_record_submission_rate?: number

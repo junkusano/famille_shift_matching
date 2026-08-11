@@ -42,6 +42,7 @@ type RankingUser = {
     userId: string;
     score: number;
     name: string;
+    teamName?: string | null;
     badge: string;
 };
 
@@ -765,7 +766,7 @@ function PerformanceScorePanelContent({
                                                 </div>
 
                                                 <div className="text-xs text-gray-500">
-                                                    {user.score}点
+                                                    {user.teamName ? `${user.teamName} · ` : ""}{user.score}点
                                                 </div>
                                             </div>
                                         </div>

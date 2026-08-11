@@ -805,6 +805,8 @@ export async function GET(req: NextRequest) {
             nextMonthStart,
             selectShiftColumns
         );
+        const shouldUseDailyCutoff = targetMonth.slice(0, 7) === jstNow.date.slice(0, 7);
+        const currentMonthCutoffDate = shouldUseDailyCutoff ? jstNow.date : null;
 
         const pastShiftRows = await fetchAllShiftRows(
             "2025-11-01",
@@ -1014,6 +1016,7 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
 
         for (const shift of currentMonthShiftRows) {
             if (!shift.shift_id || !shift.shift_start_date || String(shift.kaipoke_cs_id ?? "").startsWith("9999999")) continue;
+            if (currentMonthCutoffDate && shift.shift_start_date >= currentMonthCutoffDate) continue;
             const isIncomplete = !isVisitRecordComplete(shift.record_status);
             if (!isIncomplete) continue;
             const participatingUserIds = getParticipatingUserIds(shift);
@@ -1158,6 +1161,9 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                 shift.shift_start_date >= targetMonth &&
                 shift.shift_start_date < nextMonthStart
             ) {
+                if (currentMonthCutoffDate && shift.shift_start_date >= currentMonthCutoffDate) {
+                    continue;
+                }
                 const hours = calcShiftHours(shift);
                 const participatingUserIds = getParticipatingUserIds(shift);
 
@@ -1195,6 +1201,9 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                 shift.shift_start_date >= targetMonth &&
                 shift.shift_start_date < nextMonthStart
             ) {
+                if (currentMonthCutoffDate && shift.shift_start_date >= currentMonthCutoffDate) {
+                    continue;
+                }
                 const userIds = getParticipatingUserIds(shift);
 
                 const isSubmitted = isVisitRecordComplete(shift.record_status);
@@ -1257,9 +1266,7 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
         const teamScoreById = new Map<string, number>();
         const scoredTeamIds = teamIds.filter((teamId) => {
             const memberUserIds = Array.from(userTeamMap.entries())
-                .filter(([userId, assignedTeamId]) =>
-                    assignedTeamId === teamId && meetingEligibleUserIds.has(userId)
-                )
+                .filter(([userId, assignedTeamId]) => assignedTeamId === teamId)
                 .map(([userId]) => userId);
             return (
                 (teamServiceHoursMap.get(teamId) ?? 0) > 0 ||
@@ -1272,9 +1279,7 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
         const teamSummaryRows = scoredTeamIds
             .map((teamId) => {
                 const memberUserIds = Array.from(userTeamMap.entries())
-                    .filter(([userId, assignedTeamId]) =>
-                        assignedTeamId === teamId && meetingEligibleUserIds.has(userId)
-                    )
+                    .filter(([userId, assignedTeamId]) => assignedTeamId === teamId)
                     .map(([userId]) => userId);
                 const serviceHours = teamServiceHoursMap.get(teamId) ?? 0;
                 const previousServiceHours = teamPreviousServiceHoursMap.get(teamId) ?? 0;
