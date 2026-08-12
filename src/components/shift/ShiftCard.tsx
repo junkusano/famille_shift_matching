@@ -502,8 +502,9 @@ const [mealExpenseSubmitting, setMealExpenseSubmitting] =
   // 利用者様SMS送信（rejectモード）
   const [smsOpen, setSmsOpen] = useState(false);
   const [smsBody, setSmsBody] = useState("");
-  const [smsSending, setSmsSending] = useState(false);
-  const [smsError, setSmsError] = useState<string | null>(null);
+  // SMS送信ボタン一時非表示中は送信処理を停止
+  // const [smsSending, setSmsSending] = useState(false);
+  const [, setSmsError] = useState<string | null>(null);
   const [smsSent, setSmsSent] = useState(false);
 
   const SMS_DEFAULT_HEADER =
@@ -1178,6 +1179,7 @@ const shiftDetailInformation = pickNonEmptyString(shift, [
     pickNonEmptyString(kaipokeInfo, ["sms_phone_number"]) ??
     pickNonEmptyString(shift, ["sms_phone_number"]);
 
+  /* SMS送信ボタン一時非表示中は送信処理も停止
   const handleSmsSend = async () => {
     if (!shiftIdStr || !csId || !smsRecipientPhone) {
       setSmsError("送信に必要なシフトID・利用者ID・電話番号を取得できません。");
@@ -1242,6 +1244,7 @@ if (!res.ok || json?.ok !== true) {
       setSmsSending(false);
     }
   };
+  */
 
   // ★ 追加：駐車ダイアログを開く（必要なら取得）
   const openParkingDialog = async () => {
@@ -1774,11 +1777,12 @@ if (!res.ok || json?.ok !== true) {
                         </div>
                       </div>
 
-                      {smsError && (
+                      {/* SMS送信ボタン一時非表示に伴い、送信エラー表示も一時停止 */}
+                      {/* {smsError && (
                         <div className="rounded-md border border-red-300 bg-red-50 p-2 text-red-700">
                           {smsError}
                         </div>
-                      )}
+                      )} */}
 
                       {smsSent && (
                         <div className="rounded-md border border-green-300 bg-green-50 p-2 text-green-700">
@@ -1795,6 +1799,8 @@ if (!res.ok || json?.ok !== true) {
                       >
                         閉じる
                       </Button>
+                      {/* SMS送信ボタンは一時的に非表示 */}
+                      {/*
                       <Button
                         type="button"
                         disabled={smsSending || !smsRecipientPhone || !smsBody.trim()}
@@ -1802,6 +1808,7 @@ if (!res.ok || json?.ok !== true) {
                       >
                         {smsSending ? "送信中..." : "SMSを送信"}
                       </Button>
+                      */}
                     </div>
                   </DialogContent>
                 </DialogPortal>
