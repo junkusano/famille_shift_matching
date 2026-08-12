@@ -41,6 +41,9 @@ type CsDocForOnboarding = {
   created_at: string;
 };
 
+type CsDocListForOnboarding = Pick<CsDocForOnboarding,
+  "id" | "url" | "doc_name" | "doc_type_id" | "ocr_text" | "summary" | "meta" | "created_at">;
+
 type CachedCandidate = {
   version: 1;
   source_hash: string;
@@ -141,6 +144,47 @@ function readCache(meta: unknown, hash: string): KaipokeOnboardingCandidate | nu
   return normalizeCandidate(cached.candidate);
 }
 
+function firstLabeledValue(source: string, labels: string[], maxLength: number): string | null {
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = source.match(new RegExp(`${escaped}\\s*(?:[：:]|\\s{2,})\\s*([^\\r\\n]{1,${maxLength}})`, "i"));
+    const value = match?.[1]?.replace(/\s+/g, " ").trim() ?? "";
+    if (value) return value;
+  }
+  return null;
+}
+
+function addressFromCandidate(candidate: KaipokeOnboardingCandidate | null): string | null {
+  if (!candidate) return null;
+  const address = [candidate.prefecture.value, candidate.city.value, candidate.address.value, candidate.building.value]
+    .filter((value): value is string => Boolean(value))
+    .join("");
+  return address || null;
+}
+
+function nameFromCandidate(candidate: KaipokeOnboardingCandidate | null): string | null {
+  if (!candidate) return null;
+  const name = `${candidate.name.last.value ?? ""}${candidate.name.first.value ?? ""}`.replace(/\s+/g, " ").trim();
+  return name || null;
+}
+
+function listDisplayDetails(doc: CsDocListForOnboarding) {
+  const ocrText = doc.ocr_text?.trim() ?? "";
+  const summary = doc.summary?.trim() ?? "";
+  const candidate = readCache(doc.meta, sourceHash(ocrText, summary));
+  const source = `${summary}\n${ocrText}`;
+
+  const clientName = nameFromCandidate(candidate)
+    ?? firstLabeledValue(source, ["利用者氏名", "利用者名", "氏名"], 60);
+  const address = addressFromCandidate(candidate)
+    ?? firstLabeledValue(source, ["住所", "住 所"], 160);
+  const office = firstLabeledValue(source, ["事業所名"], 100);
+  const staff = firstLabeledValue(source, ["担当者氏名", "担当者名"], 80);
+  const sender = [office, staff].filter((value): value is string => Boolean(value)).join("／") || null;
+
+  return { client_name: clientName, address, sender };
+}
+
 function buildPrompt(ocrText: string, summary: string): string {
   return [
     "次の基本情報資料から、カイポケ新規利用者登録候補を抽出してください。",
@@ -202,7 +246,7 @@ async function generateCandidate(ocrText: string, summary: string): Promise<Kaip
 export async function getBasicInfoDocuments() {
   const { data, error } = await supabaseAdmin
     .from("cs_docs")
-    .select("id,url,doc_name,doc_type_id,summary,created_at,kaipoke_cs_id,cs_kaipoke_info_id")
+    .select("id,url,doc_name,doc_type_id,ocr_text,summary,meta,created_at,kaipoke_cs_id,cs_kaipoke_info_id")
     .or(`doc_type_id.eq.${BASIC_INFO_DOC_TYPE_ID},doc_name.eq.${BASIC_INFO_DOC_NAME}`)
     .is("kaipoke_cs_id", null)
     .is("cs_kaipoke_info_id", null)
@@ -212,13 +256,17 @@ export async function getBasicInfoDocuments() {
 
   if (error) throw error;
 
-  return (data ?? []).map((doc) => ({
-    id: doc.id,
-    doc_name: doc.doc_name,
-    created_at: doc.created_at,
-    drive_file_id: extractGoogleDriveFileId(doc.url),
-    summary_excerpt: nullableText(doc.summary, 160),
-  }));
+  return (data ?? []).map((doc) => {
+    const details = listDisplayDetails(doc as CsDocListForOnboarding);
+    return {
+      id: doc.id,
+      doc_name: doc.doc_name,
+      created_at: doc.created_at,
+      ...details,
+      drive_file_id: extractGoogleDriveFileId(doc.url),
+      summary_excerpt: nullableText(doc.summary, 160),
+    };
+  });
 }
 
 export async function getOnboardingDocument(id: string) {
