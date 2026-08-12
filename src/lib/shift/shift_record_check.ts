@@ -6,11 +6,17 @@ import { supabase } from "@/lib/supabaseClient";
 import { subHours } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { getAccessToken } from "@/lib/getAccessToken";
-import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+import {
+  buildRecoveredMentionText,
+  sendLWBotMentionMessage,
+  type MentionTarget,
+} from "@/lib/lineworks/sendLWBotMentionMessage";
 import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
 
 const timeZone = "Asia/Tokyo";
 const DRY_RUN_DEFAULT = false; // 既定では送信する（API側から dryRun 指定で抑止）
+const LW_BOT_NO =
+  process.env.LINEWORKS_BOT_NO || process.env.WORKS_BOT_NO || process.env.LW_BOT_NO || "6807751";
 
 export type ShiftRecordCheckResult = {
   ok: boolean;
@@ -59,6 +65,7 @@ export async function runShiftRecordCheck(opts: { now?: Date; dryRun?: boolean }
 
     // 送信キュー（channelId -> message）
     const clientMessageQueue = new Map<string, string>();
+    const clientMentionQueue = new Map<string, MentionTarget[]>();
 
     // 3. シフト（未了＆カットオフ判定）
     const { data: shifts, error: shiftError } = await supabase
@@ -110,10 +117,18 @@ export async function runShiftRecordCheck(opts: { now?: Date; dryRun?: boolean }
           const header = `訪問記録が未了です。`;
           const body = clientUnfinishedShifts.join("\n");
           const link = `${getAppBaseUrl()}/portal/shift-view?openExternalBrowser=1 `;
-          const messageSegment = `\n\n<m userId="${user.lw_userid}">さん\n${header}\n${body}\n未了の記録を確認し、完了させてください。\n${link}`;
+          const lwUserId = String(user.lw_userid ?? "").trim();
+          const mentionText = lwUserId ? `<m userId="${lwUserId}">さん` : `@${userId}さん`;
+          const messageSegment = `\n\n${mentionText}\n${header}\n${body}\n未了の記録を確認し、完了させてください。\n${link}`;
 
           const currentMessage = clientMessageQueue.get(clientChannelId) || `【未了訪問記録の通知】\n`;
           clientMessageQueue.set(clientChannelId, currentMessage + messageSegment);
+          if (lwUserId) {
+            clientMentionQueue.set(clientChannelId, [
+              ...(clientMentionQueue.get(clientChannelId) ?? []),
+              { userId: lwUserId, label: userId },
+            ]);
+          }
 
           checked += clientUnfinishedShifts.length;
         }
@@ -142,7 +157,15 @@ export async function runShiftRecordCheck(opts: { now?: Date; dryRun?: boolean }
         if (sent.has(channelId)) continue; // 二重送信ガード
         sent.add(channelId);
         console.log(`[SEND] -> channelId=${channelId}, bytes=${message.length}`);
-        await sendLWBotMessage(channelId, message, accessToken);
+        const mentions = clientMentionQueue.get(channelId) ?? [];
+        await sendLWBotMentionMessage({
+          botId: LW_BOT_NO,
+          channelId,
+          accessToken,
+          mentions,
+          buildText: (activeMentions, recoveryNotes) =>
+            buildRecoveredMentionText(message, mentions, activeMentions, recoveryNotes),
+        });
         sentCount++;
       }
       console.log(`[INFO] Sent ${sentCount} / ${clientMessageQueue.size} messages.`);

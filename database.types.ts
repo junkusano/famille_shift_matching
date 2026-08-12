@@ -11829,24 +11829,6 @@ export type Database = {
         }
         Relationships: []
       }
-      spot_offer_request: {
-        Row: {
-          commute_fee: number | null
-          core_id: string | null
-          created_at: string | null
-          end_at: string | null
-          kaipoke_cs_id: string | null
-          shift_end_time: string | null
-          shift_id: number | null
-          shift_start_date: string | null
-          shift_start_time: string | null
-          start_at: string | null
-          template_title: string | null
-          unit_amount: number | null
-          updated_at: string | null
-        }
-        Relationships: []
-      }
       taimee_applicants_with_entry: {
         Row: {
           applicant_control_url: string | null

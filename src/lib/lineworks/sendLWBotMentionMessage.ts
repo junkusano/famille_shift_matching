@@ -7,6 +7,29 @@ export type MentionTarget = {
   label: string;
 };
 
+/**
+ * 既存のメンションタグ入り本文を、新しい送信処理の再送結果に合わせて整形する。
+ * グループへ追加できなかった対象は @ラベル の通常文字列に戻し、理由を末尾へ付ける。
+ */
+export function buildRecoveredMentionText(
+  text: string,
+  requestedMentions: MentionTarget[],
+  activeMentions: MentionTarget[],
+  recoveryNotes: string[]
+): string {
+  const activeUserIds = new Set(activeMentions.map((mention) => mention.userId.trim()));
+  let recoveredText = text;
+
+  for (const mention of requestedMentions) {
+    const userId = mention.userId.trim();
+    if (!userId || activeUserIds.has(userId)) continue;
+    recoveredText = recoveredText.replaceAll(`<m userId="${userId}">`, `@${mention.label}`);
+  }
+
+  if (recoveryNotes.length === 0) return recoveredText;
+  return `${recoveredText}\n\n----\n${recoveryNotes.join("\n")}`;
+}
+
 type SendLWBotMentionMessageArgs = {
   botId: string;
   channelId: string;

@@ -1,6 +1,13 @@
 import { getAccessToken } from "@/lib/getAccessToken";
-import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+import {
+  buildRecoveredMentionText,
+  sendLWBotMentionMessage,
+  type MentionTarget,
+} from "@/lib/lineworks/sendLWBotMentionMessage";
 import { supabaseAdmin } from "@/lib/supabase/service";
+
+const LW_BOT_NO =
+  process.env.LINEWORKS_BOT_NO || process.env.WORKS_BOT_NO || process.env.LW_BOT_NO || "6807751";
 
 const TARGET_SERVICE_CODES = [
   "居宅家事",
@@ -200,7 +207,12 @@ export async function runShogaiJukyushaRenewalAlerts(
       if (!groupId) throw new Error(`利用者別「情報連携」グループが見つかりません: ${name}`);
       const channelId = await loadChannelId(groupId, channelCache);
       const manager = client.asigned_jisseki_staff ? staffById.get(client.asigned_jisseki_staff) : undefined;
-      const mention = manager?.lw_userid ? `<m userId="${manager.lw_userid}">さん\n` : "";
+      const managerLwUserId = String(manager?.lw_userid ?? "").trim();
+      const managerName = `${manager?.last_name_kanji ?? ""}${manager?.first_name_kanji ?? ""}`.trim();
+      const mentions: MentionTarget[] = managerLwUserId
+        ? [{ userId: managerLwUserId, label: managerName || client.asigned_jisseki_staff || "実績担当者" }]
+        : [];
+      const mention = managerLwUserId ? `<m userId="${managerLwUserId}">さん\n` : "";
       const services = Array.from(serviceCodesByClient.get(client.kaipoke_cs_id) ?? []).join("・");
       const detailUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://myfamille.shi-on.net"}/portal/kaipoke-info-detail/${client.id}`;
       const message =
@@ -209,7 +221,16 @@ export async function runShogaiJukyushaRenewalAlerts(
         `当月も ${services} を実施しているため、新しい受給者証の取得・反映をお願いします。\n\n` +
         `このまま月を超えると、パフォーマンススコアのチーム点が -5 点となります。\n` +
         `${detailUrl}`;
-      if (!dryRun && token) await sendLWBotMessage(channelId, message, token);
+      if (!dryRun && token) {
+        await sendLWBotMentionMessage({
+          botId: LW_BOT_NO,
+          channelId,
+          accessToken: token,
+          mentions,
+          buildText: (activeMentions, recoveryNotes) =>
+            buildRecoveredMentionText(message, mentions, activeMentions, recoveryNotes),
+        });
+      }
       sentRooms += 1;
       sentClients += 1;
     } catch (error) {

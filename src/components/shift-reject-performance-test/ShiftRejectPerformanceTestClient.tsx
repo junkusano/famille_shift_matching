@@ -452,6 +452,10 @@ export default function ShiftRejectPerformanceTestClient() {
           const mentionManager = userData.manager_lw_userid
             ? `<m userId="${userData.manager_lw_userid}">さん`
             : "マネジャー";
+          const mentions = [
+            ...(userData.lw_userid ? [{ userId: userData.lw_userid, label: "シフト辞退者" }] : []),
+            ...(userData.manager_lw_userid ? [{ userId: userData.manager_lw_userid, label: "マネジャー" }] : []),
+          ];
           const startTime = shift.shift_start_time.slice(0, 5);
           await fetch("/api/lw-send-botmessage", {
             method: "POST",
@@ -461,6 +465,7 @@ export default function ShiftRejectPerformanceTestClient() {
               text:
                 `${mentionUser}が${shift.shift_start_date} ${startTime}のシフトに入れないため` +
                 `シフト処理指示（理由: ${reason || "未記入"}）。代わりに${mentionManager}にシフトを移しました。`,
+              mentions,
             }),
           });
 
@@ -476,6 +481,9 @@ export default function ShiftRejectPerformanceTestClient() {
                   `${shift.client_name}様の${shift.shift_start_date} ${startTime}のシフトに` +
                   `${mentionUser}が入れないため、シフト処理指示（理由: ${reason || "未記入"}）。` +
                   "シフ子からサービスに入れる希望を出してください。よろしくお願いします。",
+                mentions: userData.lw_userid
+                  ? [{ userId: userData.lw_userid, label: "シフト辞退者" }]
+                  : [],
               }),
             });
           }
@@ -548,6 +556,12 @@ export default function ShiftRejectPerformanceTestClient() {
         ]);
         const sender = userResult.data?.lw_userid;
         const mention = sender ? `<m userId="${sender}">さん` : "職員さん";
+        const mentions = sender
+          ? [{
+              userId: sender,
+              label: `${userResult.data?.last_name_kanji ?? ""}${userResult.data?.first_name_kanji ?? ""}`.trim() || "申請者",
+            }]
+          : [];
         if (channelResult.data?.channel_id) {
           await fetch("/api/lw-send-botmessage", {
             method: "POST",
@@ -564,6 +578,7 @@ export default function ShiftRejectPerformanceTestClient() {
                 `・エリア: ${shift.postal_code_3}（${shift.district}）\n` +
                 `・同行希望: ${attendRequest ? "あり" : "なし"}\n` +
                 `・担当者: ${mention}`,
+              mentions,
             }),
           });
         }
@@ -597,6 +612,7 @@ export default function ShiftRejectPerformanceTestClient() {
               text:
                 `${shift.shift_start_date} ${shift.shift_start_time.slice(0, 5)}～${shift.shift_end_time.slice(0, 5)} のシフトの担当を${mention}に変更しました（マイファミーユ）。\n` +
                 "変更に問題がある場合には、マネジャーに問い合わせください。",
+              mentions,
             }),
           });
         }

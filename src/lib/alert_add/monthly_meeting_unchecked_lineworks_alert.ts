@@ -3,8 +3,15 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getAccessToken } from "@/lib/getAccessToken";
-import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+import {
+    buildRecoveredMentionText,
+    sendLWBotMentionMessage,
+    type MentionTarget,
+} from "@/lib/lineworks/sendLWBotMentionMessage";
 import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
+
+const LW_BOT_NO =
+    process.env.LINEWORKS_BOT_NO || process.env.WORKS_BOT_NO || process.env.LW_BOT_NO || "6807751";
 
 type AttendanceRow = {
     target_month: string; // YYYY-MM-01
@@ -251,6 +258,9 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
             const mentionLine = lwUserId
                 ? `<m userId="${lwUserId}">さん`
                 : `＠${staffName}さん`;
+            const mentions: MentionTarget[] = lwUserId
+                ? [{ userId: lwUserId, label: staffName }]
+                : [];
 
             const message =
                 `【月例会議 未参加】〈${formatYmJa(monthYm)}分〉\n` +
@@ -264,7 +274,14 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
                 `${detailUrl}`;
 
             if (!dryRun) {
-                await sendLWBotMessage(channelId, message, accessToken);
+                await sendLWBotMentionMessage({
+                    botId: LW_BOT_NO,
+                    channelId,
+                    accessToken,
+                    mentions,
+                    buildText: (activeMentions, recoveryNotes) =>
+                        buildRecoveredMentionText(message, mentions, activeMentions, recoveryNotes),
+                });
             }
 
             sentUsers += 1;

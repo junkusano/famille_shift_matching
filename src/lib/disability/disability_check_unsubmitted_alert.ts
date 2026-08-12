@@ -5,8 +5,15 @@
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { ensureSystemAlert, type EnsureAlertParams } from "@/lib/alert/ensureSystemAlert";
 import { getAccessToken } from "@/lib/getAccessToken";
-import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+import {
+    buildRecoveredMentionText,
+    sendLWBotMentionMessage,
+    type MentionTarget,
+} from "@/lib/lineworks/sendLWBotMentionMessage";
 import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
+
+const LW_BOT_NO =
+    process.env.LINEWORKS_BOT_NO || process.env.WORKS_BOT_NO || process.env.LW_BOT_NO || "6807751";
 
 type DisabilityCheckViewRow = {
     kaipoke_cs_id: string;
@@ -345,10 +352,13 @@ async function runSubmittedUncheckLineworksOnly(args: {
 
             const staffInfoMap = await loadStaffInfoMap(staffIds);
 
-            const mentionLines = staffIds
-                .map((sid) => staffInfoMap.get(sid)?.lw_userid)
-                .filter((v): v is string => !!v)
-                .map((lw) => `<m userId="${lw}">さん`)
+            const mentions: MentionTarget[] = staffIds.flatMap((sid) => {
+                const staff = staffInfoMap.get(sid);
+                const lwUserId = String(staff?.lw_userid ?? "").trim();
+                return lwUserId ? [{ userId: lwUserId, label: staff?.name || sid }] : [];
+            });
+            const mentionLines = mentions
+                .map((mention) => `<m userId="${mention.userId}">さん`)
                 .join("\n");
 
             // ★同一利用者内で「担当者ごと」にサービス区分を集約して 1行にする
@@ -391,7 +401,14 @@ async function runSubmittedUncheckLineworksOnly(args: {
                 lines.join("\n");
 
             if (!args.dryRun) {
-                await sendLWBotMessage(channelId, message, token);
+                await sendLWBotMentionMessage({
+                    botId: LW_BOT_NO,
+                    channelId,
+                    accessToken: token,
+                    mentions,
+                    buildText: (activeMentions, recoveryNotes) =>
+                        buildRecoveredMentionText(message, mentions, activeMentions, recoveryNotes),
+                });
             }
 
             sentRooms += 1;          // 送った「利用者グループ」数

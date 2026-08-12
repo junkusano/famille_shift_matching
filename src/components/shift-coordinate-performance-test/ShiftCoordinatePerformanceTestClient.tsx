@@ -312,6 +312,9 @@ export default function ShiftCoordinatePerformanceTestClient() {
         const userData = userResult.data;
         const sender = userData?.lw_userid;
         const mention = sender ? `<m userId="${sender}">さん` : `${sender ?? "不明"}さん`;
+        const mentions = sender
+          ? [{ userId: sender, label: `${userData?.last_name_kanji ?? ""}${userData?.first_name_kanji ?? ""}`.trim() || "申請者" }]
+          : [];
 
         if (chanData?.channel_id) {
           const message =
@@ -328,7 +331,7 @@ export default function ShiftCoordinatePerformanceTestClient() {
           await fetch("/api/lw-send-botmessage", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ channelId: chanData.channel_id, text: message }),
+            body: JSON.stringify({ channelId: chanData.channel_id, text: message, mentions }),
           });
         } else {
           console.warn("チャネルIDが取得できませんでした");
@@ -379,7 +382,7 @@ export default function ShiftCoordinatePerformanceTestClient() {
               await fetch("/api/lw-send-botmessage", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ channelId: chanData.channel_id, text }),
+                body: JSON.stringify({ channelId: chanData.channel_id, text, mentions }),
               });
             }
           } else {
