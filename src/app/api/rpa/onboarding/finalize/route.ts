@@ -80,6 +80,16 @@ export async function POST(request: NextRequest) {
   const document = docId && expectedName !== normalizedClientName
     ? { status: "conflict" as const, error: "document candidate name does not match client name" }
     : await linkDocument(docId, expectedName, client);
+
+  if (docId && document.status !== "linked" && document.status !== "already_linked") {
+    return NextResponse.json({
+      myfamille: { status: "success", client_id: client.id },
+      document,
+      lineworks_group: { status: "skipped" },
+      members: { added: 0, already_exists: 0, failed: [] },
+      group_masters: { added: 0, already_exists: 0, failed: [] },
+    });
+  }
   const lineworks = await ensureInformationLinkGroup(client.kaipoke_cs_id, client.name);
 
   return NextResponse.json({

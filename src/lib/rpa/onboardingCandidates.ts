@@ -59,6 +59,12 @@ function nullableText(value: unknown, maxLength = 1000): string | null {
   return normalized ? normalized.slice(0, maxLength) : null;
 }
 
+function digitsOnly(value: string | null, maxLength: number): string | null {
+  if (!value) return null;
+  const digits = value.normalize("NFKC").replace(/[^0-9]/g, "").slice(0, maxLength);
+  return digits || null;
+}
+
 function normalizeField(value: unknown, maxLength = 1000): CandidateField {
   const record = asRecord(value);
   const confidence = record?.confidence;
@@ -82,7 +88,7 @@ function normalizeCandidate(value: unknown): KaipokeOnboardingCandidate {
   const name = asRecord(root?.name);
   const nameKana = asRecord(root?.name_kana);
 
-  return {
+  const candidate = {
     name: {
       last: normalizeField(name?.last, 100),
       first: normalizeField(name?.first, 100),
@@ -102,6 +108,10 @@ function normalizeCandidate(value: unknown): KaipokeOnboardingCandidate {
     mobile: normalizeField(root?.mobile, 50),
     remarks: normalizeField(root?.remarks, 1000),
   };
+  candidate.postal_code.value = digitsOnly(candidate.postal_code.value, 7);
+  candidate.tel.value = digitsOnly(candidate.tel.value, 20);
+  candidate.mobile.value = digitsOnly(candidate.mobile.value, 20);
+  return candidate;
 }
 
 export function extractGoogleDriveFileId(url: string): string | null {
@@ -136,6 +146,8 @@ function buildPrompt(ocrText: string, summary: string): string {
     "次の基本情報資料から、カイポケ新規利用者登録候補を抽出してください。",
     "OCR本文とsummaryの両方を必ず確認してください。",
     "資料に明記されていない内容は推測せず、valueをnullにしてください。",
+    "郵便番号は資料に明記された数字だけを7桁で抽出し、〒やハイフンは含めないでください。住所だけから郵便番号を推測してはいけません。",
+    "電話番号・携帯電話番号は数字だけを抽出し、ハイフン・空白・括弧は含めないでください。",
     "氏名、住所、電話等の専用欄に入る情報をremarksへ重複させないでください。",
     "remarksは確認できる項目だけを【関係機関】【家族・キーパーソン】【疾病・状態】【予定サービス】【相談経緯・困りごと】【支援上の重要事項】等で整理してください。",
     "空の見出しは書かず、最大1000文字、目安400～700文字にしてください。",
