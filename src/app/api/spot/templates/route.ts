@@ -11,6 +11,7 @@ function json(data: unknown, status = 200) {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = (searchParams.get("q") ?? "").trim();
+  const kaipokeCsId = (searchParams.get("kaipoke_cs_id") ?? "").trim();
   const limit = Number(searchParams.get("limit") ?? "200");
 
   let query = supabaseAdmin
@@ -25,6 +26,10 @@ export async function GET(req: NextRequest) {
     query = query.or(
       `template_title.ilike.%${q}%,work_address.ilike.%${q}%,internal_label.ilike.%${q}%`
     );
+  }
+
+  if (kaipokeCsId) {
+    query = query.eq("kaipoke_cs_id", kaipokeCsId);
   }
 
   const { data, error } = await query;

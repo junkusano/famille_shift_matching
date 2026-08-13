@@ -480,18 +480,31 @@ export default function ShiftDialog({
         }
 
         try {
+            const response = await fetch(
+                `/api/spot/templates?kaipoke_cs_id=${encodeURIComponent(
+                    String(shift.kaipoke_cs_id)
+                )}&limit=500`,
+                { credentials: "same-origin" }
+            );
 
-            const { data, error } = await supabase
-                .from("spot_offer_request")
-                .select("*")
-                .eq("kaipoke_cs_id", shift.kaipoke_cs_id);
-            if (error) {
-                throw error;
+            const payload: unknown = await response.json().catch(() => null);
+
+            if (!response.ok) {
+                const message =
+                    payload &&
+                    typeof payload === "object" &&
+                    "error" in payload &&
+                    typeof payload.error === "string"
+                        ? payload.error
+                        : "テンプレート取得に失敗しました";
+                throw new Error(message);
             }
 
-            const rows = Array.from(
-                new Map((data ?? []).map((r) => [r.core_id, r])).values()
-            );
+            const data = Array.isArray(payload)
+                ? (payload as SpotOfferRequestTemplate[])
+                : [];
+
+            const rows = Array.from(new Map(data.map((r) => [r.core_id, r])).values());
 
             if (rows.length === 0) {
                 setErrorMsg("利用者に紐づくテンプレートがありません");
