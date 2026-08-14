@@ -49,6 +49,8 @@ type InitialDataResponse =
         accountId: string;
         kaipokeUserId: string;
         systemRole: string | null;
+        customFilter: AppliedFilters | null;
+        useCustomFilter: boolean;
       };
       myServiceKeys: ServiceKey[] | null;
       perf: InitialLoadPerf;
@@ -123,6 +125,11 @@ export default function ShiftCoordinatePerformanceTestClient() {
   const [filterName, setFilterName] = useState<string[]>([]);
   const [filterGender, setFilterGender] = useState<string[]>([]);
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>(() => createEmptyAppliedFilters());
+  const [useCustomFilter, setUseCustomFilter] = useState(false);
+  const [savedCustomFilter, setSavedCustomFilter] = useState<AppliedFilters | null>(null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [savingCustomFilter, setSavingCustomFilter] = useState(false);
+  const [customFilterMessage, setCustomFilterMessage] = useState<string | null>(null);
   const [creatingShiftRequest, setCreatingShiftRequest] = useState(false);
 
   useEffect(() => {
@@ -166,6 +173,19 @@ export default function ShiftCoordinatePerformanceTestClient() {
         setKaipokeUserId(payload.user.kaipokeUserId);
         setUserRole(payload.user.systemRole);
         setMyServiceKeys(payload.myServiceKeys);
+        setSavedCustomFilter(payload.user.customFilter);
+        setUseCustomFilter(payload.user.useCustomFilter);
+        if (payload.user.useCustomFilter && payload.user.customFilter) {
+          const restoredFilter = { ...createEmptyAppliedFilters(), ...payload.user.customFilter };
+          setDateFilterType(restoredFilter.dateFilterType);
+          setFilterDate(restoredFilter.filterDate);
+          setFilterWeekday(restoredFilter.filterWeekday);
+          setFilterService(restoredFilter.filterService);
+          setFilterPostal(restoredFilter.filterPostal);
+          setFilterName(restoredFilter.filterName);
+          setFilterGender(restoredFilter.filterGender);
+          setAppliedFilters(restoredFilter);
+        }
         setLoadError(null);
 
         console.log("[shift-coordinate-performance-test] initial-data perf", payload.perf);
@@ -247,6 +267,67 @@ export default function ShiftCoordinatePerformanceTestClient() {
     setAppliedFilters(createEmptyAppliedFilters());
     setCurrentPage(1);
   }, []);
+
+  const saveCustomFilter = useCallback(async () => {
+    setSavingCustomFilter(true);
+    setCustomFilterMessage(null);
+    try {
+      const session = await supabase.auth.getSession();
+      const accessToken = session.data.session?.access_token;
+      if (!accessToken) throw new Error("ログイン情報を取得できません");
+      const response = await fetch("/api/shift-coordinate-performance-test/custom-filter", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ customFilter: appliedFilters, useCustomFilter }),
+      });
+      const payload = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || !payload.ok) throw new Error(payload.error ?? "保存に失敗しました");
+      setSavedCustomFilter(appliedFilters);
+      setSaveDialogOpen(false);
+      setCustomFilterMessage("個人フィルターを保存しました");
+    } catch (error) {
+      setCustomFilterMessage(error instanceof Error ? error.message : "個人フィルターの保存に失敗しました");
+    } finally {
+      setSavingCustomFilter(false);
+    }
+  }, [appliedFilters, useCustomFilter]);
+
+  const toggleCustomFilter = useCallback(async (enabled: boolean) => {
+    setUseCustomFilter(enabled);
+    setCustomFilterMessage(null);
+    if (enabled && !savedCustomFilter) {
+      setUseCustomFilter(false);
+      setCustomFilterMessage("保存されている個人フィルターはありません");
+      return;
+    }
+    if (enabled && savedCustomFilter) {
+      const restoredFilter = { ...createEmptyAppliedFilters(), ...savedCustomFilter };
+      setDateFilterType(restoredFilter.dateFilterType);
+      setFilterDate(restoredFilter.filterDate);
+      setFilterWeekday(restoredFilter.filterWeekday);
+      setFilterService(restoredFilter.filterService);
+      setFilterPostal(restoredFilter.filterPostal);
+      setFilterName(restoredFilter.filterName);
+      setFilterGender(restoredFilter.filterGender);
+      setAppliedFilters(restoredFilter);
+      setCurrentPage(1);
+    }
+    try {
+      const session = await supabase.auth.getSession();
+      const accessToken = session.data.session?.access_token;
+      if (!accessToken) throw new Error("ログイン情報を取得できません");
+      const response = await fetch("/api/shift-coordinate-performance-test/custom-filter", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ useCustomFilter: enabled }),
+      });
+      const payload = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || !payload.ok) throw new Error(payload.error ?? "設定の更新に失敗しました");
+    } catch (error) {
+      setUseCustomFilter(!enabled);
+      setCustomFilterMessage(error instanceof Error ? error.message : "設定の更新に失敗しました");
+    }
+  }, [savedCustomFilter]);
 
   const handleShiftRequest = useCallback(
     async (shift: PerformanceShiftData, attendRequest: boolean, timeAdjustNote?: string) => {
@@ -658,7 +739,34 @@ export default function ShiftCoordinatePerformanceTestClient() {
               </div>
             </div>
           </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            <div>
+              <div className="text-sm font-bold text-slate-800">個人フィルター</div>
+              <div className="mt-1 text-xs text-slate-500">保存した条件をこのページの初期表示に使用します</div>
+            </div>
+            <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-700">
+              <input type="checkbox" checked={useCustomFilter} onChange={(event) => void toggleCustomFilter(event.target.checked)} className="h-4 w-4 accent-cm-primary-600" />
+              個人フィルターを使用
+            </label>
+            <Button onClick={() => setSaveDialogOpen(true)} variant="outline" className="border-cm-primary-200 text-cm-primary-700 hover:bg-cm-primary-50">
+              現在の条件を個人フィルターとして保存
+            </Button>
+            {customFilterMessage ? <span className="basis-full text-sm text-slate-600" role="status">{customFilterMessage}</span> : null}
+          </div>
         </section>
+
+        {saveDialogOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4" role="dialog" aria-modal="true" aria-labelledby="custom-filter-save-title">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+              <h2 id="custom-filter-save-title" className="text-lg font-bold text-slate-900">現在のフィルター条件</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600">個人フィルターとして保存しますか？{savedCustomFilter ? " 既存の個人フィルターは現在の内容で上書きされます。" : ""}</p>
+              <div className="mt-5 flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setSaveDialogOpen(false)} disabled={savingCustomFilter}>キャンセル</Button>
+                <Button onClick={() => void saveCustomFilter()} disabled={savingCustomFilter} className="bg-cm-primary-600 text-white hover:bg-cm-primary-700">{savingCustomFilter ? "保存中…" : "保存する"}</Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <section className="space-y-4" aria-labelledby="shift-list-heading">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -691,6 +799,7 @@ export default function ShiftCoordinatePerformanceTestClient() {
                   onRequest={(attend, note) => {
                     void handleShiftRequest(shift, attend, note);
                   }}
+                  showSmsButton
                   extraActions={<GroupAddButtonPerformanceTest shift={shift} />}
                 />
               ))}

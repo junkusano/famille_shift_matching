@@ -13,6 +13,10 @@ const SHIFT_PAGE_SIZE = 1000;
 const MAX_SHIFT_PAGES = 10;
 const IN_CHUNK_SIZE = 500;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 const SHIFT_SELECT = [
   "shift_id",
   "shift_start_date",
@@ -55,6 +59,8 @@ type UserRecord = {
   user_id: string | null;
   kaipoke_user_id: string | null;
   system_role: string | null;
+  shift_coordinate_custom_filter: unknown;
+  use_shift_coordinate_custom_filter: boolean | null;
 };
 
 type PostalDistrict = {
@@ -545,7 +551,7 @@ export async function GET(req: NextRequest) {
             () =>
               sb
                 .from("users")
-                .select("user_id, kaipoke_user_id, system_role")
+                .select("user_id, kaipoke_user_id, system_role, shift_coordinate_custom_filter, use_shift_coordinate_custom_filter")
                 .eq("auth_user_id", authUser.id)
                 .maybeSingle(),
           ),
@@ -707,6 +713,8 @@ export async function GET(req: NextRequest) {
         accountId: userRecord?.user_id ?? "",
         kaipokeUserId: userRecord?.kaipoke_user_id ?? "",
         systemRole: userRecord?.system_role ?? null,
+        customFilter: isRecord(userRecord?.shift_coordinate_custom_filter) ? userRecord?.shift_coordinate_custom_filter : null,
+        useCustomFilter: userRecord?.use_shift_coordinate_custom_filter === true,
       },
       myServiceKeys,
       perf: {

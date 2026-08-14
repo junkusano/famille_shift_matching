@@ -33,7 +33,7 @@ type Props = {
   creatingRequest?: boolean;
   onRequest?: (attendRequest: boolean, timeAdjustNote?: string) => void;
   extraActions?: React.ReactNode;
-  showSms?: boolean;
+  showSmsButton?: boolean;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -129,12 +129,13 @@ export default function ShiftCardPerformanceTest({
   creatingRequest,
   onRequest,
   extraActions,
-  showSms = false,
+  showSmsButton = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [attendRequest, setAttendRequest] = useState(false);
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
   const [smsOpen, setSmsOpen] = useState(false);
+  const [smsConfirmOpen, setSmsConfirmOpen] = useState(false);
   const [smsBody, setSmsBody] = useState("");
   const [smsSending, setSmsSending] = useState(false);
   const [smsError, setSmsError] = useState<string | null>(null);
@@ -175,11 +176,14 @@ export default function ShiftCardPerformanceTest({
   const csId = String(shift.kaipoke_cs_id ?? "");
   const smsPhone = getString(shift, "sms_phone_number");
   const smsReplyPhones = getStringArray(shift, "sms_reply_phone_numbers");
-  const smsDefaultMessage = [
+  const smsCallbackPhone = smsReplyPhones.join(" / ") || process.env.NEXT_PUBLIC_SMS_MAIN_PHONE?.trim() || "";
+  const smsFooter = [
     SMS_DEFAULT_HEADER,
-    "折り返しは担当者へお願いいたします。",
-    `担当者携帯電話番号：${smsReplyPhones.length ? smsReplyPhones.join(" / ") : "未登録"}`,
+    smsCallbackPhone
+      ? `折り返しは担当者へお願いいたします。\n担当者携帯電話番号：${smsCallbackPhone}`
+      : "",
   ].filter(Boolean).join("\n\n");
+  const buildSmsMessage = (body: string) => [body.trim(), "---", smsFooter].filter(Boolean).join("\n\n");
   const yearMonth = shift.shift_start_date?.length >= 7 ? shift.shift_start_date.slice(0, 7) : "";
   const monthlyHref =
     csId && yearMonth
@@ -203,9 +207,11 @@ export default function ShiftCardPerformanceTest({
         body: JSON.stringify({
           items: [{
             phone: smsPhone,
-            body: `${smsDefaultMessage}\n\n${smsBody.trim()}`,
+            body: buildSmsMessage(smsBody),
             shift_id: String(shift.shift_id),
             kaipoke_cs_id: shift.kaipoke_cs_id,
+            callback_phone: smsCallbackPhone || null,
+            callback_phone_type: smsReplyPhones.length ? "manager" : "main",
           }],
         }),
       });
@@ -446,7 +452,7 @@ export default function ShiftCardPerformanceTest({
             </Button>
           )}
 
-          {showSms && <>
+          {showSmsButton && <>
           <Button
             variant="outline"
             className="w-full sm:w-auto"
@@ -454,11 +460,24 @@ export default function ShiftCardPerformanceTest({
             onClick={() => {
               setSmsError(null);
               setSmsSent(false);
-              setSmsOpen(true);
+              setSmsConfirmOpen(true);
             }}
           >
             <MessageSquareText className="h-4 w-4" /> 利用者様へSMS
           </Button>
+
+          <Dialog open={smsConfirmOpen} onOpenChange={setSmsConfirmOpen}>
+            <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-4 mr-0">
+              <DialogTitle>利用者様へSMS</DialogTitle>
+              <DialogDescription>
+                利用者様への連絡はLINEグループを使用します。マネージャーから連絡してもらうことが基本です。どうしても直接連絡が必要な場合のみSMSを使用してください。
+              </DialogDescription>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setSmsConfirmOpen(false)}>NO</Button>
+                <Button onClick={() => { setSmsConfirmOpen(false); setSmsOpen(true); }}>OK</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <Dialog open={smsOpen} onOpenChange={setSmsOpen}>
             <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[560px] sm:mx-auto ml-4 mr-0">
@@ -468,7 +487,7 @@ export default function ShiftCardPerformanceTest({
                 <div><strong>送信先</strong><div>{smsPhone || "電話番号未登録"}</div></div>
                 <div>
                   <strong>固定文</strong>
-                  <div className="mt-1 whitespace-pre-wrap rounded-lg border bg-slate-50 p-3">{smsDefaultMessage}</div>
+                  <div className="mt-1 whitespace-pre-wrap rounded-lg border bg-slate-50 p-3">{smsFooter}</div>
                 </div>
                 <label className="block">
                   <strong>本文</strong>
@@ -483,7 +502,7 @@ export default function ShiftCardPerformanceTest({
                 <div>
                   <strong>送信内容プレビュー</strong>
                   <div className="mt-1 whitespace-pre-wrap rounded-lg border p-3">
-                    {smsDefaultMessage}{smsBody.trim() ? `\n\n${smsBody.trim()}` : ""}
+                    {smsBody.trim() ? buildSmsMessage(smsBody) : smsFooter}
                   </div>
                 </div>
                 {smsError && <div className="rounded-lg border border-red-300 bg-red-50 p-2 text-red-700">{smsError}</div>}

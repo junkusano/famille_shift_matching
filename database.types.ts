@@ -8958,9 +8958,11 @@ export type Database = {
           role: string | null
           roster_sort: string | null
           service_type: string | null
+          shift_coordinate_custom_filter: Json | null
           status: string | null
           system_role: string | null
           temp_password: string | null
+          use_shift_coordinate_custom_filter: boolean
           user_id: string
         }
         Insert: {
@@ -8986,9 +8988,11 @@ export type Database = {
           role?: string | null
           roster_sort?: string | null
           service_type?: string | null
+          shift_coordinate_custom_filter?: Json | null
           status?: string | null
           system_role?: string | null
           temp_password?: string | null
+          use_shift_coordinate_custom_filter?: boolean
           user_id: string
         }
         Update: {
@@ -9014,9 +9018,11 @@ export type Database = {
           role?: string | null
           roster_sort?: string | null
           service_type?: string | null
+          shift_coordinate_custom_filter?: Json | null
           status?: string | null
           system_role?: string | null
           temp_password?: string | null
+          use_shift_coordinate_custom_filter?: boolean
           user_id?: string
         }
         Relationships: [

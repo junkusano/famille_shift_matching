@@ -672,7 +672,7 @@ function ShiftRejectCardPerformanceTest({
 
           <Button
             variant="outline"
-            className="w-full"
+            className="hidden w-full"
             disabled={!shift.sms_phone_number}
             onClick={() => {
               setSmsError(null);

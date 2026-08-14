@@ -12,6 +12,8 @@ type Item = {
   // ★ ShiftCardから送る情報
   shift_id?: string;
   kaipoke_cs_id?: string;
+  callback_phone?: string | null;
+  callback_phone_type?: "manager" | "main";
 };
 
 function errorMessage(err: unknown): string {
@@ -171,6 +173,45 @@ async function getAuthUserId(
   return user.id;
 }
 
+async function writeSmsAuditLog({
+  supabaseAdmin,
+  item,
+  recipientPhone,
+  success,
+  actorUserId,
+  twilioMessageSid,
+  error,
+}: {
+  supabaseAdmin: ReturnType<typeof createSupabaseAdmin>;
+  item: Item;
+  recipientPhone: string;
+  success: boolean;
+  actorUserId: string | null;
+  twilioMessageSid?: string | null;
+  error?: unknown;
+}) {
+  const { error: auditError } = await supabaseAdmin.from("audit_log").insert({
+    table_name: "sms_send_logs",
+    action: "sms_send",
+    actor_user_id: actorUserId,
+    event_type: "sms",
+    record_id: item.shift_id ? String(item.shift_id) : null,
+    request_path: "/api/sms/send",
+    after_row: {
+      action: "sms_send",
+      client_id: item.kaipoke_cs_id ?? null,
+      shift_id: item.shift_id ?? null,
+      recipient_phone: recipientPhone,
+      callback_phone: item.callback_phone ?? null,
+      callback_phone_type: item.callback_phone_type ?? null,
+      success,
+      twilio_message_sid: twilioMessageSid ?? null,
+      error: error ? errorMessage(error) : null,
+    },
+  });
+  if (auditError) console.error("[audit_log] SMS insert failed", auditError);
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (!messagingServiceSid) {
@@ -248,6 +289,15 @@ export async function POST(req: NextRequest) {
           phone,
         });
 
+        await writeSmsAuditLog({
+          supabaseAdmin,
+          item: it,
+          recipientPhone: phone,
+          success: true,
+          actorUserId: authUserId,
+          twilioMessageSid: msg.sid,
+        });
+
         /*
          * ★ ShiftCardからのSMSの場合だけログ保存
          *
@@ -292,6 +342,14 @@ export async function POST(req: NextRequest) {
           );
         }
       } catch (sendError) {
+        await writeSmsAuditLog({
+          supabaseAdmin,
+          item: it,
+          recipientPhone: phone,
+          success: false,
+          actorUserId: authUserId,
+          error: sendError,
+        });
         /*
          * Twilio送信失敗もログへ残す
          */
