@@ -105,6 +105,28 @@ function toHm(time?: string | null) {
   return time ? time.slice(0, 5) : "";
 }
 
+function summarizeAppliedFilters(filters: AppliedFilters, options: ShiftFilterOptions) {
+  const parts: string[] = [];
+  if (filters.dateFilterType === "date" && filters.filterDate.length) {
+    parts.push(`日付: ${filters.filterDate.map((date) => format(parseISO(date), "M/d")).join(", ")}`);
+  }
+  if (filters.dateFilterType === "weekday" && filters.filterWeekday.length) {
+    const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+    parts.push(`曜日: ${filters.filterWeekday.map((day) => weekdays[Number(day)] ?? day).join(", ")}`);
+  }
+  if (filters.filterService.length) parts.push(`サービス: ${filters.filterService.join(", ")}`);
+  if (filters.filterPostal.length) {
+    const areas = filters.filterPostal.map((postal) => {
+      const option = options.postalOptions.find((item) => item.postal_code_3 === postal);
+      return option?.district ? `${postal} ${option.district}` : postal;
+    });
+    parts.push(`エリア: ${areas.join(", ")}`);
+  }
+  if (filters.filterName.length) parts.push(`利用者: ${filters.filterName.join(", ")}`);
+  if (filters.filterGender.length) parts.push(`性別: ${filters.filterGender.join(", ")}`);
+  return parts;
+}
+
 export default function ShiftCoordinatePerformanceTestClient() {
   const didFetchRef = useRef(false);
   const [loading, setLoading] = useState(true);
@@ -515,6 +537,7 @@ export default function ShiftCoordinatePerformanceTestClient() {
     appliedFilters.filterName,
     appliedFilters.filterGender,
   ].reduce((total, values) => total + values.length, 0);
+  const appliedFilterSummary = summarizeAppliedFilters(appliedFilters, filterOptions);
 
   if (loading) {
     return (
@@ -772,7 +795,31 @@ export default function ShiftCoordinatePerformanceTestClient() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <div className="text-xs font-bold tracking-[0.16em] text-cm-primary-700">MAIN SHIFT LIST</div>
-              <h2 id="shift-list-heading" className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">シフ子本体</h2>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <h2 id="shift-list-heading" className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">シフ子本体</h2>
+                <span
+                  className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold shadow-sm ${
+                    appliedFilterSummary.length > 0
+                      ? "border-cm-primary-200 bg-cm-primary-50 text-cm-primary-800"
+                      : "border-slate-200 bg-white text-slate-600"
+                  }`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {appliedFilterSummary.length > 0 ? "フィルター適用中" : "全体を表示"}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2" aria-label="現在適用中のフィルター条件">
+                {appliedFilterSummary.length > 0 ? (
+                  appliedFilterSummary.map((summary) => (
+                    <span key={summary} className="rounded-md bg-cm-primary-50 px-2.5 py-1 text-xs font-semibold text-cm-primary-800">
+                      {summary}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-slate-500">フィルター条件なし（すべてのシフトを表示）</span>
+                )}
+              </div>
               <p className="mt-1 text-sm text-slate-500">日付・時間・給与の目安を見比べて、入りたいシフトを選べます。</p>
             </div>
             <div className="flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm shadow-sm sm:self-auto">

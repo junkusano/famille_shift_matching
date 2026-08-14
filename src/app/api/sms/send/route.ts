@@ -4,6 +4,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import twilio, { Twilio } from "twilio";
 import { createClient } from "@supabase/supabase-js";
+import { buildSmsMessage, DEFAULT_SMS_BUSINESS_NAME } from "@/lib/smsMessage";
 
 type Item = {
   phone: string;
@@ -63,6 +64,8 @@ function createSupabaseAdmin() {
 
 const messagingServiceSid =
   process.env.TWILIO_MESSAGING_SERVICE_SID;
+const smsBusinessName = process.env.SMS_BUSINESS_NAME?.trim() || DEFAULT_SMS_BUSINESS_NAME;
+const smsMainPhone = process.env.SMS_MAIN_PHONE?.trim() || process.env.NEXT_PUBLIC_SMS_MAIN_PHONE?.trim() || "";
 
 const QUIET_START = Number(
   process.env.QUIET_HOURS_START ?? 21
@@ -266,8 +269,24 @@ export async function POST(req: NextRequest) {
         String(it.phone || "")
       );
 
+      const managerPhone =
+        it.callback_phone_type === "manager" ? it.callback_phone?.trim() || null : null;
+      if (!managerPhone && !smsMainPhone) {
+        throw new Error("SMS_MAIN_PHONE is not configured");
+      }
+      const auditItem: Item = {
+        ...it,
+        callback_phone: managerPhone || smsMainPhone,
+        callback_phone_type: managerPhone ? "manager" : "main",
+      };
+
       const body = withStop(
-        String(it.body || "")
+        buildSmsMessage({
+          body: String(it.body || ""),
+          managerPhone,
+          businessName: smsBusinessName,
+          mainPhone: smsMainPhone,
+        })
       ).slice(0, 1600);
 
       if (!body.trim()) {
@@ -291,7 +310,7 @@ export async function POST(req: NextRequest) {
 
         await writeSmsAuditLog({
           supabaseAdmin,
-          item: it,
+          item: auditItem,
           recipientPhone: phone,
           success: true,
           actorUserId: authUserId,
@@ -344,7 +363,7 @@ export async function POST(req: NextRequest) {
       } catch (sendError) {
         await writeSmsAuditLog({
           supabaseAdmin,
-          item: it,
+          item: auditItem,
           recipientPhone: phone,
           success: false,
           actorUserId: authUserId,

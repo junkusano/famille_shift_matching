@@ -28,6 +28,7 @@ import DocUploader, { type DocItem } from "@/components/DocUploader";
 import ShiftRecordLinkButton from "@/components/shift/ShiftRecordLinkButton";
 import GroupAddButtonPerformanceTest from "@/components/shift-coordinate-performance-test/GroupAddButtonPerformanceTest";
 import { supabase } from "@/lib/supabaseClient";
+import { buildSmsMessage, getClientSmsBusinessName, getClientSmsMainPhone } from "@/lib/smsMessage";
 import type { ServiceKey } from "@/lib/certificateJudge";
 import type {
   RejectPerformanceShift,
@@ -56,9 +57,6 @@ type ParkingPlace = {
   picture2_url?: string | null;
 };
 
-const SMS_DEFAULT_HEADER =
-  "ファミーユヘルパーサービス愛知からのSMSです。\n" +
-  "※このSMSは送信専用です。返信いただいても確認できません。";
 const MEAL_EXPENSE_REQUEST_TYPE_ID = "ceb95336-89c1-4030-a46f-e7acbbc8d901";
 const parkingCache = new Map<string, ParkingPlace[]>();
 const parkingPromiseCache = new Map<string, Promise<ParkingPlace[]>>();
@@ -270,14 +268,15 @@ function ShiftRejectCardPerformanceTest({
   const monthlyHref = `/portal/shift-view?client=${encodeURIComponent(
     shift.kaipoke_cs_id,
   )}&date=${encodeURIComponent(yearMonth)}-01`;
-  const smsCallbackPhone = shift.sms_reply_phone_numbers?.join(" / ") || process.env.NEXT_PUBLIC_SMS_MAIN_PHONE?.trim() || "";
-  const smsFooter = [
-    SMS_DEFAULT_HEADER,
-    smsCallbackPhone
-      ? `折り返しは担当者へお願いいたします。\n担当者携帯電話番号：${smsCallbackPhone}`
-      : "",
-  ].filter(Boolean).join("\n\n");
-  const buildSmsMessage = (body: string) => [body.trim(), "---", smsFooter].filter(Boolean).join("\n\n");
+  const smsManagerPhone = shift.sms_reply_phone_numbers?.join(" / ") || null;
+  const smsBusinessName = getClientSmsBusinessName();
+  const smsMainPhone = getClientSmsMainPhone();
+  const smsPreview = (body: string) => buildSmsMessage({
+    body,
+    managerPhone: smsManagerPhone,
+    businessName: smsBusinessName,
+    mainPhone: smsMainPhone,
+  });
 
   const sendSms = async () => {
     const phone = shift.sms_phone_number?.trim();
@@ -298,11 +297,11 @@ function ShiftRejectCardPerformanceTest({
           items: [
             {
               phone,
-              body: buildSmsMessage(smsBody),
+              body: smsBody.trim(),
               shift_id: String(shift.shift_id),
               kaipoke_cs_id: shift.kaipoke_cs_id,
-              callback_phone: smsCallbackPhone || null,
-              callback_phone_type: shift.sms_reply_phone_numbers?.length ? "manager" : "main",
+              callback_phone: smsManagerPhone,
+              callback_phone_type: smsManagerPhone ? "manager" : "main",
             },
           ],
         }),
@@ -688,6 +687,9 @@ function ShiftRejectCardPerformanceTest({
           >
             <MessageSquareText className="h-4 w-4" /> 利用者様へSMS
           </Button>
+          {!shift.sms_phone_number && (
+            <p className="text-xs text-amber-700">利用者様のSMS送信用電話番号が登録されていません。担当者へご連絡ください。</p>
+          )}
 
           <Dialog open={smsConfirmOpen} onOpenChange={setSmsConfirmOpen}>
             <DialogContent className="w-[calc(100vw-32px)] sm:max-w-[480px]">
@@ -746,7 +748,7 @@ function ShiftRejectCardPerformanceTest({
               <div><strong>送信先</strong><div>{shift.sms_phone_number || "電話番号未登録"}</div></div>
               <div>
                 <strong>固定文</strong>
-                <div className="mt-1 whitespace-pre-wrap rounded-lg border bg-slate-50 p-3">{smsFooter}</div>
+                <div className="mt-1 whitespace-pre-wrap rounded-lg border bg-slate-50 p-3">{smsPreview("")}</div>
               </div>
               <label className="block">
                 <strong>本文</strong>
@@ -761,7 +763,7 @@ function ShiftRejectCardPerformanceTest({
               <div>
                 <strong>送信内容プレビュー</strong>
                 <div className="mt-1 whitespace-pre-wrap rounded-lg border p-3">
-                  {smsBody.trim() ? buildSmsMessage(smsBody) : smsFooter}
+                  {smsPreview(smsBody)}
                 </div>
               </div>
               {smsError && <div className="rounded-lg border border-red-300 bg-red-50 p-2 text-red-700">{smsError}</div>}

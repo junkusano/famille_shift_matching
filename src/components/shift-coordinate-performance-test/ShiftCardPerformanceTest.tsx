@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabaseClient";
+import { buildSmsMessage, getClientSmsBusinessName, getClientSmsMainPhone } from "@/lib/smsMessage";
 import type { ServiceKey } from "@/lib/certificateJudge";
 import type { ShiftData } from "@/types/shift";
 
@@ -37,10 +38,6 @@ type Props = {
 };
 
 type UnknownRecord = Record<string, unknown>;
-
-const SMS_DEFAULT_HEADER =
-  "ファミーユヘルパーサービス愛知からのSMSです。\n" +
-  "※このSMSは送信専用です。返信いただいても確認できません。";
 
 const DEFAULT_BADGE_TEXT = "時間調整可能";
 
@@ -176,14 +173,15 @@ export default function ShiftCardPerformanceTest({
   const csId = String(shift.kaipoke_cs_id ?? "");
   const smsPhone = getString(shift, "sms_phone_number");
   const smsReplyPhones = getStringArray(shift, "sms_reply_phone_numbers");
-  const smsCallbackPhone = smsReplyPhones.join(" / ") || process.env.NEXT_PUBLIC_SMS_MAIN_PHONE?.trim() || "";
-  const smsFooter = [
-    SMS_DEFAULT_HEADER,
-    smsCallbackPhone
-      ? `折り返しは担当者へお願いいたします。\n担当者携帯電話番号：${smsCallbackPhone}`
-      : "",
-  ].filter(Boolean).join("\n\n");
-  const buildSmsMessage = (body: string) => [body.trim(), "---", smsFooter].filter(Boolean).join("\n\n");
+  const smsManagerPhone = smsReplyPhones.join(" / ") || null;
+  const smsBusinessName = getClientSmsBusinessName();
+  const smsMainPhone = getClientSmsMainPhone();
+  const smsPreview = (body: string) => buildSmsMessage({
+    body,
+    managerPhone: smsManagerPhone,
+    businessName: smsBusinessName,
+    mainPhone: smsMainPhone,
+  });
   const yearMonth = shift.shift_start_date?.length >= 7 ? shift.shift_start_date.slice(0, 7) : "";
   const monthlyHref =
     csId && yearMonth
@@ -207,11 +205,11 @@ export default function ShiftCardPerformanceTest({
         body: JSON.stringify({
           items: [{
             phone: smsPhone,
-            body: buildSmsMessage(smsBody),
+            body: smsBody.trim(),
             shift_id: String(shift.shift_id),
             kaipoke_cs_id: shift.kaipoke_cs_id,
-            callback_phone: smsCallbackPhone || null,
-            callback_phone_type: smsReplyPhones.length ? "manager" : "main",
+            callback_phone: smsManagerPhone,
+            callback_phone_type: smsManagerPhone ? "manager" : "main",
           }],
         }),
       });
@@ -465,6 +463,9 @@ export default function ShiftCardPerformanceTest({
           >
             <MessageSquareText className="h-4 w-4" /> 利用者様へSMS
           </Button>
+          {!smsPhone && (
+            <p className="text-xs text-amber-700">利用者様のSMS送信用電話番号が登録されていません。担当者へご連絡ください。</p>
+          )}
 
           <Dialog open={smsConfirmOpen} onOpenChange={setSmsConfirmOpen}>
             <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-4 mr-0">
@@ -487,7 +488,7 @@ export default function ShiftCardPerformanceTest({
                 <div><strong>送信先</strong><div>{smsPhone || "電話番号未登録"}</div></div>
                 <div>
                   <strong>固定文</strong>
-                  <div className="mt-1 whitespace-pre-wrap rounded-lg border bg-slate-50 p-3">{smsFooter}</div>
+                  <div className="mt-1 whitespace-pre-wrap rounded-lg border bg-slate-50 p-3">{smsPreview("")}</div>
                 </div>
                 <label className="block">
                   <strong>本文</strong>
@@ -502,7 +503,7 @@ export default function ShiftCardPerformanceTest({
                 <div>
                   <strong>送信内容プレビュー</strong>
                   <div className="mt-1 whitespace-pre-wrap rounded-lg border p-3">
-                    {smsBody.trim() ? buildSmsMessage(smsBody) : smsFooter}
+                    {smsPreview(smsBody)}
                   </div>
                 </div>
                 {smsError && <div className="rounded-lg border border-red-300 bg-red-50 p-2 text-red-700">{smsError}</div>}
