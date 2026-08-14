@@ -177,7 +177,8 @@ export default function ShiftCardPerformanceTest({
   const smsReplyPhones = getStringArray(shift, "sms_reply_phone_numbers");
   const smsDefaultMessage = [
     SMS_DEFAULT_HEADER,
-    smsReplyPhones.length ? `返信先（担当マネジャー）: ${smsReplyPhones.join(" / ")}` : "",
+    "折り返しは担当者へお願いいたします。",
+    `担当者携帯電話番号：${smsReplyPhones.length ? smsReplyPhones.join(" / ") : "未登録"}`,
   ].filter(Boolean).join("\n\n");
   const yearMonth = shift.shift_start_date?.length >= 7 ? shift.shift_start_date.slice(0, 7) : "";
   const monthlyHref =
