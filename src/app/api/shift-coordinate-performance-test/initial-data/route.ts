@@ -70,6 +70,7 @@ type CsInfoRow = {
   kaipoke_cs_id: string;
   name: string | null;
   phone_01: string | null;
+  asigned_jisseki_staff: string | null;
   commuting_flg: boolean | null;
   standard_route: string | null;
   standard_trans_ways: string | null;
@@ -588,7 +589,7 @@ export async function GET(req: NextRequest) {
       ),
     );
 
-    const [csInfoRows, shiftDetailRows, csDocRows, staffRows, managerContactRows] = await timedStage(
+    const [csInfoRows, shiftDetailRows, csDocRows, staffRows] = await timedStage(
       timings,
       "initial.parallel_dependent_fetches",
       () =>
@@ -597,7 +598,7 @@ export async function GET(req: NextRequest) {
             stage: "supabase.cs_kaipoke_info",
             table: "cs_kaipoke_info",
             select:
-              "kaipoke_cs_id, name, phone_01, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko",
+              "kaipoke_cs_id, name, phone_01, asigned_jisseki_staff, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko",
             column: "kaipoke_cs_id",
             values: kaipokeCsIds,
           }),
@@ -626,15 +627,23 @@ export async function GET(req: NextRequest) {
             column: "user_id",
             values: staffIds,
           }),
-          fetchRowsByColumn<ManagerContactRow>(sb, timings, counter, {
-            stage: "supabase.user_org_exception.manager_contacts",
-            table: "user_org_exception",
-            select: "user_id,org_mgr_phone",
-            column: "user_id",
-            values: userRecord?.user_id ? [userRecord.user_id] : [],
-          }),
         ]),
     );
+
+    const managerIds = Array.from(
+      new Set(
+        csInfoRows
+          .map((row) => row.asigned_jisseki_staff?.trim())
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    const managerContactRows = await fetchRowsByColumn<ManagerContactRow>(sb, timings, counter, {
+      stage: "supabase.user_org_exception.manager_contacts",
+      table: "user_org_exception",
+      select: "user_id,org_mgr_phone",
+      column: "user_id",
+      values: managerIds,
+    });
 
     const mergedShifts = await timedStage(timings, "transform.merge_client_information", async () => {
       const csInfoMap = new Map(csInfoRows.map((info) => [String(info.kaipoke_cs_id), info]));
@@ -660,6 +669,7 @@ export async function GET(req: NextRequest) {
         const smsReplyPhoneNumbers = Array.from(
           new Set(
             managerContactRows
+              .filter((row) => row.user_id === csInfo?.asigned_jisseki_staff)
               .map((row) => row.org_mgr_phone?.trim())
               .filter((value): value is string => Boolean(value)),
           ),

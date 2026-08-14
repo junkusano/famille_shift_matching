@@ -111,6 +111,7 @@ type ShiftRow = {
 
 type ClientInfoRow = {
   kaipoke_cs_id: string;
+  asigned_jisseki_staff: string | null;
   address: string | null;
   postal_code: string | null;
   phone_01?: string | null;
@@ -526,7 +527,7 @@ async function hydrateShifts(
     ),
   );
 
-  const [clientRows, shiftDetailRows, csDocRows, staffRows, recordRows, mealRows, parkingRows, myServiceKeys, managerContactRows] =
+  const [clientRows, shiftDetailRows, csDocRows, staffRows, recordRows, mealRows, parkingRows, myServiceKeys] =
     await timedStage(timings, "initial.parallel_dependent_fetches", () =>
       Promise.all([
         fetchRowsByColumn<ClientInfoRow>(sb, timings, counter, {
@@ -534,6 +535,7 @@ async function hydrateShifts(
           table: "cs_kaipoke_info",
           select: [
             "kaipoke_cs_id",
+            "asigned_jisseki_staff",
             "address",
             "postal_code",
             ...(includeSmsPhone ? ["phone_01"] : []),
@@ -591,15 +593,23 @@ async function hydrateShifts(
           eq: [{ column: "is_active", value: true }],
         }),
         fetchMyServiceKeys(sb, timings, counter, authUserId),
-        fetchRowsByColumn<ManagerContactRow>(sb, timings, counter, {
-          stage: "supabase.user_org_exception.manager_contacts",
-          table: "user_org_exception",
-          select: "user_id,org_mgr_phone",
-          column: "user_id",
-          values: staffIds,
-        }),
       ]),
     );
+
+  const managerIds = Array.from(
+    new Set(
+      clientRows
+        .map((row) => row.asigned_jisseki_staff?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+  const managerContactRows = await fetchRowsByColumn<ManagerContactRow>(sb, timings, counter, {
+    stage: "supabase.user_org_exception.manager_contacts",
+    table: "user_org_exception",
+    select: "user_id,org_mgr_phone",
+    column: "user_id",
+    values: managerIds,
+  });
 
   const adjustabilityIds = clientRows
     .map((row) => row.time_adjustability_id)
@@ -638,7 +648,7 @@ async function hydrateShifts(
   const mealExpenseShiftIds = new Set(mealRows.map((row) => payloadShiftId(row.payload)).filter(Boolean));
   const parkingCsIds = new Set(parkingRows.map((row) => String(row.kaipoke_cs_id)));
   const adjustMap = new Map(adjustRows.map((row) => [String(row.id), row]));
-  const managerPhoneByStaffId = new Map(
+  const managerPhoneByManagerId = new Map(
     managerContactRows.map((row) => [row.user_id, row.org_mgr_phone?.trim() || ""]),
   );
 
@@ -657,9 +667,7 @@ async function hydrateShifts(
       const client = clientMap.get(csId);
       const smsReplyPhoneNumbers = Array.from(
         new Set(
-          [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
-            .map((staffId) => managerPhoneByStaffId.get(String(staffId ?? "").trim()) ?? "")
-            .filter(Boolean),
+          [managerPhoneByManagerId.get(String(client?.asigned_jisseki_staff ?? "").trim()) ?? ""].filter(Boolean),
         ),
       );
       const adjust = client?.time_adjustability_id
