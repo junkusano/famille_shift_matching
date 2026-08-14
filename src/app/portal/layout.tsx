@@ -192,7 +192,7 @@ function NavLinks({ role }: { role: string | null }) {
           href="/portal/shift-reject-performance-test"
           className="inline-flex items-center gap-2 text-blue-200 hover:underline"
         >
-          <span>シフト・訪問記録（ベータ版）</span>
+          <span>シフト・訪問記録（β版）</span>
           <span className="rounded-full bg-amber-300/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-200">
             BETA
           </span>
@@ -204,7 +204,7 @@ function NavLinks({ role }: { role: string | null }) {
           href="/portal/shift-coordinate-performance-test"
           className="inline-flex items-center gap-2 text-blue-200 hover:underline"
         >
-          <span>シフ子（ベータ版）</span>
+          <span>シフ子（β版）</span>
           <span className="rounded-full bg-amber-300/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-200">
             BETA
           </span>

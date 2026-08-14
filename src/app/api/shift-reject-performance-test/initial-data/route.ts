@@ -123,6 +123,11 @@ type ClientInfoRow = {
   time_adjustability_id: string | null;
 };
 
+type ManagerContactRow = {
+  user_id: string;
+  org_mgr_phone: string | null;
+};
+
 type ShiftDetailRow = {
   kaipoke_cs_id: string | null;
   shift_detail_information: string | null;
@@ -521,7 +526,7 @@ async function hydrateShifts(
     ),
   );
 
-  const [clientRows, shiftDetailRows, csDocRows, staffRows, recordRows, mealRows, parkingRows, myServiceKeys] =
+  const [clientRows, shiftDetailRows, csDocRows, staffRows, recordRows, mealRows, parkingRows, myServiceKeys, managerContactRows] =
     await timedStage(timings, "initial.parallel_dependent_fetches", () =>
       Promise.all([
         fetchRowsByColumn<ClientInfoRow>(sb, timings, counter, {
@@ -586,6 +591,13 @@ async function hydrateShifts(
           eq: [{ column: "is_active", value: true }],
         }),
         fetchMyServiceKeys(sb, timings, counter, authUserId),
+        fetchRowsByColumn<ManagerContactRow>(sb, timings, counter, {
+          stage: "supabase.user_org_exception.manager_contacts",
+          table: "user_org_exception",
+          select: "user_id,org_mgr_phone",
+          column: "user_id",
+          values: staffIds,
+        }),
       ]),
     );
 
@@ -626,6 +638,9 @@ async function hydrateShifts(
   const mealExpenseShiftIds = new Set(mealRows.map((row) => payloadShiftId(row.payload)).filter(Boolean));
   const parkingCsIds = new Set(parkingRows.map((row) => String(row.kaipoke_cs_id)));
   const adjustMap = new Map(adjustRows.map((row) => [String(row.id), row]));
+  const managerPhoneByStaffId = new Map(
+    managerContactRows.map((row) => [row.user_id, row.org_mgr_phone?.trim() || ""]),
+  );
 
   const shifts = rawShifts
     .filter(
@@ -640,6 +655,13 @@ async function hydrateShifts(
       const shiftId = String(shift.shift_id);
       const csId = String(shift.kaipoke_cs_id);
       const client = clientMap.get(csId);
+      const smsReplyPhoneNumbers = Array.from(
+        new Set(
+          [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
+            .map((staffId) => managerPhoneByStaffId.get(String(staffId ?? "").trim()) ?? "")
+            .filter(Boolean),
+        ),
+      );
       const adjust = client?.time_adjustability_id
         ? adjustMap.get(String(client.time_adjustability_id))
         : undefined;
@@ -666,6 +688,7 @@ async function hydrateShifts(
         address: client?.address?.trim() || shift.address?.trim() || "",
         postal_code: client?.postal_code?.trim() || shift.postal_code?.trim() || "",
         sms_phone_number: includeSmsPhone ? client?.phone_01?.trim() || null : null,
+        sms_reply_phone_numbers: smsReplyPhoneNumbers,
         estimated_pay_amount: numberOrNull(shift.estimated_pay_amount),
         client_name: shift.name ?? "",
         gender_request_name: shift.gender_request_name ?? "",

@@ -14,6 +14,7 @@ export type RejectPerformanceShift = ShiftData & {
   basic_information?: string;
   shift_detail_information?: string;
   sms_phone_number?: string | null;
+  sms_reply_phone_numbers?: string[];
   time_adjustable?: boolean;
   time_adjust_text?: string;
   time_adjust_advance_hours?: number;

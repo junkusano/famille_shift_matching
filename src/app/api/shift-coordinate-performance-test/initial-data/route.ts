@@ -69,6 +69,7 @@ type ConfirmedShiftRecord = {
 type CsInfoRow = {
   kaipoke_cs_id: string;
   name: string | null;
+  phone_01: string | null;
   commuting_flg: boolean | null;
   standard_route: string | null;
   standard_trans_ways: string | null;
@@ -94,6 +95,11 @@ type StaffRow = {
   last_name_kanji: string | null;
   first_name_kanji: string | null;
   level_sort: number | null;
+};
+
+type ManagerContactRow = {
+  user_id: string;
+  org_mgr_phone: string | null;
 };
 
 type FormEntryRow = {
@@ -582,7 +588,7 @@ export async function GET(req: NextRequest) {
       ),
     );
 
-    const [csInfoRows, shiftDetailRows, csDocRows, staffRows] = await timedStage(
+    const [csInfoRows, shiftDetailRows, csDocRows, staffRows, managerContactRows] = await timedStage(
       timings,
       "initial.parallel_dependent_fetches",
       () =>
@@ -591,7 +597,7 @@ export async function GET(req: NextRequest) {
             stage: "supabase.cs_kaipoke_info",
             table: "cs_kaipoke_info",
             select:
-              "kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko",
+              "kaipoke_cs_id, name, phone_01, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko",
             column: "kaipoke_cs_id",
             values: kaipokeCsIds,
           }),
@@ -620,6 +626,13 @@ export async function GET(req: NextRequest) {
             column: "user_id",
             values: staffIds,
           }),
+          fetchRowsByColumn<ManagerContactRow>(sb, timings, counter, {
+            stage: "supabase.user_org_exception.manager_contacts",
+            table: "user_org_exception",
+            select: "user_id,org_mgr_phone",
+            column: "user_id",
+            values: userRecord?.user_id ? [userRecord.user_id] : [],
+          }),
         ]),
     );
 
@@ -644,9 +657,18 @@ export async function GET(req: NextRequest) {
       return baseShifts.map((shift): PerformanceShiftData => {
         const kaipokeCsId = String(shift.kaipoke_cs_id ?? "").trim();
         const csInfo = csInfoMap.get(kaipokeCsId);
+        const smsReplyPhoneNumbers = Array.from(
+          new Set(
+            managerContactRows
+              .map((row) => row.org_mgr_phone?.trim())
+              .filter((value): value is string => Boolean(value)),
+          ),
+        );
 
         return {
           ...shift,
+          sms_phone_number: csInfo?.phone_01?.trim() || null,
+          sms_reply_phone_numbers: smsReplyPhoneNumbers,
           cs_name: csInfo?.name ?? "",
           commuting_flg: csInfo?.commuting_flg ?? false,
           standard_route: csInfo?.standard_route ?? "",

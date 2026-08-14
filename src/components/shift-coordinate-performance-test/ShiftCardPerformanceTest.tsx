@@ -33,6 +33,7 @@ type Props = {
   creatingRequest?: boolean;
   onRequest?: (attendRequest: boolean, timeAdjustNote?: string) => void;
   extraActions?: React.ReactNode;
+  showSms?: boolean;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -48,6 +49,15 @@ function getString(obj: unknown, key: string): string | undefined {
   const value = (obj as UnknownRecord)[key];
   if (typeof value === "string" && value.trim()) return value.trim();
   return undefined;
+}
+
+function getStringArray(obj: unknown, key: string): string[] {
+  if (!obj || typeof obj !== "object") return [];
+  const value = (obj as UnknownRecord)[key];
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+    .map((item) => item.trim());
 }
 
 function coerceBool(value: unknown): boolean | undefined {
@@ -119,6 +129,7 @@ export default function ShiftCardPerformanceTest({
   creatingRequest,
   onRequest,
   extraActions,
+  showSms = true,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [attendRequest, setAttendRequest] = useState(false);
@@ -163,6 +174,11 @@ export default function ShiftCardPerformanceTest({
 
   const csId = String(shift.kaipoke_cs_id ?? "");
   const smsPhone = getString(shift, "sms_phone_number");
+  const smsReplyPhones = getStringArray(shift, "sms_reply_phone_numbers");
+  const smsDefaultMessage = [
+    SMS_DEFAULT_HEADER,
+    smsReplyPhones.length ? `返信先（担当マネジャー）: ${smsReplyPhones.join(" / ")}` : "",
+  ].filter(Boolean).join("\n\n");
   const yearMonth = shift.shift_start_date?.length >= 7 ? shift.shift_start_date.slice(0, 7) : "";
   const monthlyHref =
     csId && yearMonth
@@ -186,7 +202,7 @@ export default function ShiftCardPerformanceTest({
         body: JSON.stringify({
           items: [{
             phone: smsPhone,
-            body: `${SMS_DEFAULT_HEADER}\n\n${smsBody.trim()}`,
+            body: `${smsDefaultMessage}\n\n${smsBody.trim()}`,
             shift_id: String(shift.shift_id),
             kaipoke_cs_id: shift.kaipoke_cs_id,
           }],
@@ -429,6 +445,7 @@ export default function ShiftCardPerformanceTest({
             </Button>
           )}
 
+          {showSms && <>
           <Button
             variant="outline"
             className="w-full sm:w-auto"
@@ -450,7 +467,7 @@ export default function ShiftCardPerformanceTest({
                 <div><strong>送信先</strong><div>{smsPhone || "電話番号未登録"}</div></div>
                 <div>
                   <strong>固定文</strong>
-                  <div className="mt-1 whitespace-pre-wrap rounded-lg border bg-slate-50 p-3">{SMS_DEFAULT_HEADER}</div>
+                  <div className="mt-1 whitespace-pre-wrap rounded-lg border bg-slate-50 p-3">{smsDefaultMessage}</div>
                 </div>
                 <label className="block">
                   <strong>本文</strong>
@@ -465,7 +482,7 @@ export default function ShiftCardPerformanceTest({
                 <div>
                   <strong>送信内容プレビュー</strong>
                   <div className="mt-1 whitespace-pre-wrap rounded-lg border p-3">
-                    {SMS_DEFAULT_HEADER}{smsBody.trim() ? `\n\n${smsBody.trim()}` : ""}
+                    {smsDefaultMessage}{smsBody.trim() ? `\n\n${smsBody.trim()}` : ""}
                   </div>
                 </div>
                 {smsError && <div className="rounded-lg border border-red-300 bg-red-50 p-2 text-red-700">{smsError}</div>}
@@ -479,6 +496,7 @@ export default function ShiftCardPerformanceTest({
               </div>
             </DialogContent>
           </Dialog>
+          </>}
 
           {extraActions}
         </div>

@@ -771,6 +771,7 @@ export default function ShiftRejectPerformanceTestClient() {
               userRole={userRole}
               creatingRequest={creatingShiftRequest}
               onRequest={(attendRequest, note) => void handleShiftRequest(shift, attendRequest, note)}
+              showSms={false}
               extraActions={<GroupAddButtonPerformanceTest shift={shift} />}
             />
           ))}
