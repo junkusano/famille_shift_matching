@@ -815,7 +815,7 @@ export async function GET(req: NextRequest) {
       counter,
       scopedRows,
       authUser.id,
-      scope === "assigned",
+      true,
     );
     const response = {
       ok: true,

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { ja } from "date-fns/locale";
-import { CalendarDays, Clock3, MapPin, UserRound } from "lucide-react";
+import { CalendarDays, Clock3, MapPin, MessageSquareText, UserRound } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { supabase } from "@/lib/supabaseClient";
 import type { ServiceKey } from "@/lib/certificateJudge";
 import type { ShiftData } from "@/types/shift";
 
@@ -35,6 +36,10 @@ type Props = {
 };
 
 type UnknownRecord = Record<string, unknown>;
+
+const SMS_DEFAULT_HEADER =
+  "ファミーユヘルパーサービス愛知からのSMSです。\n" +
+  "※このSMSは送信専用です。返信いただいても確認できません。";
 
 const DEFAULT_BADGE_TEXT = "時間調整可能";
 
@@ -118,6 +123,11 @@ export default function ShiftCardPerformanceTest({
   const [open, setOpen] = useState(false);
   const [attendRequest, setAttendRequest] = useState(false);
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsBody, setSmsBody] = useState("");
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsError, setSmsError] = useState<string | null>(null);
+  const [smsSent, setSmsSent] = useState(false);
 
   const eligible = useMemo(() => isEligibleForService(shift, myServiceKeys), [shift, myServiceKeys]);
 
@@ -152,11 +162,50 @@ export default function ShiftCardPerformanceTest({
   const badgeText = getString(shift, "time_adjust_text") ?? DEFAULT_BADGE_TEXT;
 
   const csId = String(shift.kaipoke_cs_id ?? "");
+  const smsPhone = getString(shift, "sms_phone_number");
   const yearMonth = shift.shift_start_date?.length >= 7 ? shift.shift_start_date.slice(0, 7) : "";
   const monthlyHref =
     csId && yearMonth
       ? `/portal/shift-view?client=${encodeURIComponent(csId)}&date=${encodeURIComponent(yearMonth)}-01`
       : "#";
+
+  const sendSms = async () => {
+    if (!smsPhone || !smsBody.trim()) return;
+    setSmsSending(true);
+    setSmsError(null);
+    setSmsSent(false);
+    try {
+      const session = await supabase.auth.getSession();
+      const accessToken = session.data.session?.access_token;
+      const response = await fetch("/api/sms/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          items: [{
+            phone: smsPhone,
+            body: `${SMS_DEFAULT_HEADER}\n\n${smsBody.trim()}`,
+            shift_id: String(shift.shift_id),
+            kaipoke_cs_id: shift.kaipoke_cs_id,
+          }],
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { ok?: boolean; error?: string; message?: string }
+        | null;
+      if (!response.ok || payload?.ok !== true) {
+        throw new Error(payload?.error || payload?.message || "SMS送信に失敗しました。");
+      }
+      setSmsBody("");
+      setSmsSent(true);
+    } catch (error) {
+      setSmsError(error instanceof Error ? error.message : "SMS送信に失敗しました。");
+    } finally {
+      setSmsSending(false);
+    }
+  };
 
   return (
     <Card
@@ -379,6 +428,57 @@ export default function ShiftCardPerformanceTest({
               <Link href={monthlyHref}>月間</Link>
             </Button>
           )}
+
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto"
+            disabled={!smsPhone}
+            onClick={() => {
+              setSmsError(null);
+              setSmsSent(false);
+              setSmsOpen(true);
+            }}
+          >
+            <MessageSquareText className="h-4 w-4" /> 利用者様へSMS
+          </Button>
+
+          <Dialog open={smsOpen} onOpenChange={setSmsOpen}>
+            <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[560px] sm:mx-auto ml-4 mr-0">
+              <DialogTitle>利用者様へSMS送信</DialogTitle>
+              <DialogDescription>登録されている利用者様の電話番号へSMSを送信します。</DialogDescription>
+              <div className="space-y-3 text-sm">
+                <div><strong>送信先</strong><div>{smsPhone || "電話番号未登録"}</div></div>
+                <div>
+                  <strong>固定文</strong>
+                  <div className="mt-1 whitespace-pre-wrap rounded-lg border bg-slate-50 p-3">{SMS_DEFAULT_HEADER}</div>
+                </div>
+                <label className="block">
+                  <strong>本文</strong>
+                  <textarea
+                    value={smsBody}
+                    onChange={(event) => setSmsBody(event.target.value)}
+                    placeholder="利用者様へ送る内容を入力してください"
+                    rows={6}
+                    className="mt-1 w-full rounded-lg border p-3"
+                  />
+                </label>
+                <div>
+                  <strong>送信内容プレビュー</strong>
+                  <div className="mt-1 whitespace-pre-wrap rounded-lg border p-3">
+                    {SMS_DEFAULT_HEADER}{smsBody.trim() ? `\n\n${smsBody.trim()}` : ""}
+                  </div>
+                </div>
+                {smsError && <div className="rounded-lg border border-red-300 bg-red-50 p-2 text-red-700">{smsError}</div>}
+                {smsSent && <div className="rounded-lg border border-green-300 bg-green-50 p-2 text-green-700">SMSを送信しました。</div>}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setSmsOpen(false)}>閉じる</Button>
+                <Button disabled={smsSending || !smsPhone || !smsBody.trim()} onClick={() => void sendSms()}>
+                  {smsSending ? "送信中..." : "SMSを送信"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {extraActions}
         </div>
