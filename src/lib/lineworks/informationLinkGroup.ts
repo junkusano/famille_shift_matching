@@ -3,6 +3,8 @@ import { fetchAllGroups, type LineworksGroup } from "@/lib/lineworks/fetchAllGro
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 const API_BASE = "https://www.worksapis.com/v1.0";
+const GROUP_CHECK_MESSAGE =
+  "LINE WORKSグループは、すでに作成されているか、作成後に削除された可能性があります。LINE WORKSを確認してください。";
 const EXCLUDED_ORG_UNITS = new Set([
   "fb9bab81-5f4e-4725-2d34-05240f80a71a",
   "5b26013b-a3d4-42ab-266c-05cad5ab1c10",
@@ -27,7 +29,11 @@ export type InformationLinkGroupResult = {
 };
 
 function normalizeClientName(name: string): string {
-  return name.replace(/[\s\u3000]+/g, "").trim();
+  return name.normalize("NFKC").replace(/[\s\u3000]+/g, "").trim();
+}
+
+function normalizeGroupName(name: string): string {
+  return name.normalize("NFKC").replace(/[\s\u3000]+/g, "").trim();
 }
 
 function domainId(): number {
@@ -83,9 +89,48 @@ async function resolveTargetUsers() {
 }
 
 function findGroup(groups: LineworksGroup[], kaipokeCsId: string, exactName: string) {
-  const suffix = `情報連携@${kaipokeCsId}`;
-  return groups.find((group) => group.groupName === exactName)
-    ?? groups.find((group) => group.groupName.replace(/[\s\u3000]+/g, "").endsWith(suffix));
+  const normalizedId = normalizeGroupName(kaipokeCsId);
+  const normalizedExactName = normalizeGroupName(exactName);
+  const suffix = `情報連携@${normalizedId}`;
+  const exact = groups.find((group) => normalizeGroupName(group.groupName) === normalizedExactName);
+  if (exact) return exact;
+
+  // Existing groups may have been created manually, with different spacing or
+  // a slightly different client name. Match the stable Kaipoke ID first.
+  const informationLink = groups.find((group) => {
+    const name = normalizeGroupName(group.groupName);
+    return name.endsWith(suffix) || (name.includes("情報連携") && name.endsWith(normalizedId));
+  });
+  if (informationLink) return informationLink;
+
+  // Last fallback for old group names that contain the ID but do not include
+  // the current "情報連携" label. The ID is matched as a complete numeric
+  // token to avoid matching a longer ID by accident.
+  const escapedId = normalizedId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const idToken = new RegExp(`(^|\\D)${escapedId}(?!\\d)`);
+  return groups.find((group) => idToken.test(normalizeGroupName(group.groupName)));
+}
+
+async function findGroupFromDatabase(
+  kaipokeCsId: string,
+  exactName: string,
+): Promise<LineworksGroup | null> {
+  const { data, error } = await supabaseAdmin
+    .from("group_lw_channel_view")
+    .select("group_id,group_name")
+    .ilike("group_name", `%${kaipokeCsId}%`)
+    .not("group_id", "is", null)
+    .limit(100);
+
+  if (error) {
+    console.warn("[information-link-group] database group lookup failed", error.message);
+    return null;
+  }
+
+  const groups = (data ?? [])
+    .filter((row) => typeof row.group_id === "string" && typeof row.group_name === "string")
+    .map((row) => ({ groupId: row.group_id as string, groupName: row.group_name as string }));
+  return findGroup(groups, kaipokeCsId, exactName) ?? null;
 }
 
 async function findGroupByExternalKey(
@@ -176,6 +221,7 @@ async function ensureUsers(params: {
 }): Promise<EnsureCount> {
   const result: EnsureCount = { added: 0, already_exists: 0, failed: [] };
   const existing = await readExistingIds(params.groupId, params.collection, params.token);
+  if (!existing) throw new Error(GROUP_CHECK_MESSAGE);
 
   for (const userId of params.userIds) {
     if (existing?.has(userId)) {
@@ -215,8 +261,23 @@ export async function ensureInformationLinkGroup(
   try {
     const token = await getAccessToken();
     const users = await resolveTargetUsers();
-    let group = await findGroupByExternalKey(externalKey, token)
-      ?? findGroup(await fetchAllGroups(), kaipokeCsId, groupName);
+    let lookupSource = "none";
+    let group = await findGroupByExternalKey(externalKey, token);
+    if (group) lookupSource = "external-key";
+    if (!group) {
+      group = await findGroupFromDatabase(kaipokeCsId, groupName);
+      if (group) lookupSource = "group_lw_channel_view";
+    }
+    if (!group) {
+      const groups = await fetchAllGroups();
+      group = findGroup(groups, kaipokeCsId, groupName);
+      if (group) lookupSource = "lineworks-api";
+    }
+    console.info("[information-link-group] existing group lookup", {
+      kaipokeCsId,
+      matched: Boolean(group),
+      lookupSource,
+    });
     let created = false;
 
     if (!group) {
@@ -231,11 +292,12 @@ export async function ensureInformationLinkGroup(
       if (creation.groupId) group = { groupId: creation.groupId, groupName };
       if (!group) {
         group = await findGroupByExternalKey(externalKey, token)
+          ?? await findGroupFromDatabase(kaipokeCsId, groupName)
           ?? findGroup(await fetchAllGroups(), kaipokeCsId, groupName);
       }
     }
 
-    if (!group) throw new Error("Created LINE WORKS group could not be resolved");
+    if (!group) throw new Error(GROUP_CHECK_MESSAGE);
 
     const members = created
       ? { added: users.memberIds.length, already_exists: 0, failed: [] }

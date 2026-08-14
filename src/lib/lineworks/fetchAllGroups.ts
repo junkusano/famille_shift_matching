@@ -7,7 +7,12 @@ export type LineworksGroup = {
 
 export async function fetchAllGroups(): Promise<LineworksGroup[]> {
     const token = await getAccessToken();
-    const domainId = process.env.NEXT_PUBLIC_LINEWORKS_DOMAIN_ID;
+    const domainId = (
+        process.env.LINEWORKS_DOMAIN_ID
+        ?? process.env.NEXT_PUBLIC_LINEWORKS_DOMAIN_ID
+        ?? ""
+    ).trim();
+    if (!domainId) throw new Error("LINEWORKS_DOMAIN_ID is not configured");
     const apiUrl = "https://www.worksapis.com/v1.0/groups";
 
     const allGroups: LineworksGroup[] = [];

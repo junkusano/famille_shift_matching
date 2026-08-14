@@ -368,7 +368,8 @@ export default function WeeklyRosterPage() {
   void loading
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<PreviewRow[] | null>(null);
-  const [useRecurrence, setUseRecurrence] = useState(true);
+  // テンプレート行の隔週・第n週設定は常に尊重する。旧URLとの互換のため true を渡す。
+  const useRecurrence = true;
   const [error, setError] = useState<string | null>(null);
 
   // ==== Derived ====
@@ -626,12 +627,12 @@ export default function WeeklyRosterPage() {
 
   // page.tsx の apiDeployMonth 関数の近くに追記
 
-  async function apiBulkDeployMonth(month: string, policy: DeployPolicy) {
+  async function apiBulkDeployMonth(month: string, policy: DeployPolicy, recurrence: boolean) {
     // 新規APIエンドポイント /api/roster/weekly/bulk_deploy を呼び出す
     const res = await fetch("/api/roster/weekly/bulk_deploy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ month, policy }), // kaipoke_cs_id は不要
+      body: JSON.stringify({ month, policy, recurrence }), // kaipoke_cs_id は不要
     });
     if (!res.ok) throw new Error(await summarizeHTTP(res));
     return res.json();
@@ -678,7 +679,7 @@ export default function WeeklyRosterPage() {
     setPreview(null); // プレビューは全利用者分ではないため、リセットのみ
 
     try {
-      const result = await apiBulkDeployMonth(selectedMonth, deployPolicy);
+      const result = await apiBulkDeployMonth(selectedMonth, deployPolicy, useRecurrence);
       alert(`全利用者へのシフト一括展開が完了しました。\n合計挿入: ${result.inserted_count || 0}件, 合計更新: ${result.updated_count || 0}件, 合計削除: ${result.deleted_count || 0}件`);
 
       // 展開後、現在選択中の利用者（selectedKaipokeCS）のプレビューを強制更新
@@ -969,8 +970,7 @@ export default function WeeklyRosterPage() {
         <Pill label={"合計時間: " + (totalMinutes / 60).toFixed(1) + "h"} />
         {duplicate ? <Pill tone="warn" label="重複 (同曜日×開始時刻) あり" /> : null}
         {invalidCount > 0 ? <Pill tone="warn" label={"警告 " + invalidCount + "件"} /> : null}
-        {useRecurrence ? <Pill tone="ok" label="隔週/第n週 有効" /> : <Pill tone="muted" label="隔週/第n週 無効" />}
-        <button className="text-xs underline text-slate-600" onClick={() => setUseRecurrence((v) => !v)}>切り替え</button>
+        <Pill tone="ok" label="隔週/第n週をテンプレート通りに展開" />
         {error ? <span className="text-xs text-red-600">エラー: {safeErr(error)}</span> : null}
       </div>
 
@@ -1311,7 +1311,7 @@ export default function WeeklyRosterPage() {
         <div className="rounded-2xl border overflow-hidden mt-6">
           <div className="px-4 py-3 bg-slate-50 flex items-center justify-between">
             <div className="text-sm text-slate-700">{selectedMonth} の展開プレビュー（{selectedKaipokeCS || "全員"}）</div>
-            <div className="text-xs text-slate-500">{useRecurrence ? "隔週/第n週: 有効" : "隔週/第n週: 無効"}</div>
+            <div className="text-xs text-slate-500">隔週/第n週: テンプレート設定を適用</div>
           </div>
           <div className="max-h-[50vh] overflow-auto">
             <table className="min-w-full text-sm">
