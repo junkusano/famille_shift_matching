@@ -231,6 +231,7 @@ function ShiftRejectCardPerformanceTest({
   const [rejectReason, setRejectReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
   const [smsOpen, setSmsOpen] = useState(false);
+  const [smsConfirmOpen, setSmsConfirmOpen] = useState(false);
   const [smsBody, setSmsBody] = useState("");
   const [smsSending, setSmsSending] = useState(false);
   const [smsError, setSmsError] = useState<string | null>(null);
@@ -269,11 +270,14 @@ function ShiftRejectCardPerformanceTest({
   const monthlyHref = `/portal/shift-view?client=${encodeURIComponent(
     shift.kaipoke_cs_id,
   )}&date=${encodeURIComponent(yearMonth)}-01`;
-  const smsDefaultMessage = [
+  const smsCallbackPhone = shift.sms_reply_phone_numbers?.join(" / ") || process.env.NEXT_PUBLIC_SMS_MAIN_PHONE?.trim() || "";
+  const smsFooter = [
     SMS_DEFAULT_HEADER,
-    "折り返しは担当者へお願いいたします。",
-    `担当者携帯電話番号：${shift.sms_reply_phone_numbers?.length ? shift.sms_reply_phone_numbers.join(" / ") : "未登録"}`,
-  ].join("\n\n");
+    smsCallbackPhone
+      ? `折り返しは担当者へお願いいたします。\n担当者携帯電話番号：${smsCallbackPhone}`
+      : "",
+  ].filter(Boolean).join("\n\n");
+  const buildSmsMessage = (body: string) => [body.trim(), "---", smsFooter].filter(Boolean).join("\n\n");
 
   const sendSms = async () => {
     const phone = shift.sms_phone_number?.trim();
@@ -294,9 +298,11 @@ function ShiftRejectCardPerformanceTest({
           items: [
             {
               phone,
-              body: `${smsDefaultMessage}\n\n${smsBody.trim()}`,
+              body: buildSmsMessage(smsBody),
               shift_id: String(shift.shift_id),
               kaipoke_cs_id: shift.kaipoke_cs_id,
+              callback_phone: smsCallbackPhone || null,
+              callback_phone_type: shift.sms_reply_phone_numbers?.length ? "manager" : "main",
             },
           ],
         }),
@@ -677,11 +683,24 @@ function ShiftRejectCardPerformanceTest({
             onClick={() => {
               setSmsError(null);
               setSmsSent(false);
-              setSmsOpen(true);
+              setSmsConfirmOpen(true);
             }}
           >
             <MessageSquareText className="h-4 w-4" /> 利用者様へSMS
           </Button>
+
+          <Dialog open={smsConfirmOpen} onOpenChange={setSmsConfirmOpen}>
+            <DialogContent className="w-[calc(100vw-32px)] sm:max-w-[480px]">
+              <DialogTitle>利用者様へSMS</DialogTitle>
+              <DialogDescription>
+                利用者様への連絡はLINEグループを使用します。マネージャーから連絡してもらうことが基本です。どうしても直接連絡が必要な場合のみSMSを使用してください。
+              </DialogDescription>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setSmsConfirmOpen(false)}>NO</Button>
+                <Button onClick={() => { setSmsConfirmOpen(false); setSmsOpen(true); }}>OK</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {mealExpenseRequested ? (
             <div className="flex min-h-9 items-center justify-center rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700">
@@ -727,7 +746,7 @@ function ShiftRejectCardPerformanceTest({
               <div><strong>送信先</strong><div>{shift.sms_phone_number || "電話番号未登録"}</div></div>
               <div>
                 <strong>固定文</strong>
-                <div className="mt-1 whitespace-pre-wrap rounded-lg border bg-slate-50 p-3">{smsDefaultMessage}</div>
+                <div className="mt-1 whitespace-pre-wrap rounded-lg border bg-slate-50 p-3">{smsFooter}</div>
               </div>
               <label className="block">
                 <strong>本文</strong>
@@ -742,7 +761,7 @@ function ShiftRejectCardPerformanceTest({
               <div>
                 <strong>送信内容プレビュー</strong>
                 <div className="mt-1 whitespace-pre-wrap rounded-lg border p-3">
-                  {smsDefaultMessage}{smsBody.trim() ? `\n\n${smsBody.trim()}` : ""}
+                  {smsBody.trim() ? buildSmsMessage(smsBody) : smsFooter}
                 </div>
               </div>
               {smsError && <div className="rounded-lg border border-red-300 bg-red-50 p-2 text-red-700">{smsError}</div>}
