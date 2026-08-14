@@ -377,7 +377,33 @@ function getParticipatingUserIds(shift: ShiftRecordViewRow) {
 }
 
 function isVisitRecordComplete(status: string | null) {
-    return status === "submitted" || status === "approved";
+    // NULL、空文字および画面上の「未登録」は、いずれも未完了として扱う。
+    // 表記ゆれで日次の減点対象から漏れないよう、完了状態だけを明示的に除外する。
+    const normalizedStatus = String(status ?? "").trim().toLowerCase();
+    return normalizedStatus === "submitted" || normalizedStatus === "approved";
+}
+
+function getDeadlineTargetDate(req: NextRequest, targetMonth: string, jstNow: ReturnType<typeof getJstDateTime>) {
+    const requestedDate = req.nextUrl.searchParams.get("deadline_date");
+
+    if (requestedDate) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
+            throw new Error("deadline_date must be in YYYY-MM-DD format");
+        }
+        if (!requestedDate.startsWith(targetMonth.slice(0, 7))) {
+            throw new Error("deadline_date must be within the target month");
+        }
+        return requestedDate;
+    }
+
+    // Vercel の起動遅延を考慮し、23:40以降の当月通常Cronで当日分を確定する。
+    // staff_log の一意制約により、この時間帯の再試行でも二重計上しない。
+    const isDailyDeadlineWindow =
+        !req.nextUrl.searchParams.has("ym") &&
+        jstNow.hour === 23 &&
+        jstNow.minute >= 40;
+
+    return isDailyDeadlineWindow ? jstNow.date : null;
 }
 
 function calcTotalScore(row: SummaryRow) {
@@ -808,7 +834,13 @@ export async function GET(req: NextRequest) {
             selectShiftColumns
         );
         const shouldUseDailyCutoff = targetMonth.slice(0, 7) === jstNow.date.slice(0, 7);
-        const currentMonthCutoffDate = shouldUseDailyCutoff ? jstNow.date : null;
+        const deadlineTargetDate = getDeadlineTargetDate(req, targetMonth, jstNow);
+        // 通常時は当日分を途中経過として集計しないが、23:40以降の確定処理と
+        // deadline_date 指定の補正実行では当日分もチーム成績へ反映する。
+        const currentMonthCutoffDate =
+            shouldUseDailyCutoff && deadlineTargetDate !== jstNow.date
+                ? jstNow.date
+                : null;
 
         const pastShiftRows = await fetchAllShiftRows(
             "2025-11-01",
@@ -816,21 +848,26 @@ export async function GET(req: NextRequest) {
             selectShiftColumns
         );
 
-        // 締切違反は、過去月の再計算では作らず、実際の23:43 JST実行時だけ確定する。
-        const isLiveDeadlineRun =
-            !req.nextUrl.searchParams.has("ym") &&
-            jstNow.hour === 23 &&
-            jstNow.minute === 43;
+        let deadlineIncompleteShifts: ShiftRecordViewRow[] = [];
+        let deadlinePenaltyLogRows = 0;
 
-        if (isLiveDeadlineRun) {
-            const todayRows = await fetchAllShiftRows(
-                jstNow.date,
-                getNextMonthStartDate(jstNow.date.slice(0, 7) + "-01"),
+        // 明示的な deadline_date は、漏れた対象日の補正専用。通常Cronは23:40以降に
+        // 当日分だけを確定するため、過去月の通常再計算で新しい減点を作ることはない。
+        if (deadlineTargetDate) {
+            const deadlineRows = await fetchAllShiftRows(
+                deadlineTargetDate,
+                getNextMonthStartDate(deadlineTargetDate),
                 selectShiftColumns
             );
-            const todaysShifts = todayRows.filter((shift) => shift.shift_start_date === jstNow.date);
+            deadlineIncompleteShifts = deadlineRows.filter(
+                (shift) =>
+                    shift.shift_id != null &&
+                    shift.shift_start_date === deadlineTargetDate &&
+                    !String(shift.kaipoke_cs_id ?? "").startsWith("9999999") &&
+                    !isVisitRecordComplete(shift.record_status)
+            );
             const participantUserIds = Array.from(new Set(
-                todaysShifts.flatMap((shift) => getParticipatingUserIds(shift))
+                deadlineIncompleteShifts.flatMap((shift) => getParticipatingUserIds(shift))
             ));
 
             if (participantUserIds.length > 0) {
@@ -848,16 +885,15 @@ export async function GET(req: NextRequest) {
                     }
                 }
 
-                const actionAt = `${jstNow.date} 23:43:00`;
-                const deadlineMissRows = todaysShifts
-                    .filter((shift) => shift.shift_id && !isVisitRecordComplete(shift.record_status))
+                const actionAt = `${deadlineTargetDate} 23:40:00`;
+                const deadlineMissRows = deadlineIncompleteShifts
                     .flatMap((shift) => getParticipatingUserIds(shift).map((userId) => {
                         const entryId = entryIdByUserId.get(userId);
                         if (!entryId) return null;
                         return {
                             staff_id: entryId,
                             action_at: actionAt,
-                            action_detail: `${VISIT_RECORD_DEADLINE_EVENT} shift_id=${shift.shift_id} shift_date=${jstNow.date} penalty=-5 reason=23:43時点で訪問記録未完了`,
+                            action_detail: `${VISIT_RECORD_DEADLINE_EVENT} shift_id=${shift.shift_id} shift_date=${deadlineTargetDate} penalty=-5 reason=23:40時点で訪問記録未完了`,
                             registered_by: VISIT_RECORD_DEADLINE_REGISTERED_BY,
                         };
                     }))
@@ -874,8 +910,20 @@ export async function GET(req: NextRequest) {
                     ));
                     const deadlineMissError = results.find((result) => result.error)?.error;
                     if (deadlineMissError) throw new Error(deadlineMissError.message);
+                    deadlinePenaltyLogRows = deadlineMissRows.length;
                 }
             }
+
+            // 実行ログは、未登録(NULL/空文字/「未登録」)件数と今回の反映対象を必ず残す。
+            // DB側の一意制約により、retry/manual rerun でも同一スタッフ・同一シフトは一度だけ記録される。
+            console.info("[team-score][visit-record-deadline]", {
+                targetDate: deadlineTargetDate,
+                serviceCategory: "訪問介護",
+                unregisteredCount: deadlineIncompleteShifts.length,
+                appliedTeamPenalty: -deadlineIncompleteShifts.length,
+                staffPenaltyLogCandidates: deadlinePenaltyLogRows,
+                result: "completed",
+            });
         }
 
         const shiftRecordRows = [
@@ -993,6 +1041,19 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
             teamDeadlineMissShiftIdsMap.set(teamId, shiftIds);
         }
 
+        // 日次確定で検知した未登録は、スタッフログを作れない不完全な所属情報があっても
+        // チームの減点対象から漏らさない。shift_id の Set でログ由来の件数と重複しない。
+        for (const shift of deadlineIncompleteShifts) {
+            if (shift.shift_id == null) continue;
+            for (const userId of getParticipatingUserIds(shift)) {
+                const teamId = userTeamMap.get(userId);
+                if (!teamId) continue;
+                const shiftIds = teamDeadlineMissShiftIdsMap.get(teamId) ?? new Set<string>();
+                shiftIds.add(String(shift.shift_id));
+                teamDeadlineMissShiftIdsMap.set(teamId, shiftIds);
+            }
+        }
+
         const currentShiftById = new Map<string, ShiftRecordViewRow>();
         for (const shift of currentMonthShiftRows) {
             if (shift.shift_id != null) currentShiftById.set(String(shift.shift_id), shift);
@@ -1009,7 +1070,7 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                     targetDate: shift?.shift_start_date ?? targetMonth.slice(0, 7),
                     staffUserIds,
                     staffNames: staffUserIds.map((userId) => staffNameMap.get(userId) ?? userId),
-                    reason: "23:43時点で訪問記録が未完了",
+                    reason: "23:40時点で訪問記録が未完了",
                 });
             }
             teamVisitDeadlineMissDetailsMap.set(teamId, details);
@@ -1517,6 +1578,9 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                 incompleteCountMap.get("junkusano")?.past ?? 0,
             junkusano_current_incomplete:
                 visitCurrentMonthIncompleteCountMap.get("junkusano") ?? 0,
+            deadline_target_date: deadlineTargetDate,
+            houmon_unregistered_count: deadlineIncompleteShifts.length,
+            team_visit_record_penalty: -deadlineIncompleteShifts.length,
             updated_count: updates.length,
         });
     } catch (e: unknown) {

@@ -46,7 +46,7 @@ function toShiftRow(template: ShiftWeeklyTemplate, date: string): ShiftRow {
 
 async function previousServiceDates(templates: ShiftWeeklyTemplate[], before: string): Promise<Map<number, string | null>> {
   const results = await Promise.all(templates.filter((t) => t.is_biweekly && !(t.nth_weeks?.length)).map(async (template) => {
-    let query = supabaseAdmin.from('shift').select('shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count')
+    const query = supabaseAdmin.from('shift').select('shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count')
       .eq('kaipoke_cs_id', template.kaipoke_cs_id).lt('shift_start_date', before)
       .eq('shift_start_time', template.start_time).eq('shift_end_time', template.end_time)
       .eq('service_code', template.service_code).eq('required_staff_count', template.required_staff_count)
@@ -98,6 +98,12 @@ export function candidatesForPolicy(candidates: Candidate[], existing: ExistingS
   return candidates.filter((candidate) => !existing.some((shift) => shift.shift_start_date === candidate.shift_start_date && overlaps(candidate, shift)))
 }
 
+export function shiftRowFromCandidate(candidate: Candidate): ShiftRow {
+  const { template_id, ...row } = candidate
+  void template_id
+  return row
+}
+
 export async function deployForClient(cs: string, month: string, policy: DeployPolicy) {
   const { templates, existing, previousDates } = await loadDeploymentInput(cs, month)
   const { candidates, warnings } = buildCandidates(month, templates, previousDates)
@@ -117,7 +123,7 @@ export async function deployForClient(cs: string, month: string, policy: DeployP
     }
   }
   if (inserts.length) {
-    const { error } = await supabaseAdmin.from('shift').insert(inserts.map(({ template_id: _templateId, ...row }) => row))
+    const { error } = await supabaseAdmin.from('shift').insert(inserts.map(shiftRowFromCandidate))
     if (error) throw new Error(`シフトの追加に失敗しました: ${error.message}`)
   }
   return { inserted_count: inserts.length, deleted_count: deletedCount, updated_count: 0, candidate_count: candidates.length, warnings }

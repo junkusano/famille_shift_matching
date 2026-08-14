@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { buildCandidates, candidatesForPolicy, isDeployPolicy, loadDeploymentInput, type DeployPolicy } from '@/lib/roster/weeklyDeployment'
+import { buildCandidates, candidatesForPolicy, isDeployPolicy, loadDeploymentInput, shiftRowFromCandidate, type DeployPolicy } from '@/lib/roster/weeklyDeployment'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -9,7 +9,7 @@ async function preview(cs: string, month: string, policy: DeployPolicy) {
   const { candidates, warnings } = buildCandidates(month, templates, previousDates)
   const visibleCandidates = candidatesForPolicy(candidates, existing, policy)
   const rows = [
-    ...visibleCandidates.map(({ template_id: _templateId, ...row }) => ({ ...row, shift_id: null, is_template: true, has_conflict: false, conflict: false, will_be_deleted: false, action: 'new' as const })),
+    ...visibleCandidates.map((candidate) => ({ ...shiftRowFromCandidate(candidate), shift_id: null, is_template: true, has_conflict: false, conflict: false, will_be_deleted: false, action: 'new' as const })),
     ...existing.map((row) => ({ ...row, is_template: false, has_conflict: false, conflict: false, will_be_deleted: policy === 'delete_month_insert', action: policy === 'delete_month_insert' ? 'delete' as const : 'keep' as const })),
   ].sort((a, b) => a.shift_start_date.localeCompare(b.shift_start_date) || a.shift_start_time.localeCompare(b.shift_start_time))
   return NextResponse.json({ rows, warnings })
