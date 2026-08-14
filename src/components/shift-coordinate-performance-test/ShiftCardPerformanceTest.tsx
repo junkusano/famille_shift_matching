@@ -129,7 +129,7 @@ export default function ShiftCardPerformanceTest({
   creatingRequest,
   onRequest,
   extraActions,
-  showSms = true,
+  showSms = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [attendRequest, setAttendRequest] = useState(false);
