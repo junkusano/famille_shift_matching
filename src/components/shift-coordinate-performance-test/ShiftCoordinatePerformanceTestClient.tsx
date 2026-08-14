@@ -799,7 +799,6 @@ export default function ShiftCoordinatePerformanceTestClient() {
                   onRequest={(attend, note) => {
                     void handleShiftRequest(shift, attend, note);
                   }}
-                  showSmsButton
                   extraActions={<GroupAddButtonPerformanceTest shift={shift} />}
                 />
               ))}
