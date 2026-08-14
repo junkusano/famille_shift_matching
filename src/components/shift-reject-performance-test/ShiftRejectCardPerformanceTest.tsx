@@ -269,6 +269,11 @@ function ShiftRejectCardPerformanceTest({
   const monthlyHref = `/portal/shift-view?client=${encodeURIComponent(
     shift.kaipoke_cs_id,
   )}&date=${encodeURIComponent(yearMonth)}-01`;
+  const smsDefaultMessage = [
+    SMS_DEFAULT_HEADER,
+    "折り返しは担当者へお願いいたします。",
+    `担当者携帯電話番号：${shift.sms_reply_phone_numbers?.length ? shift.sms_reply_phone_numbers.join(" / ") : "未登録"}`,
+  ].join("\n\n");
 
   const sendSms = async () => {
     const phone = shift.sms_phone_number?.trim();
@@ -289,7 +294,7 @@ function ShiftRejectCardPerformanceTest({
           items: [
             {
               phone,
-              body: `${SMS_DEFAULT_HEADER}\n\n${smsBody.trim()}`,
+              body: `${smsDefaultMessage}\n\n${smsBody.trim()}`,
               shift_id: String(shift.shift_id),
               kaipoke_cs_id: shift.kaipoke_cs_id,
             },
@@ -722,7 +727,7 @@ function ShiftRejectCardPerformanceTest({
               <div><strong>送信先</strong><div>{shift.sms_phone_number || "電話番号未登録"}</div></div>
               <div>
                 <strong>固定文</strong>
-                <div className="mt-1 whitespace-pre-wrap rounded-lg border bg-slate-50 p-3">{SMS_DEFAULT_HEADER}</div>
+                <div className="mt-1 whitespace-pre-wrap rounded-lg border bg-slate-50 p-3">{smsDefaultMessage}</div>
               </div>
               <label className="block">
                 <strong>本文</strong>
@@ -737,7 +742,7 @@ function ShiftRejectCardPerformanceTest({
               <div>
                 <strong>送信内容プレビュー</strong>
                 <div className="mt-1 whitespace-pre-wrap rounded-lg border p-3">
-                  {SMS_DEFAULT_HEADER}{smsBody.trim() ? `\n\n${smsBody.trim()}` : ""}
+                  {smsDefaultMessage}{smsBody.trim() ? `\n\n${smsBody.trim()}` : ""}
                 </div>
               </div>
               {smsError && <div className="rounded-lg border border-red-300 bg-red-50 p-2 text-red-700">{smsError}</div>}
