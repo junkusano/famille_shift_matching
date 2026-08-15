@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabaseClient";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
 
 type Staff = { userId: string; label: string; status: string | null };
 type PreviewShift = { shift_id: number; shift_start_date: string | null; shift_start_time: string | null; kaipoke_cs_id: string | null; clientName: string | null; staff_01_user_id: string | null; staff_02_user_id: string | null; staff_03_user_id: string | null };
@@ -25,6 +26,11 @@ export function DepartedStaffShiftBatchCard({ onCompleted }: { onCompleted: () =
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const selectedNames = useMemo(() => new Map(staff.map((row) => [row.userId, row.label])), [staff]);
+  const staffOptions = useMemo<SearchableSelectOption[]>(() => staff.map((row) => ({
+    value: row.userId,
+    label: row.label,
+    searchText: `${row.label} ${row.userId}`,
+  })), [staff]);
 
   useEffect(() => {
     void (async () => {
@@ -77,9 +83,9 @@ export function DepartedStaffShiftBatchCard({ onCompleted }: { onCompleted: () =
     <h2 className="text-base font-bold">退職者シフトの一括変更</h2>
     <p className="mt-1 text-sm text-gray-600">指定日時以降のシフトから、退職者などの担当を引継ぎ先へ変更します。</p>
     <div className="mt-3 grid gap-3 md:grid-cols-3">
-      <label className="text-sm">変更開始日時<input className="mt-1 block w-full rounded border bg-white p-2" type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} /></label>
-      <label className="text-sm">変更元スタッフ<select className="mt-1 block w-full rounded border bg-white p-2" value={fromUserId} onChange={(event) => setFromUserId(event.target.value)}><option value="">選択してください</option>{staff.map((row) => <option key={row.userId} value={row.userId}>{row.label}（{row.userId}）</option>)}</select></label>
-      <label className="text-sm">変更先スタッフ<select className="mt-1 block w-full rounded border bg-white p-2" value={toUserId} onChange={(event) => setToUserId(event.target.value)}><option value="">選択してください</option>{staff.map((row) => <option key={row.userId} value={row.userId}>{row.label}（{row.userId}）</option>)}</select></label>
+      <label className="text-sm">変更開始日時<input className="mt-1 block w-full rounded border bg-white p-2" type="datetime-local" value={startAt} onChange={(event) => { setStartAt(event.target.value); setPreview([]); setWeeklyPreviewCount(0); }} /></label>
+      <label className="text-sm">変更元スタッフ<SearchableSelect className="mt-1" options={staffOptions} value={fromUserId} onChange={(value) => { setFromUserId(value ?? ""); setPreview([]); setWeeklyPreviewCount(0); }} placeholder="スタッフを選択" searchPlaceholder="氏名・スタッフIDで検索" /></label>
+      <label className="text-sm">変更先スタッフ<SearchableSelect className="mt-1" options={staffOptions} value={toUserId} onChange={(value) => { setToUserId(value ?? ""); setPreview([]); setWeeklyPreviewCount(0); }} placeholder="スタッフを選択" searchPlaceholder="氏名・スタッフIDで検索" /></label>
     </div>
     <div className="mt-3 flex flex-wrap items-center gap-2"><Button type="button" variant="outline" disabled={!ready || loading} onClick={() => void loadPreview()}>対象件数をプレビュー</Button>{(preview.length > 0 || weeklyPreviewCount > 0) && <Button type="button" disabled={loading} onClick={() => void apply()}>一括変更を実行</Button>}<span className="text-sm">対象件数: 通常シフト {preview.length}件／週間シフト {weeklyPreviewCount}件</span></div>
     {message && <p className="mt-2 text-sm" role="status">{message}</p>}

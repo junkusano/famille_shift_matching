@@ -8,6 +8,7 @@ import type { ShiftData } from "@/types/shift";
 import ShiftCard from "@/components/shift/ShiftCard";
 import { Button } from "@/components/ui/button";
 import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
+import { DepartedStaffShiftBatchCard } from "@/components/shift/DepartedStaffShiftBatchCard";
 import { format, startOfMonth, addMonths } from "date-fns";
 import Link from "next/link";
 
@@ -133,6 +134,7 @@ export default function ShiftViewPage() {
   // ===== 画面状態 =====
   const [loading, setLoading] = useState<boolean>(true);
   const [shifts, setShifts] = useState<ShiftData[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
   // ▼ 担当者セレクト：value=user_id, label=氏名（last_name_kanji + " " + first_name_kanji）
   const [staffOptions, setStaffOptions] = useState<SearchableSelectOption[]>([]);
   // ▼ 利用者セレクト：value=kaipoke_cs_id, 表示も kaipoke_cs_id
@@ -393,7 +395,7 @@ export default function ShiftViewPage() {
       alive = false;
       ac.abort();
     };
-  }, [ready, qUserId, qDate, qClient, qPage, qPer]);
+  }, [ready, qUserId, qDate, qClient, qPage, qPer, reloadKey]);
 
   if (!authChecked) {
     return <div className="p-4 text-sm text-gray-500">ログイン状態を確認しています...</div>;
@@ -436,6 +438,7 @@ export default function ShiftViewPage() {
 
       <h2 className="text-xl font-bold">シフト・勤務一覧</h2>
       <p className="text-sm text-gray-600 mb-3">過去の実績確認、訪問記録のエラー確認などで活用してください。</p>
+      <DepartedStaffShiftBatchCard onCompleted={() => setReloadKey((value) => value + 1)} />
 
       {/* フィルター */}
       <div className="mb-2 flex justify-end gap-2">

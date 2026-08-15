@@ -12827,6 +12827,7 @@ export type Database = {
           hired_at: string
           last_shift_date: string
           lw_userid: string
+          next_shift_date: string
           staff_name: string
           status: string
           user_id: string

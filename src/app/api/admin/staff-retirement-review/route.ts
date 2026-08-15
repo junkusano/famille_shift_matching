@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { fetchAllLineworksUsers } from "@/lib/lineworks/fetchAllUsers";
 import { deleteLineWorksUser } from "@/lib/lineworks/delete-user";
 
-type ReviewRow = { user_id: string; staff_name: string; status: string | null; lw_userid: string | null; last_shift_date: string | null; hired_at: string | null };
+type ReviewRow = { user_id: string; staff_name: string; status: string | null; lw_userid: string | null; last_shift_date: string | null; next_shift_date: string | null; hired_at: string | null };
 
 async function requireAdmin(req: NextRequest) {
   const token = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     const excludedOrgUserIds = new Set(
       lineworksUsers
         .filter((user) => user.organizations?.some((organization) =>
-          organization.orgUnits?.some((orgUnit) => ["fb9bab81-5f4e-4725-2d34-05240f80a71a", "5b26013b-a3d4-42ab-266c-05cad5ab1c10"].includes(orgUnit.orgUnitId ?? ""))
+          organization.orgUnits?.some((orgUnit) => ["fb9bab81-5f4e-4725-2d34-05240f80a71a", "5b26013b-a3d4-42ab-266c-05cad5ab1c10", "6ca601b9-2699-475d-2ba2-0564acb86091", "7a159f5c-50ec-4281-282d-05bbebfd46f0"].includes(orgUnit.orgUnitId ?? ""))
         ))
         .map((user) => user.userId)
     );
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       const hiredAt = row.hired_at ? new Date(row.hired_at) : null;
       const reference = lastShift ?? hiredAt;
       const inactiveDays = reference ? Math.floor((today.getTime() - reference.getTime()) / 86_400_000) : null;
-      const inactive = !removed && inactiveDays !== null && inactiveDays >= 30;
+      const inactive = !removed && inactiveDays !== null && inactiveDays >= 30 && !row.next_shift_date;
       const reasons: string[] = [];
       if (!removed && !lineworksExists) reasons.push("LINE WORKS登録なし");
       if (removed && lineworksExists) reasons.push("LINE WORKS削除漏れ");

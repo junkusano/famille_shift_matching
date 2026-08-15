@@ -32,7 +32,6 @@ import {
 import { ja } from "date-fns/locale";
 import ShiftCard from "@/components/shift/ShiftCard";
 import GroupAddButton from "@/components/shift/GroupAddButton";
-import { DepartedStaffShiftBatchCard } from "@/components/shift/DepartedStaffShiftBatchCard";
 //import { constants } from "node:buffer";
 
 const PAGE_SIZE = 50;
@@ -1173,8 +1172,6 @@ export default function ShiftPage() {
 
     return (
         <div className="content min-w-0">
-
-            <DepartedStaffShiftBatchCard onCompleted={() => setShiftDate((date) => new Date(date))} />
 
             {/* ▼ 空き時間のシフト候補：条件UI（最上部 / 折りたたみ） */}
             <div className="mb-4">

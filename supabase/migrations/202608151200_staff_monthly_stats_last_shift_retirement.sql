@@ -53,7 +53,7 @@ begin
       join last_valid_shift lvs on lvs.staff_user_id = u.user_id
       left join form_entries fe on fe.id = u.entry_id
       where nullif(btrim(coalesce(u.user_id, '')), '') is not null
-        and coalesce(u.org_unit_id, '') not in ('fb9bab81-5f4e-4725-2d34-05240f80a71a', '5b26013b-a3d4-42ab-266c-05cad5ab1c10')
+        and coalesce(u.org_unit_id, '') not in ('fb9bab81-5f4e-4725-2d34-05240f80a71a', '5b26013b-a3d4-42ab-266c-05cad5ab1c10', '6ca601b9-2699-475d-2ba2-0564acb86091', '7a159f5c-50ec-4281-282d-05bbebfd46f0')
       order by u.user_id, u.created_at desc nulls last
     ), counts as (
       select
