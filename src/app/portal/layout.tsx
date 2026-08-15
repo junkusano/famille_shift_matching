@@ -3,7 +3,7 @@
 
 import React, { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRoleContext } from "@/context/RoleContext";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import "@/styles/portal.css";
 import "@/styles/globals.css";
@@ -11,6 +11,7 @@ import Image from "next/image";
 import Link from "next/link";
 import Footer from "@/components/Footer";
 import AlertBar from "@/components/AlertBar";
+import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 /** ========= Types ========= */
 interface UserData {
@@ -84,7 +85,58 @@ function AvatarBlock({
   );
 }
 
-function NavLinks({ role }: { role: string | null }) {
+type MenuItem = { label: string; href: string; beta?: boolean };
+type MenuGroup = { label: string; icon: string; items: MenuItem[] };
+
+const managerMenuGroups: MenuGroup[] = [
+  { label: "数値・管理", icon: "📊", items: [
+    { label: "ダッシュボード", href: "/portal/dashboard" }, { label: "イベント管理", href: "/portal/event-tasks" },
+    { label: "イベントテンプレート管理", href: "/portal/event-template" }, { label: "走行距離指数", href: "/portal/driving_record" },
+    { label: "組織アイコン設定", href: "/portal/orgIcons" }, { label: "電話帳", href: "/portal/phone" },
+    { label: "監査ログ", href: "/portal/audit_log" }, { label: "お弁当アンケート【管理用】", href: "/portal/bento/admin" },
+    { label: "目標・研修【管理用】", href: "/portal/training-goals/manage" }, { label: "日払い申請履歴", href: "/portal/user_advance_payment_history" },
+    { label: "RPAテンプレ管理", href: "/portal/rpa_temp/list" },
+  ]},
+  { label: "利用者管理", icon: "👤", items: [{ label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "利用者担当管理", href: "/portal/assign_matome" }, { label: "利用者書類一覧", href: "/portal/cs_docs" }] },
+  { label: "シフト管理", icon: "📅", items: [{ label: "サービスコード管理", href: "/portal/shift-service-code" }, { label: "訪問記録定義", href: "/portal/shift-record-def" }, { label: "週間シフト", href: "/portal/roster/weekly" }, { label: "月間シフト", href: "/portal/roster/monthly" }, { label: "シフト表", href: "/portal/roster/daily" }, { label: "シフトWish", href: "/portal/shift-wish" }] },
+  { label: "応募者管理", icon: "👥", items: [{ label: "エントリー一覧", href: "/portal/entry-list" }, { label: "スポット募集管理", href: "/portal/spot-offer-template" }, { label: "タイミーリスト", href: "/portal/taimee-emp" }, { label: "スキマバイト経費精算", href: "/portal/expense-claims" }] },
+  { label: "求人管理", icon: "📣", items: [{ label: "タイミー求人設定", href: "/portal/admin/taimee-job-settings" }, { label: "Re-entry募集", href: "/portal/admin/re-entry-recruitment" }] },
+  { label: "FAX", icon: "📠", items: [{ label: "fax送信", href: "/portal/fax-sending" }, { label: "fax送信履歴", href: "/portal/fax-history" }, { label: "fax電話帳", href: "/portal/fax" }] },
+  { label: "RPA・自動化", icon: "🤖", items: [{ label: "RPAリクエスト管理", href: "/portal/rpa_requests" }] },
+];
+
+const commonMenuGroups = (currentYm: string): MenuGroup[] => [
+  { label: "人事・労務", icon: "👔", items: [{ label: "ポータルHome", href: "/portal" }, { label: "給与明細", href: "/portal/user_salary_monthly" }, { label: "処遇決定通知書", href: "/portal/notification-determination" }, { label: "健康診断結果", href: "/portal/health-check-results" }, { label: "月例会議参加チェック", href: `/portal/monthly-meeting-check?ym=${currentYm}` }, { label: "お弁当アンケート", href: "/portal/bento" }, { label: "駐車許可証申請", href: "/portal/parking_cs_places" }, { label: "目標・研修・評価", href: "/portal/training-goals" }, { label: "清算・申請", href: "/portal/wf-seisan-shinsei" }, { label: "日払い申請フォーム", href: "/portal/user_advance_payment_applications" }, { label: "職員証", href: "/portal/badge" }] },
+  { label: "シフト", icon: "🕒", items: [{ label: "シフト・勤務一覧", href: "/portal/shift-view" }, { label: "シフト・訪問記録", href: "/portal/shift" }, { label: "シフト・訪問記録（β版）", href: "/portal/shift-reject-performance-test", beta: true }, { label: "シフトセルフコーディネート（シフ子）", href: "/portal/shift-coordinate" }, { label: "シフ子（β版）", href: "/portal/shift-coordinate-performance-test", beta: true }, { label: "実績記録チェック", href: "/portal/disability-check" }] },
+];
+
+function isActiveLink(href: string, pathname: string, searchParams: ReturnType<typeof useSearchParams>) {
+  const [itemPath, itemQuery] = href.split("?");
+  if (pathname !== itemPath) return false;
+  if (!itemQuery) return true;
+  return new URLSearchParams(itemQuery).toString() === searchParams.toString();
+}
+
+function MenuLink({ item, pathname, searchParams }: { item: MenuItem; pathname: string; searchParams: ReturnType<typeof useSearchParams> }) {
+  const active = isActiveLink(item.href, pathname, searchParams);
+  return <Link href={item.href} className={`flex min-h-10 items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${active ? "border-l-4 border-sky-400 bg-sky-950/50 pl-2 font-bold text-white" : "text-blue-200 hover:bg-white/10 hover:text-white"}`}>
+    <span>{item.label}</span>{item.beta && <span className="rounded-full bg-amber-300/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-amber-200">BETA</span>}
+  </Link>;
+}
+
+function TreeGroup({ group, pathname, searchParams }: { group: MenuGroup; pathname: string; searchParams: ReturnType<typeof useSearchParams> }) {
+  const hasActiveItem = group.items.some((item) => isActiveLink(item.href, pathname, searchParams));
+  const [isOpen, setIsOpen] = useState(hasActiveItem);
+  useEffect(() => { if (hasActiveItem) setIsOpen(true); }, [hasActiveItem]);
+  return <section className="overflow-hidden rounded-lg border border-white/10 bg-slate-950/20">
+    <button type="button" onClick={() => setIsOpen((open) => !open)} className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm font-semibold text-white transition-colors hover:bg-white/10" aria-expanded={isOpen}>
+      {isOpen ? <ChevronDown size={17} aria-hidden /> : <ChevronRight size={17} aria-hidden />}<span>{group.icon} {group.label}</span>
+    </button>
+    {isOpen && <div className="border-t border-white/10 px-1 py-1">{group.items.map((item) => <MenuLink key={item.href} item={item} pathname={pathname} searchParams={searchParams} />)}</div>}
+  </section>;
+}
+
+function LegacyMenu({ role }: { role: string | null }) {
   const normalizedRole = (role ?? "").trim().toLowerCase();
   const isManagerOrAdmin =
     normalizedRole === "manager" ||
@@ -233,6 +285,38 @@ function NavLinks({ role }: { role: string | null }) {
   );
 }
 
+function TreeMenu({ role, onUseLegacy }: { role: string | null; onUseLegacy: () => void }) {
+  const pathname = usePathname() ?? "";
+  const searchParams = useSearchParams();
+  const isManagerOrAdmin = ["manager", "admin"].includes((role ?? "").trim().toLowerCase());
+  const currentYm = getCurrentYmJst();
+  const managerFrequentItems: MenuItem[] = [{ label: "ダッシュボード", href: "/portal/dashboard" }, { label: "エントリー一覧", href: "/portal/entry-list" }, { label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "シフト表", href: "/portal/roster/daily" }];
+  const commonFrequentItems: MenuItem[] = [{ label: "ポータルHome", href: "/portal" }, { label: "シフト・訪問記録", href: "/portal/shift" }, { label: "シフト・訪問記録 β版", href: "/portal/shift-reject-performance-test", beta: true }, { label: "シフ子", href: "/portal/shift-coordinate" }, { label: "シフ子 β版", href: "/portal/shift-coordinate-performance-test", beta: true }, { label: "職員証", href: "/portal/badge" }];
+  return <nav className="mt-5 space-y-4" aria-label="ポータルメニュー">
+    <div className="rounded-lg border border-sky-300/25 bg-sky-950/25 p-2">
+      <h3 className="px-2 pb-1 text-xs font-bold tracking-wide text-sky-200">よく使うメニュー</h3>
+      <div className="space-y-0.5">{isManagerOrAdmin && managerFrequentItems.map((item) => <MenuLink key={item.href} item={item} pathname={pathname} searchParams={searchParams} />)}{commonFrequentItems.map((item) => <MenuLink key={item.href} item={item} pathname={pathname} searchParams={searchParams} />)}</div>
+    </div>
+    {isManagerOrAdmin && <div className="space-y-2"><h3 className="px-1 text-xs font-bold tracking-wide text-slate-200">管理メニュー</h3>{managerMenuGroups.map((group) => <TreeGroup key={group.label} group={group} pathname={pathname} searchParams={searchParams} />)}</div>}
+    <div className="space-y-2"><h3 className="px-1 text-xs font-bold tracking-wide text-slate-200">全員共通メニュー</h3>{commonMenuGroups(currentYm).map((group) => <TreeGroup key={group.label} group={group} pathname={pathname} searchParams={searchParams} />)}</div>
+    <div className="space-y-0.5 border-t border-white/20 pt-3"><MenuLink item={{ label: "🏠 サイトHome", href: "/" }} pathname={pathname} searchParams={searchParams} /><MenuLink item={{ label: "LINE WORKSログインガイド", href: "/lineworks-login-guide" }} pathname={pathname} searchParams={searchParams} /></div>
+    <button type="button" onClick={onUseLegacy} className="w-full rounded-md border border-white/20 px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 hover:text-white">旧メニューに戻す</button>
+  </nav>;
+}
+
+function NavLinks({ role }: { role: string | null }) {
+  const [menuMode, setMenuMode] = useState<"tree" | "legacy">("tree");
+  useEffect(() => {
+    const storedMode = window.localStorage.getItem("portalMenuMode");
+    if (storedMode === "legacy" || storedMode === "tree") setMenuMode(storedMode);
+  }, []);
+  const changeMenuMode = (mode: "tree" | "legacy") => {
+    window.localStorage.setItem("portalMenuMode", mode);
+    setMenuMode(mode);
+  };
+  return menuMode === "tree" ? <TreeMenu role={role} onUseLegacy={() => changeMenuMode("legacy")} /> : <><LegacyMenu role={role} /><button type="button" onClick={() => changeMenuMode("tree")} className="mt-4 w-full rounded-md border border-white/20 px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 hover:text-white">新メニューを使う</button></>;
+}
+
 function UserHeader({ userData, role }: { userData: UserData; role: string | null }) {
   return (
     <>
@@ -357,10 +441,10 @@ export default function PortalLayout({ children }: Props) {
           type="button"
           aria-label={isCollapsed ? "メニューを開く" : "メニューを閉じる"}
           onClick={() => setIsCollapsed((v) => !v)}
-          className="absolute top-2 -right-3 z-20 bg-white border rounded-full w-6 h-6 shadow flex items-center justify-center text-sm"
+          className="absolute top-2 -right-3 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 shadow transition-colors hover:bg-slate-100 hover:text-slate-900"
           title={isCollapsed ? "メニュー展開" : "メニュー折りたたみ"}
         >
-          {isCollapsed ? "▶" : "◀"}
+          {isCollapsed ? <PanelLeftOpen size={19} aria-hidden /> : <PanelLeftClose size={19} aria-hidden />}
         </button>
 
         {!isCollapsed && (

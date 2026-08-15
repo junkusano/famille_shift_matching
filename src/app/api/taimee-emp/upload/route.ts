@@ -1,8 +1,42 @@
 // app/api/taimee-emp/upload/route.ts
 import { NextResponse as Nx } from 'next/server'
 import { createClient as createSb } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase/service'
 
 type ParsedCSV = { headers: string[]; rows: string[][] }
+type ImportRow = Record<string, string | null>
+
+const USER_ID_COLUMN = 'ユーザーID（ユーザーによって一意な値）'
+
+function errorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) return error.message
+    if (typeof error === 'object' && error !== null) {
+        const value = error as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown }
+        const parts = [value.message, value.details, value.hint, value.code && `code=${String(value.code)}`]
+            .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+        if (parts.length > 0) return parts.join(' / ')
+    }
+    return 'CSVの登録に失敗しました'
+}
+
+async function requireManager(req: Request): Promise<void> {
+    const token = req.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]
+    if (!token) throw new Error('UNAUTHORIZED')
+
+    const { data, error } = await supabaseAdmin.auth.getUser(token)
+    if (error || !data.user) throw new Error('UNAUTHORIZED')
+
+    const { data: staff, error: staffError } = await supabaseAdmin
+        .from('users')
+        .select('system_role')
+        .eq('auth_user_id', data.user.id)
+        .maybeSingle()
+
+    if (staffError) throw staffError
+    if (!['admin', 'manager'].includes((staff?.system_role ?? '').toLowerCase())) {
+        throw new Error('FORBIDDEN')
+    }
+}
 
 // --- 型ガード：'name' プロパティを持つか判定（型安全）
 function hasName(x: unknown): x is { name: string } {
@@ -85,6 +119,7 @@ function getUploadFile(form: FormData): File | null {
 
 export async function POST(req: Request) {
     try {
+        await requireManager(req)
         const form = await req.formData()
         const file = getUploadFile(form)
         if (!file) return Nx.json({ ok: false, error: 'file is required' }, { status: 400 })
@@ -101,12 +136,7 @@ export async function POST(req: Request) {
 
         // 必須ヘッダのindex取得
         const col = (name: string): number => headers.findIndex((h) => h === name)
-        const idxUser = col('ユーザーID（ユーザーによって一意な値）')
-        const idxLast = col('姓')
-        const idxFirst = col('名')
-        const idxPhone = col('電話番号')
-        // 住所など他カラムも保存したい場合は index を追加して下でマッピングしてください
-        // const idxAddr  = col('住所')
+        const idxUser = col(USER_ID_COLUMN)
 
         if (idxUser < 0) {
             return Nx.json({ ok: false, error: '必須ヘッダが見つかりません（ユーザーID列）' }, { status: 400 })
@@ -136,31 +166,88 @@ export async function POST(req: Request) {
         const norm = (v: string | undefined): string | null =>
             typeof v === 'string' ? v.trim() : null
 
-        const inserts = rows.map((r): Record<string, string | null> => ({
-            period_month: ym,
-            source_filename: uploadName,
-            uploaded_at: new Date().toISOString(),
-            'ユーザーID（ユーザーによって一意な値）': r[idxUser] ?? '',
-            姓: idxLast >= 0 ? norm(r[idxLast]) : null,
-            名: idxFirst >= 0 ? norm(r[idxFirst]) : null,
-            電話番号: idxPhone >= 0 ? norm(r[idxPhone]) : null,
-            // 住所: idxAddr >= 0 ? (r[idxAddr] ?? null) : null, // ← 保存したい場合はスキーマに合わせて列を追加
-            // taimee_user_id は GENERATED ALWAYS のため送らない
-            // normalized_phone も GENERATED のため送らない
-        }))
+        const mappedColumns = [
+            USER_ID_COLUMN,
+            '姓', '名', '住所', '生年月日', '性別', '電話番号', '初回稼働日', '最終稼働日',
+            '累計通常勤務時間', '累計深夜労働時間', '累計法定外割増時間', '累計実働時間',
+            '累計稼働回数', '累計源泉徴収額', '累計給与支払額', '累計交通費支払額',
+        ] as const
+        const indexes = Object.fromEntries(mappedColumns.map((name) => [name, col(name)])) as Record<string, number>
+        const missingUserIds: number[] = []
+        const duplicateUserIds: string[] = []
+        const seenUserIds = new Set<string>()
+        const uploadedAt = new Date().toISOString()
+        const inserts = rows.map((r, index): ImportRow => {
+            const userId = norm(r[idxUser])
+            if (!userId) missingUserIds.push(index + 2)
+            else if (seenUserIds.has(userId)) duplicateUserIds.push(userId)
+            else seenUserIds.add(userId)
 
-        const { error, count } = await supabase
+            const mapped = Object.fromEntries(mappedColumns.map((name) => [name, indexes[name] >= 0 ? norm(r[indexes[name]]) : null]))
+            return {
+                period_month: ym,
+                source_filename: uploadName,
+                uploaded_at: uploadedAt,
+                ...mapped,
+                [USER_ID_COLUMN]: userId ?? '',
+                // taimee_user_id / normalized_phone は generated column のため送らない
+            }
+        })
+
+        if (missingUserIds.length > 0) {
+            return Nx.json({ ok: false, error: `ユーザーIDが空の行があります: ${missingUserIds.slice(0, 10).join(', ')}` }, { status: 400 })
+        }
+        if (duplicateUserIds.length > 0) {
+            return Nx.json({ ok: false, error: `CSV内に重複したユーザーIDがあります: ${duplicateUserIds.slice(0, 3).join(', ')}` }, { status: 400 })
+        }
+
+        const userIds = inserts.map((row) => row[USER_ID_COLUMN]!).filter((value): value is string => typeof value === 'string')
+        const existingUserIds = new Set<string>()
+        // PostgREST のURL長制限を避けるため、既存判定は小分けに取得する。
+        for (let offset = 0; offset < userIds.length; offset += 100) {
+            const { data: existing, error: existingError } = await supabase
+                .from('taimee_employees_monthly')
+                .select(USER_ID_COLUMN)
+                .eq('period_month', ym)
+                .in(USER_ID_COLUMN, userIds.slice(offset, offset + 100))
+
+            if (existingError) throw existingError
+            for (const row of existing ?? []) {
+                const existingUserId = row[USER_ID_COLUMN]
+                if (typeof existingUserId === 'string') existingUserIds.add(existingUserId)
+            }
+        }
+
+        const { data, error } = await supabase
             .from('taimee_employees_monthly')
             .upsert(inserts, {
                 onConflict: 'period_month,taimee_user_id',
                 ignoreDuplicates: false,
-                count: 'exact',
             })
+            .select(`period_month,${USER_ID_COLUMN}`)
 
         if (error) throw error
-        return Nx.json({ ok: true, count: count ?? inserts.length })
+        const written = data ?? []
+        if (written.length !== inserts.length) {
+            throw new Error(`DBへの書込確認件数が一致しません（CSV ${inserts.length}件、DB ${written.length}件）`)
+        }
+        const updated = written.filter((row) => existingUserIds.has(row[USER_ID_COLUMN])).length
+        const inserted = written.length - updated
+        return Nx.json({ ok: true, parsed: rows.length, inserted, updated, skipped: 0, failed: 0 })
     } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e)
-        return Nx.json({ ok: false, error: msg }, { status: 500 })
+        const rawMessage = errorMessage(e)
+        const status = rawMessage === 'UNAUTHORIZED' ? 401 : rawMessage === 'FORBIDDEN' ? 403 : 500
+        const message = rawMessage === 'UNAUTHORIZED'
+            ? 'ログインしてください'
+            : rawMessage === 'FORBIDDEN'
+                ? 'この操作を実行する権限がありません'
+                : rawMessage
+        console.error('[taimee-emp/upload] failed', {
+            message: e && typeof e === 'object' && 'message' in e ? (e as { message?: unknown }).message : undefined,
+            code: e && typeof e === 'object' && 'code' in e ? (e as { code?: unknown }).code : undefined,
+            details: e && typeof e === 'object' && 'details' in e ? (e as { details?: unknown }).details : undefined,
+            hint: e && typeof e === 'object' && 'hint' in e ? (e as { hint?: unknown }).hint : undefined,
+        })
+        return Nx.json({ ok: false, error: message }, { status })
     }
 }

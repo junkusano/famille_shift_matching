@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { getAppBaseUrl } from '@/lib/env/getAppBaseUrl'
+import { supabase } from '@/lib/supabaseClient'
 
 const notify = {
   success: (msg: string) => (typeof window !== 'undefined' ? window.alert(msg) : void 0),
@@ -194,13 +195,42 @@ https://www.shi-on.net/column?page=17
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const r = await fetch('/api/taimee-emp/upload', { method: 'POST', body: fd })
-      const j = await r.json()
-      if (!j.ok) throw new Error(j.error || 'アップロード失敗')
-      notify.success(`取り込み完了：${j.count}件`)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('ログイン情報を確認できません。再ログインしてください。')
+
+      const r = await fetch('/api/taimee-emp/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: fd,
+      })
+      const responseText = await r.text()
+      let j: {
+        ok?: boolean
+        parsed?: number
+        inserted?: number
+        updated?: number
+        skipped?: number
+        failed?: number
+        error?: unknown
+      }
+      try {
+        j = JSON.parse(responseText)
+      } catch {
+        throw new Error(`CSV登録APIがJSON以外を返しました。HTTP ${r.status}: ${responseText.slice(0, 300)}`)
+      }
+      if (!r.ok || !j.ok) {
+        const error = typeof j.error === 'string' ? j.error : 'CSVの登録に失敗しました'
+        throw new Error(error)
+      }
+      const summary = `CSV読込 ${j.parsed ?? 0}件 / 追加 ${j.inserted ?? 0}件 / 更新 ${j.updated ?? 0}件 / スキップ ${j.skipped ?? 0}件 / 失敗 ${j.failed ?? 0}件`
+      setMessage(summary)
+      notify.success(`取り込み完了：${summary}`)
       await fetchList()
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : 'アップロードに失敗しました')
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e.message : 'CSVの登録に失敗しました'
+      console.error('[taimee-emp] upload failed', e)
+      setMessage(`CSVの登録に失敗しました。\n${error}`)
+      notify.error(error)
     } finally { setLoading(false) }
   }
 
