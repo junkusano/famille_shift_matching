@@ -26,7 +26,7 @@ export async function notifyRecruitment(kind: "new" | "candidate" | "reapply", a
 
 export async function sendApplicantGuide(kind: "candidate" | "reapply", email: string) {
   const text = kind === "reapply"
-    ? "再応募を受け付けました。<br><br>過去の応募情報を引き継いで採用担当が確認いたします。<br>今後の手続きについては改めてご案内いたします。"
+    ? "リエントリーを歓迎します。<br><br>好きな時間でシフトに入れるシフ子、日払い制度、パフォーマンスをスコア化して時給アップを目指せる仕組みなど、新しいファミーユでの経験をぜひ始めてください。<br><br>再応募を受け付けました。過去の応募情報を引き継いで採用担当が確認いたします。今後の手続きについては改めてご案内いたします。"
     : "ご応募ありがとうございます。<br><br>入力いただいた情報から、過去にファミーユへご応募いただいた情報が確認されました。<br><br>重複した応募情報を作成せず、再応募として確認いたします。<br>採用担当より改めてご案内いたしますので、次のご連絡をお待ちください。";
   return sendEmail({ to: email.trim(), subject: "【ファミーユ】応募受付のご案内", html: `<p>${escapeHtml(email.trim())} 様</p><p>${text}</p>` });
 }
