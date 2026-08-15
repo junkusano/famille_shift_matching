@@ -7742,6 +7742,45 @@ export type Database = {
           },
         ]
       }
+      staff_monthly_stats: {
+        Row: {
+          active_count: number
+          calculated_at: string
+          created_at: string
+          fulltime_count: number
+          hired_count: number
+          month: string
+          other_count: number
+          retired_count: number
+          updated_at: string
+          working_count: number
+        }
+        Insert: {
+          active_count?: number
+          calculated_at?: string
+          created_at?: string
+          fulltime_count?: number
+          hired_count?: number
+          month: string
+          other_count?: number
+          retired_count?: number
+          updated_at?: string
+          working_count?: number
+        }
+        Update: {
+          active_count?: number
+          calculated_at?: string
+          created_at?: string
+          fulltime_count?: number
+          hired_count?: number
+          month?: string
+          other_count?: number
+          retired_count?: number
+          updated_at?: string
+          working_count?: number
+        }
+        Relationships: []
+      }
       system_role_master: {
         Row: {
           active: boolean | null
@@ -12607,6 +12646,10 @@ export type Database = {
         Returns: number
       }
       read_secret: { Args: { secret_name: string }; Returns: string }
+      rebuild_staff_monthly_stats: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: number
+      }
       refresh_disability_check_jisseki_staff: {
         Args: { _base_date?: string }
         Returns: undefined

@@ -76,7 +76,7 @@ type DeadlineMissRecorder = {
     rpc: (
         functionName: "record_visit_record_deadline_miss",
         args: { p_staff_id: string; p_action_at: string; p_action_detail: string }
-    ) => Promise<{ error: { message: string } | null }>;
+    ) => Promise<{ error: { code?: string; message: string } | null }>;
 };
 
 const VISIT_RECORD_DEADLINE_EVENT = "[VISIT_RECORD_DEADLINE_MISS]";
@@ -851,21 +851,25 @@ export async function GET(req: NextRequest) {
         let deadlineIncompleteShifts: ShiftRecordViewRow[] = [];
         let deadlinePenaltyLogRows = 0;
 
-        // 明示的な deadline_date は、漏れた対象日の補正専用。通常Cronは23:40以降に
-        // 当日分だけを確定するため、過去月の通常再計算で新しい減点を作ることはない。
-        if (deadlineTargetDate) {
-            const deadlineRows = await fetchAllShiftRows(
-                deadlineTargetDate,
-                getNextMonthStartDate(deadlineTargetDate),
-                selectShiftColumns
-            );
-            deadlineIncompleteShifts = deadlineRows.filter(
-                (shift) =>
-                    shift.shift_id != null &&
-                    shift.shift_start_date === deadlineTargetDate &&
-                    !String(shift.kaipoke_cs_id ?? "").startsWith("9999999") &&
-                    !isVisitRecordComplete(shift.record_status)
-            );
+        // 23:40の実行がデプロイや一時障害で抜けても、後続Cronで当月の過去日を
+        // 自動補正する。明示的なdeadline_date指定時は、その日だけを補正する。
+        // 既存ログは一意制約で重複しないため、毎回再確認しても二重計上されない。
+        const shouldReconcilePastDates =
+            !req.nextUrl.searchParams.has("ym") && deadlineTargetDate === null;
+        const deadlineRows = currentMonthShiftRows.filter((shift) => {
+            if (!shift.shift_start_date) return false;
+            if (deadlineTargetDate) return shift.shift_start_date === deadlineTargetDate;
+            return shouldReconcilePastDates && shift.shift_start_date < jstNow.date;
+        });
+
+        deadlineIncompleteShifts = deadlineRows.filter(
+            (shift) =>
+                shift.shift_id != null &&
+                !String(shift.kaipoke_cs_id ?? "").startsWith("9999999") &&
+                !isVisitRecordComplete(shift.record_status)
+        );
+
+        if (deadlineIncompleteShifts.length > 0) {
             const participantUserIds = Array.from(new Set(
                 deadlineIncompleteShifts.flatMap((shift) => getParticipatingUserIds(shift))
             ));
@@ -885,15 +889,14 @@ export async function GET(req: NextRequest) {
                     }
                 }
 
-                const actionAt = `${deadlineTargetDate} 23:40:00`;
                 const deadlineMissRows = deadlineIncompleteShifts
                     .flatMap((shift) => getParticipatingUserIds(shift).map((userId) => {
                         const entryId = entryIdByUserId.get(userId);
-                        if (!entryId) return null;
+                        if (!entryId || !shift.shift_start_date) return null;
                         return {
                             staff_id: entryId,
-                            action_at: actionAt,
-                            action_detail: `${VISIT_RECORD_DEADLINE_EVENT} shift_id=${shift.shift_id} shift_date=${deadlineTargetDate} penalty=-5 reason=23:40時点で訪問記録未完了`,
+                            action_at: `${shift.shift_start_date} 23:40:00`,
+                            action_detail: `${VISIT_RECORD_DEADLINE_EVENT} shift_id=${shift.shift_id} shift_date=${shift.shift_start_date} penalty=-5 reason=23:40時点で訪問記録未完了`,
                             registered_by: VISIT_RECORD_DEADLINE_REGISTERED_BY,
                         };
                     }))
@@ -909,15 +912,61 @@ export async function GET(req: NextRequest) {
                         })
                     ));
                     const deadlineMissError = results.find((result) => result.error)?.error;
-                    if (deadlineMissError) throw new Error(deadlineMissError.message);
-                    deadlinePenaltyLogRows = deadlineMissRows.length;
+                    if (deadlineMissError) {
+                        // 旧環境でRPC migrationが未適用でも日次処理全体を止めない。
+                        // 既存イベントを先に読み、未登録分だけを直接INSERTする。
+                        const staffIds = Array.from(new Set(deadlineMissRows.map((row) => row.staff_id)));
+                        const { data: existingDeadlineLogs, error: existingDeadlineLogsError } = await supabaseAdmin
+                            .from("staff_log")
+                            .select("staff_id, action_detail")
+                            .eq("registered_by", VISIT_RECORD_DEADLINE_REGISTERED_BY)
+                            .in("staff_id", staffIds)
+                            .gte("action_at", targetMonth)
+                            .lt("action_at", nextMonthStart)
+                            .like("action_detail", `${VISIT_RECORD_DEADLINE_EVENT}%`)
+                            .returns<DeadlineMissLogRow[]>();
+
+                        if (existingDeadlineLogsError) throw existingDeadlineLogsError;
+
+                        const existingKeys = new Set(
+                            (existingDeadlineLogs ?? []).map(
+                                (row) => `${row.staff_id}\u0000${row.action_detail ?? ""}`
+                            )
+                        );
+                        const missingRows = deadlineMissRows.filter(
+                            (row) => !existingKeys.has(`${row.staff_id}\u0000${row.action_detail}`)
+                        );
+
+                        if (missingRows.length > 0) {
+                            const { error: fallbackInsertError } = await supabaseAdmin
+                                .from("staff_log")
+                                .insert(missingRows);
+                            if (fallbackInsertError) throw fallbackInsertError;
+                        }
+
+                        deadlinePenaltyLogRows = missingRows.length;
+                        console.warn("[team-score][visit-record-deadline] RPC unavailable; used direct idempotent insert", {
+                            code: deadlineMissError.code ?? null,
+                            insertedCount: missingRows.length,
+                        });
+                    } else {
+                        deadlinePenaltyLogRows = deadlineMissRows.length;
+                    }
                 }
             }
+        }
 
+        if (deadlineTargetDate || shouldReconcilePastDates) {
+            const reconciledDates = Array.from(new Set(
+                deadlineIncompleteShifts
+                    .map((shift) => shift.shift_start_date)
+                    .filter((date): date is string => Boolean(date))
+            ));
             // 実行ログは、未登録(NULL/空文字/「未登録」)件数と今回の反映対象を必ず残す。
             // DB側の一意制約により、retry/manual rerun でも同一スタッフ・同一シフトは一度だけ記録される。
             console.info("[team-score][visit-record-deadline]", {
                 targetDate: deadlineTargetDate,
+                reconciledDates,
                 serviceCategory: "訪問介護",
                 unregisteredCount: deadlineIncompleteShifts.length,
                 appliedTeamPenalty: -deadlineIncompleteShifts.length,
@@ -957,7 +1006,12 @@ export async function GET(req: NextRequest) {
             .returns<DeadlineMissLogRow[]>();
 
         if (deadlineMissLogsError) throw deadlineMissLogsError;
+        const countedDeadlineMissLogKeys = new Set<string>();
         for (const log of deadlineMissLogs ?? []) {
+            const shiftId = log.action_detail?.match(/\bshift_id=([^\s]+)/)?.[1] ?? log.action_detail ?? "";
+            const countKey = `${log.staff_id}\u0000${shiftId}`;
+            if (countedDeadlineMissLogKeys.has(countKey)) continue;
+            countedDeadlineMissLogKeys.add(countKey);
             const userId = entryIdToUserId.get(log.staff_id);
             if (userId) {
                 visitDeadlineMissCountMap.set(
