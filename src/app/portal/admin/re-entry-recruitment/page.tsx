@@ -8,7 +8,7 @@ type Candidate = { staff_id: string; staff_name: string; address_city: string; e
 type Settings = { email_subject: string; email_body: string; sms_body: string };
 const DEFAULT: Settings = { email_subject: "ファミーユから再応募のご案内", email_body: "〇〇さん\n\n以前はファミーユで勤務いただきありがとうございました。\n\n現在ファミーユでは、以前勤務されていた方の再応募を歓迎しています。\n\n働き方や勤務できる時間が以前と変わっていても大丈夫です。\nまたファミーユで働いてみたい、少し話を聞いてみたいという場合は、Re-entryページからお申し込みください。\n\n【Re-entryはこちら】\n{{reentry_url}}\n\nファミーユ ヘルパーサービス", sms_body: "ファミーユです。以前勤務された方へ再応募のご案内です。また働いてみたい方はこちら：{{reentry_url}}" };
 const GSM7 = /^[\x0A\x0D\x20-\x7E¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,\-./0-9:;<=>?@A-ZÄÖÑÜ§¿a-zäöñüà]*$/;
-function smsInfo(text: string) { const gsm = GSM7.test(text); const units = gsm ? [...text].reduce((n, c) => n + "^{}\\[~]|€".includes(c) ? 2 : n + 1, 0) : [...text].reduce((n, c) => n + (c.codePointAt(0)! > 0xffff ? 2 : 1), 0); const single = gsm ? 160 : 70; const joined = gsm ? 153 : 67; const segments = units <= single ? 1 : Math.ceil(units / joined); return { units, segments, max: joined * 2, encoding: gsm ? "GSM-7" : "UCS-2" }; }
+function smsInfo(text: string) { const gsm = GSM7.test(text); const units = gsm ? [...text].reduce((n, c) => n + ("^{}\\[~]|€".includes(c) ? 2 : 1), 0) : [...text].reduce((n, c) => n + (c.codePointAt(0)! > 0xffff ? 2 : 1), 0); const single = gsm ? 160 : 70; const joined = gsm ? 153 : 67; const segments = units <= single ? 1 : Math.ceil(units / joined); return { units, segments, max: joined * 2, encoding: gsm ? "GSM-7" : "UCS-2" }; }
 function dateText(value: string | null) { return value ? new Date(value).toLocaleDateString("ja-JP") : "—"; }
 
 export default function ReentryRecruitmentPage() {
