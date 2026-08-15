@@ -8,3 +8,17 @@ export async function deleteLineWorksUser(lineworksUserId: string): Promise<void
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }
+
+/** Confirms current existence by the immutable LINE WORKS userId. */
+export async function lineWorksUserExists(lineworksUserId: string): Promise<boolean> {
+  const accessToken = await getAccessToken();
+  try {
+    await axios.get(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(lineworksUserId)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return true;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) return false;
+    throw error;
+  }
+}

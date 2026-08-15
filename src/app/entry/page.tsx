@@ -124,6 +124,67 @@ export default function EntryPage() {
 
         setIsSubmitting(true);
 
+        // Entry itself is committed first by the server.  Files are deliberately
+        // sent afterwards so a slow Drive upload never holds the submission open.
+        const submissionId = crypto.randomUUID();
+        const payloadForServer = {
+            last_name_kanji: lastNameKanji,
+            first_name_kanji: firstNameKanji,
+            last_name_kana: lastNameKana,
+            first_name_kana: firstNameKana,
+            birth_year: birthYear,
+            birth_month: birthMonth,
+            birth_day: birthDay,
+            gender: String(form.get("gender") || ""),
+            email,
+            phone: String(form.get("phone") || ""),
+            postal_code: postalCode,
+            address,
+            motivation: String(form.get("motivation") || ""),
+            workstyle_other: String(form.get("workStyleOther") || ""),
+            health_condition: String(form.get("healthCondition") || ""),
+            work_styles: form.getAll("workStyle").map(String),
+            commute_options: form.getAll("commute").map(String),
+            agreed_terms: form.get("agreeTerms") === "on",
+            agreed_privacy: form.get("agreePrivacy") === "on",
+        };
+        try {
+            const response = await fetch("/api/entry/submit", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ submissionId, payload: payloadForServer }),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.ok) throw new Error(result.message || "submit failed");
+            if (result.outcome === "candidate") {
+                alert("過去の応募情報が確認されました。新しい応募情報は作成せず、再応募として採用担当へ確認を依頼しました。ご案内メールをご確認ください。");
+            } else {
+                const upload = (slot: string, file: File | null) => {
+                    if (!file || file.size === 0) return;
+                    const data = new FormData();
+                    data.append("submissionId", submissionId);
+                    data.append("slot", slot);
+                    data.append("file", file);
+                    void fetch("/api/entry/attachments", { method: "POST", body: data }).catch(() => undefined);
+                };
+                upload("license_front", licenseFront);
+                upload("license_back", licenseBack);
+                upload("residence_card", residenceCard);
+                upload("photo", photoFile);
+                for (let i = 0; i < 20; i++) upload(`certificate_${i}`, form.get(`certificate_${i}`) as File | null);
+                alert("エントリーを送信しました。添付ファイルは引き続き安全に保存しています。");
+            }
+            formEl.reset();
+            setFormData(form);
+            setSubmitted(true);
+            return;
+        } catch (error) {
+            console.error("[entry] submit failed", error);
+            alert("送信処理を完了できませんでした。時間をおいてもう一度お試しください。");
+            setIsSubmitting(false);
+            return;
+        }
+
         // ---- ユーティリティ（この関数内だけで完結：失敗しても throw しない） ----
         const timestamp = (() => {
             const d = new Date();
@@ -178,13 +239,6 @@ export default function EntryPage() {
         }
         const certSettled = await Promise.allSettled(certTasks);
         const certificationUrls = certSettled.map(s => (s.status === "fulfilled" ? s.value : null)).filter(Boolean) as string[];
-
-        // ---- テキストpayloadを構築（Fileは除外） -----------------------------------
-        const textPayload: Record<string, string | boolean | null> = {};
-        for (const [k, v] of form.entries()) {
-            if (v instanceof File) continue;
-            textPayload[k] = v === "on" ? true : (typeof v === "string" ? v : String(v));
-        }
 
         // 画像の成否にかかわらず進める。取れたURLだけ載せる
         const anyAttachment = !!(licenseFrontUrl || licenseBackUrl || residenceCardUrl || photoUrl || certificationUrls.length);
@@ -297,6 +351,12 @@ export default function EntryPage() {
                 <h1 className="text-2xl font-bold text-famille text-center">
                     登録フォーム
                 </h1>
+                <section className="rounded-lg border border-famille/30 bg-famille/5 p-4 text-center">
+                    <p className="font-medium">以前ファミーユへ応募したことがある方</p>
+                    <Link href="/entry/reapply" className="mt-2 inline-flex rounded bg-famille px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
+                        再応募はこちら
+                    </Link>
+                </section>
                 <p className="text-sm text-gray-600 mb-4">
                     <span className="text-red-500">*</span> 印の項目は必須です。
                 </p>

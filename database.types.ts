@@ -4092,6 +4092,97 @@ export type Database = {
         }
         Relationships: []
       }
+      entry_attachments: {
+        Row: {
+          created_at: string
+          drive_file_id: string | null
+          drive_web_view_link: string | null
+          entry_id: string | null
+          error_code: string | null
+          id: string
+          mime_type: string | null
+          original_filename: string
+          slot: string
+          status: string
+          submission_id: string
+          updated_at: string
+          upload_token: string
+        }
+        Insert: {
+          created_at?: string
+          drive_file_id?: string | null
+          drive_web_view_link?: string | null
+          entry_id?: string | null
+          error_code?: string | null
+          id?: string
+          mime_type?: string | null
+          original_filename: string
+          slot: string
+          status?: string
+          submission_id: string
+          updated_at?: string
+          upload_token?: string
+        }
+        Update: {
+          created_at?: string
+          drive_file_id?: string | null
+          drive_web_view_link?: string | null
+          entry_id?: string | null
+          error_code?: string | null
+          id?: string
+          mime_type?: string | null
+          original_filename?: string
+          slot?: string
+          status?: string
+          submission_id?: string
+          updated_at?: string
+          upload_token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entry_attachments_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "form_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entry_attachments_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "form_entries_ordered"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entry_attachments_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "form_entries_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entry_attachments_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "form_entries_with_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entry_attachments_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "taimee_employees_with_entry"
+            referencedColumns: ["entry_id"]
+          },
+          {
+            foreignKeyName: "entry_attachments_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "users_personal_group_view"
+            referencedColumns: ["form_entries_id"]
+          },
+        ]
+      }
       env_variables: {
         Row: {
           created_at: string | null
@@ -4677,6 +4768,7 @@ export type Database = {
           license_front_url: string | null
           manager_note: string | null
           motivation: string | null
+          normalized_email: string | null
           period_from_1: string | null
           period_from_2: string | null
           period_from_3: string | null
@@ -4686,7 +4778,9 @@ export type Database = {
           phone: string | null
           photo_url: string | null
           postal_code: string | null
+          reapply_requested_at: string | null
           residence_card_url: string | null
+          submission_id: string | null
           work_styles: string[] | null
           workplace_1: string | null
           workplace_2: string | null
@@ -4720,6 +4814,7 @@ export type Database = {
           license_front_url?: string | null
           manager_note?: string | null
           motivation?: string | null
+          normalized_email?: string | null
           period_from_1?: string | null
           period_from_2?: string | null
           period_from_3?: string | null
@@ -4729,7 +4824,9 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           postal_code?: string | null
+          reapply_requested_at?: string | null
           residence_card_url?: string | null
+          submission_id?: string | null
           work_styles?: string[] | null
           workplace_1?: string | null
           workplace_2?: string | null
@@ -4763,6 +4860,7 @@ export type Database = {
           license_front_url?: string | null
           manager_note?: string | null
           motivation?: string | null
+          normalized_email?: string | null
           period_from_1?: string | null
           period_from_2?: string | null
           period_from_3?: string | null
@@ -4772,7 +4870,9 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           postal_code?: string | null
+          reapply_requested_at?: string | null
           residence_card_url?: string | null
+          submission_id?: string | null
           work_styles?: string[] | null
           workplace_1?: string | null
           workplace_2?: string | null
@@ -12832,6 +12932,10 @@ export type Database = {
           status: string
           user_id: string
         }[]
+      }
+      submit_entry_application: {
+        Args: { p_payload: Json; p_submission_id: string }
+        Returns: Json
       }
       sync_cs_docs_to_kaipoke_documents: { Args: never; Returns: number }
       "Update email to users": { Args: never; Returns: undefined }

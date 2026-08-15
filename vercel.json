@@ -235,6 +235,10 @@
     {
       "path": "/api/cron/training-goal-reminder",
       "schedule": "37 1 1 * *"
+    },
+    {
+      "path": "/api/cron/entry-attachment-reconcile",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
