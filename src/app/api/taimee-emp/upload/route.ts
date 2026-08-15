@@ -207,7 +207,9 @@ export async function POST(req: Request) {
         for (let offset = 0; offset < userIds.length; offset += 100) {
             const { data: existing, error: existingError } = await supabase
                 .from('taimee_employees_monthly')
-                .select(USER_ID_COLUMN)
+                // PostgREST は全角括弧を含む列名を select パラメータとして解釈できない。
+                // * で取得し、返却オブジェクトから当該列を参照する。
+                .select('*')
                 .eq('period_month', ym)
                 .in(USER_ID_COLUMN, userIds.slice(offset, offset + 100))
 
@@ -224,7 +226,7 @@ export async function POST(req: Request) {
                 onConflict: 'period_month,taimee_user_id',
                 ignoreDuplicates: false,
             })
-            .select(`period_month,${USER_ID_COLUMN}`)
+            .select('*')
 
         if (error) throw error
         const written = data ?? []
