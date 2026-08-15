@@ -76,7 +76,7 @@ export default function EntrySumBizStats() {
         <div className="overflow-x-auto">
           <Table>
             <TableHeader><TableRow>
-              <TableHead>月</TableHead><TableHead className="text-right">採用数</TableHead><TableHead className="text-right">退職数</TableHead><TableHead className="text-right">前月比増加</TableHead><TableHead className="text-right">在籍数</TableHead><TableHead className="text-right">正社員</TableHead><TableHead className="text-right">その他</TableHead><TableHead className="text-right">実働数</TableHead>
+              <TableHead>月</TableHead><TableHead className="text-right">採用数</TableHead><TableHead className="text-right">退職数</TableHead><TableHead className="text-right">前月比増加</TableHead><TableHead className="text-right">在籍数</TableHead><TableHead className="text-right">（内：正社員）</TableHead><TableHead className="text-right">（内：その他）</TableHead><TableHead className="text-right">実働数</TableHead>
             </TableRow></TableHeader>
             <TableBody>{rows.map((row, index) => {
               const previous = index > 0 ? rows[index - 1].active_count : null;

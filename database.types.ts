@@ -12308,6 +12308,23 @@ export type Database = {
         Args: { new_row: Json; old_row: Json }
         Returns: string[]
       }
+      batch_reassign_departed_staff_shifts: {
+        Args: {
+          p_actor_auth_id: string
+          p_from_user_id: string
+          p_start_at: string
+          p_to_user_id: string
+        }
+        Returns: {
+          deleted_count: number
+          failed_count: number
+          processed_count: number
+          updated_count: number
+          weekly_deleted_count: number
+          weekly_processed_count: number
+          weekly_updated_count: number
+        }[]
+      }
       build_cs_document_json_from_cs_docs: {
         Args: {
           p_classification_confidence: number
@@ -12803,6 +12820,17 @@ export type Database = {
       snapshot_biz_stats_shift_sum: {
         Args: { p_year_month: string }
         Returns: number
+      }
+      staff_retirement_review_rows: {
+        Args: never
+        Returns: {
+          hired_at: string
+          last_shift_date: string
+          lw_userid: string
+          staff_name: string
+          status: string
+          user_id: string
+        }[]
       }
       sync_cs_docs_to_kaipoke_documents: { Args: never; Returns: number }
       "Update email to users": { Args: never; Returns: undefined }

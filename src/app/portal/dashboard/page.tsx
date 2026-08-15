@@ -5,6 +5,7 @@ import ShiftSumBizStats from "@/components/biz-stats/ShiftSum";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import DefectSum from "@/components/biz-stats/DefectSum";
 import EntrySumBizStats from "@/components/biz-stats/EntrySum";
+import StaffRetirementReview from "@/components/biz-stats/StaffRetirementReview";
 import TableViewer, {
   formatHours2,
   getNextYearMonth,
@@ -30,6 +31,7 @@ export default function DashboardPage() {
       <ShiftSumBizStats />
       <DefectSum />
       <EntrySumBizStats />
+      <StaffRetirementReview />
         <TableViewer
           title="月次CSサービス時間サマリー"
           tableName="shift_summary_monthly_cs_view"
