@@ -100,6 +100,7 @@ interface UserRecord {
     position_id?: string | null;
     status?: string;
     roster_sort?: string | null;
+    lw_userid?: string | null;
 
     // ここから追加
     entry_date_original?: string | null;   // 最初の入社日
@@ -166,8 +167,12 @@ export default function EntryDetailPage() {
     const [masterRows, setMasterRows] = useState<CertMasterRow[]>([]);
     const [services, setServices] = useState<ServiceKey[]>([]);
 
-    const [rosterSaving, setRosterSaving] = useState(false);
-    const [rosterSaved, setRosterSaved] = useState(false);
+    const [entrySaving, setEntrySaving] = useState(false);
+    const [entrySaveMessage, setEntrySaveMessage] = useState<string | null>(null);
+    const [persistedEmail, setPersistedEmail] = useState<string | null>(null);
+    const [authDeleting, setAuthDeleting] = useState(false);
+    const [authMessage, setAuthMessage] = useState<string | null>(null);
+    const [lineWorksMessage, setLineWorksMessage] = useState<string | null>(null);
 
     const getField = <K extends WorkKey>(key: K): string =>
         (entry?.[key] ?? '') as string;
@@ -592,6 +597,7 @@ export default function EntryDetailPage() {
 
             setRestricted(false);
             setEntry(normalizeEntryFromDb(data));
+            setPersistedEmail((data.email ?? '').trim().toLowerCase());
             setManagerNote(data?.manager_note ?? '');
         })();
     }, [id, myLevelSort]);
@@ -721,36 +727,17 @@ export default function EntryDetailPage() {
 
         setSendingInvite(true);
         setInviteSent(false);
+        setAuthMessage(null);
 
         try {
-            // 🔑 仮パスワード生成
-            //const password = generateSecurePassword();
-
-            // 🔑 Supabase サインアップ
-            const { data, error } = await supabase.auth.signUp({
-                email: entry.email,
-                password: 'DummyPass123!',
-                options: {
-                    emailRedirectTo: `${window.location.origin}/signup/complete`,
-                    data: {
-                        full_name: `${entry.last_name_kanji} ${entry.first_name_kanji}`
-                    }
-                }
+            const res = await fetch('/api/entry/auth', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entryId: entry.id, action: 'invite', email: entry.email }),
             });
-
-            if (error) {
-                console.error('Sign-up error:', error);
-                alert(`メール送信に失敗しました: ${error.message}`);
-                return;
-            }
-
-            if (!data.user?.id) {
-                alert('認証ユーザー情報が取得できませんでした。');
-                return;
-            }
-
-            alert('認証メールを送信しました！');
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.error ?? '認証メールを送信できませんでした');
             setInviteSent(true);
+            setAuthMessage('✓ 認証メールを送信しました。');
 
             await addStaffLog({
                 staff_id: entry.id,
@@ -760,63 +747,22 @@ export default function EntryDetailPage() {
             });
             console.log('📝 認証メール送信ログを記録しました');
 
-            const { error: statusError } = await supabase
-                .from('users')
-                .update({ status: '認証メール送信済' })
-                .eq('user_id', userId);
-
-            if (statusError) {
-                console.error('ステータス更新エラー:', statusError.message);
-            } else {
-                console.log('✅ ステータスを認証メール送信済に変更しました');
-            }
-
-            if (entry?.id) {
-                const { data: userRow } = await supabase
-                    .from('users')
-                    .select('user_id, status, level_id, position_id, roster_sort')
-                    .eq('entry_id', entry.id)
-                    .maybeSingle();
-                void userRow; // ← 未使用警告回避
-            }
-
-            // 📝 users テーブルを更新
-            const { error: updateError } = await supabase.from('users')
-                .update({
-                    auth_user_id: data.user.id,
-                    status: 'auth_mail_send'
-                })
-                .eq('user_id', userId);
-
-            if (updateError) {
-                console.error('Supabase users 更新エラー:', updateError);
-                alert('ユーザー情報更新に失敗しました。');
-                return;
-            }
+            await fetchUserRecord();
+            await fetchEntry();
 
         } catch (e) {
             console.error('招待送信中エラー:', e);
-            alert('招待送信中に予期しないエラーが発生しました。');
+            setAuthMessage(`認証メールの送信に失敗しました: ${e instanceof Error ? e.message : '予期しないエラー'}`);
         } finally {
             setSendingInvite(false);
         }
     };
 
-    useEffect(() => {
-        if (!userRecord?.auth_user_id) return;
-        const interval = setInterval(async () => {
-            const { data, error } = await supabase.auth.admin.getUserById(userRecord.auth_user_id);
-            if (!error && data.user?.last_sign_in_at) {
-                setUserRecord(prev => prev ? { ...prev, auth_user_id: data.user.id } : prev);
-                clearInterval(interval);  // 認証完了で監視終了
-            }
-        }, 5000);  // 5秒おきに確認（必要に応じて間隔調整）
-
-        return () => clearInterval(interval);
-    }, [userRecord?.auth_user_id]);
-
     const updateEntry = async () => {
         if (!entry) return;
+        if (entrySaving) return;
+        setEntrySaving(true);
+        setEntrySaveMessage(null);
 
         const wsInput = (entry.work_styles ?? '').trim();
         const cmInput = (entry.commute_options ?? '').trim();
@@ -830,6 +776,17 @@ export default function EntryDetailPage() {
             : (cmInput || null);                        // DBが text のとき
 
         const emailForDB = (entry.email ?? '').trim() || null; // 空はnullに
+
+        try {
+        const normalizedEmail = emailForDB?.toLowerCase() ?? '';
+        if (normalizedEmail !== (persistedEmail ?? '')) {
+            const authRes = await fetch('/api/entry/auth', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entryId: entry.id, action: 'update-email', email: emailForDB }),
+            });
+            const authData = await authRes.json();
+            if (!authRes.ok || !authData.success) throw new Error(authData.error ?? '認証メールアドレスの更新に失敗しました');
+        }
 
         const { error } = await supabase
             .from("form_entries")
@@ -865,11 +822,20 @@ export default function EntryDetailPage() {
             })
             .eq("id", entry.id);
 
-        if (error) {
-            console.error("更新失敗:", error);
-            alert("更新に失敗しました: " + error.message);
-        } else {
-            alert("保存しました");
+        if (error) throw error;
+        if (userRecord?.user_id) {
+            const rosterValue = (userRecord.roster_sort ?? '').trim() || '9999';
+            const { error: rosterError } = await supabase.from('users').update({ roster_sort: rosterValue }).eq('user_id', userRecord.user_id);
+            if (rosterError) throw rosterError;
+        }
+        setPersistedEmail(normalizedEmail);
+        setEntrySaveMessage(normalizedEmail !== (persistedEmail ?? '')
+            ? '保存しました。メールアドレスを変更したため、対象者は新しいメールアドレスで再ログインしてください。'
+            : '保存しました。');
+        } catch (error) {
+            setEntrySaveMessage(`保存に失敗しました: ${error instanceof Error ? error.message : '予期しないエラー'}`);
+        } finally {
+            setEntrySaving(false);
         }
     };
 
@@ -924,6 +890,7 @@ export default function EntryDetailPage() {
     };
 
     const [lineWorksExists, setLineWorksExists] = useState<boolean | null>(null);
+    const isReentry = Boolean(userRecord && (userRecord.lw_userid || userRecord.resign_date_latest));
 
 
     useEffect(() => {
@@ -948,6 +915,7 @@ export default function EntryDetailPage() {
         }
 
         setCreatingLineWorks(true);  // 処理開始
+        setLineWorksMessage(isReentry ? 'Re-entryとしてLINE WORKSを復旧しています...' : 'LINE WORKSを新規設定しています...');
 
         try {
             const payload: Record<string, unknown> = {
@@ -959,28 +927,26 @@ export default function EntryDetailPage() {
             if (selectedPosition) payload.positionId = selectedPosition;
             if (selectedLevel) payload.levelId = selectedLevel;
 
-            console.log('送信データ:', payload);
-
-            const res = await fetch('/api/lineworks/create-user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const data = await res.json();
-
-            if (!res.ok || !data.success) {
-                console.error('LINE WORKS アカウント作成失敗:', data.error);
-                alert(`LINE WORKS アカウント作成に失敗しました: ${data.error}`);
-                return;
+            // LINE WORKS の内部IDを保存済みなのに実体が見つからない場合、
+            // API側で別IDを自動発行すると別人格になるため、管理者判断に委ねる。
+            if (isReentry && userRecord?.lw_userid && lineWorksExists === false) {
+                throw new Error('保存済みのLINE WORKS User IDが現在見つかりません。ID再利用の可否を確認してから復旧してください。');
             }
 
-            await addStaffLog({
-                staff_id: entry.id,
-                action_at: new Date().toISOString(),
-                action_detail: 'LINE WORKS アカウント作成',
-                registered_by: 'システム'
-            });
+            console.log('送信データ:', payload);
+
+            const reusedLwUserId = userRecord?.lw_userid && lineWorksExists ? userRecord.lw_userid : null;
+            let data: { success: boolean; userId: string; tempPassword?: string };
+            if (reusedLwUserId) {
+                data = { success: true, userId: reusedLwUserId };
+            } else {
+                const res = await fetch('/api/lineworks/create-user', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                });
+                const created = await res.json();
+                if (!res.ok || !created.success) throw new Error(`LINE WORKSユーザー作成に失敗しました: ${created.error ?? '不明なエラー'}`);
+                data = created;
+            }
 
             const { error: statusError } = await supabase
                 .from('users')
@@ -993,8 +959,6 @@ export default function EntryDetailPage() {
                 console.log('✅ ステータスを4（LINE WORKS登録済）に変更しました');
             }
 
-            alert(`LINE WORKS アカウント作成成功！仮パスワード: ${data.tempPassword}`);
-
             // Supabase ユーザー情報を更新
             console.log('Supabase 更新データ:', {
                 temp_password: data.tempPassword,
@@ -1004,30 +968,25 @@ export default function EntryDetailPage() {
             });
 
             await supabase.from('users').update({
-                temp_password: data.tempPassword,
+                ...(data.tempPassword ? { temp_password: data.tempPassword } : {}),
                 org_unit_id: selectedOrg,
                 level_id: selectedLevel,
                 position_id: selectedPosition
             }).eq('user_id', userId);
 
 
-            if (!res.ok || !data.success) {
-                console.error('LINE WORKS アカウント作成失敗:', data.error);
-                alert(`LINE WORKS アカウント作成に失敗しました: ${data.error}`);
-                return;
-            } else {
-                console.log('ユーザー情報を更新しました');
-            }
+            console.log('ユーザー情報を更新しました');
 
             setLineWorksExists(true);
 
-            // メールテンプレート生成
-            const { subject, body } = lineworksInviteTemplate({
-                fullName: `${entry.last_name_kanji}${entry.first_name_kanji}`,
-                userId,
-                tempPassword: data.tempPassword,
-                appBaseUrl: window.location.origin,
-            });
+            // 新規作成時のみ仮パスワードを含む案内メールを送る。復旧時は送らない。
+            if (data.tempPassword) {
+              const { subject, body } = lineworksInviteTemplate({
+                  fullName: `${entry.last_name_kanji}${entry.first_name_kanji}`,
+                  userId,
+                  tempPassword: data.tempPassword,
+                  appBaseUrl: window.location.origin,
+              });
 
             console.log('メール送信データ:', {
                 to: entry.email,
@@ -1035,7 +994,7 @@ export default function EntryDetailPage() {
                 body
             });
 
-            const mailRes = await fetch('/api/send-email', {
+              const mailRes = await fetch('/api/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1045,17 +1004,17 @@ export default function EntryDetailPage() {
                 })
             });
 
-            if (!mailRes.ok) {
+              if (!mailRes.ok) {
                 const err = await mailRes.json();
-                alert(`メール送信に失敗しました: ${err.error || '不明なエラー'}`);
-            } else {
+                throw new Error(`LINE WORKS案内メール送信に失敗しました: ${err.error || '不明なエラー'}`);
+              } else {
                 await addStaffLog({
                     staff_id: entry.id,
                     action_at: new Date().toISOString(),
                     action_detail: 'LINE WORKS ログイン案内メール送信',
                     registered_by: 'システム'
                 });
-                alert('LINE WORKS ログイン案内メールを送信しました！');
+              }
             }
 
             // 2. ユーザー情報を同期（GETリクエスト）
@@ -1066,7 +1025,7 @@ export default function EntryDetailPage() {
 
             //すでに一度　lw_userIdもっている場合には更新
             //alert('updateLWuser: userId:'+userId+'lw_userid:'+data.userId);
-            await fetch('/api/update-lw-userid', {
+            if (!reusedLwUserId) await fetch('/api/update-lw-userid', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, lwUserId: data.userId })
@@ -1140,25 +1099,36 @@ export default function EntryDetailPage() {
 
                 if (groupRes.ok) {
                     console.log('✅ LINE WORKS グループ初期化成功');
-                    await addStaffLog({
-                        staff_id: entry.id,
-                        action_at: new Date().toISOString(),
-                        action_detail: 'LINE WORKS グループ初期化',
-                        registered_by: 'システム'
-                    });
                 } else {
                     const err = await groupRes.json();
                     console.error('❌ グループ初期化失敗:', err);
-                    alert(`グループ初期化に失敗しました: ${err.error || '不明なエラー'}`);
+                    throw new Error(`個人グループの設定に失敗しました: ${err.error || '不明なエラー'}`);
                 }
             } catch (groupErr) {
                 console.error('グループ初期化中の通信エラー:', groupErr);
-                alert('グループ初期化中に通信エラーが発生しました。');
+                throw groupErr;
             }
+
+            await fetchUserRecord();
+            const resultLog = isReentry
+                ? 're_entry LW restored\n既存users recordを再利用。\nLW User：既存IDを再利用\n個人Group 1・2：既存外部キーを確認して再参加'
+                : 'LINE WORKS 新規設定完了\nLW User：新規作成\n個人Group 1・2：作成または既存グループへ参加';
+            const { data: existingResultLog } = await supabase
+                .from('staff_log')
+                .select('id')
+                .eq('staff_id', entry.id)
+                .eq('action_detail', resultLog)
+                .limit(1);
+            if (!existingResultLog?.length) {
+                await addStaffLog({ staff_id: entry.id, action_at: new Date().toISOString(), action_detail: resultLog, registered_by: 'システム' });
+            }
+            setLineWorksMessage(isReentry
+                ? 'Re-entryのLINE WORKS復旧が完了しました。既存LW Userと個人グループを確認し、利用可能な過去情報を再利用しました。'
+                : 'LINE WORKSの新規設定が完了しました。');
 
         } catch (err) {
             console.error('LINE WORKS アカウント作成中エラー:', err);
-            alert('LINE WORKS アカウント作成中にエラーが発生しました。');
+            setLineWorksMessage(`LINE WORKS設定に失敗しました: ${err instanceof Error ? err.message : '不明なエラー'}`);
         } finally {
 
             setCreatingLineWorks(false);  // 処理終了
@@ -1340,39 +1310,30 @@ export default function EntryDetailPage() {
         const confirmed = confirm('この認証ユーザーを削除しますか？');
         if (!confirmed) return;
 
+        setAuthDeleting(true);
+        setAuthMessage('認証情報を削除しています...');
         try {
             const res = await fetch('/api/delete-auth-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ authUserId: userRecord.auth_user_id })
+                body: JSON.stringify({ authUserId: userRecord.auth_user_id, entryId: entry.id })
             });
 
             const result = await res.json();
 
             if (!res.ok) {
-                alert(`認証ユーザーの削除に失敗しました: ${result.error}`);
+                setAuthMessage(`認証情報の削除に失敗しました: ${result.error ?? '不明なエラー'}${result.code ? ` (${result.code})` : ''}`);
                 return;
             }
 
-            alert('認証ユーザーを削除しました');
-
-            // users テーブルの初期化も忘れずに
-            const { error: updateError } = await supabase
-                .from('users')
-                .update({
-                    auth_user_id: null,
-                    status: 'account_id_create'
-                })
-                .eq('user_id', userRecord.user_id);
-
-            if (updateError) {
-                alert('usersテーブル更新に失敗しました: ' + updateError.message);
-            } else {
-                await fetchUserRecord();  // 再取得
-            }
+            setAuthMessage('認証情報を削除しました。新しい認証メールを送信できます。');
+            await fetchUserRecord();
+            await fetchEntry();
         } catch (e) {
             console.error('削除処理エラー:', e);
-            alert('削除中にエラーが発生しました。');
+            setAuthMessage(`認証情報の削除に失敗しました: ${e instanceof Error ? e.message : '予期しないエラー'}`);
+        } finally {
+            setAuthDeleting(false);
         }
     };
 
@@ -1498,11 +1459,11 @@ export default function EntryDetailPage() {
             {/* 認証メール送信 */}
             {userRecord && !userRecord.auth_user_id ? (
                 <button
-                    className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
+                    className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition disabled:opacity-50"
                     onClick={handleSendInvite}
-                    disabled={!userId || !entry?.email}
+                    disabled={!userId || !entry?.email || sendingInvite}
                 >
-                    認証メール送信
+                    {sendingInvite ? '送信中...' : '認証メール送信'}
                 </button>
             ) : (
                 userRecord?.auth_user_id ? (
@@ -1515,24 +1476,25 @@ export default function EntryDetailPage() {
             {/* 認証情報削除 */}
             <button
                 onClick={handleDeleteAuthUser}
-                className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm whitespace-nowrap"
-                disabled={!userRecord?.auth_user_id}
+                className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm whitespace-nowrap disabled:opacity-50"
+                disabled={!userRecord?.auth_user_id || authDeleting}
             >
-                認証情報削除
+                {authDeleting ? '削除中...' : '認証情報削除'}
             </button>
+            {authMessage && <span className="basis-full text-center text-sm text-gray-700">{authMessage}</span>}
 
             {/* LINE WORKS アカウント生成 */}
-            {lineWorksExists ? (
-                <span className="px-2 py-1 rounded bg-gray-200 text-blue-700 font-bold">LINEWORKS登録済</span>
-            ) : (
+            <div className="flex flex-col items-center gap-1">
+                {isReentry && <span className="text-xs text-blue-700">🔁 Re-entryとして処理します。既存ユーザー・個人グループを確認して再利用します。</span>}
                 <button
                     className="px-3 py-2 bg-blue-700 text-white rounded hover:bg-blue-800 text-sm whitespace-nowrap"
                     onClick={handleCreateLineWorksAccount}
                     disabled={creatingLineWorks}
                 >
-                    {creatingLineWorks ? '処理中...' : 'LWアカウント生成'}
+                    {creatingLineWorks ? (isReentry ? 'LINE WORKSを復旧中...' : 'LINE WORKSを設定中...') : (isReentry ? 'LINE WORKSを復旧' : lineWorksExists ? 'LINE WORKS設定を再確認' : 'LWアカウント生成')}
                 </button>
-            )}
+                {lineWorksMessage && <span className="text-xs text-gray-700">{lineWorksMessage}</span>}
+            </div>
 
             {/* カイポケユーザー追加 */}
             <button
@@ -1554,11 +1516,13 @@ export default function EntryDetailPage() {
 
             {/* 保存 / 戻る */}
             <button
-                className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
+                className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition disabled:opacity-50"
                 onClick={updateEntry}
+                disabled={entrySaving}
             >
-                保存
+                {entrySaving ? '保存中...' : '保存'}
             </button>
+            {entrySaveMessage && <span className="basis-full text-center text-sm text-gray-700">{entrySaveMessage}</span>}
             <Link
                 href="/portal/entry-list"
                 className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 flex items-center gap-2 transition"
@@ -1939,25 +1903,7 @@ export default function EntryDetailPage() {
                         disabled={!userRecord?.user_id}
                         title={!userRecord?.user_id ? 'ユーザー未作成のため編集不可（先にユーザーIDを作成）' : ''}
                     />
-                    <button
-                        className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
-                        disabled={!userRecord?.user_id || rosterSaving}
-                        onClick={async () => {
-                            if (!userRecord?.user_id) return;
-                            setRosterSaving(true); setRosterSaved(false);
-                            const v = (userRecord?.roster_sort ?? '').trim() || '9999';
-                            const { error } = await supabase
-                                .from('users')
-                                .update({ roster_sort: v })
-                                .eq('user_id', userRecord.user_id);
-                            setRosterSaving(false);
-                            if (error) alert('roster_sort更新に失敗: ' + error.message);
-                            else { setRosterSaved(true); setTimeout(() => setRosterSaved(false), 1200); }
-                        }}
-                    >
-                        {rosterSaving ? '保存中…' : '保存'}
-                    </button>
-                    {rosterSaved && <span className="text-xs text-green-600">保存しました</span>}
+                    <span className="text-xs text-gray-500">上部・下部の保存で反映されます</span>
                 </div>
                 <div className="md:col-span-2 space-y-1">
                     <strong>職歴:</strong>

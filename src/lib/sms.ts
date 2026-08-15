@@ -35,9 +35,11 @@ function createTwilioClient(): Twilio | null {
 export async function sendSms({
     to,
     body,
+    statusCallback,
 }: {
     to: string;
     body: string;
+    statusCallback?: string;
 }): Promise<SmsSendResult> {
     const client = createTwilioClient();
     const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
@@ -59,6 +61,7 @@ export async function sendSms({
             ...(messagingServiceSid
                 ? { messagingServiceSid }
                 : { from: from as string }),
+            ...(statusCallback ? { statusCallback } : {}),
         });
 
         return { status: "ok", messageSid: message.sid };

@@ -2702,6 +2702,13 @@ export type Database = {
             foreignKeyName: "cm_kaipoke_support_office_care_manager_id_fkey"
             columns: ["care_manager_id"]
             isOneToOne: false
+            referencedRelation: "reentry_recruitment_candidates"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "cm_kaipoke_support_office_care_manager_id_fkey"
+            columns: ["care_manager_id"]
+            isOneToOne: false
             referencedRelation: "user_entry_united_view"
             referencedColumns: ["manager_user_id"]
           },
@@ -4065,6 +4072,13 @@ export type Database = {
             foreignKeyName: "employee_training_goals_entry_id_fkey"
             columns: ["entry_id"]
             isOneToOne: false
+            referencedRelation: "reentry_recruitment_candidates"
+            referencedColumns: ["staff_id"]
+          },
+          {
+            foreignKeyName: "employee_training_goals_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
             referencedRelation: "taimee_employees_with_entry"
             referencedColumns: ["entry_id"]
           },
@@ -4166,6 +4180,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "form_entries_with_status"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entry_attachments_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "reentry_recruitment_candidates"
+            referencedColumns: ["staff_id"]
           },
           {
             foreignKeyName: "entry_attachments_entry_id_fkey"
@@ -4779,6 +4800,7 @@ export type Database = {
           photo_url: string | null
           postal_code: string | null
           reapply_requested_at: string | null
+          reentry_blacklisted: boolean
           residence_card_url: string | null
           submission_id: string | null
           work_styles: string[] | null
@@ -4825,6 +4847,7 @@ export type Database = {
           photo_url?: string | null
           postal_code?: string | null
           reapply_requested_at?: string | null
+          reentry_blacklisted?: boolean
           residence_card_url?: string | null
           submission_id?: string | null
           work_styles?: string[] | null
@@ -4871,6 +4894,7 @@ export type Database = {
           photo_url?: string | null
           postal_code?: string | null
           reapply_requested_at?: string | null
+          reentry_blacklisted?: boolean
           residence_card_url?: string | null
           submission_id?: string | null
           work_styles?: string[] | null
@@ -5341,6 +5365,13 @@ export type Database = {
             foreignKeyName: "monthly_meeting_attendance_manager_checked_by_fkey"
             columns: ["manager_checked_by"]
             isOneToOne: false
+            referencedRelation: "reentry_recruitment_candidates"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "monthly_meeting_attendance_manager_checked_by_fkey"
+            columns: ["manager_checked_by"]
+            isOneToOne: false
             referencedRelation: "user_entry_united_view"
             referencedColumns: ["manager_user_id"]
           },
@@ -5399,6 +5430,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "audit_log_display_view"
             referencedColumns: ["actor_user_id_text"]
+          },
+          {
+            foreignKeyName: "monthly_meeting_attendance_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "reentry_recruitment_candidates"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "monthly_meeting_attendance_user_id_fkey"
@@ -6465,6 +6503,137 @@ export type Database = {
           dsp_short?: string | null
           postal_code_3?: string
           transport_fee_per_service?: number
+        }
+        Relationships: []
+      }
+      reentry_campaign_recipients: {
+        Row: {
+          campaign_key: string
+          created_at: string
+          email: string | null
+          email_attempted_at: string | null
+          email_error: string | null
+          email_status: string | null
+          id: string
+          phone: string | null
+          sms_error: string | null
+          sms_fallback_sent_at: string | null
+          sms_message_sid: string | null
+          sms_status: string | null
+          staff_id: string
+          successful_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          campaign_key: string
+          created_at?: string
+          email?: string | null
+          email_attempted_at?: string | null
+          email_error?: string | null
+          email_status?: string | null
+          id?: string
+          phone?: string | null
+          sms_error?: string | null
+          sms_fallback_sent_at?: string | null
+          sms_message_sid?: string | null
+          sms_status?: string | null
+          staff_id: string
+          successful_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          campaign_key?: string
+          created_at?: string
+          email?: string | null
+          email_attempted_at?: string | null
+          email_error?: string | null
+          email_status?: string | null
+          id?: string
+          phone?: string | null
+          sms_error?: string | null
+          sms_fallback_sent_at?: string | null
+          sms_message_sid?: string | null
+          sms_status?: string | null
+          staff_id?: string
+          successful_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reentry_campaign_recipients_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "form_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reentry_campaign_recipients_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "form_entries_ordered"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reentry_campaign_recipients_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "form_entries_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reentry_campaign_recipients_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "form_entries_with_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reentry_campaign_recipients_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "reentry_recruitment_candidates"
+            referencedColumns: ["staff_id"]
+          },
+          {
+            foreignKeyName: "reentry_campaign_recipients_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "taimee_employees_with_entry"
+            referencedColumns: ["entry_id"]
+          },
+          {
+            foreignKeyName: "reentry_campaign_recipients_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "users_personal_group_view"
+            referencedColumns: ["form_entries_id"]
+          },
+        ]
+      }
+      reentry_recruitment_settings: {
+        Row: {
+          email_body: string
+          email_subject: string
+          id: boolean
+          sms_body: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          email_body: string
+          email_subject: string
+          id?: boolean
+          sms_body: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          email_body?: string
+          email_subject?: string
+          id?: boolean
+          sms_body?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -7683,6 +7852,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "form_entries_with_status"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_staff_log_form_entries"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "reentry_recruitment_candidates"
+            referencedColumns: ["staff_id"]
           },
           {
             foreignKeyName: "fk_staff_log_form_entries"
@@ -10763,6 +10939,22 @@ export type Database = {
           link_status: string | null
           postal_code_3: string | null
           transport_fee_per_service: number | null
+        }
+        Relationships: []
+      }
+      reentry_recruitment_candidates: {
+        Row: {
+          address: string | null
+          email: string | null
+          entry_created_at: string | null
+          last_reentry_invitation_at: string | null
+          phone: string | null
+          reentry_blacklisted: boolean | null
+          retirement_date: string | null
+          staff_id: string | null
+          staff_kind: string | null
+          staff_name: string | null
+          user_id: string | null
         }
         Relationships: []
       }

@@ -353,7 +353,7 @@ export default function EntryPage() {
                 </h1>
                 <section className="rounded-lg border border-famille/30 bg-famille/5 p-4 text-center">
                     <p className="font-medium">以前ファミーユへ応募したことがある方</p>
-                    <Link href="/entry/reapply" className="mt-2 inline-flex rounded bg-famille px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
+                    <Link href="/entry/reapply" className="button button-primary mt-2 min-w-0 px-4 py-2 text-sm">
                         再応募はこちら
                     </Link>
                 </section>
