@@ -95,14 +95,12 @@ const managerMenuGroups: MenuGroup[] = [
     { label: "組織アイコン設定", href: "/portal/orgIcons" }, { label: "電話帳", href: "/portal/phone" },
     { label: "監査ログ", href: "/portal/audit_log" }, { label: "お弁当アンケート【管理用】", href: "/portal/bento/admin" },
     { label: "目標・研修【管理用】", href: "/portal/training-goals/manage" }, { label: "日払い申請履歴", href: "/portal/user_advance_payment_history" },
-    { label: "RPAテンプレ管理", href: "/portal/rpa_temp/list" },
+    { label: "RPAテンプレ管理", href: "/portal/rpa_temp/list" }, { label: "RPAリクエスト管理", href: "/portal/rpa_requests" },
   ]},
   { label: "利用者管理", icon: "👤", items: [{ label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "利用者担当管理", href: "/portal/assign_matome" }, { label: "利用者書類一覧", href: "/portal/cs_docs" }] },
   { label: "シフト管理", icon: "📅", items: [{ label: "サービスコード管理", href: "/portal/shift-service-code" }, { label: "訪問記録定義", href: "/portal/shift-record-def" }, { label: "週間シフト", href: "/portal/roster/weekly" }, { label: "月間シフト", href: "/portal/roster/monthly" }, { label: "シフト表", href: "/portal/roster/daily" }, { label: "シフトWish", href: "/portal/shift-wish" }] },
-  { label: "応募者管理", icon: "👥", items: [{ label: "エントリー一覧", href: "/portal/entry-list" }, { label: "スポット募集管理", href: "/portal/spot-offer-template" }, { label: "タイミーリスト", href: "/portal/taimee-emp" }, { label: "スキマバイト経費精算", href: "/portal/expense-claims" }, { label: "Re-entry募集", href: "/portal/admin/re-entry-recruitment" }] },
-  { label: "求人管理", icon: "📣", items: [{ label: "タイミー求人設定", href: "/portal/admin/taimee-job-settings" }] },
+  { label: "応募者管理", icon: "👥", items: [{ label: "エントリー一覧", href: "/portal/entry-list" }, { label: "スポット募集管理", href: "/portal/spot-offer-template" }, { label: "タイミーリスト", href: "/portal/taimee-emp" }, { label: "スキマバイト経費精算", href: "/portal/expense-claims" }, { label: "Re-entry募集", href: "/portal/admin/re-entry-recruitment" }, { label: "タイミー求人設定", href: "/portal/admin/taimee-job-settings" }] },
   { label: "FAX", icon: "📠", items: [{ label: "fax送信", href: "/portal/fax-sending" }, { label: "fax送信履歴", href: "/portal/fax-history" }, { label: "fax電話帳", href: "/portal/fax" }] },
-  { label: "RPA・自動化", icon: "🤖", items: [{ label: "RPAリクエスト管理", href: "/portal/rpa_requests" }] },
 ];
 
 const commonMenuGroups = (currentYm: string): MenuGroup[] => [
