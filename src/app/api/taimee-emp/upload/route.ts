@@ -201,22 +201,23 @@ export async function POST(req: Request) {
             return Nx.json({ ok: false, error: `CSV内に重複したユーザーIDがあります: ${duplicateUserIds.slice(0, 3).join(', ')}` }, { status: 400 })
         }
 
-        const userIds = inserts.map((row) => row[USER_ID_COLUMN]!).filter((value): value is string => typeof value === 'string')
-        const existingUserIds = new Set<string>()
+        // taimee_user_id はCSVのユーザーIDから生成される列。全角括弧付きの元列名を
+        // PostgRESTのフィルターに渡すと解釈できないため、生成済みのASCII列を使う。
+        const taimeeUserIds = inserts.map((row) => row[USER_ID_COLUMN]!).filter((value): value is string => typeof value === 'string')
+        const existingTaimeeUserIds = new Set<string>()
         // PostgREST のURL長制限を避けるため、既存判定は小分けに取得する。
-        for (let offset = 0; offset < userIds.length; offset += 100) {
+        for (let offset = 0; offset < taimeeUserIds.length; offset += 100) {
             const { data: existing, error: existingError } = await supabase
                 .from('taimee_employees_monthly')
-                // PostgREST は全角括弧を含む列名を select パラメータとして解釈できない。
-                // * で取得し、返却オブジェクトから当該列を参照する。
                 .select('*')
                 .eq('period_month', ym)
-                .in(USER_ID_COLUMN, userIds.slice(offset, offset + 100))
+                .in('taimee_user_id', taimeeUserIds.slice(offset, offset + 100))
 
             if (existingError) throw existingError
             for (const row of existing ?? []) {
-                const existingUserId = row[USER_ID_COLUMN]
-                if (typeof existingUserId === 'string') existingUserIds.add(existingUserId)
+                if (typeof row.taimee_user_id === 'string') {
+                    existingTaimeeUserIds.add(row.taimee_user_id)
+                }
             }
         }
 
@@ -233,7 +234,9 @@ export async function POST(req: Request) {
         if (written.length !== inserts.length) {
             throw new Error(`DBへの書込確認件数が一致しません（CSV ${inserts.length}件、DB ${written.length}件）`)
         }
-        const updated = written.filter((row) => existingUserIds.has(row[USER_ID_COLUMN])).length
+        const updated = written.filter((row) =>
+            typeof row.taimee_user_id === 'string' && existingTaimeeUserIds.has(row.taimee_user_id)
+        ).length
         const inserted = written.length - updated
         return Nx.json({ ok: true, parsed: rows.length, inserted, updated, skipped: 0, failed: 0 })
     } catch (e: unknown) {

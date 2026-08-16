@@ -18,6 +18,17 @@ const TARGET_SERVICE_CODES = [
   "行動援護",
 ] as const;
 
+/**
+ * シフトの service_code は請求区分ごとに短縮表記されることがある
+ * （例: 家事 / 通院(伴う) / 同行(初任者等)）。移動支援は含めない。
+ */
+function isTargetDisabilityServiceCode(value: string | null): boolean {
+  const serviceCode = String(value ?? "").trim();
+  if (!serviceCode || serviceCode.startsWith("移：")) return false;
+  if ((TARGET_SERVICE_CODES as readonly string[]).includes(serviceCode)) return true;
+  return /家事|居宅.*身体|^身体|重度|重訪|通院|同行|行動援護/.test(serviceCode);
+}
+
 type ClientRow = {
   id: string;
   kaipoke_cs_id: string;
@@ -162,15 +173,14 @@ export async function runShogaiJukyushaRenewalAlerts(
     .select("kaipoke_cs_id,service_code")
     .in("kaipoke_cs_id", expiredClients.map((client) => client.kaipoke_cs_id))
     .gte("shift_start_date", currentMonthStart)
-    .lt("shift_start_date", nextMonthStart)
-    .in("service_code", [...TARGET_SERVICE_CODES]);
+    .lt("shift_start_date", nextMonthStart);
   if (shiftError) throw new Error(`disability service shift lookup failed: ${shiftError.message}`);
 
   const serviceCodesByClient = new Map<string, Set<string>>();
   for (const shift of (shiftData ?? []) as ShiftRow[]) {
     const clientId = String(shift.kaipoke_cs_id ?? "").trim();
     const serviceCode = String(shift.service_code ?? "").trim();
-    if (!clientId || !serviceCode) continue;
+    if (!clientId || !isTargetDisabilityServiceCode(serviceCode)) continue;
     const services = serviceCodesByClient.get(clientId) ?? new Set<string>();
     services.add(serviceCode);
     serviceCodesByClient.set(clientId, services);
