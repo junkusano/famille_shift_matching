@@ -41,6 +41,20 @@ export async function POST(req: Request) {
   )
 
   try {
+    const token = req.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]
+    if (!token) return Res.json({ ok: false, error: 'ログインしてください' }, { status: 401 })
+    const { data: authData, error: authError } = await supabase.auth.getUser(token)
+    if (authError || !authData.user) return Res.json({ ok: false, error: 'ログインしてください' }, { status: 401 })
+    const { data: staff, error: staffError } = await supabase
+      .from('users')
+      .select('system_role')
+      .eq('auth_user_id', authData.user.id)
+      .maybeSingle()
+    if (staffError) throw staffError
+    if (!['admin', 'manager'].includes((staff?.system_role ?? '').toLowerCase())) {
+      return Res.json({ ok: false, error: 'この操作を実行する権限がありません' }, { status: 403 })
+    }
+
     const body: unknown = await req.json()
     const { message, recipients } = body as SendBody
     if (!message || !Array.isArray(recipients) || recipients.length === 0) {

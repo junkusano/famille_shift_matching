@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,18 @@ const notify = {
   success: (msg: string) => (typeof window !== 'undefined' ? window.alert(msg) : void 0),
   error: (msg: string) => (typeof window !== 'undefined' ? window.alert(`エラー: ${msg}`) : void 0),
   message: (msg: string) => (typeof window !== 'undefined' ? window.alert(msg) : void 0),
+}
+
+const GSM7 = /^[\x0A\x0D\x20-\x7E¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&'()*+,\-./0-9:;<=>?@A-ZÄÖÑÜ§¿a-zäöñüà]*$/
+
+function smsSegmentCount(text: string): number {
+  const gsm = GSM7.test(text)
+  const units = gsm
+    ? [...text].reduce((total, char) => total + ('^{}\\[~]|€'.includes(char) ? 2 : 1), 0)
+    : [...text].reduce((total, char) => total + (char.codePointAt(0)! > 0xffff ? 2 : 1), 0)
+  const singleSegmentLength = gsm ? 160 : 70
+  const joinedSegmentLength = gsm ? 153 : 67
+  return units <= singleSegmentLength ? 1 : Math.ceil(units / joinedSegmentLength)
 }
 
 // ===== Types =====
@@ -115,6 +127,12 @@ https://www.shi-on.net/column?page=17
   )
   const [includeBlack, setIncludeBlack] = useState(false)
   const [savingSmsBody, setSavingSmsBody] = useState(false)
+  const [smsUnitPriceUsd, setSmsUnitPriceUsd] = useState(0.089)
+  const [sendDialogOpen, setSendDialogOpen] = useState(false)
+  const [sendRunning, setSendRunning] = useState(false)
+  const [sendProgress, setSendProgress] = useState({ sent: 0, total: 0, success: 0, failed: 0 })
+  const [sendError, setSendError] = useState<string | null>(null)
+  const sendStopRequestedRef = useRef(false)
 
   async function fetchList() {
   setLoading(true)
@@ -204,10 +222,21 @@ https://www.shi-on.net/column?page=17
         const result = await response.json() as {
           ok?: boolean
           smsBody?: unknown
+          smsUnitPriceUsd?: unknown
         }
 
         if (response.ok && result.ok && typeof result.smsBody === 'string' && active) {
           setSmsBody(result.smsBody)
+        }
+        if (
+          response.ok &&
+          result.ok &&
+          typeof result.smsUnitPriceUsd === 'number' &&
+          Number.isFinite(result.smsUnitPriceUsd) &&
+          result.smsUnitPriceUsd >= 0 &&
+          active
+        ) {
+          setSmsUnitPriceUsd(result.smsUnitPriceUsd)
         }
       } catch (error) {
         console.error('[taimee-emp] SMS body settings load failed', error)
@@ -277,7 +306,7 @@ https://www.shi-on.net/column?page=17
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ smsBody }),
+        body: JSON.stringify({ smsBody, smsUnitPriceUsd }),
       })
       const result = await response.json() as { ok?: boolean; error?: string }
       if (!response.ok || !result.ok) {
@@ -416,6 +445,13 @@ https://www.shi-on.net/column?page=17
     })
   }, [filtered, drafts, includeBlack])
 
+  const bodySegments = smsSegmentCount(smsBody)
+  const totalSegments = recipientsForSend.reduce((total, recipient) => {
+    const namedBody = `${recipient['姓'] ?? ''}${recipient['名'] ?? ''}様\n${smsBody}`
+    return total + smsSegmentCount(namedBody)
+  }, 0)
+  const estimatedTotalUsd = totalSegments * smsUnitPriceUsd
+
 function rowKey(it: TaimeeEmployeeWithEntry) {
   return it.applicant_id
 }
@@ -514,9 +550,77 @@ function rowKey(it: TaimeeEmployeeWithEntry) {
     setLoading(false)
   }
 }
-async function onBulkSend() {
-  alert("テスト");
-}
+  function onBulkSend() {
+    if (recipientsForSend.length === 0 || sendRunning) return
+    setSendProgress({ sent: 0, total: recipientsForSend.length, success: 0, failed: 0 })
+    setSendError(null)
+    setSendDialogOpen(true)
+  }
+
+  async function startBulkSend() {
+    if (sendRunning || recipientsForSend.length === 0) return
+    sendStopRequestedRef.current = false
+    setSendRunning(true)
+    setSendError(null)
+
+    let sent = 0
+    let success = 0
+    let failed = 0
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('ログイン情報を確認できません。再ログインしてください。')
+
+      // 小分けに送信し、各バッチの完了ごとに画面へ進捗を反映する。
+      for (let offset = 0; offset < recipientsForSend.length; offset += 10) {
+        if (sendStopRequestedRef.current) break
+        const batch = recipientsForSend.slice(offset, offset + 10).map((item) => ({
+          key: rowKey(item),
+          phone: item.normalized_phone || item.電話番号 || '',
+          last: item['姓'] || '',
+          first: item['名'] || '',
+          period_month: item.period_month || '',
+          taimee_user_id: item.taimee_user_id,
+        }))
+
+        const response = await fetch('/api/taimee-emp/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ message: smsBody, recipients: batch }),
+        })
+        const result = await response.json() as {
+          ok?: boolean
+          success?: number
+          failed?: number
+          error?: string
+        }
+        if (!response.ok || !result.ok) {
+          throw new Error(result.error || `送信に失敗しました。HTTP ${response.status}`)
+        }
+
+        const batchSuccess = result.success ?? 0
+        const batchFailed = result.failed ?? 0
+        sent += batch.length
+        success += batchSuccess
+        failed += batchFailed
+        setSendProgress({ sent, total: recipientsForSend.length, success, failed })
+      }
+
+      if (sendStopRequestedRef.current) {
+        setSendError('送信を停止しました。未送信分は送っていません。')
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '送信に失敗しました'
+      setSendError(`${message}（${sent}件処理済み）`)
+      console.error('[taimee-emp] bulk send failed', error)
+    } finally {
+      setSendRunning(false)
+      await fetchList()
+    }
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -554,6 +658,25 @@ async function onBulkSend() {
           </div>
           <div className="space-y-2">
             <Textarea value={smsBody} onChange={(e) => setSmsBody(e.target.value)} className="min-h-[180px]" placeholder="本文（敬称は自動付与：『姓名様』の後に本文）" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
+              <div>
+                <label className="text-xs text-muted-foreground">予想単価（USD / 1セグメント）</label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="10"
+                  step="0.001"
+                  value={smsUnitPriceUsd}
+                  onChange={(e) => setSmsUnitPriceUsd(Number(e.target.value))}
+                />
+              </div>
+              <div className="text-sm text-muted-foreground">
+                本文セグメント：{bodySegments} ／ 送信時合計：{totalSegments}
+              </div>
+              <div className="text-sm font-medium">
+                予想総額：${estimatedTotalUsd.toFixed(3)} USD
+              </div>
+            </div>
             <Button variant="outline" onClick={onSaveSmsBody} disabled={savingSmsBody}>
               {savingSmsBody ? '保存中…' : '本文を保存'}
             </Button>
@@ -858,6 +981,50 @@ const isCandidate =
 </p>
         </CardContent>
       </Card>
+
+      {sendDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-lg rounded-xl bg-background p-6 shadow-xl space-y-4">
+            <h2 className="text-lg font-semibold">SMS一斉送信</h2>
+            <div className="rounded-md bg-muted p-3 text-sm space-y-1">
+              <div>送信対象：{sendProgress.total}件</div>
+              <div>合計セグメント：{totalSegments}</div>
+              <div>予想総額：${estimatedTotalUsd.toFixed(3)} USD</div>
+            </div>
+            {sendRunning || sendProgress.sent > 0 ? (
+              <div className="space-y-2 text-sm">
+                <div>進捗：{sendProgress.sent} / {sendProgress.total}件</div>
+                <div className="h-2 overflow-hidden rounded bg-muted">
+                  <div
+                    className="h-full bg-primary transition-all"
+                    style={{ width: `${sendProgress.total ? Math.round(sendProgress.sent / sendProgress.total * 100) : 0}%` }}
+                  />
+                </div>
+                <div>成功：{sendProgress.success}件 ／ 失敗：{sendProgress.failed}件</div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                送信開始後はこのページに留まったまま、10件ずつ処理します。開始後の費用は実際のTwilio結果に従います。
+              </p>
+            )}
+            {sendError && <p className="text-sm text-destructive">{sendError}</p>}
+            <div className="flex justify-end gap-2">
+              {!sendRunning && sendProgress.sent === 0 && !sendError && (
+                <Button variant="outline" onClick={() => setSendDialogOpen(false)}>キャンセル</Button>
+              )}
+              {!sendRunning && sendProgress.sent === 0 && !sendError && (
+                <Button onClick={startBulkSend}>送信開始</Button>
+              )}
+              {sendRunning && (
+                <Button variant="destructive" onClick={() => { sendStopRequestedRef.current = true }}>現在の処理後に停止</Button>
+              )}
+              {!sendRunning && (sendProgress.sent > 0 || !!sendError) && (
+                <Button onClick={() => setSendDialogOpen(false)}>閉じる</Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

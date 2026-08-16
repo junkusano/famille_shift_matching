@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/service'
 
 const GROUP_KEY = 'taimee_emp'
 const SMS_BODY_KEY = 'sms_body'
+const SMS_UNIT_PRICE_KEY = 'sms_unit_price_usd'
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message
@@ -52,11 +53,17 @@ export async function GET(req: NextRequest) {
       .from('env_variables')
       .select('value')
       .eq('group_key', GROUP_KEY)
-      .eq('key_name', SMS_BODY_KEY)
-      .maybeSingle()
+      .in('key_name', [SMS_BODY_KEY, SMS_UNIT_PRICE_KEY])
 
     if (error) throw error
-    return NextResponse.json({ ok: true, smsBody: data?.value ?? null })
+    const values = new Map((data ?? []).map((row) => [row.key_name, row.value]))
+    const rawUnitPrice = values.get(SMS_UNIT_PRICE_KEY)
+    const smsUnitPriceUsd = rawUnitPrice === undefined ? null : Number(rawUnitPrice)
+    return NextResponse.json({
+      ok: true,
+      smsBody: values.get(SMS_BODY_KEY) ?? null,
+      smsUnitPriceUsd: Number.isFinite(smsUnitPriceUsd) ? smsUnitPriceUsd : null,
+    })
   } catch (error) {
     return errorResponse(error)
   }
@@ -65,8 +72,11 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     await requireManager(req)
-    const body = await req.json() as { smsBody?: unknown }
+    const body = await req.json() as { smsBody?: unknown; smsUnitPriceUsd?: unknown }
     const smsBody = typeof body.smsBody === 'string' ? body.smsBody.trim() : ''
+    const smsUnitPriceUsd = typeof body.smsUnitPriceUsd === 'number'
+      ? body.smsUnitPriceUsd
+      : Number(body.smsUnitPriceUsd)
 
     if (!smsBody) {
       return NextResponse.json({ ok: false, error: '本文を入力してください' }, { status: 400 })
@@ -74,15 +84,26 @@ export async function PUT(req: NextRequest) {
     if (smsBody.length > 5000) {
       return NextResponse.json({ ok: false, error: '本文は5,000文字以内にしてください' }, { status: 400 })
     }
+    if (!Number.isFinite(smsUnitPriceUsd) || smsUnitPriceUsd < 0 || smsUnitPriceUsd > 10) {
+      return NextResponse.json({ ok: false, error: '予想単価は0以上10以下で入力してください' }, { status: 400 })
+    }
 
     const { error } = await supabaseAdmin
       .from('env_variables')
-      .upsert({
-        group_key: GROUP_KEY,
-        key_name: SMS_BODY_KEY,
-        value: smsBody,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'group_key,key_name' })
+      .upsert([
+        {
+          group_key: GROUP_KEY,
+          key_name: SMS_BODY_KEY,
+          value: smsBody,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          group_key: GROUP_KEY,
+          key_name: SMS_UNIT_PRICE_KEY,
+          value: smsUnitPriceUsd.toString(),
+          updated_at: new Date().toISOString(),
+        },
+      ], { onConflict: 'group_key,key_name' })
 
     if (error) throw error
     return NextResponse.json({ ok: true })
