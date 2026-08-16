@@ -114,6 +114,7 @@ https://www.shi-on.net/column?page=17
 採用担当者　新川： 090-9140-2642`
   )
   const [includeBlack, setIncludeBlack] = useState(false)
+  const [savingSmsBody, setSavingSmsBody] = useState(false)
 
   async function fetchList() {
   setLoading(true)
@@ -188,6 +189,35 @@ https://www.shi-on.net/column?page=17
 
   useEffect(() => { fetchList() }, [fEntry, fBlack, fMemo])
 
+  useEffect(() => {
+    let active = true
+
+    async function loadSavedSmsBody() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) return
+
+        const response = await fetch('/api/taimee-emp/settings', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: 'no-store',
+        })
+        const result = await response.json() as {
+          ok?: boolean
+          smsBody?: unknown
+        }
+
+        if (response.ok && result.ok && typeof result.smsBody === 'string' && active) {
+          setSmsBody(result.smsBody)
+        }
+      } catch (error) {
+        console.error('[taimee-emp] SMS body settings load failed', error)
+      }
+    }
+
+    void loadSavedSmsBody()
+    return () => { active = false }
+  }, [])
+
   async function onUpload(e: React.FormEvent) {
     e.preventDefault()
     if (!file) { setMessage('CSVファイルを選択してください'); return }
@@ -233,6 +263,35 @@ https://www.shi-on.net/column?page=17
       setMessage(`CSVの登録に失敗しました。\n${error}`)
       notify.error(error)
     } finally { setLoading(false) }
+  }
+
+  async function onSaveSmsBody() {
+    setSavingSmsBody(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('ログイン情報を確認できません。再ログインしてください。')
+
+      const response = await fetch('/api/taimee-emp/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ smsBody }),
+      })
+      const result = await response.json() as { ok?: boolean; error?: string }
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || `本文の保存に失敗しました。HTTP ${response.status}`)
+      }
+
+      notify.success('メッセージ本文を保存しました')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '本文の保存に失敗しました'
+      console.error('[taimee-emp] SMS body settings save failed', error)
+      notify.error(message)
+    } finally {
+      setSavingSmsBody(false)
+    }
   }
 
   function updateDraft(key: string, patch: RowEditState) {
@@ -493,7 +552,12 @@ async function onBulkSend() {
               <Button onClick={onBulkSend} disabled={loading || recipientsForSend.length === 0}>一斉送信</Button>
             </div>
           </div>
-          <Textarea value={smsBody} onChange={(e) => setSmsBody(e.target.value)} className="min-h-[180px]" placeholder="本文（敬称は自動付与：『姓名様』の後に本文）" />
+          <div className="space-y-2">
+            <Textarea value={smsBody} onChange={(e) => setSmsBody(e.target.value)} className="min-h-[180px]" placeholder="本文（敬称は自動付与：『姓名様』の後に本文）" />
+            <Button variant="outline" onClick={onSaveSmsBody} disabled={savingSmsBody}>
+              {savingSmsBody ? '保存中…' : '本文を保存'}
+            </Button>
+          </div>
           <pre className="p-3 bg-muted rounded text-xs whitespace-pre-wrap">{renderPreview(recipientsForSend.length)}</pre>
         </CardContent>
       </Card>
