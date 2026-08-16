@@ -239,16 +239,72 @@ https://www.shi-on.net/column?page=17
     setDrafts((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }))
   }
 
-  function bulkToggleExclude(exclude: boolean) {
+  async function bulkToggleExclude(exclude: boolean) {
+    const updates = filtered.map((it) => ({
+      key: rowKey(it),
+      send_disabled: exclude,
+    }))
+
+    if (updates.length === 0) {
+      notify.message('対象者がいません')
+      return
+    }
+
+    // 画面表示は直ちに反映しつつ、DBにも即時保存する。
     setDrafts((prev) => {
       const next = { ...prev }
-      for (const it of filtered) {
-        const key = rowKey(it)
-        next[key] = { ...(next[key] ?? {}), send_disabled: exclude }
+      for (const update of updates) {
+        next[update.key] = {
+          ...(next[update.key] ?? {}),
+          send_disabled: exclude,
+        }
       }
       return next
     })
-    notify.message(exclude ? '全件を除外に設定しました' : '全件を選択（除外解除）しました')
+
+    setLoading(true)
+    try {
+      const response = await fetch('/api/taimee-emp/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      })
+      const responseText = await response.text()
+      const result = JSON.parse(responseText) as {
+        ok?: boolean
+        updated?: number
+        error?: string
+      }
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || `一括保存に失敗しました。HTTP ${response.status}`)
+      }
+
+      // DBの最新値に戻す。ほかの未保存編集は保持する。
+      setDrafts((prev) => {
+        const next = { ...prev }
+        for (const update of updates) {
+          const draft = next[update.key]
+          if (!draft) continue
+          const { send_disabled: _sendDisabled, ...rest } = draft
+          if (Object.keys(rest).length === 0) delete next[update.key]
+          else next[update.key] = rest
+        }
+        return next
+      })
+      await fetchList()
+      notify.success(
+        exclude
+          ? `全件を除外に保存しました（${result.updated ?? 0}件）`
+          : `全件の除外を解除しました（${result.updated ?? 0}件）`
+      )
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '一括保存に失敗しました'
+      console.error('[taimee-emp] bulk exclude failed', error)
+      notify.error(message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filtered = useMemo(() => {
