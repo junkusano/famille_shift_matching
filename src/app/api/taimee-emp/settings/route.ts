@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     await requireManager(req)
     const { data, error } = await supabaseAdmin
       .from('env_variables')
-      .select('value')
+      .select('key_name,value')
       .eq('group_key', GROUP_KEY)
       .in('key_name', [SMS_BODY_KEY, SMS_UNIT_PRICE_KEY])
 
