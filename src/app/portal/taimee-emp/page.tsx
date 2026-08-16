@@ -209,6 +209,7 @@ https://www.shi-on.net/column?page=17
         parsed?: number
         inserted?: number
         updated?: number
+        applicantsSynced?: number
         skipped?: number
         failed?: number
         error?: unknown
@@ -222,7 +223,7 @@ https://www.shi-on.net/column?page=17
         const error = typeof j.error === 'string' ? j.error : 'CSVの登録に失敗しました'
         throw new Error(error)
       }
-      const summary = `CSV読込 ${j.parsed ?? 0}件 / 追加 ${j.inserted ?? 0}件 / 更新 ${j.updated ?? 0}件 / スキップ ${j.skipped ?? 0}件 / 失敗 ${j.failed ?? 0}件`
+      const summary = `CSV読込 ${j.parsed ?? 0}件 / 追加 ${j.inserted ?? 0}件 / 更新 ${j.updated ?? 0}件 / 一覧同期 ${j.applicantsSynced ?? 0}件 / スキップ ${j.skipped ?? 0}件 / 失敗 ${j.failed ?? 0}件`
       setMessage(summary)
       notify.success(`取り込み完了：${summary}`)
       await fetchList()

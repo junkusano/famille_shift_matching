@@ -210,7 +210,6 @@ export async function POST(req: Request) {
             const { data: existing, error: existingError } = await supabase
                 .from('taimee_employees_monthly')
                 .select('*')
-                .eq('period_month', ym)
                 .in('taimee_user_id', taimeeUserIds.slice(offset, offset + 100))
 
             if (existingError) throw existingError
@@ -224,23 +223,47 @@ export async function POST(req: Request) {
         const existingRows = inserts.filter((row) => existingTaimeeUserIds.has(row[USER_ID_COLUMN] ?? ''))
         const newRows = inserts.filter((row) => !existingTaimeeUserIds.has(row[USER_ID_COLUMN] ?? ''))
 
+        // 一覧APIは taimee_applicants_with_entry（taimee_applicants起点）を参照する。
+        // CSV取込時に基本情報を同期し、既存の連携状態・メモ・除外設定等は上書きしない。
+        const applicantRows = inserts.map((row) => ({
+            taimee_user_id: row[USER_ID_COLUMN],
+            last_name: row['姓'],
+            first_name: row['名'],
+            gender: row['性別'],
+            phone: row['電話番号'],
+            normalized_phone: (row['電話番号'] ?? '').replace(/\D/g, ''),
+            address: row['住所'],
+        }))
+        const { data: syncedApplicants, error: applicantError } = await supabase
+            .from('taimee_applicants')
+            .upsert(applicantRows, { onConflict: 'taimee_user_id', ignoreDuplicates: false })
+            .select('id,taimee_user_id')
+
+        if (applicantError) throw applicantError
+        if ((syncedApplicants ?? []).length !== applicantRows.length) {
+            throw new Error(`一覧データの同期確認件数が一致しません（CSV ${applicantRows.length}件、DB ${syncedApplicants?.length ?? 0}件）`)
+        }
+
         // 主キーは全角括弧を含むCSV列名であり、PostgRESTのonConflictには指定できない。
         // taimee_user_id（本番で一意性を確認済み）を使い、既存者はUPDATE、新規者のみINSERTする。
         let updated = 0
-        for (const row of existingRows) {
-            const taimeeUserId = row[USER_ID_COLUMN]
-            const { [USER_ID_COLUMN]: _userId, ...patch } = row
-            const { data, error } = await supabase
-                .from('taimee_employees_monthly')
-                .update(patch)
-                .eq('taimee_user_id', taimeeUserId)
-                .select('*')
+        for (let offset = 0; offset < existingRows.length; offset += 10) {
+            const results = await Promise.all(existingRows.slice(offset, offset + 10).map(async (row) => {
+                const taimeeUserId = row[USER_ID_COLUMN]
+                const { [USER_ID_COLUMN]: _userId, ...patch } = row
+                const { data, error } = await supabase
+                    .from('taimee_employees_monthly')
+                    .update(patch)
+                    .eq('taimee_user_id', taimeeUserId)
+                    .select('taimee_user_id')
 
-            if (error) throw error
-            if ((data ?? []).length !== 1) {
-                throw new Error(`更新確認件数が一致しません（ユーザーID: ${taimeeUserId ?? '不明'}）`)
-            }
-            updated += 1
+                if (error) throw error
+                if ((data ?? []).length !== 1) {
+                    throw new Error(`更新確認件数が一致しません（ユーザーID: ${taimeeUserId ?? '不明'}）`)
+                }
+                return 1
+            }))
+            updated += results.reduce((sum, count) => sum + count, 0)
         }
 
         let inserted = 0
@@ -256,7 +279,15 @@ export async function POST(req: Request) {
                 throw new Error(`DBへの登録確認件数が一致しません（CSV ${newRows.length}件、DB ${inserted}件）`)
             }
         }
-        return Nx.json({ ok: true, parsed: rows.length, inserted, updated, skipped: 0, failed: 0 })
+        return Nx.json({
+            ok: true,
+            parsed: rows.length,
+            inserted,
+            updated,
+            applicantsSynced: syncedApplicants?.length ?? 0,
+            skipped: 0,
+            failed: 0,
+        })
     } catch (e: unknown) {
         const rawMessage = errorMessage(e)
         const status = rawMessage === 'UNAUTHORIZED' ? 401 : rawMessage === 'FORBIDDEN' ? 403 : 500
