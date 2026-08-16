@@ -916,6 +916,7 @@ export default function EntryDetailPage() {
 
         setCreatingLineWorks(true);  // 処理開始
         setLineWorksMessage(isReentry ? 'Re-entryとしてLINE WORKSを復旧しています...' : 'LINE WORKSを新規設定しています...');
+        let groupSummary = '';
 
         try {
             const payload: Record<string, unknown> = {
@@ -1098,6 +1099,9 @@ export default function EntryDetailPage() {
                 });
 
                 if (groupRes.ok) {
+                    const groupData = await groupRes.json();
+                    const groups = Array.isArray(groupData.groups) ? groupData.groups : [];
+                    groupSummary = groups.map((group: { reused?: boolean }) => group.reused ? '既存グループへ再参加' : 'グループを新規作成').join(' / ');
                     console.log('✅ LINE WORKS グループ初期化成功');
                 } else {
                     const err = await groupRes.json();
@@ -1123,7 +1127,7 @@ export default function EntryDetailPage() {
                 await addStaffLog({ staff_id: entry.id, action_at: new Date().toISOString(), action_detail: resultLog, registered_by: 'システム' });
             }
             setLineWorksMessage(isReentry
-                ? 'Re-entryのLINE WORKS復旧が完了しました。既存LW Userと個人グループを確認し、利用可能な過去情報を再利用しました。'
+                ? `Re-entryのLINE WORKS復旧が完了しました。${groupSummary || '既存LW Userと個人グループを確認し、利用可能な過去情報を再利用しました。'}`
                 : 'LINE WORKSの新規設定が完了しました。');
 
         } catch (err) {

@@ -22,6 +22,15 @@ type BlackFilter =
 type TaimeeListItem = Record<string, unknown> & {
   taimee_user_id?: string | null
   period_month?: string | null
+  normalized_phone?: string | null
+  entry_id?: string | null
+  link_status?: string | null
+}
+
+function normalizePhone(value: unknown): string {
+  return typeof value === 'string'
+    ? value.replace(/\D/g, '')
+    : ''
 }
 
 function getErrorMessage(
@@ -115,13 +124,6 @@ export async function GET(
         ascending: false,
       })
 
-    if (status !== 'all') {
-      query = query.eq(
-        'link_status',
-        status
-      )
-    }
-
     if (black === 'only') {
       query = query.eq(
         'black_list',
@@ -206,21 +208,70 @@ export async function GET(
       }
     }
 
+    // form_entriesに存在する人は、既存のlink_statusにかかわらず候補として扱う。
+    // 手動でentry_idを紐付け済みの場合だけ「連携済み」を優先する。
+    const entryPhones = new Set<string>()
+    for (let offset = 0; ; offset += 1000) {
+      const {
+        data: entryRows,
+        error: entryError,
+      } = await supabaseAdmin
+        .from('form_entries')
+        .select('phone')
+        .not('phone', 'is', null)
+        .range(offset, offset + 999)
+
+      if (entryError) {
+        console.error(
+          '[taimee-emp/list] form entry lookup failed',
+          entryError
+        )
+        throw entryError
+      }
+
+      for (const entryRow of entryRows ?? []) {
+        const phone = normalizePhone(entryRow.phone)
+        if (phone) entryPhones.add(phone)
+      }
+
+      if (!entryRows || entryRows.length < 1000) break
+    }
+
     const resolvedItems = items.map((item) => {
       const periodMonth =
         typeof item.taimee_user_id === 'string'
           ? periodByTaimeeUserId.get(item.taimee_user_id)
           : undefined
 
-      return periodMonth
-        ? { ...item, period_month: periodMonth }
-        : item
+      const hasLinkedEntry =
+        typeof item.entry_id === 'string' &&
+        item.entry_id.length > 0
+      const hasMatchingEntry = entryPhones.has(
+        normalizePhone(item.normalized_phone)
+      )
+      const linkStatus = hasLinkedEntry
+        ? 'linked'
+        : hasMatchingEntry
+          ? 'candidate'
+          : item.link_status === 'candidate'
+            ? 'candidate'
+            : 'unlinked'
+
+      return {
+        ...item,
+        ...(periodMonth ? { period_month: periodMonth } : {}),
+        link_status: linkStatus,
+      }
     })
+
+    const filteredItems = status === 'all'
+      ? resolvedItems
+      : resolvedItems.filter((item) => item.link_status === status)
 
     return NextResponse.json(
       {
         ok: true,
-        items: resolvedItems,
+        items: filteredItems,
       },
       {
         status: 200,

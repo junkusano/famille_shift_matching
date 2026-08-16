@@ -34,6 +34,11 @@ type SendLWBotMentionMessageArgs = {
   botId: string;
   channelId: string;
   accessToken: string;
+  /**
+   * Bot送信用トークンにDirectory更新権限がない場合に、
+   * グループメンバー追加用トークンを遅延取得する。
+   */
+  getGroupAccessToken?: () => Promise<string>;
   mentions: MentionTarget[];
   /**
    * activeMentions には、その時点でメンション可能なユーザーだけが入る。
@@ -124,12 +129,10 @@ async function addUserToGroup(params: {
     }
   );
 
-  if (response.ok) return;
+  // 既に所属している場合も、そのままメンション可能として再送する。
+  if (response.ok || response.status === 409) return;
 
   const detail = await response.text().catch(() => "");
-  // 同時実行などで既に追加済みになった場合は、メンション可能として再送する。
-  if (detail.includes("Group member already exist")) return;
-
   throw new Error(`${response.status} ${detail}`.trim());
 }
 
@@ -169,12 +172,23 @@ export async function sendLWBotMentionMessage(
     groupResolveError = error instanceof Error ? error.message : String(error);
   }
 
+  let groupAccessToken = accessToken;
+  let groupTokenError: string | null = null;
+  if (args.getGroupAccessToken) {
+    try {
+      groupAccessToken = await args.getGroupAccessToken();
+    } catch (error) {
+      groupTokenError = error instanceof Error ? error.message : String(error);
+    }
+  }
+
   const activeMentions: MentionTarget[] = [];
   const recoveryNotes: string[] = [];
   for (const mention of mentions) {
     try {
       if (!groupId) throw new Error(groupResolveError ?? "グループIDを取得できませんでした");
-      await addUserToGroup({ groupId, userId: mention.userId, accessToken });
+      if (groupTokenError) throw new Error(`グループ追加用トークンを取得できませんでした: ${groupTokenError}`);
+      await addUserToGroup({ groupId, userId: mention.userId, accessToken: groupAccessToken });
       activeMentions.push(mention);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

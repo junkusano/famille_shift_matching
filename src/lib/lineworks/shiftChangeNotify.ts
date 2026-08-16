@@ -1,5 +1,6 @@
 // src/lib/lineworks/shiftChangeNotify.ts
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { getAccessToken } from "@/lib/getAccessToken";
 import { sendLWBotMentionMessage, type MentionTarget } from "@/lib/lineworks/sendLWBotMentionMessage";
 import { SignJWT, importPKCS8 } from "jose";
 
@@ -286,6 +287,7 @@ export async function notifyShiftChange(args: NotifyShiftChangeArgs): Promise<vo
       botId: LW_BOT_NO,
       channelId: clientChannelId,
       accessToken,
+      getGroupAccessToken: getAccessToken,
       mentions,
       buildText: (activeMentions, recoveryNotes) =>
         buildText(
@@ -303,6 +305,7 @@ export async function notifyShiftChange(args: NotifyShiftChangeArgs): Promise<vo
     botId: LW_BOT_NO,
     channelId: MANAGER_CHANNEL_ID,
     accessToken,
+    getGroupAccessToken: getAccessToken,
     mentions,
     buildText: (activeMentions, recoveryNotes) =>
       buildText(

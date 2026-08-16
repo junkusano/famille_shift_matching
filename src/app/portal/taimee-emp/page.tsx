@@ -288,6 +288,9 @@ https://www.shi-on.net/column?page=17
 
   const recipientsForSend = useMemo(() => {
     return filtered.filter((it) => {
+      // エントリー済み、または既存エントリーと電話番号一致する候補者には
+      // リエントリー案内を重ねて送らない。
+      if (it.link_status === 'linked' || it.link_status === 'candidate') return false
       const draft = drafts[rowKey(it)]
       const sendDisabled = draft?.send_disabled ?? it.send_disabled
       const black = draft?.black_list ?? it.black_list
