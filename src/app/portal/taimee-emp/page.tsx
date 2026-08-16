@@ -132,6 +132,7 @@ https://www.shi-on.net/column?page=17
   const [sendRunning, setSendRunning] = useState(false)
   const [sendProgress, setSendProgress] = useState({ sent: 0, total: 0, success: 0, failed: 0 })
   const [sendError, setSendError] = useState<string | null>(null)
+  const [checkingDelivery, setCheckingDelivery] = useState(false)
   const sendStopRequestedRef = useRef(false)
 
   async function fetchList() {
@@ -622,6 +623,43 @@ function rowKey(it: TaimeeEmployeeWithEntry) {
     }
   }
 
+  async function onCheckDeliveryStatus() {
+    if (checkingDelivery) return
+    setCheckingDelivery(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('ログイン情報を確認できません。再ログインしてください。')
+
+      const response = await fetch('/api/taimee-emp/delivery-status', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      const result = await response.json() as {
+        ok?: boolean
+        checked?: number
+        delivered?: number
+        excluded?: number
+        pending?: number
+        lookupFailed?: number
+        error?: string
+      }
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || `送信結果の確認に失敗しました。HTTP ${response.status}`)
+      }
+
+      await fetchList()
+      notify.success(
+        `Twilio結果：確認 ${result.checked ?? 0}件 / 配信済み ${result.delivered ?? 0}件 / 除外 ${result.excluded ?? 0}件 / 保留 ${result.pending ?? 0}件 / 照会失敗 ${result.lookupFailed ?? 0}件`
+      )
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '送信結果の確認に失敗しました'
+      console.error('[taimee-emp] delivery status check failed', error)
+      notify.error(message)
+    } finally {
+      setCheckingDelivery(false)
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">
@@ -653,6 +691,9 @@ function rowKey(it: TaimeeEmployeeWithEntry) {
               <label className="flex items-center gap-2 text-sm"><Checkbox checked={includeBlack} onCheckedChange={(v) => setIncludeBlack(!!v)} />ブラックも含める</label>
               <Button variant="outline" size="sm" onClick={() => bulkToggleExclude(false)}>全選択</Button>
               <Button variant="outline" size="sm" onClick={() => bulkToggleExclude(true)}>全除外</Button>
+              <Button variant="outline" size="sm" onClick={onCheckDeliveryStatus} disabled={checkingDelivery}>
+                {checkingDelivery ? '結果確認中…' : 'Twilio結果確認'}
+              </Button>
               <Button onClick={onBulkSend} disabled={loading || recipientsForSend.length === 0}>一斉送信</Button>
             </div>
           </div>

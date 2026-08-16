@@ -8496,6 +8496,72 @@ export type Database = {
         }
         Relationships: []
       }
+      taimee_sms_send_logs: {
+        Row: {
+          applicant_id: string
+          checked_at: string | null
+          created_at: string
+          excluded_at: string | null
+          id: string
+          message_body: string
+          recipient_phone: string
+          sent_at: string
+          taimee_user_id: string
+          twilio_error_code: string | null
+          twilio_error_message: string | null
+          twilio_message_sid: string | null
+          twilio_status: string
+          updated_at: string
+        }
+        Insert: {
+          applicant_id: string
+          checked_at?: string | null
+          created_at?: string
+          excluded_at?: string | null
+          id?: string
+          message_body: string
+          recipient_phone: string
+          sent_at?: string
+          taimee_user_id: string
+          twilio_error_code?: string | null
+          twilio_error_message?: string | null
+          twilio_message_sid?: string | null
+          twilio_status?: string
+          updated_at?: string
+        }
+        Update: {
+          applicant_id?: string
+          checked_at?: string | null
+          created_at?: string
+          excluded_at?: string | null
+          id?: string
+          message_body?: string
+          recipient_phone?: string
+          sent_at?: string
+          taimee_user_id?: string
+          twilio_error_code?: string | null
+          twilio_error_message?: string | null
+          twilio_message_sid?: string | null
+          twilio_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "taimee_sms_send_logs_applicant_id_fkey"
+            columns: ["applicant_id"]
+            isOneToOne: false
+            referencedRelation: "taimee_applicants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "taimee_sms_send_logs_applicant_id_fkey"
+            columns: ["applicant_id"]
+            isOneToOne: false
+            referencedRelation: "taimee_applicants_with_entry"
+            referencedColumns: ["applicant_id"]
+          },
+        ]
+      }
       team_monthly_score_summaries: {
         Row: {
           created_at: string

@@ -34,6 +34,51 @@ function toE164JP(raw: string | null | undefined): string | null {
   return `+${digits}`
 }
 
+function twilioFailureDetails(error: unknown) {
+  const value = error as {
+    code?: unknown
+    message?: unknown
+    moreInfo?: unknown
+  }
+  const code = value && typeof value.code !== 'undefined'
+    ? String(value.code)
+    : null
+  const message = value && typeof value.message === 'string'
+    ? value.message
+    : 'Twilio送信エラー'
+  return { code, message }
+}
+
+async function excludeFailedRecipient(
+  supabase: ReturnType<typeof sb>,
+  applicantId: string,
+  reason: string
+) {
+  const { data: applicant, error: readError } = await supabase
+    .from('taimee_applicants')
+    .select('memo')
+    .eq('id', applicantId)
+    .maybeSingle()
+
+  if (readError || !applicant) {
+    console.error('[taimee-emp/send] failed to load applicant for exclusion', readError)
+    return
+  }
+
+  const notice = `【SMS配信エラー】${reason}`
+  const memo = String(applicant.memo ?? '').includes(notice)
+    ? applicant.memo
+    : [applicant.memo, notice].filter(Boolean).join('\n').slice(-4000)
+  const { error: updateError } = await supabase
+    .from('taimee_applicants')
+    .update({ send_disabled: true, memo })
+    .eq('id', applicantId)
+
+  if (updateError) {
+    console.error('[taimee-emp/send] failed to exclude recipient', updateError)
+  }
+}
+
 export async function POST(req: Request) {
   const supabase = sb(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -85,11 +130,27 @@ export async function POST(req: Request) {
       const bodyText = `${(rcp.last || '') + (rcp.first || '')}様\n${message}`
 
       try {
-        await client.messages.create({
+        const message = await client.messages.create({
           to,
           ...(messagingServiceSid ? { messagingServiceSid } : { from: fromNumber }),
           body: bodyText,
         })
+
+        const { error: logError } = await supabase
+          .from('taimee_sms_send_logs')
+          .insert({
+            applicant_id: rcp.key,
+            taimee_user_id: rcp.taimee_user_id,
+            recipient_phone: to,
+            message_body: bodyText,
+            twilio_message_sid: message.sid,
+            twilio_status: message.status ?? 'queued',
+          })
+        if (logError) {
+          // 送信自体は成功しているため、ログ障害で成功件数を失わない。
+          console.error('[taimee-emp/send] failed to create Twilio delivery log', logError)
+        }
+
         success++
         await supabase
           .from('taimee_employees_monthly')
@@ -97,8 +158,23 @@ export async function POST(req: Request) {
           .eq('period_month', rcp.period_month)
           .eq('taimee_user_id', rcp.taimee_user_id)
       } catch (err) {
-        // 必要ならログ（削除可）
-        console.error('Twilio send failed for', to, err)
+        const failure = twilioFailureDetails(err)
+        const reason = `${failure.code ? `code=${failure.code} / ` : ''}${failure.message}`
+        const { error: logError } = await supabase
+          .from('taimee_sms_send_logs')
+          .insert({
+            applicant_id: rcp.key,
+            taimee_user_id: rcp.taimee_user_id,
+            recipient_phone: to,
+            message_body: bodyText,
+            twilio_status: 'failed',
+            twilio_error_code: failure.code,
+            twilio_error_message: failure.message,
+            excluded_at: new Date().toISOString(),
+          })
+        if (logError) console.error('[taimee-emp/send] failed to create failed-send log', logError)
+        await excludeFailedRecipient(supabase, rcp.key, reason)
+        console.error('[taimee-emp/send] Twilio send failed', { to, ...failure })
         failed++
       }
     }
