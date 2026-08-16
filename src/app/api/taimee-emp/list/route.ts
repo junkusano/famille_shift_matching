@@ -19,6 +19,11 @@ type BlackFilter =
   | 'only'
   | 'exclude'
 
+type TaimeeListItem = Record<string, unknown> & {
+  taimee_user_id?: string | null
+  period_month?: string | null
+}
+
 function getErrorMessage(
   error: unknown
 ): string {
@@ -158,10 +163,64 @@ export async function GET(
       )
     }
 
+    // View側のperiod_monthがnullになるデータがあるため、CSV取込元テーブルの
+    // 実値で補完する。taimee_user_idはmonthlyテーブルで一意のため、一覧の年月は
+    // CSV取込で確定した年月と常に一致する。
+    const items = (data ?? []) as TaimeeListItem[]
+    const taimeeUserIds = [
+      ...new Set(
+        items
+          .map((item) => item.taimee_user_id)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      ),
+    ]
+    const periodByTaimeeUserId = new Map<string, string>()
+
+    for (let offset = 0; offset < taimeeUserIds.length; offset += 100) {
+      const {
+        data: monthlyRows,
+        error: monthlyError,
+      } = await supabaseAdmin
+        .from('taimee_employees_monthly')
+        .select('taimee_user_id,period_month')
+        .in('taimee_user_id', taimeeUserIds.slice(offset, offset + 100))
+
+      if (monthlyError) {
+        console.error(
+          '[taimee-emp/list] monthly period lookup failed',
+          monthlyError
+        )
+        throw monthlyError
+      }
+
+      for (const monthlyRow of monthlyRows ?? []) {
+        if (
+          typeof monthlyRow.taimee_user_id === 'string' &&
+          typeof monthlyRow.period_month === 'string'
+        ) {
+          periodByTaimeeUserId.set(
+            monthlyRow.taimee_user_id,
+            monthlyRow.period_month
+          )
+        }
+      }
+    }
+
+    const resolvedItems = items.map((item) => {
+      const periodMonth =
+        typeof item.taimee_user_id === 'string'
+          ? periodByTaimeeUserId.get(item.taimee_user_id)
+          : undefined
+
+      return periodMonth
+        ? { ...item, period_month: periodMonth }
+        : item
+    })
+
     return NextResponse.json(
       {
         ok: true,
-        items: data ?? [],
+        items: resolvedItems,
       },
       {
         status: 200,
