@@ -221,23 +221,41 @@ export async function POST(req: Request) {
             }
         }
 
-        const { data, error } = await supabase
-            .from('taimee_employees_monthly')
-            .upsert(inserts, {
-                onConflict: 'period_month,taimee_user_id',
-                ignoreDuplicates: false,
-            })
-            .select('*')
+        const existingRows = inserts.filter((row) => existingTaimeeUserIds.has(row[USER_ID_COLUMN] ?? ''))
+        const newRows = inserts.filter((row) => !existingTaimeeUserIds.has(row[USER_ID_COLUMN] ?? ''))
 
-        if (error) throw error
-        const written = data ?? []
-        if (written.length !== inserts.length) {
-            throw new Error(`DBへの書込確認件数が一致しません（CSV ${inserts.length}件、DB ${written.length}件）`)
+        // 主キーは全角括弧を含むCSV列名であり、PostgRESTのonConflictには指定できない。
+        // taimee_user_id（本番で一意性を確認済み）を使い、既存者はUPDATE、新規者のみINSERTする。
+        let updated = 0
+        for (const row of existingRows) {
+            const taimeeUserId = row[USER_ID_COLUMN]
+            const { [USER_ID_COLUMN]: _userId, ...patch } = row
+            const { data, error } = await supabase
+                .from('taimee_employees_monthly')
+                .update(patch)
+                .eq('taimee_user_id', taimeeUserId)
+                .select('*')
+
+            if (error) throw error
+            if ((data ?? []).length !== 1) {
+                throw new Error(`更新確認件数が一致しません（ユーザーID: ${taimeeUserId ?? '不明'}）`)
+            }
+            updated += 1
         }
-        const updated = written.filter((row) =>
-            typeof row.taimee_user_id === 'string' && existingTaimeeUserIds.has(row.taimee_user_id)
-        ).length
-        const inserted = written.length - updated
+
+        let inserted = 0
+        if (newRows.length > 0) {
+            const { data, error } = await supabase
+                .from('taimee_employees_monthly')
+                .insert(newRows)
+                .select('*')
+
+            if (error) throw error
+            inserted = (data ?? []).length
+            if (inserted !== newRows.length) {
+                throw new Error(`DBへの登録確認件数が一致しません（CSV ${newRows.length}件、DB ${inserted}件）`)
+            }
+        }
         return Nx.json({ ok: true, parsed: rows.length, inserted, updated, skipped: 0, failed: 0 })
     } catch (e: unknown) {
         const rawMessage = errorMessage(e)

@@ -35,6 +35,7 @@ type ClientRow = {
   name: string | null;
   shogai_end_at: string | null;
   asigned_jisseki_staff: string | null;
+  asigned_org: string | null;
 };
 
 type ShiftRow = { kaipoke_cs_id: string | null; service_code: string | null };
@@ -45,6 +46,9 @@ type StaffRow = {
   last_name_kanji: string | null;
   first_name_kanji: string | null;
 };
+type OrgRow = { orgunitid: string; mgr_user_id: string | null };
+type OrgExceptionRow = { orgunitid: string; user_id: string };
+type ManagerRoleRow = { user_id: string; system_role: string | null; status: string | null };
 
 export type ShogaiJukyushaRenewalAlertArgs = {
   /** YYYY-MM-DD. URLから指定して、特定の利用者だけ過去日付でテストできる。 */
@@ -156,7 +160,7 @@ export async function runShogaiJukyushaRenewalAlerts(
 
   let clientQuery = supabaseAdmin
     .from("cs_kaipoke_info")
-    .select("id,kaipoke_cs_id,name,shogai_end_at,asigned_jisseki_staff")
+    .select("id,kaipoke_cs_id,name,shogai_end_at,asigned_jisseki_staff,asigned_org")
     .eq("is_active", true)
     .gte("shogai_end_at", previousMonthStart)
     .lt("shogai_end_at", currentMonthStart)
@@ -188,15 +192,61 @@ export async function runShogaiJukyushaRenewalAlerts(
   const targets = expiredClients.filter((client) => serviceCodesByClient.has(client.kaipoke_cs_id));
   if (!targets.length) return { ...empty(false), scannedClients: expiredClients.length };
 
-  const [{ data: groups, error: groupsError }, { data: staffRows, error: staffError }] = await Promise.all([
+  const targetOrgIds = Array.from(new Set(targets.map((client) => client.asigned_org).filter((id): id is string => Boolean(id))));
+  const [{ data: groups, error: groupsError }, { data: orgRows, error: orgError }, { data: exceptionRows, error: exceptionError }] = await Promise.all([
     supabaseAdmin.from("groups_lw").select("group_id,group_name").eq("is_active", true).ilike("group_name", "%情報連携%").limit(5000),
-    supabaseAdmin
-      .from("user_entry_united_view_single")
-      .select("user_id,lw_userid,last_name_kanji,first_name_kanji")
-      .in("user_id", Array.from(new Set(targets.map((client) => client.asigned_jisseki_staff).filter((id): id is string => Boolean(id))))),
+    targetOrgIds.length > 0
+      ? supabaseAdmin.from("orgs").select("orgunitid,mgr_user_id").in("orgunitid", targetOrgIds)
+      : Promise.resolve({ data: [], error: null }),
+    targetOrgIds.length > 0
+      ? supabaseAdmin.from("user_org_exception").select("orgunitid,user_id").in("orgunitid", targetOrgIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
   if (groupsError) throw new Error(`LINEWORKS group lookup failed: ${groupsError.message}`);
-  if (staffError) throw new Error(`manager lookup failed: ${staffError.message}`);
+  if (orgError) throw new Error(`assigned organization lookup failed: ${orgError.message}`);
+  if (exceptionError) throw new Error(`manager organization lookup failed: ${exceptionError.message}`);
+
+  // user_org_exception を優先して担当組織に属するマネジャーを解決する。
+  // orgs.mgr_user_id が設定されている場合は、その責任マネジャー1名に絞る。
+  const exceptions = (exceptionRows ?? []) as OrgExceptionRow[];
+  const exceptionUserIds = Array.from(new Set(exceptions.map((row) => row.user_id).filter(Boolean)));
+  const { data: managerRoleRows, error: managerRoleError } = exceptionUserIds.length > 0
+    ? await supabaseAdmin.from("users").select("user_id,system_role,status").in("user_id", exceptionUserIds).eq("system_role", "manager")
+    : { data: [], error: null };
+  if (managerRoleError) throw new Error(`manager role lookup failed: ${managerRoleError.message}`);
+
+  const activeManagerIds = new Set(
+    ((managerRoleRows ?? []) as ManagerRoleRow[])
+      .filter((manager) => manager.status !== "removed_from_lineworks_kaipoke")
+      .map((manager) => manager.user_id),
+  );
+  const fallbackManagerIdsByOrg = new Map<string, string[]>();
+  for (const row of exceptions) {
+    if (!activeManagerIds.has(row.user_id)) continue;
+    fallbackManagerIdsByOrg.set(row.orgunitid, [...(fallbackManagerIdsByOrg.get(row.orgunitid) ?? []), row.user_id]);
+  }
+  const managerIdsByOrg = new Map<string, string[]>();
+  for (const org of (orgRows ?? []) as OrgRow[]) {
+    const designatedManagerId = String(org.mgr_user_id ?? "").trim();
+    managerIdsByOrg.set(
+      org.orgunitid,
+      designatedManagerId && activeManagerIds.has(designatedManagerId)
+        ? [designatedManagerId]
+        : Array.from(new Set(fallbackManagerIdsByOrg.get(org.orgunitid) ?? [])),
+    );
+  }
+
+  const staffAndManagerIds = Array.from(new Set([
+    ...targets.map((client) => client.asigned_jisseki_staff).filter((id): id is string => Boolean(id)),
+    ...Array.from(managerIdsByOrg.values()).flat(),
+  ]));
+  const { data: staffRows, error: staffError } = staffAndManagerIds.length > 0
+    ? await supabaseAdmin
+      .from("user_entry_united_view_single")
+      .select("user_id,lw_userid,last_name_kanji,first_name_kanji")
+      .in("user_id", staffAndManagerIds)
+    : { data: [], error: null };
+  if (staffError) throw new Error(`staff lookup failed: ${staffError.message}`);
 
   const staffById = new Map(
     ((staffRows ?? []) as StaffRow[])
@@ -216,20 +266,27 @@ export async function runShogaiJukyushaRenewalAlerts(
       const groupId = findClientGroupId(name, (groups ?? []) as GroupRow[]);
       if (!groupId) throw new Error(`利用者別「情報連携」グループが見つかりません: ${name}`);
       const channelId = await loadChannelId(groupId, channelCache);
-      const manager = client.asigned_jisseki_staff ? staffById.get(client.asigned_jisseki_staff) : undefined;
-      const managerLwUserId = String(manager?.lw_userid ?? "").trim();
-      const managerName = `${manager?.last_name_kanji ?? ""}${manager?.first_name_kanji ?? ""}`.trim();
-      const mentions: MentionTarget[] = managerLwUserId
-        ? [{ userId: managerLwUserId, label: managerName || client.asigned_jisseki_staff || "実績担当者" }]
-        : [];
-      const mention = managerLwUserId ? `<m userId="${managerLwUserId}">さん\n` : "";
+      const mentionUserIds = Array.from(new Set([
+        client.asigned_jisseki_staff,
+        ...(managerIdsByOrg.get(client.asigned_org ?? "") ?? []),
+      ].filter((id): id is string => Boolean(id))));
+      const mentions: MentionTarget[] = mentionUserIds
+        .map((userId) => {
+          const staff = staffById.get(userId);
+          const lwUserId = String(staff?.lw_userid ?? "").trim();
+          const staffName = `${staff?.last_name_kanji ?? ""}${staff?.first_name_kanji ?? ""}`.trim();
+          return lwUserId ? { userId: lwUserId, label: staffName || userId } : null;
+        })
+        .filter((mention): mention is MentionTarget => mention !== null);
+      const mention = mentions.map((item) => `<m userId="${item.userId}">さん`).join("\n");
       const services = Array.from(serviceCodesByClient.get(client.kaipoke_cs_id) ?? []).join("・");
       const detailUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://myfamille.shi-on.net"}/portal/kaipoke-info-detail/${client.id}`;
       const message =
-        `${mention}【障害サービス受給者証の更新確認】\n` +
+        `${mention ? `${mention}\n` : ""}【障害サービス受給者証の更新確認】\n` +
         `${name}様は、先月（${displayDate(client.shogai_end_at ?? previousMonthStart)}）で障害サービス受給者証の有効期間が切れています。\n` +
-        `当月も ${services} を実施しているため、新しい受給者証の取得・反映をお願いします。\n\n` +
-        `このまま月を超えると、パフォーマンススコアのチーム点が -5 点となります。\n` +
+        `当月も ${services} を実施しているため、マネジャーと相談のうえ、新しい受給者証の取得を進めてください。\n` +
+        `取得後は、マネジャーが速やかにカイポケへ登録してください。カイポケへ登録されると、このアラートは自動で消えます。\n\n` +
+        `月を超えても未登録のままの場合は、チーム成績に影響（減点）します。\n` +
         `${detailUrl}`;
       if (!dryRun && token) {
         await sendLWBotMentionMessage({
