@@ -726,6 +726,51 @@ export default function ExpenseClaimPage() {
                         <section>
                             <SectionTitle>レシート添付</SectionTitle>
 
+                            <div
+                                role="note"
+                                aria-labelledby="original-receipt-notice"
+                                className="mt-5 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 text-sm leading-7 text-amber-950 sm:p-5"
+                            >
+                                <h3
+                                    id="original-receipt-notice"
+                                    className="text-base font-bold text-amber-950 sm:text-lg"
+                                >
+                                    領収書原本の提出について
+                                </h3>
+
+                                <p className="mt-2 text-base font-bold leading-7 text-amber-950">
+                                    経費精算には、領収書・レシート等の
+                                    <span className="underline decoration-amber-700 decoration-2 underline-offset-2">
+                                        画像添付に加えて、原本の提出も必要です。
+                                    </span>
+                                </p>
+
+                                <p className="mt-3">
+                                    原本は金山オフィスまで郵送してください。
+                                </p>
+
+                                <div className="mt-3 rounded-lg border border-amber-300 bg-white/70 p-3">
+                                    <p className="font-bold">【郵送先】</p>
+                                    <address className="not-italic">
+                                        〒456-0018
+                                        <br />
+                                        愛知県名古屋市熱田区新尾頭3-1-18
+                                        <br />
+                                        WIZ金山602
+                                    </address>
+                                </div>
+
+                                <p className="mt-3">
+                                    ※郵送にかかった
+                                    <strong>切手代も経費として申請できます（定形郵便110円まで）。</strong>
+                                    <br />
+                                    ※
+                                    <strong>
+                                        切手代を経費精算する場合は、切手購入時のレシート・領収書も必要です。
+                                    </strong>
+                                </p>
+                            </div>
+
                             <p className="mt-3 text-sm leading-6 text-slate-600">
                                 画像またはPDFを最大10ファイルまで添付できます。1ファイルあたり最大
                                 {MAX_FILE_SIZE_MB}MBです。
