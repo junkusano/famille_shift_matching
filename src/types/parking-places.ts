@@ -1,6 +1,6 @@
 export type ParkingPlace = {
   id: string; // UUID
-  kaipoke_cs_id: string; // 利用者ID
+  kaipoke_cs_id: string | null; // 利用者ID（共通場所はnull）
   serial: number; // 駐車場所のシリアル番号
   label: string; // 駐車場所のラベル（自宅、作業所など）
   location_link: string; // Googleマップリンク
@@ -9,4 +9,5 @@ export type ParkingPlace = {
   remarks: string; // 備考
   picture1_url: string | null; // 画像1 URL
   picture2_url: string | null; // 画像2 URL
+  is_pickup: boolean; // ピックアップ表示対象
 };

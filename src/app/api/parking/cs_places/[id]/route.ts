@@ -13,6 +13,7 @@ type Body = {
   permit_required?: boolean | null;
   remarks?: string | null;
   is_active?: boolean | null;
+  is_pickup?: boolean;
 };
 
 export async function PATCH(
@@ -63,6 +64,7 @@ export async function PATCH(
     remarks:
       typeof body.remarks === "string" || body.remarks === null ? body.remarks : undefined,
     is_active: typeof body.is_active === "boolean" ? body.is_active : undefined,
+    is_pickup: typeof body.is_pickup === "boolean" ? body.is_pickup : undefined,
   };
 
   const { data: urow, error: uerr } = await supabaseAdmin

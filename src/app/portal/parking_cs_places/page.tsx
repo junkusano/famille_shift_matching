@@ -1,15 +1,13 @@
-//portal/parking_cs_places/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabaseClient";
 import { useRoleContext } from "@/context/RoleContext";
 
-//type CsInfo = { name: string | null; address: string | null } | null;
-
 type Row = {
     id: string;
-    kaipoke_cs_id: string;
+    kaipoke_cs_id: string | null;
     serial: number;
     label: string;
     location_link: string | null;
@@ -19,16 +17,34 @@ type Row = {
     police_station_place_id: string | null;
     updated_at: string | null;
     created_at: string | null;
-    //cs_kaipoke_info: CsInfo;
-
     client_name: string | null;
     client_address: string | null;
     next_shift_date: string | null;
-
     hasUpcomingShiftWithin2Months: boolean;
     firstShiftWithin2Months: boolean;
     isTarget: boolean;
     is_active: boolean;
+    is_pickup: boolean;
+};
+
+type CommonPlaceForm = {
+    label: string;
+    police_station_place_id: string;
+    location_link: string;
+    parking_orientation: string;
+    remarks: string;
+    permit_required: boolean;
+    is_pickup: boolean;
+};
+
+const emptyCommonPlace: CommonPlaceForm = {
+    label: "",
+    police_station_place_id: "",
+    location_link: "",
+    parking_orientation: "",
+    remarks: "",
+    permit_required: true,
+    is_pickup: false,
 };
 
 function getErrMessage(e: unknown): string {
@@ -45,54 +61,36 @@ export default function ParkingCsPlacesPage() {
     const [rows, setRows] = useState<Row[]>([]);
     const [loading, setLoading] = useState(true);
     const [savingId, setSavingId] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [q, setQ] = useState("");
     const [sendingId, setSendingId] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
+    const [q, setQ] = useState("");
+    const [edit, setEdit] = useState<Record<string, Partial<Row>>>({});
+    const [showCommonForm, setShowCommonForm] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [commonPlace, setCommonPlace] = useState<CommonPlaceForm>(emptyCommonPlace);
     const { role } = useRoleContext();
     const isMember = (role ?? "") === "member";
 
-    // 編集中の一時状態（Row の一部だけ差分で持つ）
-    const [edit, setEdit] = useState<Record<string, Partial<Row>>>({});
-
-    const load = async (qq = q) => {
+    const load = async (query = q) => {
         setLoading(true);
         setError(null);
         try {
             const { data: sessionData } = await supabase.auth.getSession();
             const accessToken = sessionData.session?.access_token;
-
-            const res = await fetch(`/api/parking/cs_places?q=${encodeURIComponent(qq)}`, {
-                method: "GET",
-                headers: {
-                    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-                },
+            const res = await fetch(`/api/parking/cs_places?q=${encodeURIComponent(query)}`, {
+                headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
             });
-
-            const json: unknown = await res.json();
-
-            // 型ガード（必要最低限）
-            if (
-                !res.ok ||
-                typeof json !== "object" ||
-                json === null ||
-                !("ok" in json) ||
-                (json as { ok: unknown }).ok !== true
-            ) {
-                const msg =
-                    typeof json === "object" && json !== null && "message" in json
-                        ? String((json as { message?: unknown }).message ?? "fetch failed")
-                        : "fetch failed";
-                throw new Error(msg);
-            }
-
-            const dataRows =
-                "rows" in json && Array.isArray((json as { rows?: unknown }).rows)
-                    ? ((json as { rows: Row[] }).rows ?? [])
-                    : [];
-
-            setRows(dataRows);
+            const json = (await res.json().catch(() => null)) as {
+                ok?: boolean;
+                message?: string;
+                rows?: Row[];
+            } | null;
+            if (!res.ok || json?.ok !== true) throw new Error(json?.message ?? "駐車場所の取得に失敗しました。");
+            setRows(json.rows ?? []);
             setEdit({});
-        } catch (e: unknown) {
+        } catch (e) {
+            console.error("[parking-cs-places] load failed:", e);
             setError(getErrMessage(e));
         } finally {
             setLoading(false);
@@ -105,90 +103,60 @@ export default function ParkingCsPlacesPage() {
     }, []);
 
     const mergedRows = useMemo(() => {
-        const list = rows.map((r) => ({ ...r, ...(edit[r.id] ?? {}) }));
-
+        const list = rows.map((row) => ({ ...row, ...(edit[row.id] ?? {}) }));
         list.sort((a, b) => {
+            if (a.is_pickup !== b.is_pickup) return a.is_pickup ? -1 : 1;
             const aKey = (a.police_station_place_id ?? "").trim();
             const bKey = (b.police_station_place_id ?? "").trim();
-
-            // 両方空 → 同順位
             if (!aKey && !bKey) return 0;
-
-            // a だけ空 → a を後ろへ
             if (!aKey) return 1;
-
-            // b だけ空 → b を後ろへ
             if (!bKey) return -1;
-
-            // 両方値あり → 文字列昇順
             return aKey.localeCompare(bKey, "ja");
         });
-
         return list;
     }, [rows, edit]);
 
-
-    // ★同じ police_station_place_id の件数（共有数）を作る
-    const sharedCountMap = useMemo(() => {
-        const map = new Map<string, number>();
-        for (const r of mergedRows) {
-            const key = (r.police_station_place_id ?? "").trim();
-            if (!key) continue;
-            map.set(key, (map.get(key) ?? 0) + 1);
-        }
-        return map;
-    }, [mergedRows]);
-
-    // ★同じコードの利用者一覧（表示用）
-    const sharedUsersMap = useMemo(() => {
-        const map = new Map<string, Array<{ kaipoke_cs_id: string; client_name: string | null }>>();
-        for (const r of mergedRows) {
-            const key = (r.police_station_place_id ?? "").trim();
-            if (!key) continue;
-            const arr = map.get(key) ?? [];
-            arr.push({ kaipoke_cs_id: r.kaipoke_cs_id, client_name: r.client_name });
-            map.set(key, arr);
+    const pickupRows = mergedRows.filter((row) => row.is_pickup);
+    const regularRows = mergedRows.filter((row) => !row.is_pickup);
+    const sharedPlaces = useMemo(() => {
+        const map = new Map<string, { count: number; names: string[] }>();
+        for (const row of mergedRows) {
+            const code = row.police_station_place_id?.trim();
+            if (!code) continue;
+            const current = map.get(code) ?? { count: 0, names: [] };
+            current.count += 1;
+            if (row.client_name) current.names.push(row.client_name);
+            map.set(code, current);
         }
         return map;
     }, [mergedRows]);
 
     const setField = (id: string, patch: Partial<Row>) => {
-        if (isMember) return; // ★member は編集禁止
-        setEdit((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
+        if (isMember) return;
+        setEdit((current) => ({ ...current, [id]: { ...(current[id] ?? {}), ...patch } }));
+    };
+
+    const getAccessToken = async () => {
+        const { data } = await supabase.auth.getSession();
+        return data.session?.access_token;
     };
 
     const saveRow = async (id: string) => {
         const patch = edit[id];
-        if (!patch) return;
-
+        if (!patch || isMember) return;
         setSavingId(id);
         setError(null);
-
+        setSuccess(null);
         try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const accessToken = sessionData.session?.access_token;
-
-            type PatchBody = {
-                police_station_place_id?: string | null;
-                label?: string;
-                location_link?: string | null;
-                parking_orientation?: string | null;
-                permit_required?: boolean | null;
-                remarks?: string | null;
-                is_active?: boolean;
-            };
-
-            const payload: PatchBody = {};
-
-            // ★「編集した項目だけ」詰める（undefined の項目は送らない）
-            if ("police_station_place_id" in patch) payload.police_station_place_id = patch.police_station_place_id ?? null;
-            if ("label" in patch) payload.label = patch.label;
-            if ("location_link" in patch) payload.location_link = patch.location_link ?? null;
-            if ("parking_orientation" in patch) payload.parking_orientation = patch.parking_orientation ?? null;
-            if ("permit_required" in patch) payload.permit_required = patch.permit_required ?? null;
-            if ("remarks" in patch) payload.remarks = patch.remarks ?? null;
-            if ("is_active" in patch) payload.is_active = !!patch.is_active;
-
+            const accessToken = await getAccessToken();
+            const payload: Partial<Row> = {};
+            const fields: Array<keyof Row> = [
+                "police_station_place_id", "label", "location_link", "parking_orientation",
+                "permit_required", "remarks", "is_active", "is_pickup",
+            ];
+            for (const field of fields) {
+                if (field in patch) Object.assign(payload, { [field]: patch[field] });
+            }
             const res = await fetch(`/api/parking/cs_places/${encodeURIComponent(id)}`, {
                 method: "PATCH",
                 headers: {
@@ -197,67 +165,61 @@ export default function ParkingCsPlacesPage() {
                 },
                 body: JSON.stringify(payload),
             });
-
-
-            const json: unknown = await res.json();
-
-            if (
-                !res.ok ||
-                typeof json !== "object" ||
-                json === null ||
-                !("ok" in json) ||
-                (json as { ok: unknown }).ok !== true
-            ) {
-                const msg =
-                    typeof json === "object" && json !== null && "message" in json
-                        ? String((json as { message?: unknown }).message ?? "save failed")
-                        : "save failed";
-                throw new Error(msg);
-            }
-
-            setRows((prev) =>
-                prev.map((r) =>
-                    r.id === id
-                        ? {
-                            ...r,
-                            ...patch,
-                            police_station_place_id: patch.police_station_place_id ?? null,
-                            location_link: patch.location_link ?? r.location_link ?? null,
-                            parking_orientation: patch.parking_orientation ?? r.parking_orientation ?? null,
-                            remarks: patch.remarks ?? r.remarks ?? null,
-                            permit_required: patch.permit_required ?? r.permit_required ?? null,
-                            label: patch.label ?? r.label,
-                        }
-                        : r
-                )
-            );
-
-            setEdit((prev) => {
-                const cp = { ...prev };
-                delete cp[id];
-                return cp;
+            const json = (await res.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+            if (!res.ok || json?.ok !== true) throw new Error(json?.message ?? "保存に失敗しました。");
+            setRows((current) => current.map((row) => row.id === id ? { ...row, ...patch } : row));
+            setEdit((current) => {
+                const next = { ...current };
+                delete next[id];
+                return next;
             });
-
-            alert("保存しました。");
-        } catch (e: unknown) {
+            setSuccess("駐車場所を保存しました。");
+        } catch (e) {
+            console.error("[parking-cs-places] save failed:", e);
             setError(getErrMessage(e));
         } finally {
             setSavingId(null);
         }
     };
 
-    const applyPermit = async (parkingCsPlaceId: string) => {
+    const createCommonPlace = async () => {
+        if (isMember || !commonPlace.label.trim()) return;
+        setCreating(true);
         setError(null);
-        setSendingId(parkingCsPlaceId);
-
+        setSuccess(null);
         try {
-            const ok = window.confirm("「許可証申請」メッセージを送信します。よろしいですか？");
-            if (!ok) return;
+            const accessToken = await getAccessToken();
+            const res = await fetch("/api/parking/cs_places", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+                },
+                body: JSON.stringify(commonPlace),
+            });
+            const json = (await res.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+            if (!res.ok || json?.ok !== true) throw new Error(json?.message ?? "共通駐車場所の登録に失敗しました。");
+            setCommonPlace(emptyCommonPlace);
+            setShowCommonForm(false);
+            setSuccess("共通駐車場所を登録しました。");
+            await load(q);
+        } catch (e) {
+            console.error("[parking-cs-places] common place creation failed:", e);
+            setError(getErrMessage(e));
+        } finally {
+            setCreating(false);
+        }
+    };
 
-            const { data: sessionData } = await supabase.auth.getSession();
-            const accessToken = sessionData.session?.access_token;
-
-            const res = await fetch(`/api/parking/permit-apply`, {
+    const applyPermit = async (parkingCsPlaceId: string) => {
+        if (sendingId) return;
+        if (!window.confirm("この駐車場所の許可証を申請します。よろしいですか？")) return;
+        setError(null);
+        setSuccess(null);
+        setSendingId(parkingCsPlaceId);
+        try {
+            const accessToken = await getAccessToken();
+            const res = await fetch("/api/parking/permit-apply", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -265,320 +227,128 @@ export default function ParkingCsPlacesPage() {
                 },
                 body: JSON.stringify({ parking_cs_place_id: parkingCsPlaceId }),
             });
-
-            const json: unknown = await res.json();
-
-            if (
-                !res.ok ||
-                typeof json !== "object" ||
-                json === null ||
-                !("ok" in json) ||
-                (json as { ok: unknown }).ok !== true
-            ) {
-                const msg =
-                    typeof json === "object" && json !== null && "message" in json
-                        ? String((json as { message?: unknown }).message ?? "apply failed")
-                        : "apply failed";
-                throw new Error(msg);
+            const json = (await res.json().catch(() => null)) as {
+                ok?: boolean;
+                message?: string;
+            } | null;
+            if (!res.ok || json?.ok !== true) {
+                throw new Error(json?.message ?? "駐車許可証の申請に失敗しました。");
             }
-
-            alert("送信しました。");
-        } catch (e: unknown) {
+            setSuccess("駐車許可証を申請しました。");
+        } catch (e) {
+            console.error("[parking-cs-places] permit application failed:", e);
             setError(getErrMessage(e));
         } finally {
             setSendingId(null);
         }
     };
 
+    const renderCard = (row: Row) => {
+        const dirty = !!edit[row.id];
+        const isSending = sendingId === row.id;
+        const shared = row.police_station_place_id
+            ? sharedPlaces.get(row.police_station_place_id.trim())
+            : undefined;
+        const inputClass = "mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-600";
+
+        return (
+            <article key={row.id} className={`rounded-xl border p-4 shadow-sm ${row.is_pickup ? "border-amber-400 bg-gradient-to-br from-amber-50 to-white shadow-amber-100" : row.isTarget ? "border-gray-200 bg-white" : "border-gray-200 bg-gray-50"}`}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                            {row.is_pickup && <span className="inline-flex rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-white shadow-sm">★ ピックアップ</span>}
+                            {!row.kaipoke_cs_id && <span className="inline-flex rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-800">共通駐車場所</span>}
+                            {row.kaipoke_cs_id && !row.isTarget && <span className="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">直近シフトなし</span>}
+                            {shared && shared.count > 1 && <span title={shared.names.join(" / ")} className="inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">認識コード共有 {shared.count}件</span>}
+                            <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${row.is_active ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-600"}`}>{row.is_active ? "有効" : "無効"}</span>
+                        </div>
+                        <h3 className="break-words text-lg font-bold text-gray-900">{row.label || "(場所名未設定)"}</h3>
+                        <p className="mt-1 text-sm text-gray-700">{row.kaipoke_cs_id ? `利用者様：${row.client_name ?? row.kaipoke_cs_id}` : "利用者様の訪問に紐づかず、スタッフが共通で利用できます。"}</p>
+                        {row.client_address && <p className="mt-1 text-sm text-gray-600">{row.client_address}</p>}
+                    </div>
+                    {row.permit_required ? (
+                        <button type="button" className="min-w-28 rounded-md bg-amber-500 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600" disabled={isSending || !!sendingId || !row.is_active} onClick={() => void applyPermit(row.id)}>
+                            {isSending ? "申請中..." : "申請する"}
+                        </button>
+                    ) : <span className="rounded-md border bg-white px-3 py-2 text-sm text-gray-600">許可証不要</span>}
+                </div>
+
+                <section className={`mt-4 rounded-lg border p-4 ${row.is_pickup ? "border-amber-300 bg-amber-100/70" : "border-gray-200 bg-gray-100"}`}>
+                    <h4 className="text-sm font-bold text-gray-900">場所について</h4>
+                    <div className="mt-2 min-h-16 whitespace-pre-wrap break-words text-sm leading-7 text-gray-800">{row.remarks?.trim() || "備考は登録されていません。"}</div>
+                </section>
+
+                <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                    <div><dt className="font-semibold text-gray-600">認識コード</dt><dd className="mt-1 text-gray-900">{row.police_station_place_id || "—"}</dd></div>
+                    <div><dt className="font-semibold text-gray-600">連番</dt><dd className="mt-1 text-gray-900">{row.serial}</dd></div>
+                    <div><dt className="font-semibold text-gray-600">駐車の向き</dt><dd className="mt-1 text-gray-900">{row.parking_orientation || "—"}</dd></div>
+                    <div><dt className="font-semibold text-gray-600">地図</dt><dd className="mt-1">{row.location_link ? <a href={row.location_link} target="_blank" rel="noreferrer" className="font-semibold text-blue-700 underline">地図を開く</a> : "—"}</dd></div>
+                </dl>
+
+                {!isMember && (
+                    <details className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
+                        <summary className="cursor-pointer text-sm font-semibold text-gray-800">この場所を編集</summary>
+                        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <label className="text-sm font-semibold text-gray-700">場所名<input className={inputClass} value={row.label} onChange={(e) => setField(row.id, { label: e.target.value })} /></label>
+                            <label className="text-sm font-semibold text-gray-700">認識コード<input className={inputClass} value={row.police_station_place_id ?? ""} onChange={(e) => setField(row.id, { police_station_place_id: e.target.value })} /></label>
+                            <label className="text-sm font-semibold text-gray-700">駐車の向き<input className={inputClass} value={row.parking_orientation ?? ""} onChange={(e) => setField(row.id, { parking_orientation: e.target.value })} /></label>
+                            <label className="text-sm font-semibold text-gray-700">地図URL<input className={inputClass} value={row.location_link ?? ""} onChange={(e) => setField(row.id, { location_link: e.target.value })} /></label>
+                            <label className="text-sm font-semibold text-gray-700 md:col-span-2">備考<textarea className={`${inputClass} min-h-32 resize-y leading-6`} value={row.remarks ?? ""} onChange={(e) => setField(row.id, { remarks: e.target.value })} /></label>
+                        </div>
+                        <div className="mt-4 flex flex-wrap items-center gap-5">
+                            <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={row.is_pickup} onChange={(e) => setField(row.id, { is_pickup: e.target.checked })} />ピックアップとして表示する</label>
+                            <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={!!row.permit_required} onChange={(e) => setField(row.id, { permit_required: e.target.checked })} />許可証が必要</label>
+                            <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={row.is_active} onChange={(e) => setField(row.id, { is_active: e.target.checked })} />有効</label>
+                            <button type="button" className="ml-auto rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-gray-300" disabled={!dirty || savingId === row.id} onClick={() => void saveRow(row.id)}>{savingId === row.id ? "保存中..." : "変更を保存"}</button>
+                        </div>
+                    </details>
+                )}
+            </article>
+        );
+    };
+
     return (
-        <div className="p-4">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h1 className="text-lg font-semibold">駐車場所コード管理（police_station_place_id）</h1>
-
-                <div className="flex items-center gap-2">
-                    <input
-                        className="w-72 rounded-md border px-3 py-2 text-sm"
-                        placeholder="検索（利用者名/住所/コード/ラベル/備考）"
-                        value={q}
-                        onChange={(e) => setQ(e.target.value)}
-                    />
-                    <button
-                        className="rounded-md bg-gray-900 px-3 py-2 text-sm text-white hover:opacity-90"
-                        onClick={() => void load(q)}
-                        disabled={loading}
-                    >
-                        検索
-                    </button>
-                    <button
-                        className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
-                        onClick={() => {
-                            setQ("");
-                            void load("");
-                        }}
-                        disabled={loading}
-                    >
-                        クリア
-                    </button>
-                </div>
+        <main className="mx-auto max-w-6xl p-4 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><h1 className="text-2xl font-bold text-gray-900">駐車許可証申請</h1><p className="mt-1 text-sm text-gray-600">場所の説明を確認してから申請してください。</p></div>
+                {!isMember && <button type="button" className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" onClick={() => setShowCommonForm((value) => !value)}>共通駐車場所を登録</button>}
             </div>
 
-            {error && (
-                <div className="mb-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
-                    {error}
+            <form className="mt-5 flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); void load(q); }}>
+                <input className="min-w-0 flex-1 rounded-md border px-3 py-2 text-sm" placeholder="検索（利用者名・住所・認識コード・場所名・備考）" value={q} onChange={(e) => setQ(e.target.value)} />
+                <button className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white" disabled={loading}>検索</button>
+                <button type="button" className="rounded-md border px-4 py-2 text-sm" disabled={loading} onClick={() => { setQ(""); void load(""); }}>クリア</button>
+            </form>
+
+            {showCommonForm && !isMember && (
+                <section className="mt-5 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                    <h2 className="font-bold text-indigo-950">共通駐車場所の新規登録</h2><p className="mt-1 text-sm text-indigo-800">利用者様を紐づけずに登録します。</p>
+                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <input className="rounded-md border px-3 py-2 text-sm" placeholder="場所名（必須）" value={commonPlace.label} onChange={(e) => setCommonPlace((p) => ({ ...p, label: e.target.value }))} />
+                        <input className="rounded-md border px-3 py-2 text-sm" placeholder="認識コード（任意）" value={commonPlace.police_station_place_id} onChange={(e) => setCommonPlace((p) => ({ ...p, police_station_place_id: e.target.value }))} />
+                        <input className="rounded-md border px-3 py-2 text-sm" placeholder="駐車の向き" value={commonPlace.parking_orientation} onChange={(e) => setCommonPlace((p) => ({ ...p, parking_orientation: e.target.value }))} />
+                        <input className="rounded-md border px-3 py-2 text-sm" placeholder="地図URL" value={commonPlace.location_link} onChange={(e) => setCommonPlace((p) => ({ ...p, location_link: e.target.value }))} />
+                        <textarea className="min-h-32 rounded-md border px-3 py-2 text-sm leading-6 md:col-span-2" placeholder="場所について・利用条件など" value={commonPlace.remarks} onChange={(e) => setCommonPlace((p) => ({ ...p, remarks: e.target.value }))} />
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-5">
+                        <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={commonPlace.is_pickup} onChange={(e) => setCommonPlace((p) => ({ ...p, is_pickup: e.target.checked }))} />ピックアップとして表示する</label>
+                        <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={commonPlace.permit_required} onChange={(e) => setCommonPlace((p) => ({ ...p, permit_required: e.target.checked }))} />許可証が必要</label>
+                        <button type="button" className="ml-auto rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-gray-300" disabled={creating || !commonPlace.label.trim()} onClick={() => void createCommonPlace()}>{creating ? "登録中..." : "登録する"}</button>
+                    </div>
+                </section>
+            )}
+
+            {error && <div role="alert" className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</div>}
+            {success && <div role="status" className="mt-4 rounded-md border border-green-300 bg-green-50 p-3 text-sm font-semibold text-green-800">{success}</div>}
+
+            {loading ? <p className="mt-6 text-sm text-gray-600">読み込み中...</p> : (
+                <div className="mt-6 space-y-8">
+                    {pickupRows.length > 0 && <section><h2 className="mb-3 text-xl font-bold text-amber-800">★ おすすめ・ピックアップ</h2><div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{pickupRows.map(renderCard)}</div></section>}
+                    <section><h2 className="mb-3 text-xl font-bold text-gray-900">駐車許可証一覧</h2>{regularRows.length > 0 ? <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{regularRows.map(renderCard)}</div> : <div className="rounded-lg border bg-white p-8 text-center text-sm text-gray-600">該当する駐車場所はありません。</div>}</section>
                 </div>
             )}
 
-            {loading ? (
-                <div className="text-sm text-gray-600">読み込み中...</div>
-            ) : (
-                <div className="overflow-x-auto rounded-lg border">
-                    <table className="min-w-[1200px] w-full border-collapse text-sm">
-                        <thead className="bg-gray-50">
-                            <tr className="text-left">
-                                <th className="border-b p-2 w-[90px]">有効</th>
-                                <th className="border-b p-2 w-[120px]">状態</th>
-                                <th className="border-b p-2 w-[140px]">認識コード</th>
-                                <th className="border-b p-2 w-[110px]">共有</th>
-                                <th className="border-b p-2 w-[180px]">利用者</th>
-                                <th className="border-b p-2 w-[260px]">住所</th>
-                                <th className="border-b p-2 w-[70px]">連番</th>
-                                <th className="border-b p-2 w-[220px]">ラベル</th>
-                                <th className="border-b p-2 w-[90px]">許可証</th>
-                                <th className="border-b p-2 w-[160px]">向き</th>
-                                <th className="border-b p-2 w-[280px]">備考</th>
-                                <th className="border-b p-2 w-[180px]">地図</th>
-                                <th className="border-b p-2 w-[110px]"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {mergedRows.map((r) => {
-                                const isNoRecent = !r.isTarget;
-                                const dirty = !!edit[r.id];
-                                const permitNeed = !!r.permit_required;
-                                const canApply = !!(r.police_station_place_id && r.police_station_place_id.trim());
-                                return (
-                                    <tr
-                                        key={r.id}
-                                        className={`hover:bg-gray-50 ${isNoRecent ? "bg-gray-100 text-gray-400" : ""}`}
-                                    >
-                                        <td className="border-b p-2">
-                                            <button
-                                                className={`rounded-md px-2 py-1 text-xs font-semibold ${r.is_active ? "bg-green-600 text-white" : "bg-gray-300 text-gray-700"
-                                                    } ${isMember ? "opacity-50 cursor-not-allowed" : ""}`}
-                                                disabled={isMember}
-                                                onClick={() => setField(r.id, { is_active: !r.is_active })}
-                                                title={isMember ? "member は変更できません" : ""}
-                                            >
-                                                {r.is_active ? "有効" : "無効"}
-                                            </button>
-                                        </td>
-
-                                        <td className="border-b p-2">
-                                            {r.isTarget ? (
-                                                <span className="inline-flex rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800">
-                                                    対象
-                                                </span>
-                                            ) : (
-                                                <span className="inline-flex rounded-full bg-red-600 px-2 py-1 text-xs font-semibold text-white">
-                                                    シフト無
-                                                </span>
-
-                                            )}
-                                        </td>
-
-                                        <td className="border-b p-2">
-                                            <input
-                                                className="w-full rounded-md border px-2 py-1"
-                                                value={r.police_station_place_id ?? ""}
-                                                placeholder="例: 春日井1"
-                                                onChange={(e) => setField(r.id, { police_station_place_id: e.target.value })}
-                                            />
-
-                                        </td>
-
-                                        {/* ★共有列 */}
-                                        <td className="border-b p-2">
-                                            {(() => {
-                                                const key = (r.police_station_place_id ?? "").trim();
-                                                if (!key) return <span className="text-gray-500">-</span>;
-
-                                                const cnt = sharedCountMap.get(key) ?? 0;
-                                                if (cnt <= 1) {
-                                                    return <span className="text-gray-500">-</span>;
-                                                }
-
-                                                const users = sharedUsersMap.get(key) ?? [];
-                                                // 自分以外の利用者を最大2名だけ表示（長くなりすぎ防止）
-                                                const others = users
-                                                    .filter((u) => u.kaipoke_cs_id !== r.kaipoke_cs_id)
-                                                    .slice(0, 2);
-
-                                                return (
-                                                    <div>
-                                                        <span className="inline-flex rounded-full bg-indigo-600 px-2 py-1 text-xs font-semibold text-white">
-                                                            {cnt}名
-                                                        </span>
-                                                        <div className="mt-1 text-[11px] text-gray-600">
-                                                            {others.length ? (
-                                                                <>
-                                                                    {others.map((u) => u.client_name ?? u.kaipoke_cs_id).join(" / ")}
-                                                                    {users.length - 1 > 2 ? " …" : ""}
-                                                                </>
-                                                            ) : (
-                                                                <>共有</>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
-                                        </td>
-
-                                        <td className="border-b p-2">
-                                            <div className="font-semibold">{r.client_name ?? "-"}</div>
-                                            <div className="text-[11px] text-gray-500">{r.kaipoke_cs_id}</div>
-                                        </td>
-
-                                        <td className="border-b p-2">
-                                            <div className="text-gray-800">{r.client_address ?? "-"}</div>
-                                        </td>
-
-                                        <td className="border-b p-2">{r.serial}</td>
-
-                                        <td className="border-b p-2">
-                                            <input
-                                                className="w-full rounded-md border px-2 py-1"
-                                                value={r.label}
-                                                onChange={(e) => setField(r.id, { label: e.target.value })}
-                                            />
-                                        </td>
-
-                                        <td className="border-b p-2">
-                                            <button
-                                                className={`rounded-md px-2 py-1 text-xs font-semibold ${permitNeed ? "bg-red-600 text-white" : "border hover:bg-gray-50"
-                                                    }`}
-                                                onClick={() => setField(r.id, { permit_required: !permitNeed })}
-                                            >
-                                                {permitNeed ? "必要" : "不要"}
-                                            </button>
-                                        </td>
-
-                                        <td className="border-b p-2">
-                                            <input
-                                                className="w-full rounded-md border px-2 py-1"
-                                                value={r.parking_orientation ?? ""}
-                                                onChange={(e) => setField(r.id, { parking_orientation: e.target.value })}
-                                                placeholder="例: 東向き"
-                                            />
-                                        </td>
-
-                                        <td className="border-b p-2">
-                                            <input
-                                                className="w-full rounded-md border px-2 py-1"
-                                                value={r.remarks ?? ""}
-                                                onChange={(e) => setField(r.id, { remarks: e.target.value })}
-                                                placeholder="注意事項など"
-                                            />
-                                        </td>
-
-                                        <td className="border-b p-2">
-                                            {r.location_link ? (
-                                                <a
-                                                    href={r.location_link}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="text-blue-700 underline"
-                                                >
-                                                    地図を開く
-                                                </a>
-                                            ) : (
-                                                <span className="text-gray-500">未登録</span>
-                                            )}
-                                            <div className="mt-1">
-                                                <input
-                                                    className="w-full rounded-md border px-2 py-1 text-xs"
-                                                    value={r.location_link ?? ""}
-                                                    onChange={(e) => setField(r.id, { location_link: e.target.value })}
-                                                    placeholder="地図URL"
-                                                />
-                                            </div>
-                                        </td>
-                                        <td className="border-b p-2">
-                                            <div className="flex flex-col gap-2">
-                                                <button
-                                                    className={`w-full rounded-md px-3 py-2 text-sm ${sendingId === r.id ? "bg-gray-300 text-gray-700" : "bg-amber-500 text-white hover:opacity-90"
-                                                        }`}
-                                                    disabled={sendingId === r.id || !canApply}
-                                                    onClick={() => void applyPermit(r.id)}
-                                                >
-                                                    {sendingId === r.id ? "送信中..." : "申請"}
-                                                </button>
-                                                <button
-                                                    className={`w-full rounded-md px-3 py-2 text-sm ${dirty && !isMember
-                                                        ? "bg-blue-600 text-white hover:opacity-90"
-                                                        : "border text-gray-500"
-                                                        }`}
-                                                    disabled={isMember || !dirty || savingId === r.id}
-                                                    title={isMember ? "-" : ""}
-                                                    onClick={() => void saveRow(r.id)}
-                                                >
-                                                    {isMember ? "権限無" : savingId === r.id ? "保存中..." : "保存"}
-                                                </button>
-                                            </div>
-                                        </td>
-
-                                    </tr>
-                                );
-                            })}
-
-                            {!mergedRows.length && (
-                                <tr>
-                                    <td colSpan={11} className="p-6 text-center text-sm text-gray-600">
-                                        データがありません
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-
-            <div className="mt-4 rounded-md border bg-yellow-50 p-3 text-sm">
-                <div className="font-semibold">運用メモ</div>
-                <ul className="list-disc pl-5">
-                    <li>利用者ページで作られる新規レコードは police_station_place_id = null のままでOK。</li>
-                    <li>このページで「春日井1 / 春日井2 …」を付与して、申請書・スタッフの共通認識コードにする。</li>
-                </ul>
-            </div>
-
-            {/* =========================
-   中区大作戦（運用マップ）
-   ========================= */}
-            <div className="mt-8 p-4 border rounded bg-yellow-50">
-                <h3 className="text-lg font-bold mb-2">
-                    中区大作戦
-                </h3>
-
-                <p className="text-sm text-gray-700 mb-4">
-                    コインパーキングを極力使わずに、サービスに行ける様にしていきましょう。
-                </p>
-
-                <div className="border rounded overflow-hidden bg-white">
-                    <img
-                        src="/nakaku_map.png"
-                        alt="中区大作戦マップ"
-                        width={1200}
-                        height={1800}
-                        className="w-full h-auto"
-                    />
-                </div>
-
-                <p className="mt-2 text-xs text-gray-500">
-                    ※ 本マップは暫定運用図です。現地状況により利用可否が変わる場合があります。
-                </p>
-            </div>
-
-        </div>
-
-
+            <section className="mt-8 rounded-lg border bg-yellow-50 p-4"><h2 className="font-bold">中区大作戦</h2><p className="mt-1 text-sm text-gray-700">コインパーキングを極力使わずに、サービスに行ける様にしていきましょう。</p><div className="mt-4 overflow-hidden rounded border bg-white"><Image src="/nakaku_map.png" alt="中区大作戦マップ" width={1200} height={1800} className="h-auto w-full" /></div><p className="mt-2 text-xs text-gray-500">※ 本マップは暫定運用図です。現地状況により利用可否が変わる場合があります。</p></section>
+        </main>
     );
 }
