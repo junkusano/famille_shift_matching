@@ -50,15 +50,19 @@ function twilioFailureDetails(error: unknown) {
 }
 
 async function excludeFailedRecipient(
-  supabase: ReturnType<typeof sb>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
   applicantId: string,
   reason: string
 ) {
-  const { data: applicant, error: readError } = await supabase
-    .from('taimee_applicants')
-    .select('memo')
-    .eq('id', applicantId)
-    .maybeSingle()
+
+const { data: applicantData, error: readError } = await supabase
+  .from('taimee_applicants')
+  .select('memo')
+  .eq('id', applicantId)
+  .maybeSingle()
+
+const applicant = applicantData as { memo: string | null } | null
 
   if (readError || !applicant) {
     console.error('[taimee-emp/send] failed to load applicant for exclusion', readError)
@@ -70,9 +74,11 @@ async function excludeFailedRecipient(
     ? applicant.memo
     : [applicant.memo, notice].filter(Boolean).join('\n').slice(-4000)
   const { error: updateError } = await supabase
-    .from('taimee_applicants')
-    .update({ send_disabled: true, memo })
-    .eq('id', applicantId)
+  .from('taimee_applicants')
+  .update(
+    { send_disabled: true, memo } as never
+  )
+  .eq('id', applicantId)
 
   if (updateError) {
     console.error('[taimee-emp/send] failed to exclude recipient', updateError)
