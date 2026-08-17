@@ -42,6 +42,8 @@ type LinkStatus =
   | 'unlinked'
   | 'candidate'
   | 'linked'
+  | 'auto_linked'
+  | 'manual_linked'
 
 interface TaimeeEmployeeWithEntry {
   applicant_id: string
@@ -435,7 +437,7 @@ https://www.shi-on.net/column?page=17
     return filtered.filter((it) => {
       // エントリー済み、または既存エントリーと電話番号一致する候補者には
       // リエントリー案内を重ねて送らない。
-      if (it.link_status === 'linked' || it.link_status === 'candidate') return false
+      if (it.link_status === 'linked' || it.link_status === 'candidate' || it.link_status === 'auto_linked' || it.link_status === 'manual_linked') return false
       const draft = drafts[rowKey(it)]
       const sendDisabled = draft?.send_disabled ?? it.send_disabled
       const black = draft?.black_list ?? it.black_list
@@ -848,7 +850,7 @@ function rowKey(it: TaimeeEmployeeWithEntry) {
                   const key = rowKey(it)
                   const draft = drafts[key]
                   const isLinked =
-  it.link_status === 'linked' &&
+  ['linked', 'auto_linked', 'manual_linked'].includes(it.link_status) &&
   !!it.entry_id
 
 const isCandidate =
