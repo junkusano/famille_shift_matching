@@ -19,6 +19,7 @@ import DocUploader, {
 } from "@/components/DocUploader";
 import ShiftRecordLinkButton from "@/components/shift/ShiftRecordLinkButton";
 import Link from "next/link";
+import type { RegularShiftCandidate } from "@/lib/shift/regularShift";
 
 // ShiftCard.tsx のファイル先頭（importの下）
 let __keysCache: ServiceKey[] | null | undefined = undefined; // undefined=未取得, null=失敗, []=資格なし
@@ -31,7 +32,7 @@ type Mode = "request" | "reject" | "view";
 type Props = {
   shift: ShiftData;
   mode: Mode;
-  onRequest?: (attendRequest: boolean, timeAdjustNote?: string) => void;
+  onRequest?: (attendRequest: boolean, timeAdjustNote?: string, regularShift?: boolean, weeklyShiftId?: string) => void;
   creatingRequest?: boolean;
   onReject?: (reason: string) => void;
   extraActions?: React.ReactNode;
@@ -443,6 +444,10 @@ export default function ShiftCard({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [attendRequest, setAttendRequest] = useState(false);
+  const [regularShift, setRegularShift] = useState(false);
+  const [regularCandidates, setRegularCandidates] = useState<RegularShiftCandidate[]>([]);
+  const [regularWeeklyShiftId, setRegularWeeklyShiftId] = useState<string>("");
+  const [regularAvailableFrom, setRegularAvailableFrom] = useState<string>("");
   const [reason, setReason] = useState("");
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
 const [mealExpenseOpen, setMealExpenseOpen] = useState(false);
@@ -476,6 +481,27 @@ const [mealExpenseSubmitting, setMealExpenseSubmitting] =
   // 1) shift から cs_id を取得（この前提だけに限定）
 
   const csId = useMemo(() => deepFindKaipokeCsId(shift), [shift]);
+
+  useEffect(() => {
+    if (mode !== "request" || !shiftIdStr) {
+      setRegularCandidates([]);
+      setRegularShift(false);
+      setRegularWeeklyShiftId("");
+      return;
+    }
+    let cancelled = false;
+    void fetch(`/api/regular-shift-requests?shift_id=${encodeURIComponent(shiftIdStr)}`, { cache: "no-store" })
+      .then(async (response) => response.ok ? await response.json() as { candidates?: RegularShiftCandidate[]; available_from_month?: string } : null)
+      .then((result) => {
+        if (cancelled) return;
+        const candidates = result?.candidates ?? [];
+        setRegularCandidates(candidates);
+        setRegularAvailableFrom(result?.available_from_month?.slice(0, 7) ?? "");
+        setRegularWeeklyShiftId(candidates.find((candidate) => !candidate.requested)?.weekly_shift_id ?? candidates[0]?.weekly_shift_id ?? "");
+      })
+      .catch(() => { if (!cancelled) setRegularCandidates([]); });
+    return () => { cancelled = true; };
+  }, [mode, shiftIdStr]);
 
   // 2) cs_id -> time_adjustability_id
   const [adjId, setAdjId] = useState<string | undefined>(undefined);
@@ -1856,6 +1882,25 @@ if (!res.ok || json?.ok !== true) {
                         />
                         同行を希望する
                       </label>
+                      {regularCandidates.length > 0 && (
+                        <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
+                          <label className="flex items-start gap-2 font-medium">
+                            <input type="checkbox" checked={regularShift} onChange={(e) => setRegularShift(e.target.checked)} />
+                            <span>このシフトを今後レギュラーで入りたい</span>
+                          </label>
+                          {regularShift && (
+                            <div className="mt-2 space-y-2 pl-6">
+                              <div className="text-xs text-amber-800">レギュラー開始可能: {regularAvailableFrom || "確認中"}</div>
+                              {regularCandidates.map((candidate) => (
+                                <label key={candidate.weekly_shift_id} className="flex items-start gap-2 text-xs">
+                                  <input type="radio" name={`regular-weekly-${shiftIdStr}`} value={candidate.weekly_shift_id} checked={regularWeeklyShiftId === candidate.weekly_shift_id} onChange={() => setRegularWeeklyShiftId(candidate.weekly_shift_id)} />
+                                  <span>週間シフト: {candidate.shift_start_date} {candidate.shift_start_time.slice(0, 5)}〜{candidate.shift_end_time.slice(0, 5)}{candidate.requested ? "（希望登録済み）" : ""}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="mt-4">
                         <label className="text-sm font-medium">希望の時間調整（任意）</label>
                         <textarea
@@ -1876,7 +1921,7 @@ if (!res.ok || json?.ok !== true) {
                             ? "※保有する資格ではこのサービスに入れない可能性があります。マネジャーに確認もしくは、保有資格の確認をポータルHomeで行ってください。\n"
                             : "";
                           const composed = (warn + (timeAdjustNote || "")).trim();
-                          onRequest?.(attendRequest, composed || undefined);
+                          onRequest?.(attendRequest, composed || undefined, regularShift, regularWeeklyShiftId || undefined);
                           setOpen(false);
                         }}
                         disabled={!!creatingRequest}
