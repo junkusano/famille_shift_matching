@@ -99,7 +99,7 @@ type Body = {
 
 type PlaceRow = {
     id: string;
-    kaipoke_cs_id: string;
+    kaipoke_cs_id: string | null;
     label: string;
     location_link: string | null;
     permit_required: boolean | null;
@@ -136,21 +136,22 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, message: placeErr.message }, { status: 400 });
     }
 
-    // 利用者名
-    const { data: client } = await supabaseAdmin
-        .from("cs_kaipoke_info")
-        .select("name")
-        .eq("kaipoke_cs_id", place.kaipoke_cs_id)
-        .maybeSingle<{ name: string | null }>();
+    // 共通場所では利用者・利用者ルームを参照しない。
+    const { data: client } = place.kaipoke_cs_id
+        ? await supabaseAdmin
+            .from("cs_kaipoke_info")
+            .select("name")
+            .eq("kaipoke_cs_id", place.kaipoke_cs_id)
+            .maybeSingle<{ name: string | null }>()
+        : { data: null };
 
-    // 同利用者様の channelID（存在するなら送る）
-    // ※テーブル/ビュー名・カラム名はプロジェクトに合わせて必要なら変更してください
-    // たとえば group_lw_channel_view に kaipoke_cs_id がある想定
-    const { data: clientCh } = await supabaseAdmin
-        .from("group_lw_channel_view")
-        .select("channel_id")
-        .eq("kaipoke_cs_id", place.kaipoke_cs_id)
-        .maybeSingle<{ channel_id: string | null }>();
+    const { data: clientCh } = place.kaipoke_cs_id
+        ? await supabaseAdmin
+            .from("group_lw_channel_view")
+            .select("channel_id")
+            .eq("kaipoke_cs_id", place.kaipoke_cs_id)
+            .maybeSingle<{ channel_id: string | null }>()
+        : { data: null };
 
     const warning =
         "【駐車注意】交差点・横断歩道・消火栓・バス停・車庫入り口・線引き道路、左右余白など、法定駐車禁止にならない様にくれぐれも注意してください。";
@@ -175,7 +176,9 @@ export async function POST(req: NextRequest) {
     const msg =
         `【駐車許可証 申請】\n` +
         `申請者user_id：${applicant.user_id}\n` +
-        `利用者：${client?.name ?? "(不明)"}（${place.kaipoke_cs_id}）\n` +
+        (place.kaipoke_cs_id
+            ? `利用者：${client?.name ?? "(不明)"}（${place.kaipoke_cs_id}）\n`
+            : "利用者：共通駐車場所\n") +
         (place.police_station_place_id ? `認識コード：${place.police_station_place_id}\n` : "") +
         `駐車場所：${place.label}\n` +
         `向き：${place.parking_orientation ?? "-"}\n` +
@@ -204,8 +207,9 @@ export async function POST(req: NextRequest) {
 
     } catch (e) {
         console.error("[permit-apply] LW notify failed:", e);
+        const message = e instanceof Error ? e.message : "LW notify failed";
         return NextResponse.json(
-            { ok: false, message: e instanceof Error ? e.message : "LW notify failed" },
+            { ok: false, message },
             { status: 400 }
         );
     }

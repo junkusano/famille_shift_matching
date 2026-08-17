@@ -243,6 +243,7 @@ export default function KaipokeInfoDetailPage() {
         remarks: "",
         picture1_url: null,
         picture2_url: null,
+        is_pickup: false,
     });
 
     const [faxOptions, setFaxOptions] = useState<FaxOption[]>([]);
@@ -374,6 +375,7 @@ export default function KaipokeInfoDetailPage() {
                 remarks: newParkingPlace.remarks,
                 picture1_url: newParkingPlace.picture1_url,
                 picture2_url: newParkingPlace.picture2_url,
+                is_pickup: newParkingPlace.is_pickup,
             };
 
             const isEdit = !!newParkingPlace.id;
@@ -421,6 +423,7 @@ export default function KaipokeInfoDetailPage() {
                 remarks: "",
                 picture1_url: null,
                 picture2_url: null,
+                is_pickup: false,
             });
 
             toast.success(isEdit ? "駐車場データを更新しました" : "駐車場データを追加しました");
@@ -1298,6 +1301,14 @@ export default function KaipokeInfoDetailPage() {
                         onChange={(e) => setNewParkingPlace({ ...newParkingPlace, permit_required: e.target.checked })}
                     />
                     <span>許可証が必要</span>
+                    <label className="ml-4 inline-flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            checked={newParkingPlace.is_pickup}
+                            onChange={(e) => setNewParkingPlace({ ...newParkingPlace, is_pickup: e.target.checked })}
+                        />
+                        ピックアップとして表示する
+                    </label>
                     <textarea
                         name="remarks"
                         value={newParkingPlace.remarks}

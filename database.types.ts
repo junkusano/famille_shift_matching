@@ -5772,7 +5772,8 @@ export type Database = {
           created_at: string | null
           id: string
           is_active: boolean
-          kaipoke_cs_id: string
+          is_pickup: boolean
+          kaipoke_cs_id: string | null
           label: string
           location_link: string | null
           parking_orientation: string | null
@@ -5788,7 +5789,8 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_active?: boolean
-          kaipoke_cs_id: string
+          is_pickup?: boolean
+          kaipoke_cs_id?: string | null
           label: string
           location_link?: string | null
           parking_orientation?: string | null
@@ -5804,7 +5806,8 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_active?: boolean
-          kaipoke_cs_id?: string
+          is_pickup?: boolean
+          kaipoke_cs_id?: string | null
           label?: string
           location_link?: string | null
           parking_orientation?: string | null
