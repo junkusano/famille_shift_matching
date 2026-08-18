@@ -255,11 +255,11 @@ export async function getBasicInfoDocuments() {
   if (error) throw error;
 
   // DBによっては未設定値が NULL ではなく、空文字や空白で保存されている。
-  // PostgREST の eq."" に依存せず、実値の長さで判定する。
+  // 画面上の利用者IDは kaipoke_cs_id を正とし、cs_kaipoke_info_id だけ
+  // 残っている不整合データも一覧から落とさない。
   const unassigned = (data ?? []).filter((doc) => {
     const kaipokeId = typeof doc.kaipoke_cs_id === "string" ? doc.kaipoke_cs_id.trim() : "";
-    const infoId = typeof doc.cs_kaipoke_info_id === "string" ? doc.cs_kaipoke_info_id.trim() : "";
-    return kaipokeId.length === 0 && infoId.length === 0;
+    return kaipokeId.length === 0;
   });
 
   console.info("[rpa/onboarding] basic information documents", {
