@@ -234,9 +234,33 @@ export async function POST(req: Request) {
             normalized_phone: (row['電話番号'] ?? '').replace(/\D/g, ''),
             address: row['住所'],
         }))
+        const existingApplicantsByUserId = new Map<string, Record<string, string | null>>()
+        for (let offset = 0; offset < taimeeUserIds.length; offset += 100) {
+            const { data: existingApplicants, error: existingApplicantsError } = await supabase
+                .from('taimee_applicants')
+                .select('id,taimee_user_id,last_name,first_name,gender,phone,normalized_phone,address,source')
+                .in('taimee_user_id', taimeeUserIds.slice(offset, offset + 100))
+            if (existingApplicantsError) throw existingApplicantsError
+            for (const applicant of existingApplicants ?? []) {
+                if (typeof applicant.taimee_user_id === 'string') {
+                    existingApplicantsByUserId.set(applicant.taimee_user_id, applicant as Record<string, string | null>)
+                }
+            }
+        }
+        // CSVの空セルで、RPA等から先に取得済みの値を消さない。
+        const mergedApplicantRows = applicantRows.map((row) => {
+            const existing = existingApplicantsByUserId.get(row.taimee_user_id ?? '')
+            const merge = (field: keyof typeof row) => row[field] ?? existing?.[field] ?? null
+            return {
+                taimee_user_id: row.taimee_user_id,
+                last_name: merge('last_name'), first_name: merge('first_name'), gender: merge('gender'),
+                phone: merge('phone'), normalized_phone: merge('normalized_phone'), address: merge('address'),
+                source: existing?.source ?? 'csv',
+            }
+        })
         const { data: syncedApplicants, error: applicantError } = await supabase
             .from('taimee_applicants')
-            .upsert(applicantRows, { onConflict: 'taimee_user_id', ignoreDuplicates: false })
+            .upsert(mergedApplicantRows, { onConflict: 'taimee_user_id', ignoreDuplicates: false })
             .select('id,taimee_user_id')
 
         if (applicantError) throw applicantError

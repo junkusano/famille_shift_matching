@@ -90,9 +90,10 @@ export async function POST(request: NextRequest) {
         ]);
         results.push({ taimee_user_id: taimeeUserId, status: "sent" });
       } else {
-        const status = sent.reason === "invalid_phone" ? "phone_not_found" : "failed";
-        await supabaseAdmin.from("taimee_sms_send_logs").update({ twilio_status: status, twilio_error_message: sent.reason }).eq("id", reservation.id);
-        results.push({ taimee_user_id: taimeeUserId, status, error_message: sent.reason });
+        const reason = sent.status === "skipped" ? sent.reason : "Twilio送信エラー";
+        const status = reason === "invalid_phone" ? "phone_not_found" : "failed";
+        await supabaseAdmin.from("taimee_sms_send_logs").update({ twilio_status: status, twilio_error_message: reason }).eq("id", reservation.id);
+        results.push({ taimee_user_id: taimeeUserId, status, error_message: reason });
       }
     }
     return NextResponse.json({ ok: true, results });
