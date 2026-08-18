@@ -8461,6 +8461,9 @@ export type Database = {
           last_detected_at: string
           period_month: string | null
           shift_id: string | null
+          sms_eligible: boolean
+          sms_skip_reason: string | null
+          source: string
           start_time: string | null
           taimee_job_id: string | null
           updated_at: string
@@ -8478,6 +8481,9 @@ export type Database = {
           last_detected_at?: string
           period_month?: string | null
           shift_id?: string | null
+          sms_eligible?: boolean
+          sms_skip_reason?: string | null
+          source?: string
           start_time?: string | null
           taimee_job_id?: string | null
           updated_at?: string
@@ -8495,6 +8501,9 @@ export type Database = {
           last_detected_at?: string
           period_month?: string | null
           shift_id?: string | null
+          sms_eligible?: boolean
+          sms_skip_reason?: string | null
+          source?: string
           start_time?: string | null
           taimee_job_id?: string | null
           updated_at?: string
@@ -8538,7 +8547,9 @@ export type Database = {
           memo: string | null
           normalized_phone: string | null
           phone: string | null
+          rpa_fetched_at: string | null
           send_disabled: boolean
+          source: string
           taimee_user_id: string
           updated_at: string
         }
@@ -8562,7 +8573,9 @@ export type Database = {
           memo?: string | null
           normalized_phone?: string | null
           phone?: string | null
+          rpa_fetched_at?: string | null
           send_disabled?: boolean
+          source?: string
           taimee_user_id: string
           updated_at?: string
         }
@@ -8586,7 +8599,9 @@ export type Database = {
           memo?: string | null
           normalized_phone?: string | null
           phone?: string | null
+          rpa_fetched_at?: string | null
           send_disabled?: boolean
+          source?: string
           taimee_user_id?: string
           updated_at?: string
         }
@@ -8860,14 +8875,19 @@ export type Database = {
           excluded_at: string | null
           id: string
           message_body: string
+          message_type: string | null
+          offering_id: string | null
+          offering_name: string | null
           recipient_phone: string
           sent_at: string
+          skip_reason: string | null
           taimee_user_id: string
           twilio_error_code: string | null
           twilio_error_message: string | null
           twilio_message_sid: string | null
           twilio_status: string
           updated_at: string
+          work_date: string | null
         }
         Insert: {
           applicant_id: string
@@ -8876,14 +8896,19 @@ export type Database = {
           excluded_at?: string | null
           id?: string
           message_body: string
+          message_type?: string | null
+          offering_id?: string | null
+          offering_name?: string | null
           recipient_phone: string
           sent_at?: string
+          skip_reason?: string | null
           taimee_user_id: string
           twilio_error_code?: string | null
           twilio_error_message?: string | null
           twilio_message_sid?: string | null
           twilio_status?: string
           updated_at?: string
+          work_date?: string | null
         }
         Update: {
           applicant_id?: string
@@ -8892,14 +8917,19 @@ export type Database = {
           excluded_at?: string | null
           id?: string
           message_body?: string
+          message_type?: string | null
+          offering_id?: string | null
+          offering_name?: string | null
           recipient_phone?: string
           sent_at?: string
+          skip_reason?: string | null
           taimee_user_id?: string
           twilio_error_code?: string | null
           twilio_error_message?: string | null
           twilio_message_sid?: string | null
           twilio_status?: string
           updated_at?: string
+          work_date?: string | null
         }
         Relationships: [
           {

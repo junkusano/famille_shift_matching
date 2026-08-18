@@ -14,6 +14,23 @@ function validWorkDate(value: string | null): value is string {
   return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
 }
 
+function normalizedPhone(value: unknown): string | null {
+  const digits = typeof value === "string" ? value.replace(/\D/g, "") : "";
+  return /^0[789]0\d{8}$/.test(digits) ? digits : null;
+}
+
+async function hasExistingFormEntry(phone: string | null): Promise<boolean> {
+  if (!phone) return false;
+  // 一覧画面と同様に書式ゆれを吸収して、既存エントリー者を送信対象から外す。
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabaseAdmin.from("form_entries")
+      .select("phone").not("phone", "is", null).range(offset, offset + 999);
+    if (error) throw error;
+    if ((data ?? []).some((entry) => normalizedPhone(entry.phone) === phone)) return true;
+    if (!data || data.length < 1000) return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     await requireTaimeeRpaOperator(request);
@@ -33,6 +50,7 @@ export async function POST(request: NextRequest) {
     const names = splitWorkerName(workerName);
     const now = new Date().toISOString();
     let applicantId: string;
+    const alreadyRegistered = Boolean(existing);
     if (existing) {
       const patch: Record<string, unknown> = { last_name: names.lastName, first_name: names.firstName, source: "rpa", rpa_fetched_at: now };
       // 番号が取れないRPA結果で、CSV等で取得済みの番号を消さない。
@@ -48,8 +66,9 @@ export async function POST(request: NextRequest) {
       if (error) throw error;
       applicantId = data.id;
     }
-    const smsEligible = body.sms_eligible !== false;
-    const skipReason = nullableText(body.sms_skip_reason, 200);
+    const entryExists = await hasExistingFormEntry(phone);
+    const smsEligible = body.sms_eligible !== false && !entryExists;
+    const skipReason = entryExists ? "existing_entry" : nullableText(body.sms_skip_reason, 200);
     const { data: job, error: jobLookupError } = await supabaseAdmin.from("taimee_applicant_jobs")
       .select("id").eq("applicant_id", applicantId).eq("work_date", workDate).eq("taimee_job_id", offeringId).maybeSingle();
     if (jobLookupError) throw jobLookupError;
@@ -64,6 +83,8 @@ export async function POST(request: NextRequest) {
     if (logError) throw logError;
     return NextResponse.json({
       ok: true, applicant_id: applicantId,
+      registration_status: alreadyRegistered ? "already_registered" : "registered",
+      sms_skip_reason: skipReason,
       sms_status: !smsEligible ? "skipped" : !phone ? "phone_not_found" : sentLog ? "duplicate" : "unsent",
     });
   } catch (error) {
