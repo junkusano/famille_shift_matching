@@ -10151,7 +10151,13 @@ export type Database = {
           body: string | null
           completed_at: string | null
           created_at: string
+          health_check_admin_checked: boolean
+          health_check_admin_checked_at: string | null
+          health_check_admin_checked_by: string | null
           health_check_doctor_comment: string | null
+          health_check_occupational_physician_checked: boolean
+          health_check_occupational_physician_checked_at: string | null
+          health_check_occupational_physician_checked_by: string | null
           id: string
           payload: Json
           request_type_id: string
@@ -10166,7 +10172,13 @@ export type Database = {
           body?: string | null
           completed_at?: string | null
           created_at?: string
+          health_check_admin_checked?: boolean
+          health_check_admin_checked_at?: string | null
+          health_check_admin_checked_by?: string | null
           health_check_doctor_comment?: string | null
+          health_check_occupational_physician_checked?: boolean
+          health_check_occupational_physician_checked_at?: string | null
+          health_check_occupational_physician_checked_by?: string | null
           id?: string
           payload?: Json
           request_type_id: string
@@ -10181,7 +10193,13 @@ export type Database = {
           body?: string | null
           completed_at?: string | null
           created_at?: string
+          health_check_admin_checked?: boolean
+          health_check_admin_checked_at?: string | null
+          health_check_admin_checked_by?: string | null
           health_check_doctor_comment?: string | null
+          health_check_occupational_physician_checked?: boolean
+          health_check_occupational_physician_checked_at?: string | null
+          health_check_occupational_physician_checked_by?: string | null
           id?: string
           payload?: Json
           request_type_id?: string

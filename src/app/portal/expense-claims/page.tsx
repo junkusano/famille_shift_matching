@@ -549,7 +549,17 @@ export default function ExpenseClaimsAdminPage() {
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full min-w-[1180px] border-collapse text-sm">
+                            <table className="w-full min-w-[900px] table-fixed border-collapse text-sm md:min-w-0">
+                                <colgroup>
+                                    <col className="w-[13%]" />
+                                    <col className="w-[14%]" />
+                                    <col className="w-[9%]" />
+                                    <col className="w-[13%]" />
+                                    <col className="w-[11%]" />
+                                    <col className="w-[10%]" />
+                                    <col className="w-[16%]" />
+                                    <col className="w-[14%]" />
+                                </colgroup>
                                 <thead className="bg-slate-100 text-left text-slate-700">
                                     <tr>
                                         <th className={tableHeaderClassName}>
@@ -582,7 +592,9 @@ export default function ExpenseClaimsAdminPage() {
                                             振込先
                                         </th>
 
-                                        <th className={tableHeaderClassName}>
+                                        <th
+                                            className={`${tableHeaderClassName} sticky right-0 z-10 bg-slate-100 shadow-[-4px_0_8px_-6px_rgba(15,23,42,0.5)]`}
+                                        >
                                             操作
                                         </th>
                                     </tr>
@@ -594,11 +606,11 @@ export default function ExpenseClaimsAdminPage() {
                                             key={claim.id}
                                             className="border-t border-slate-200 align-top hover:bg-slate-50"
                                         >
-                                            <td className={tableCellClassName}>
+                                            <td className={`${tableCellClassName} whitespace-nowrap text-xs`}>
                                                 {formatDateTime(claim.created_at)}
                                             </td>
 
-                                            <td className={tableCellClassName}>
+                                            <td className={`${tableCellClassName} min-w-0`}>
                                                 <p className="font-semibold text-slate-900">
                                                     {claim.name}
                                                 </p>
@@ -614,28 +626,28 @@ export default function ExpenseClaimsAdminPage() {
                                                 )}
                                             </td>
 
-                                            <td className={tableCellClassName}>
+                                            <td className={`${tableCellClassName} whitespace-nowrap`}>
                                                 {formatDate(claim.work_date)}
                                             </td>
 
-                                            <td className={tableCellClassName}>
-                                                <p className="max-w-72 whitespace-pre-wrap text-slate-700">
+                                            <td className={`${tableCellClassName} min-w-0`}>
+                                                <p className="line-clamp-2 overflow-hidden text-slate-700">
                                                     {claim.expense1_description ||
                                                         "—"}
                                                 </p>
                                             </td>
 
                                             <td
-                                                className={`${tableCellClassName} text-right text-base font-bold text-slate-900`}
+                                                className={`${tableCellClassName} whitespace-nowrap text-right text-base font-bold text-slate-900`}
                                             >
                                                 {formatCurrency(
                                                     claim.total_amount
                                                 )}
                                             </td>
 
-                                            <td className={tableCellClassName}>
+                                            <td className={`${tableCellClassName} whitespace-nowrap`}>
                                                 <span
-                                                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${getStatusClassName(
+                                                    className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${getStatusClassName(
                                                         claim.status
                                                     )}`}
                                                 >
@@ -643,24 +655,24 @@ export default function ExpenseClaimsAdminPage() {
                                                 </span>
                                             </td>
 
-                                            <td className={tableCellClassName}>
-                                                <p className="font-medium text-slate-800">
+                                            <td className={`${tableCellClassName} min-w-0`}>
+                                                <p className="truncate font-medium text-slate-800">
                                                     {claim.bank_name}
                                                 </p>
 
-                                                <p className="mt-1 text-xs text-slate-500">
+                                                <p className="mt-1 truncate text-xs text-slate-500">
                                                     {claim.branch_name}・
                                                     {claim.account_type}
                                                 </p>
 
-                                                <p className="mt-1 text-xs text-slate-500">
+                                                <p className="mt-1 truncate text-xs text-slate-500">
                                                     {maskAccountNumber(
                                                         claim.account_number
                                                     )}
                                                 </p>
                                             </td>
 
-                                            <td className={tableCellClassName}>
+                                            <td className={`${tableCellClassName} sticky right-0 z-10 bg-white shadow-[-4px_0_8px_-6px_rgba(15,23,42,0.5)]`}>
                                                 <button
                                                     type="button"
                                                     onClick={() =>
@@ -1292,7 +1304,7 @@ const inputClassName =
     "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
 
 const tableHeaderClassName =
-    "whitespace-nowrap px-4 py-3 font-semibold";
+    "whitespace-nowrap px-2 py-3 font-semibold sm:px-3";
 
 const tableCellClassName =
-    "px-4 py-4 text-slate-700";
+    "px-2 py-4 text-slate-700 sm:px-3";

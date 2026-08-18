@@ -40,9 +40,24 @@ export async function GET(req: NextRequest) {
     ]);
     if (staffError || typeError) throw staffError ?? typeError;
     const { data: requests, error: requestError } = type?.id
-      ? await supabaseAdmin.from("wf_request").select("id,applicant_user_id,status,submitted_at,created_at,payload,health_check_occupational_physician_checked,health_check_occupational_physician_checked_at,health_check_occupational_physician_checked_by,health_check_admin_checked,health_check_admin_checked_at,health_check_admin_checked_by").eq("request_type_id", type.id).in("status", [...HEALTH_CHECK_SUBMITTED_STATUSES])
+      ? await supabaseAdmin.from("wf_request").select("id,applicant_user_id,status,submitted_at,created_at,payload").eq("request_type_id", type.id).in("status", [...HEALTH_CHECK_SUBMITTED_STATUSES])
       : { data: [], error: null };
     if (requestError) throw requestError;
+    // Keep the list usable until the accompanying schema migration has been applied.
+    // Review controls remain unavailable rather than failing the whole sensitive-data page.
+    let reviewMetadataAvailable = true;
+    const reviewMetadataByRequestId = new Map<string, Partial<RequestRow>>();
+    if ((requests?.length ?? 0) > 0) {
+      const { data: reviewRows, error: reviewError } = await supabaseAdmin
+        .from("wf_request")
+        .select("id,health_check_occupational_physician_checked,health_check_occupational_physician_checked_at,health_check_occupational_physician_checked_by,health_check_admin_checked,health_check_admin_checked_at,health_check_admin_checked_by")
+        .in("id", (requests ?? []).map((row) => row.id));
+      if (reviewError) {
+        if (reviewError.code === "42703") reviewMetadataAvailable = false;
+        else throw reviewError;
+      }
+      for (const reviewRow of reviewRows ?? []) reviewMetadataByRequestId.set(reviewRow.id, reviewRow as Partial<RequestRow>);
+    }
     const { data: attachments, error: attachmentError } = (requests?.length ?? 0) > 0
       ? await supabaseAdmin.from("wf_request_attachment").select("id,request_id,file_name,file_path,mime_type,file_size,kind,created_at").in("request_id", (requests ?? []).map((row) => row.id)).eq("kind", "health_result")
       : { data: [], error: null };
@@ -58,13 +73,14 @@ export async function GET(req: NextRequest) {
     }
     const rows = (staff ?? []).map((person) => {
       const request = latestByUser.get(person.user_id);
+      const review = request ? reviewMetadataByRequestId.get(request.id) : undefined;
       return {
         user_id: person.user_id, entry_id: person.entry_id, staff_name: `${person.last_name_kanji ?? ""}${person.first_name_kanji ?? ""}`.trim() || person.user_id,
         orgunitname: person.orgunitname, role: person.system_role, status: person.status,
-        submitted: Boolean(request), request: request ? { ...request, health_check_date: getHealthCheckDate(request.payload), health_check_type: getHealthCheckType(request.payload), attachments: attachmentsByRequest.get(request.id) ?? [] } : null,
+        submitted: Boolean(request), request: request ? { ...request, ...review, health_check_date: getHealthCheckDate(request.payload), health_check_type: getHealthCheckType(request.payload), attachments: attachmentsByRequest.get(request.id) ?? [] } : null,
       };
     }).sort((a, b) => a.staff_name.localeCompare(b.staff_name, "ja"));
-    return NextResponse.json({ ok: true, rows });
+    return NextResponse.json({ ok: true, rows, review_metadata_available: reviewMetadataAvailable });
   } catch (error) { return failure(error); }
 }
 
@@ -79,7 +95,10 @@ export async function PATCH(req: NextRequest) {
       ? { [`${prefix}_checked`]: true, [`${prefix}_checked_at`]: now, [`${prefix}_checked_by`]: actor.user_id, updated_at: now }
       : { [`${prefix}_checked`]: false, [`${prefix}_checked_at`]: null, [`${prefix}_checked_by`]: null, updated_at: now };
     const { error } = await supabaseAdmin.from("wf_request").update(update).eq("id", body.request_id);
-    if (error) throw error;
+    if (error) {
+      if (error.code === "42703") throw new Error("健康診断管理のDB migration が未適用です。202608181000_health_check_management.sql を適用してください。");
+      throw error;
+    }
     return NextResponse.json({ ok: true, checked: body.checked, checked_at: body.checked ? now : null, checked_by: body.checked ? actor.user_id : null });
   } catch (error) { return failure(error); }
 }
