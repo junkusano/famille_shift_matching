@@ -177,6 +177,8 @@ export async function GET(
       ),
     ]
     const periodByTaimeeUserId = new Map<string, string>()
+    const sourceByTaimeeUserId = new Map<string, string>()
+    const latestSmsByTaimeeUserId = new Map<string, { status: string; sentAt: string | null }>()
 
     for (let offset = 0; offset < taimeeUserIds.length; offset += 100) {
       const {
@@ -205,6 +207,25 @@ export async function GET(
             monthlyRow.period_month
           )
         }
+      }
+    }
+
+    for (let offset = 0; offset < taimeeUserIds.length; offset += 100) {
+      const ids = taimeeUserIds.slice(offset, offset + 100)
+      const [{ data: applicants, error: applicantsError }, { data: smsLogs, error: smsLogsError }] = await Promise.all([
+        supabaseAdmin.from('taimee_applicants').select('taimee_user_id,source').in('taimee_user_id', ids),
+        supabaseAdmin.from('taimee_sms_send_logs').select('taimee_user_id,twilio_status,sent_at,created_at').in('taimee_user_id', ids).order('created_at', { ascending: false }),
+      ])
+      if (applicantsError) throw applicantsError
+      if (smsLogsError) throw smsLogsError
+      for (const applicant of applicants ?? []) {
+        if (typeof applicant.taimee_user_id === 'string' && typeof applicant.source === 'string') {
+          sourceByTaimeeUserId.set(applicant.taimee_user_id, applicant.source)
+        }
+      }
+      for (const log of smsLogs ?? []) {
+        if (typeof log.taimee_user_id !== 'string' || latestSmsByTaimeeUserId.has(log.taimee_user_id)) continue
+        latestSmsByTaimeeUserId.set(log.taimee_user_id, { status: log.twilio_status, sentAt: log.sent_at })
       }
     }
 
@@ -261,6 +282,9 @@ export async function GET(
         ...item,
         ...(periodMonth ? { period_month: periodMonth } : {}),
         link_status: linkStatus,
+        source: typeof item.taimee_user_id === 'string' ? sourceByTaimeeUserId.get(item.taimee_user_id) ?? 'csv' : 'csv',
+        sms_status: typeof item.taimee_user_id === 'string' ? latestSmsByTaimeeUserId.get(item.taimee_user_id)?.status ?? 'unsent' : 'unsent',
+        sms_last_sent_at: typeof item.taimee_user_id === 'string' ? latestSmsByTaimeeUserId.get(item.taimee_user_id)?.sentAt ?? null : null,
       }
     })
 

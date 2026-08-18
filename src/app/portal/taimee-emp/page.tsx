@@ -59,6 +59,9 @@ interface TaimeeEmployeeWithEntry {
   send_disabled?: boolean | null
   memo?: string | null
   last_sent_at?: string | null
+  source?: 'rpa' | 'csv' | string
+  sms_status?: string | null
+  sms_last_sent_at?: string | null
 
   姓?: string | null
   名?: string | null
@@ -82,6 +85,10 @@ interface RowEditState {
   black_list?: boolean
   send_disabled?: boolean
   memo?: string
+}
+
+function smsStatusLabel(status: string | null | undefined): string {
+  return ({ sent: '送信済み', delivered: '送信済み', unsent: '未送信', skipped: '対象外', failed: '送信失敗', phone_not_found: '電話番号なし', duplicate: '送信済み' } as Record<string, string>)[status ?? ''] ?? '未送信'
 }
 
 export default function Page() {
@@ -732,7 +739,7 @@ function rowKey(it: TaimeeEmployeeWithEntry) {
       <Card>
         <CardContent className="p-4 space-y-4">
           <div className="overflow-auto border rounded-xl">
-            <table className="min-w-[1750px] text-sm">
+            <table className="min-w-[1950px] text-sm">
               <thead className="bg-muted">
                 <tr>
   <th className="text-left p-2">最新就業月</th>
@@ -747,6 +754,10 @@ function rowKey(it: TaimeeEmployeeWithEntry) {
   <th className="text-left p-2">
     最新応募案件
   </th>
+
+  <th className="text-left p-2">取得元</th>
+
+  <th className="text-left p-2">SMS状態</th>
 
   <th className="text-left p-2">
     雇用契約書
@@ -894,6 +905,13 @@ const isCandidate =
     )}
   </div>
 </td>
+<td className="p-2 text-xs">{it.source === 'rpa' ? 'RPA' : 'CSV'}</td>
+<td className="p-2 text-xs">
+  <div>{smsStatusLabel(it.sms_status)}</div>
+  {(it.sms_last_sent_at || it.last_sent_at) && (
+    <div className="text-muted-foreground">{new Date(it.sms_last_sent_at || it.last_sent_at!).toLocaleString('ja-JP')}</div>
+  )}
+</td>
 <td className="p-2">
   {it.employment_contract_count > 0 ? (
     <span className="px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs">
@@ -1008,7 +1026,7 @@ const isCandidate =
                 {filtered.length === 0 && (
                  <tr>
   <td
-    colSpan={14}
+    colSpan={16}
     className="p-6 text-center text-muted-foreground"
   >
     データがありません
