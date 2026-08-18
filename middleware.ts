@@ -33,6 +33,10 @@ export async function middleware(req: NextRequest) {
   // ★ Cron/内部バッチは素通り（※必要なら署名チェック推奨）
   if (pathname.startsWith('/api/cron/')) return NextResponse.next()
 
+  // タイミーRPA APIは各RouteでCookie/Bearerの有効性と管理者権限を検証する。
+  // 拡張機能からのログイン済み画面セッションを、ここでCookieだけで拒否しない。
+  if (pathname.startsWith('/api/rpa/taimee/')) return NextResponse.next()
+
   // ★ それ以外の /api はログイン必須（cron以外）
   if (pathname.startsWith('/api/')) {
     if (!user) {

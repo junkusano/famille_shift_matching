@@ -54,7 +54,7 @@ async function reserveLog(args: {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireTaimeeRpaOperator();
+    await requireTaimeeRpaOperator(request);
     const body = await request.json() as { work_date?: unknown; message_type?: unknown; workers?: unknown };
     const requestedWorkDate = nullableText(body.work_date, 10);
     if (!validDate(requestedWorkDate) || body.message_type !== MESSAGE_TYPE || !Array.isArray(body.workers) || !body.workers.length || body.workers.length > 100) {

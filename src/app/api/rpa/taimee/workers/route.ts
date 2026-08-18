@@ -16,7 +16,7 @@ function validWorkDate(value: string | null): value is string {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireTaimeeRpaOperator();
+    await requireTaimeeRpaOperator(request);
     const body = await request.json() as WorkerPayload;
     const taimeeUserId = nullableText(body.taimee_user_id, 50);
     const workerName = nullableText(body.worker_name, 200);

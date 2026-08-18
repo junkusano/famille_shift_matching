@@ -12,9 +12,9 @@ function failure(error: unknown) {
   return NextResponse.json({ error: "SMSテンプレートの処理に失敗しました" }, { status: 500 });
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    await requireTaimeeRpaOperator();
+    await requireTaimeeRpaOperator(request);
     const { data, error } = await supabaseAdmin.from("env_variables").select("value")
       .eq("group_key", GROUP_KEY).eq("key_name", KEY_NAME).maybeSingle();
     if (error) throw error;
@@ -25,7 +25,7 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    await requireTaimeeRpaOperator();
+    await requireTaimeeRpaOperator(request);
     const body = await request.json() as { template?: unknown };
     const template = nullableText(body.template, 4000);
     if (!template) return NextResponse.json({ error: "SMS本文が不正です" }, { status: 400 });
