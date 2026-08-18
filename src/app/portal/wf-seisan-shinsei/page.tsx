@@ -212,6 +212,7 @@ export default function WfSeisanShinseiPage() {
     const [cpAmount, setCpAmount] = useState<string>(""); // 入力は文字列→保存時に数値化
     const [cpMemo, setCpMemo] = useState<string>("");
     const [healthCheckDate, setHealthCheckDate] = useState<string>("");
+    const [healthCheckType, setHealthCheckType] = useState<"employment" | "periodic">("periodic");
     const [cpKaipokeCsId, setCpKaipokeCsId] = useState<string>("");
     //const [cpClientName, setCpClientName] = useState<string>("");
 
@@ -264,6 +265,7 @@ export default function WfSeisanShinseiPage() {
             setCpMemo("");
             setCpKaipokeCsId("");
             setHealthCheckDate("");
+            setHealthCheckType("periodic");
             setSelectedApprovers([]);
 
             await loadList();
@@ -417,8 +419,10 @@ export default function WfSeisanShinseiPage() {
 
             if (requestTypeCode === "health_check") {
                 setHealthCheckDate(String(p["health_check_date"] ?? ""));
+                setHealthCheckType(p["health_check_type"] === "employment" ? "employment" : "periodic");
             } else {
                 setHealthCheckDate("");
+                setHealthCheckType("periodic");
             }
 
             if (kind === "coin_parking") {
@@ -543,6 +547,7 @@ export default function WfSeisanShinseiPage() {
                 payload = {
                     template: "health_check",
                     health_check_date: healthCheckDate.trim(),
+                    health_check_type: healthCheckType,
                 };
             }
             await apiFetch(`/api/wf-requests/${selectedId}`, {
@@ -609,6 +614,7 @@ export default function WfSeisanShinseiPage() {
                         payload: {
                             template: "health_check",
                             health_check_date: healthCheckDate.trim(),
+                            health_check_type: healthCheckType,
                         },
                     }),
                 });
@@ -697,6 +703,7 @@ export default function WfSeisanShinseiPage() {
                         payload: {
                             template: "health_check",
                             health_check_date: healthCheckDate.trim(),
+                            health_check_type: healthCheckType,
                         },
                     }),
                 });
@@ -959,6 +966,18 @@ export default function WfSeisanShinseiPage() {
                                                 <div className="mt-1 text-xs text-gray-500">
                                                     受診日をもとに年度表示します。
                                                 </div>
+                                            </div>
+                                            <div className="mt-3">
+                                                <div className="text-xs text-gray-600 mb-1">健診種別</div>
+                                                <select
+                                                    className="border rounded px-2 py-1"
+                                                    value={healthCheckType}
+                                                    onChange={(e) => setHealthCheckType(e.target.value as "employment" | "periodic")}
+                                                    disabled={!canEdit}
+                                                >
+                                                    <option value="periodic">定期健診</option>
+                                                    <option value="employment">雇入時健診</option>
+                                                </select>
                                             </div>
 
                                             <details className="mt-3 border rounded p-3">

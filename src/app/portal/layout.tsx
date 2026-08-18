@@ -11,7 +11,7 @@ import Image from "next/image";
 import Link from "next/link";
 import Footer from "@/components/Footer";
 import AlertBar from "@/components/AlertBar";
-import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Badge, CalendarDays, ChevronDown, ChevronRight, ClipboardCheck, Home, Menu, PanelLeftClose, PanelLeftOpen, Wallet } from "lucide-react";
 
 /** ========= Types ========= */
 interface UserData {
@@ -23,6 +23,19 @@ interface UserData {
 }
 
 interface Props { children: ReactNode }
+
+type MobileUiMode = "old" | "new";
+
+const MOBILE_UI_MODE_STORAGE_KEY = "myfamille-mobile-ui-mode";
+
+function getMobilePageTitle(pathname: string): string {
+  if (pathname === "/portal") return "Myファミーユ";
+  if (pathname.startsWith("/portal/badge")) return "職員証";
+  if (pathname.startsWith("/portal/user_salary_monthly")) return "給与明細";
+  if (pathname.startsWith("/portal/shift-coordinate")) return "シフ子";
+  if (pathname.startsWith("/portal/shift")) return "訪問記録";
+  return "Myファミーユ";
+}
 
 function getCurrentYmJst(): string {
   const now = new Date();
@@ -94,7 +107,7 @@ const managerMenuGroups: MenuGroup[] = [
     { label: "イベントテンプレート管理", href: "/portal/event-template" }, { label: "走行距離指数", href: "/portal/driving_record" },
     { label: "組織アイコン設定", href: "/portal/orgIcons" }, { label: "電話帳", href: "/portal/phone" },
     { label: "監査ログ", href: "/portal/audit_log" }, { label: "お弁当アンケート【管理用】", href: "/portal/bento/admin" },
-    { label: "目標・研修【管理用】", href: "/portal/training-goals/manage" }, { label: "日払い申請履歴", href: "/portal/user_advance_payment_history" },
+    { label: "目標・研修【管理用】", href: "/portal/training-goals/manage" }, { label: "健康診断管理", href: "/portal/admin/health-check-results" }, { label: "日払い申請履歴", href: "/portal/user_advance_payment_history" },
     { label: "RPAテンプレ管理", href: "/portal/rpa_temp/list" }, { label: "RPAリクエスト管理", href: "/portal/rpa_requests" },
   ]},
   { label: "利用者管理", icon: "👤", items: [{ label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "利用者担当管理", href: "/portal/assign_matome" }, { label: "利用者書類一覧", href: "/portal/cs_docs" }] },
@@ -162,6 +175,7 @@ function LegacyMenu({ role }: { role: string | null }) {
           <li> <Link href="/portal/driving_record" className="text-blue-300 hover:underline" > 🚗 走行距離指数 </Link> </li>
           <li><Link href="/portal/dashboard" className="text-blue-300 hover:underline">ダッシュボード</Link></li>
           <li><Link href="/portal/entry-list" className="text-blue-300 hover:underline">エントリー一覧</Link></li>
+          <li><Link href="/portal/admin/health-check-results" className="text-blue-300 hover:underline">健康診断管理</Link></li>
           <li><Link href="/portal/spot-offer-template" className="text-blue-300 hover:underline">スポット募集管理</Link></li>
           <li><Link href="/portal/taimee-emp" className="text-blue-300 hover:underline">タイミーリスト</Link></li>
           <li><Link href="/portal/admin/re-entry-recruitment" className="text-blue-300 hover:underline">Re-entry募集</Link></li>
@@ -359,6 +373,50 @@ function SidebarContent({
   );
 }
 
+function MobileHeader({ onOpenMenu, pathname }: { onOpenMenu: () => void; pathname: string }) {
+  return (
+    <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center border-b border-slate-200 bg-white/95 px-3 shadow-sm backdrop-blur md:hidden" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+      <button
+        type="button"
+        aria-label="メニューを開く"
+        onClick={onOpenMenu}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-700 transition active:scale-95 active:bg-slate-100"
+      >
+        <Menu size={24} aria-hidden />
+      </button>
+      <p className="ml-2 truncate text-lg font-bold text-slate-800">{getMobilePageTitle(pathname)}</p>
+    </header>
+  );
+}
+
+function MobileBottomNavigation({ pathname }: { pathname: string }) {
+  const items = [
+    { label: "ホーム", href: "/portal", icon: Home, active: pathname === "/portal" },
+    { label: "職員証", href: "/portal/badge", icon: Badge, active: pathname.startsWith("/portal/badge") },
+    { label: "給与", href: "/portal/user_salary_monthly", icon: Wallet, active: pathname.startsWith("/portal/user_salary_monthly") },
+    { label: "シフ子", href: "/portal/shift-coordinate", icon: CalendarDays, active: pathname.startsWith("/portal/shift-coordinate") },
+    { label: "訪問記録", href: "/portal/shift", icon: ClipboardCheck, active: pathname.startsWith("/portal/shift") && !pathname.startsWith("/portal/shift-coordinate") },
+  ];
+
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 shadow-[0_-3px_12px_rgba(15,23,42,0.08)] backdrop-blur md:hidden" aria-label="主要メニュー" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+      <div className="mx-auto grid h-16 max-w-lg grid-cols-5 px-1">
+        {items.map(({ label, href, icon: Icon, active }) => (
+          <Link
+            key={href}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium transition active:scale-95 ${active ? "bg-orange-50 text-orange-700" : "text-slate-500 active:bg-slate-100"}`}
+          >
+            <Icon size={21} strokeWidth={active ? 2.5 : 2} aria-hidden />
+            <span className="truncate">{label}</span>
+          </Link>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 /** ========= Main layout ========= */
 export default function PortalLayout({ children }: Props) {
   const router = useRouter();
@@ -374,6 +432,19 @@ export default function PortalLayout({ children }: Props) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   // モバイル向け：スライドメニュー開閉
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // SSR・設定なし・不正値のいずれでも必ず従来UIから開始する。
+  const [mobileUiMode, setMobileUiMode] = useState<MobileUiMode>("old");
+
+  useEffect(() => {
+    const savedMode = window.localStorage.getItem(MOBILE_UI_MODE_STORAGE_KEY);
+    if (savedMode === "new") setMobileUiMode("new");
+  }, []);
+
+  const changeMobileUiMode = useCallback((mode: MobileUiMode) => {
+    window.localStorage.setItem(MOBILE_UI_MODE_STORAGE_KEY, mode);
+    setMobileUiMode(mode);
+    setIsMobileMenuOpen(false);
+  }, []);
 
   const handleDeletePhoto = useCallback(async () => {
     const { data } = await supabase.auth.getUser();
@@ -436,8 +507,10 @@ export default function PortalLayout({ children }: Props) {
   // モバイル：左端ホットゾーンをタップで開閉（表示・非表示どちらも）
   const toggleByEdge = () => setIsMobileMenuOpen((v) => !v);
 
+  const useNewMobileUi = mobileUiMode === "new";
+
   return (
-    <div className="flex portal-container min-h-screen">
+    <div className={`flex portal-container min-h-screen ${useNewMobileUi ? "mobile-app-ui" : ""}`}>
       {/* ===== 左メニュー（PC） ===== */}
       <aside className="left-menu relative h-full min-h-screen" style={{ width: asideWidth, transition: "width 0.2s ease" }}>
         {/* PC 折りたたみトグル（上部白いエリアをボタン運用でもOK） */}
@@ -457,26 +530,34 @@ export default function PortalLayout({ children }: Props) {
       </aside>
 
       {/* ===== モバイル：左端ホットゾーン（常時固定） ===== */}
-      <button className="edge-hotzone" aria-label="メニューの開閉" onClick={toggleByEdge} />
+      {!useNewMobileUi && <button className="edge-hotzone" aria-label="メニューの開閉" onClick={toggleByEdge} />}
 
       {/* ===== モバイル：スライドメニュー ===== */}
-      <nav className={`menu ${isMobileMenuOpen ? "open" : ""}`} onClick={handleMobileNavClick} aria-hidden={!isMobileMenuOpen}>
+      <nav className={`menu ${isMobileMenuOpen ? "open" : ""} ${useNewMobileUi ? "mobile-app-drawer" : ""}`} onClick={handleMobileNavClick} aria-hidden={!isMobileMenuOpen}>
         {/* ×で閉じる（メニュー上部） */}
         <button className="hamburger" aria-label="メニューを閉じる" onClick={() => setIsMobileMenuOpen(false)}>×</button>
         <SidebarContent userData={userData} role={role} onDeletePhoto={handleDeletePhoto} onReuploadPhoto={handlePhotoReupload} />
+        {useNewMobileUi ? (
+          <button type="button" onClick={() => changeMobileUiMode("old")} className="mx-4 mb-5 min-h-11 rounded-lg border border-white/30 px-3 text-sm font-semibold text-white transition hover:bg-white/10">旧メニューに戻す</button>
+        ) : (
+          <button type="button" onClick={() => changeMobileUiMode("new")} className="mx-4 mb-5 min-h-11 rounded-lg border border-white/30 px-3 text-sm font-semibold text-white transition hover:bg-white/10">新しいスマホメニューを使用する</button>
+        )}
       </nav>
 
       {/* オーバーレイ（背景タップで閉じる） */}
-      <div className={isMobileMenuOpen ? "fixed inset-0 bg-black/30 z-[90]" : "hidden"} onClick={() => setIsMobileMenuOpen(false)} />
+      <div className={isMobileMenuOpen ? (useNewMobileUi ? "fixed inset-0 z-[35] bg-black/30" : "fixed inset-0 bg-black/30 z-[90]") : "hidden"} onClick={() => setIsMobileMenuOpen(false)} />
 
       {/* ===== メイン ===== */}
-      <main className="flex-1 flex flex-col min-h-screen min-w-0">
+      {useNewMobileUi && <MobileHeader pathname={pathname ?? "/portal"} onOpenMenu={() => setIsMobileMenuOpen(true)} />}
+
+      <main className={`flex-1 flex flex-col min-h-screen min-w-0 ${useNewMobileUi ? "mobile-app-main" : ""}`}>
         <div className="flex-1">
           {!hideAlertBar && <AlertBar />}
           {children}
         </div>
         <Footer />
       </main>
+      {useNewMobileUi && <MobileBottomNavigation pathname={pathname ?? "/portal"} />}
     </div>
   );
 }

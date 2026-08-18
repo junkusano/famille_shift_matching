@@ -232,6 +232,37 @@
     .menu {
         padding-left: 3rem;
     }
+
+    /* 明示的に選択した新しいスマホUIだけに適用するアプリ風の枠組み。 */
+    .mobile-app-ui {
+        width: 100%;
+        overflow-x: clip;
+    }
+
+    .mobile-app-ui .mobile-app-main {
+        min-height: 100dvh;
+        padding-top: calc(3.5rem + env(safe-area-inset-top));
+        padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+    }
+
+    .mobile-app-ui .mobile-app-drawer {
+        z-index: 40;
+        width: min(20rem, calc(100vw - 2rem));
+        padding: calc(3.5rem + env(safe-area-inset-top)) 0 env(safe-area-inset-bottom);
+        box-shadow: 12px 0 28px rgba(15, 23, 42, 0.3);
+    }
+
+    .mobile-app-ui .mobile-app-drawer .hamburger {
+        position: absolute;
+        top: calc(env(safe-area-inset-top) + 0.5rem);
+        right: 0.5rem;
+        display: flex;
+        width: 44px;
+        height: 44px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+    }
 }
 
 /* PCではメニューを表示、ハンバーガーを非表示 */

@@ -8,6 +8,10 @@ import {
     getPerformanceBadge,
     isNewPerformanceSchemeOfficial,
 } from "@/lib/performanceScoreBadge";
+import {
+    HEALTH_CHECK_SUBMITTED_STATUSES,
+    isHealthCheckForFiscalYear,
+} from "@/lib/healthCheck";
 
 const EXCLUDED_PERFORMANCE_SCORE_USER_IDS = [
     "satominishio",
@@ -476,10 +480,6 @@ export async function GET(req: NextRequest) {
         //const targetMonth = "2026-05-01";
         //当月のみ更新変更箇所４
         const targetMonth = getTargetMonth(req);
-        const {
-            startDate: healthCheckFiscalStartDate,
-            endDate: healthCheckFiscalEndDate,
-        } = getFiscalYearRangeByTargetMonth(targetMonth);
 
         const { data: initialRows, error } = await supabaseAdmin
             .from("staff_monthly_score_summaries")
@@ -697,16 +697,6 @@ export async function GET(req: NextRequest) {
         const trainingGoalCountMap = new Map<string, number>();
         const healthCheckDoneUserIdMap = new Map<string, boolean>();
 
-        const MANUAL_HEALTH_CHECK_DONE_USER_IDS_2026 = [
-            "rikaueda",
-            "mikaimamichi",
-            "chieinagaki",
-            "masaakinakamura",
-            "wakanahorita",
-            "sayurihatasa",
-            "ryoukisuzuki",
-        ];
-
         const userIds = Array.from(
             new Set(
                 rows
@@ -733,7 +723,7 @@ export async function GET(req: NextRequest) {
                         .select("id, applicant_user_id, payload")
                         .in("applicant_user_id", userIds)
                         .eq("request_type_id", healthType.id)
-                        .in("status", ["submitted", "approved"]);
+                        .in("status", [...HEALTH_CHECK_SUBMITTED_STATUSES]);
 
                 if (healthRequestError) {
                     throw healthRequestError;
@@ -762,29 +752,13 @@ export async function GET(req: NextRequest) {
                         if (!submittedHealthRequestIds.has(req.id)) continue;
 
                         const payload = req.payload as Record<string, unknown> | null;
-                        const healthCheckDate = String(payload?.health_check_date ?? "");
-
-                        if (
-                            healthCheckDate < healthCheckFiscalStartDate ||
-                            healthCheckDate > healthCheckFiscalEndDate
-                        ) {
+                        if (!isHealthCheckForFiscalYear(payload, getFiscalYearRangeByTargetMonth(targetMonth).fiscalYear)) {
                             continue;
                         }
 
                         healthCheckDoneUserIdMap.set(req.applicant_user_id, true);
                     }
                 }
-            }
-        }
-
-        const fiscalYear =
-            Number(targetMonth.slice(5, 7)) >= 4
-                ? Number(targetMonth.slice(0, 4))
-                : Number(targetMonth.slice(0, 4)) - 1;
-
-        if (fiscalYear === 2026) {
-            for (const userId of MANUAL_HEALTH_CHECK_DONE_USER_IDS_2026) {
-                healthCheckDoneUserIdMap.set(userId, true);
             }
         }
 

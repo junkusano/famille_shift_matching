@@ -6640,6 +6640,284 @@ export type Database = {
         }
         Relationships: []
       }
+      regular_shift_requests: {
+        Row: {
+          available_from_month: string
+          created_at: string
+          id: number
+          lineworks_notified_at: string | null
+          requested_at: string
+          source_shift_id: number
+          status: string
+          updated_at: string
+          user_id: string
+          weekly_shift_id: number
+        }
+        Insert: {
+          available_from_month: string
+          created_at?: string
+          id?: number
+          lineworks_notified_at?: string | null
+          requested_at?: string
+          source_shift_id: number
+          status?: string
+          updated_at?: string
+          user_id: string
+          weekly_shift_id: number
+        }
+        Update: {
+          available_from_month?: string
+          created_at?: string
+          id?: number
+          lineworks_notified_at?: string | null
+          requested_at?: string
+          source_shift_id?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+          weekly_shift_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "audit_log_display_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_add_status_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_csinfo_postalname_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_csinfo_postalname_view2"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_csinfo_roster_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_daily_dialog_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_daily_dialog_view2"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_daily_dialog_view3"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_rpa_status_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_self_coordinate_card_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_self_coordinate_card_view2"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_shift_record_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_shift_record_view2"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "tokutei_clone_targets_view"
+            referencedColumns: ["prev_shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "tokutei_clone_targets_view"
+            referencedColumns: ["target_shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "v_shift_detail"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "audit_log_display_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_add_status_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_csinfo_postalname_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_csinfo_postalname_view2"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_csinfo_roster_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_daily_dialog_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_daily_dialog_view2"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_daily_dialog_view3"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_rpa_status_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_self_coordinate_card_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_self_coordinate_card_view2"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_shift_record_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_shift_record_view2"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "tokutei_clone_targets_view"
+            referencedColumns: ["prev_shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "tokutei_clone_targets_view"
+            referencedColumns: ["target_shift_id"]
+          },
+          {
+            foreignKeyName: "regular_shift_requests_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "v_shift_detail"
+            referencedColumns: ["shift_id"]
+          },
+        ]
+      }
       rpa_command_args: {
         Row: {
           created_at: string | null
@@ -8499,6 +8777,81 @@ export type Database = {
         }
         Relationships: []
       }
+      taimee_sms_logs: {
+        Row: {
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          id: string
+          message_body: string | null
+          message_type: string
+          offering_id: string | null
+          offering_name: string | null
+          phone_number: string | null
+          sent_at: string | null
+          skip_reason: string | null
+          status: string
+          taimee_user_id: string
+          twilio_message_sid: string | null
+          updated_at: string
+          work_date: string
+          worker_name: string
+        }
+        Insert: {
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          message_body?: string | null
+          message_type?: string
+          offering_id?: string | null
+          offering_name?: string | null
+          phone_number?: string | null
+          sent_at?: string | null
+          skip_reason?: string | null
+          status: string
+          taimee_user_id: string
+          twilio_message_sid?: string | null
+          updated_at?: string
+          work_date: string
+          worker_name: string
+        }
+        Update: {
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          message_body?: string | null
+          message_type?: string
+          offering_id?: string | null
+          offering_name?: string | null
+          phone_number?: string | null
+          sent_at?: string | null
+          skip_reason?: string | null
+          status?: string
+          taimee_user_id?: string
+          twilio_message_sid?: string | null
+          updated_at?: string
+          work_date?: string
+          worker_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "taimee_sms_logs_taimee_user_id_fkey"
+            columns: ["taimee_user_id"]
+            isOneToOne: false
+            referencedRelation: "taimee_employee_portal_v"
+            referencedColumns: ["taimee_user_id"]
+          },
+          {
+            foreignKeyName: "taimee_sms_logs_taimee_user_id_fkey"
+            columns: ["taimee_user_id"]
+            isOneToOne: false
+            referencedRelation: "taimee_workers"
+            referencedColumns: ["taimee_user_id"]
+          },
+        ]
+      }
       taimee_sms_send_logs: {
         Row: {
           applicant_id: string
@@ -8564,6 +8917,96 @@ export type Database = {
             referencedColumns: ["applicant_id"]
           },
         ]
+      }
+      taimee_work_histories: {
+        Row: {
+          created_at: string
+          fetched_at: string | null
+          id: string
+          offering_id: string
+          offering_name: string
+          sms_eligible: boolean
+          sms_skip_reason: string | null
+          source: string
+          taimee_user_id: string
+          updated_at: string
+          work_date: string
+        }
+        Insert: {
+          created_at?: string
+          fetched_at?: string | null
+          id?: string
+          offering_id: string
+          offering_name: string
+          sms_eligible?: boolean
+          sms_skip_reason?: string | null
+          source?: string
+          taimee_user_id: string
+          updated_at?: string
+          work_date: string
+        }
+        Update: {
+          created_at?: string
+          fetched_at?: string | null
+          id?: string
+          offering_id?: string
+          offering_name?: string
+          sms_eligible?: boolean
+          sms_skip_reason?: string | null
+          source?: string
+          taimee_user_id?: string
+          updated_at?: string
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "taimee_work_histories_taimee_user_id_fkey"
+            columns: ["taimee_user_id"]
+            isOneToOne: false
+            referencedRelation: "taimee_employee_portal_v"
+            referencedColumns: ["taimee_user_id"]
+          },
+          {
+            foreignKeyName: "taimee_work_histories_taimee_user_id_fkey"
+            columns: ["taimee_user_id"]
+            isOneToOne: false
+            referencedRelation: "taimee_workers"
+            referencedColumns: ["taimee_user_id"]
+          },
+        ]
+      }
+      taimee_workers: {
+        Row: {
+          created_at: string
+          fetched_at: string | null
+          id: string
+          phone_number: string | null
+          source: string
+          taimee_user_id: string
+          updated_at: string
+          worker_name: string
+        }
+        Insert: {
+          created_at?: string
+          fetched_at?: string | null
+          id?: string
+          phone_number?: string | null
+          source?: string
+          taimee_user_id: string
+          updated_at?: string
+          worker_name: string
+        }
+        Update: {
+          created_at?: string
+          fetched_at?: string | null
+          id?: string
+          phone_number?: string | null
+          source?: string
+          taimee_user_id?: string
+          updated_at?: string
+          worker_name?: string
+        }
+        Relationships: []
       }
       team_monthly_score_summaries: {
         Row: {
@@ -12275,6 +12718,20 @@ export type Database = {
           姓カナ: string | null
           性別: string | null
           電話番号: string | null
+        }
+        Relationships: []
+      }
+      taimee_employee_portal_v: {
+        Row: {
+          latest_offering_name: string | null
+          latest_sms_sent_at: string | null
+          latest_work_date: string | null
+          phone_number: string | null
+          sms_status: string | null
+          source: string | null
+          taimee_user_id: string | null
+          work_count: number | null
+          worker_name: string | null
         }
         Relationships: []
       }
