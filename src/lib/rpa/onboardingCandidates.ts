@@ -247,16 +247,27 @@ export async function getBasicInfoDocuments() {
   const { data, error } = await supabaseAdmin
     .from("cs_docs")
     .select("id,url,doc_name,doc_type_id,ocr_text,summary,meta,created_at,kaipoke_cs_id,cs_kaipoke_info_id")
-    .or(`doc_type_id.eq.${BASIC_INFO_DOC_TYPE_ID},doc_name.eq.${BASIC_INFO_DOC_NAME}`)
-    .is("kaipoke_cs_id", null)
-    .is("cs_kaipoke_info_id", null)
-    .not("ocr_text", "is", null)
+    // 型IDが未設定の古いPDFもあるため、名称でも広く拾う。
+    .or(`doc_type_id.eq.${BASIC_INFO_DOC_TYPE_ID},doc_name.eq.${BASIC_INFO_DOC_NAME},doc_name.ilike.*基本情報*`)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(500);
 
   if (error) throw error;
 
-  return (data ?? []).map((doc) => {
+  // DBによっては未設定値が NULL ではなく、空文字や空白で保存されている。
+  // PostgREST の eq."" に依存せず、実値の長さで判定する。
+  const unassigned = (data ?? []).filter((doc) => {
+    const kaipokeId = typeof doc.kaipoke_cs_id === "string" ? doc.kaipoke_cs_id.trim() : "";
+    const infoId = typeof doc.cs_kaipoke_info_id === "string" ? doc.cs_kaipoke_info_id.trim() : "";
+    return kaipokeId.length === 0 && infoId.length === 0;
+  });
+
+  console.info("[rpa/onboarding] basic information documents", {
+    fetched: data?.length ?? 0,
+    unassigned: unassigned.length,
+  });
+
+  return unassigned.map((doc) => {
     const details = listDisplayDetails(doc as CsDocListForOnboarding);
     return {
       id: doc.id,
@@ -286,7 +297,7 @@ export async function getOnboardingDocument(id: string) {
 
   const ocrText = doc.ocr_text?.trim() ?? "";
   const summary = doc.summary?.trim() ?? "";
-  if (!ocrText) throw new Error("OCR text is empty");
+  if (!ocrText && !summary) throw new Error("OCR text and summary are empty");
 
   const hash = sourceHash(ocrText, summary);
   let candidate = readCache(doc.meta, hash);
