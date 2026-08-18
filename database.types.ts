@@ -7162,6 +7162,131 @@ export type Database = {
         }
         Relationships: []
       }
+      rpa_diagnostics: {
+        Row: {
+          action: string | null
+          capture_type: string
+          created_at: string
+          error_message: string | null
+          error_name: string | null
+          error_stack: string | null
+          expected_selector: string | null
+          id: string
+          metadata: Json
+          operation: string
+          retry_count: number
+          selector: string | null
+          selector_found: boolean | null
+          service: string
+          snapshot_id: string | null
+          stage: string
+        }
+        Insert: {
+          action?: string | null
+          capture_type?: string
+          created_at?: string
+          error_message?: string | null
+          error_name?: string | null
+          error_stack?: string | null
+          expected_selector?: string | null
+          id?: string
+          metadata?: Json
+          operation: string
+          retry_count?: number
+          selector?: string | null
+          selector_found?: boolean | null
+          service: string
+          snapshot_id?: string | null
+          stage: string
+        }
+        Update: {
+          action?: string | null
+          capture_type?: string
+          created_at?: string
+          error_message?: string | null
+          error_name?: string | null
+          error_stack?: string | null
+          expected_selector?: string | null
+          id?: string
+          metadata?: Json
+          operation?: string
+          retry_count?: number
+          selector?: string | null
+          selector_found?: boolean | null
+          service?: string
+          snapshot_id?: string | null
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rpa_diagnostics_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "rpa_page_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rpa_page_snapshots: {
+        Row: {
+          body_html: string | null
+          body_text: string | null
+          captured_at: string
+          created_at: string
+          dom_fingerprint: string | null
+          expires_at: string
+          extension_version: string | null
+          id: string
+          important_dom: Json
+          manifest_version: string | null
+          page_path: string | null
+          page_title: string | null
+          page_type: string | null
+          page_url: string | null
+          purpose: string | null
+          scripts: Json
+          service: string
+        }
+        Insert: {
+          body_html?: string | null
+          body_text?: string | null
+          captured_at?: string
+          created_at?: string
+          dom_fingerprint?: string | null
+          expires_at?: string
+          extension_version?: string | null
+          id?: string
+          important_dom?: Json
+          manifest_version?: string | null
+          page_path?: string | null
+          page_title?: string | null
+          page_type?: string | null
+          page_url?: string | null
+          purpose?: string | null
+          scripts?: Json
+          service: string
+        }
+        Update: {
+          body_html?: string | null
+          body_text?: string | null
+          captured_at?: string
+          created_at?: string
+          dom_fingerprint?: string | null
+          expires_at?: string
+          extension_version?: string | null
+          id?: string
+          important_dom?: Json
+          manifest_version?: string | null
+          page_path?: string | null
+          page_title?: string | null
+          page_type?: string | null
+          page_url?: string | null
+          purpose?: string | null
+          scripts?: Json
+          service?: string
+        }
+        Relationships: []
+      }
       service_kinds: {
         Row: {
           created_at: string

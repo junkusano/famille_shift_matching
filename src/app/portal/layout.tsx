@@ -102,13 +102,13 @@ type MenuItem = { label: string; href: string; beta?: boolean; secondary?: { lab
 type MenuGroup = { label: string; icon: string; items: MenuItem[] };
 
 const managerMenuGroups: MenuGroup[] = [
-  { label: "数値・管理", icon: "📊", items: [
+    { label: "数値・管理", icon: "📊", items: [
     { label: "ダッシュボード", href: "/portal/dashboard" }, { label: "イベント管理", href: "/portal/event-tasks" },
     { label: "イベントテンプレート管理", href: "/portal/event-template" }, { label: "走行距離指数", href: "/portal/driving_record" },
     { label: "組織アイコン設定", href: "/portal/orgIcons" }, { label: "電話帳", href: "/portal/phone" },
     { label: "監査ログ", href: "/portal/audit_log" }, { label: "お弁当アンケート【管理用】", href: "/portal/bento/admin" },
     { label: "目標・研修【管理用】", href: "/portal/training-goals/manage" }, { label: "健康診断管理", href: "/portal/admin/health-check-results" }, { label: "日払い申請履歴", href: "/portal/user_advance_payment_history" },
-    { label: "RPAテンプレ管理", href: "/portal/rpa_temp/list" }, { label: "RPAリクエスト管理", href: "/portal/rpa_requests" },
+    { label: "RPAテンプレ管理", href: "/portal/rpa_temp/list" }, { label: "RPAリクエスト管理", href: "/portal/rpa_requests" }, { label: "RPA診断・DOM Snapshot", href: "/portal/rpa/diagnostics" },
   ]},
   { label: "利用者管理", icon: "👤", items: [{ label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "利用者担当管理", href: "/portal/assign_matome" }, { label: "利用者書類一覧", href: "/portal/cs_docs" }] },
   { label: "シフト管理", icon: "📅", items: [{ label: "サービスコード管理", href: "/portal/shift-service-code" }, { label: "訪問記録定義", href: "/portal/shift-record-def" }, { label: "週間シフト", href: "/portal/roster/weekly" }, { label: "月間シフト", href: "/portal/roster/monthly" }, { label: "シフト表", href: "/portal/roster/daily" }, { label: "シフトWish", href: "/portal/shift-wish" }, { label: "シフト・勤務一覧", href: "/portal/shift-view" }, { label: "シフト・訪問記録", href: "/portal/shift" }, { label: "実績記録チェック", href: "/portal/disability-check" }] },
