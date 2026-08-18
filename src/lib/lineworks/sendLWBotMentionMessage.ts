@@ -1,4 +1,8 @@
 import { supabaseAdmin } from "@/lib/supabase/service";
+import {
+  resolveClientManagerMentions,
+  type ClientManagerMentionRequest,
+} from "@/lib/lineworks/resolveClientManagerMentions";
 
 export type MentionTarget = {
   /** LINE WORKS の userId */
@@ -40,6 +44,11 @@ type SendLWBotMentionMessageArgs = {
    */
   getGroupAccessToken?: () => Promise<string>;
   mentions: MentionTarget[];
+  /**
+   * 指定時は、利用者の担当組織のmanagerもメンション対象へ追加する。
+   * 解決に失敗しても本文送信は継続し、共通resolverが原因をログに残す。
+   */
+  includeClientManagers?: ClientManagerMentionRequest;
   /**
    * activeMentions には、その時点でメンション可能なユーザーだけが入る。
    * recoveryNotes はグループ追加に失敗した理由で、再送時の本文に含める。
@@ -145,7 +154,13 @@ async function addUserToGroup(params: {
 export async function sendLWBotMentionMessage(
   args: SendLWBotMentionMessageArgs
 ): Promise<void> {
-  const mentions = dedupeMentions(args.mentions);
+  const managerResolution = args.includeClientManagers
+    ? await resolveClientManagerMentions(args.includeClientManagers)
+    : null;
+  const mentions = dedupeMentions([
+    ...args.mentions,
+    ...(managerResolution?.mentions ?? []),
+  ]);
   const accessToken = args.accessToken;
 
   try {

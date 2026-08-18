@@ -288,13 +288,14 @@ export async function runShiftStaffCheck(opts: {
         const clientAlerts = new Map<string, {
             clientName: string;
             lines: string[];
-            teamOrgIds: Set<string>;
+            shiftIds: Set<number>;
         }>();
         const addClientAlert = (
             csId: string,
             clientName: string,
             line: string,
-            staffUserIds: Array<string | null | undefined> = []
+            _staffUserIds: Array<string | null | undefined> = [],
+            shiftId?: number,
         ) => {
             const normalizedCsId = csId.trim();
             if (!normalizedCsId) return;
@@ -302,14 +303,11 @@ export async function runShiftStaffCheck(opts: {
             const current = clientAlerts.get(normalizedCsId) ?? {
                 clientName,
                 lines: [],
-                teamOrgIds: new Set<string>(),
+                shiftIds: new Set<number>(),
             };
             current.clientName = current.clientName || clientName;
             current.lines.push(line);
-            for (const staffUserId of staffUserIds) {
-                const orgUnitId = userMap.get((staffUserId ?? "").trim())?.org_unit_id?.trim();
-                if (orgUnitId) current.teamOrgIds.add(orgUnitId);
-            }
+            if (typeof shiftId === "number") current.shiftIds.add(shiftId);
             clientAlerts.set(normalizedCsId, current);
         };
         const dedupe = new Set<string>();
@@ -360,7 +358,7 @@ export async function runShiftStaffCheck(opts: {
                         const groupLine = isNoLongerActiveStaff(u?.status)
                             ? `・${dateDisp} ${startHHmm}　${who} は現在在籍外扱いですが、サービス担当に設定されています。離任済みで問題ないか、シフト設定をご確認ください。`
                             : `・${dateDisp} ${startHHmm}　${who} は直近${inactiveDays}日以上シフト勤務がありません。本日のサービス対応に問題ないかご確認ください。`;
-                        addClientAlert(csId, clientName, groupLine, [sid]);
+                        addClientAlert(csId, clientName, groupLine, [sid], r.shift_id);
                     }
                 }
             }
@@ -499,7 +497,11 @@ export async function runShiftStaffCheck(opts: {
                     alert.csId,
                     alert.clientName,
                     alert.line,
-                    staffIdsByClient.get(alert.csId) ?? []
+                    staffIdsByClient.get(alert.csId) ?? [],
+                    upcoming.find((shift) =>
+                        String(shift.kaipoke_cs_id ?? "").trim() === alert.csId
+                        && shift.shift_date === parseAlertLine(alert.line).date,
+                    )?.shift_id,
                 );
             }
         }
@@ -640,7 +642,7 @@ export async function runShiftStaffCheck(opts: {
                         // 表示形式：〇月〇日 〇時 ・・・様 のシフト担当者が特定されていない
                         const line = `・${yyyymmddSlash(info.date)} ${info.startAt}　${info.clientName} のシフト担当者が特定されていません（${reason}）`;
                         alertLines.push(line);
-                        addClientAlert(info.csId, info.clientName, line, info.staffIds);
+                        addClientAlert(info.csId, info.clientName, line, info.staffIds, s.shift_id);
                     }
                 }
             }
@@ -698,7 +700,7 @@ export async function runShiftStaffCheck(opts: {
 
                         const line = `・${yyyymmddSlash(info.date)} ${info.startAt}　${info.clientName} のシフトのサービスコードが未設定です`;
                         alertLines.push(line);
-                        addClientAlert(info.csId, info.clientName, line, info.staffIds);
+                        addClientAlert(info.csId, info.clientName, line, info.staffIds, s.shift_id);
                     }
                 }
             }
@@ -813,25 +815,6 @@ export async function runShiftStaffCheck(opts: {
         const clientIds = Array.from(clientAlerts.keys());
         let clientGroupAlertsSent = 0;
         if (clientIds.length > 0) {
-            type ClientTeamRow = { kaipoke_cs_id: string; asigned_org: string | null };
-            const { data: clientTeamRows, error: clientTeamError } = await supabaseAdmin
-                .from("cs_kaipoke_info")
-                .select("kaipoke_cs_id, asigned_org")
-                .in("kaipoke_cs_id", clientIds);
-            if (clientTeamError) throw clientTeamError;
-
-            // 利用者の担当チームは、シフトに入っているスタッフの所属ではなく
-            // cs_kaipoke_info.asigned_org を正とする。
-            for (const clientTeam of (clientTeamRows as ClientTeamRow[] | null) ?? []) {
-                const clientId = String(clientTeam.kaipoke_cs_id ?? "").trim();
-                const alert = clientAlerts.get(clientId);
-                if (!alert) continue;
-
-                alert.teamOrgIds.clear();
-                const assignedOrgId = String(clientTeam.asigned_org ?? "").trim();
-                if (assignedOrgId) alert.teamOrgIds.add(assignedOrgId);
-            }
-
             const { data: channelRows, error: channelError } = await supabaseAdmin
                 .from("group_lw_channel_view")
                 .select("group_account, channel_id")
@@ -847,38 +830,6 @@ export async function runShiftStaffCheck(opts: {
                 }
             }
 
-            const allTeamOrgIds = Array.from(
-                new Set(
-                    Array.from(clientAlerts.values()).flatMap((alert) => Array.from(alert.teamOrgIds))
-                )
-            );
-            type ManagerRow = {
-                user_id: string;
-                lw_userid: string | null;
-                org_unit_id: string | null;
-                system_role: string | null;
-                status: string | null;
-            };
-            const managersByOrgId = new Map<string, ManagerRow[]>();
-            if (allTeamOrgIds.length > 0) {
-                const { data: managerRows, error: managerError } = await supabaseAdmin
-                    .from("users")
-                    .select("user_id, lw_userid, org_unit_id, system_role, status")
-                    .in("org_unit_id", allTeamOrgIds)
-                    .eq("system_role", "manager")
-                    .or("status.is.null,status.neq.removed_from_lineworks_kaipoke");
-                if (managerError) throw managerError;
-
-                for (const manager of (managerRows as ManagerRow[] | null) ?? []) {
-                    const orgUnitId = String(manager.org_unit_id ?? "").trim();
-                    if (!orgUnitId) continue;
-                    managersByOrgId.set(orgUnitId, [
-                        ...(managersByOrgId.get(orgUnitId) ?? []),
-                        manager,
-                    ]);
-                }
-            }
-
             for (const [clientId, alert] of clientAlerts) {
                 const channelId = channelByClientId.get(clientId);
                 if (!channelId) {
@@ -886,23 +837,18 @@ export async function runShiftStaffCheck(opts: {
                     continue;
                 }
 
-                const mentions: MentionTarget[] = Array.from(alert.teamOrgIds)
-                    .flatMap((orgUnitId) => managersByOrgId.get(orgUnitId) ?? [])
-                    .filter((manager) =>
-                        Boolean(manager.lw_userid) &&
-                        manager.status !== "removed_from_lineworks_kaipoke"
-                    )
-                    .map((manager) => ({
-                        userId: String(manager.lw_userid),
-                        label: `担当チームmanager（${manager.user_id}）`,
-                    }));
-
                 try {
                     await sendLWBotMentionMessage({
                         botId: LW_BOT_NO,
                         channelId,
                         accessToken,
-                        mentions,
+                        mentions: [],
+                        includeClientManagers: {
+                            clientId,
+                            clientName: alert.clientName,
+                            shiftId: Array.from(alert.shiftIds)[0] ?? null,
+                            logPrefix: "[shift-staff-check]",
+                        },
                         buildText: (activeMentions, recoveryNotes) => [
                             "【シフト確認のお願い】",
                             `${alert.clientName} のシフトに、確認が必要な内容があります。`,
