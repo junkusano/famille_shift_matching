@@ -6,6 +6,12 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 export const BASIC_INFO_DOC_TYPE_ID = "ac26b258-4f92-4c9f-91d3-0f0c238541ba";
 export const BASIC_INFO_DOC_NAME = "基本情報(ステップ２）";
 
+function isBasicInformationDocument(doc: Pick<CsDocForOnboarding, "doc_type_id" | "doc_name">): boolean {
+  return doc.doc_type_id === BASIC_INFO_DOC_TYPE_ID
+    || doc.doc_name === BASIC_INFO_DOC_NAME
+    || doc.doc_name?.includes("基本情報") === true;
+}
+
 export type CandidateConfidence = "high" | "medium" | "low";
 export type CandidateSource = "ocr" | "summary" | "both" | null;
 
@@ -254,20 +260,13 @@ export async function getBasicInfoDocuments() {
 
   if (error) throw error;
 
-  // DBによっては未設定値が NULL ではなく、空文字や空白で保存されている。
-  // 画面上の利用者IDは kaipoke_cs_id を正とし、cs_kaipoke_info_id だけ
-  // 残っている不整合データも一覧から落とさない。
-  const unassigned = (data ?? []).filter((doc) => {
-    const kaipokeId = typeof doc.kaipoke_cs_id === "string" ? doc.kaipoke_cs_id.trim() : "";
-    return kaipokeId.length === 0;
-  });
-
   console.info("[rpa/onboarding] basic information documents", {
     fetched: data?.length ?? 0,
-    unassigned: unassigned.length,
+    // 新規登録だけでなく、既存利用者の編集にも使うため、名寄せ済み資料も含める。
+    available: data?.length ?? 0,
   });
 
-  return unassigned.map((doc) => {
+  return (data ?? []).map((doc) => {
     const details = listDisplayDetails(doc as CsDocListForOnboarding);
     return {
       id: doc.id,
@@ -291,7 +290,7 @@ export async function getOnboardingDocument(id: string) {
   if (!data) return null;
 
   const doc = data as CsDocForOnboarding;
-  if (doc.doc_type_id !== BASIC_INFO_DOC_TYPE_ID && doc.doc_name !== BASIC_INFO_DOC_NAME) {
+  if (!isBasicInformationDocument(doc)) {
     throw new Error("The selected document is not a basic information document");
   }
 
