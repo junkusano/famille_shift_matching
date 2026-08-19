@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       (r) => {
         const { template_id: _omit, ...rest } = r;
         void _omit; // mark as used to satisfy no-unused-vars
-        return rest;
+        return { holiday_off: false, ...rest };
       }
     );
 

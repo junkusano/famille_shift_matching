@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -18,6 +18,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { buildSmsMessage, getClientSmsBusinessName, getClientSmsMainPhone } from "@/lib/smsMessage";
 import type { ServiceKey } from "@/lib/certificateJudge";
 import type { ShiftData } from "@/types/shift";
+import type { RegularShiftCandidate } from "@/lib/shift/regularShift";
 
 type StaffRow = {
   user_id: string;
@@ -32,9 +33,10 @@ type Props = {
   myServiceKeys: ServiceKey[] | null;
   userRole: string | null;
   creatingRequest?: boolean;
-  onRequest?: (attendRequest: boolean, timeAdjustNote?: string) => void;
+  onRequest?: (attendRequest: boolean, timeAdjustNote?: string, regularShift?: boolean, weeklyShiftId?: string) => void;
   extraActions?: React.ReactNode;
   showSmsButton?: boolean;
+  enableRegularShiftRequest?: boolean;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -127,16 +129,42 @@ export default function ShiftCardPerformanceTest({
   onRequest,
   extraActions,
   showSmsButton = false,
+  enableRegularShiftRequest = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [attendRequest, setAttendRequest] = useState(false);
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
+  const [regularShift, setRegularShift] = useState(false);
+  const [regularCandidates, setRegularCandidates] = useState<RegularShiftCandidate[]>([]);
+  const [regularWeeklyShiftId, setRegularWeeklyShiftId] = useState("");
+  const [regularAvailableFrom, setRegularAvailableFrom] = useState("");
   const [smsOpen, setSmsOpen] = useState(false);
   const [smsConfirmOpen, setSmsConfirmOpen] = useState(false);
   const [smsBody, setSmsBody] = useState("");
   const [smsSending, setSmsSending] = useState(false);
   const [smsError, setSmsError] = useState<string | null>(null);
   const [smsSent, setSmsSent] = useState(false);
+
+  useEffect(() => {
+    if (!enableRegularShiftRequest || !shift.shift_id) {
+      setRegularCandidates([]);
+      setRegularShift(false);
+      setRegularWeeklyShiftId("");
+      return;
+    }
+    let cancelled = false;
+    void fetch(`/api/regular-shift-requests?shift_id=${encodeURIComponent(shift.shift_id)}`, { cache: "no-store" })
+      .then(async (response) => response.ok ? await response.json() as { candidates?: RegularShiftCandidate[]; available_from_month?: string } : null)
+      .then((result) => {
+        if (cancelled) return;
+        const candidates = result?.candidates ?? [];
+        setRegularCandidates(candidates);
+        setRegularAvailableFrom(result?.available_from_month?.slice(0, 7) ?? "");
+        setRegularWeeklyShiftId(candidates.find((candidate) => !candidate.requested)?.weekly_shift_id ?? candidates[0]?.weekly_shift_id ?? "");
+      })
+      .catch(() => { if (!cancelled) setRegularCandidates([]); });
+    return () => { cancelled = true; };
+  }, [enableRegularShiftRequest, shift.shift_id]);
 
   const eligible = useMemo(() => isEligibleForService(shift, myServiceKeys), [shift, myServiceKeys]);
 
@@ -412,6 +440,25 @@ export default function ShiftCardPerformanceTest({
                     />
                     同行を希望する
                   </label>
+                  {enableRegularShiftRequest && regularCandidates.length > 0 && (
+                    <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
+                      <label className="flex items-start gap-2 font-medium">
+                        <input type="checkbox" checked={regularShift} onChange={(event) => setRegularShift(event.target.checked)} />
+                        <span>このシフトを今後レギュラーで入りたい</span>
+                      </label>
+                      {regularShift && (
+                        <div className="mt-2 space-y-2 pl-6">
+                          <div className="text-xs text-amber-800">レギュラー開始可能: {regularAvailableFrom || "確認中"}</div>
+                          {regularCandidates.map((candidate) => (
+                            <label key={candidate.weekly_shift_id} className="flex items-start gap-2 text-xs">
+                              <input type="radio" name={`regular-weekly-${shift.shift_id}`} value={candidate.weekly_shift_id} checked={regularWeeklyShiftId === candidate.weekly_shift_id} onChange={() => setRegularWeeklyShiftId(candidate.weekly_shift_id)} />
+                              <span>週間シフト（{candidate.recurring_label}）: {candidate.shift_start_time.slice(0, 5)}〜{candidate.shift_end_time.slice(0, 5)}{candidate.requested ? "（希望登録済み）" : ""}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="mt-4">
                     <label className="text-sm font-medium">希望の時間調整（任意）</label>
                     <textarea
@@ -433,7 +480,7 @@ export default function ShiftCardPerformanceTest({
                       ? "※保有する資格ではこのサービスに入れない可能性があります。マネジャーに確認もしくは、保有資格の確認をポータルHomeで行ってください。\n"
                       : "";
                     const composed = (warn + (timeAdjustNote || "")).trim();
-                    onRequest?.(attendRequest, composed || undefined);
+                    onRequest?.(attendRequest, composed || undefined, regularShift, regularWeeklyShiftId || undefined);
                     setOpen(false);
                   }}
                   disabled={!!creatingRequest}

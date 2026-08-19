@@ -352,7 +352,13 @@ export default function ShiftCoordinatePerformanceTestClient() {
   }, [savedCustomFilter]);
 
   const handleShiftRequest = useCallback(
-    async (shift: PerformanceShiftData, attendRequest: boolean, timeAdjustNote?: string) => {
+    async (
+      shift: PerformanceShiftData,
+      attendRequest: boolean,
+      timeAdjustNote?: string,
+      regularShift = false,
+      weeklyShiftId?: string,
+    ) => {
       const requestStartedAt = performance.now();
       setCreatingShiftRequest(true);
       console.time("[shift-coordinate-performance-test] shift request");
@@ -476,6 +482,19 @@ export default function ShiftCoordinatePerformanceTestClient() {
           if (resp.ok && payload && "assign" in payload && payload.assign) {
             const { status, slot, message } = payload.assign;
             console.log("[SHIFT ASSIGN][performance-test] result", { traceId, status, slot, message });
+
+            if (regularShift && weeklyShiftId) {
+              try {
+                const regularResp = await fetch("/api/regular-shift-requests", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ source_shift_id: shift.shift_id, weekly_shift_id: weeklyShiftId }),
+                });
+                if (!regularResp.ok) console.error("[regular-shift] save failed", await regularResp.text());
+              } catch (regularError) {
+                console.error("[regular-shift] save failed", regularError);
+              }
+            }
 
             if ((status === "assigned" || status === "replaced") && chanData?.channel_id) {
               const text =
@@ -843,9 +862,10 @@ export default function ShiftCoordinatePerformanceTestClient() {
                   myServiceKeys={myServiceKeys}
                   userRole={userRole}
                   creatingRequest={creatingShiftRequest}
-                  onRequest={(attend, note) => {
-                    void handleShiftRequest(shift, attend, note);
+                  onRequest={(attend, note, regular, weeklyShiftId) => {
+                    void handleShiftRequest(shift, attend, note, regular, weeklyShiftId);
                   }}
+                  enableRegularShiftRequest
                   extraActions={<GroupAddButtonPerformanceTest shift={shift} />}
                 />
               ))}

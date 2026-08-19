@@ -575,7 +575,7 @@ export default function ShiftPage() {
                                         shift={shift}
                                         mode="request"
                                         creatingRequest={creatingShiftRequest}
-                                        onRequest={(attend, note, regular, weeklyShiftId) => handleShiftRequestWithAlert(shift, attend, note, regular, weeklyShiftId)}
+                                        onRequest={(attend, note) => handleShiftRequestWithAlert(shift, attend, note)}
                                         extraActions={<GroupAddButton shift={shift} />}
                                         // ★ 可能な時だけ上書き。不可/不明時は一切渡さず（= ShiftCard の自動解決に任せる）
                                         {...(hasCap ? { timeAdjustable: true, timeAdjustText: (spec?.label || "時間調整可能") } : {})}
@@ -594,8 +594,6 @@ export default function ShiftPage() {
         shift: ShiftData,
         attendRequest: boolean,
         timeAdjustNote?: string,
-        regularShift = false,
-        weeklyShiftId?: string,
     ) {
         setCreatingShiftRequest(true);
 
@@ -689,19 +687,6 @@ export default function ShiftPage() {
             // 4) LWメッセージ送付（/shift-coordinate と同様の2段構え）
             //    4-1) 「シフト希望が登録されました」通知（RPA完了の周知）
             //    4-2) 割当が 'assigned' | 'replaced' の場合に「担当を変更しました」通知
-            if (regularShift && weeklyShiftId) {
-                try {
-                    const regularResp = await fetch('/api/regular-shift-requests', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ source_shift_id: shift.shift_id, weekly_shift_id: weeklyShiftId }),
-                    });
-                    if (!regularResp.ok) console.error('[regular-shift] save failed', await regularResp.text());
-                } catch (regularError) {
-                    console.error('[regular-shift] save failed', regularError);
-                }
-            }
-
             const [{ data: chanData }, { data: userData }] = await Promise.all([
                 supabase
                     .from('group_lw_channel_view')

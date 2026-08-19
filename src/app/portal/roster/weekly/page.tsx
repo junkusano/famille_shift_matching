@@ -32,6 +32,7 @@ export type TemplateRow = {
   active: boolean;
   is_biweekly?: boolean | null;
   nth_weeks?: number[] | null; // [1..5]
+  holiday_off: boolean;
   _cid?: string;
   _selected?: boolean;
 };
@@ -768,6 +769,7 @@ export default function WeeklyRosterPage() {
       active: true,
       is_biweekly: null,
       nth_weeks: null,
+      holiday_off: false,
       _cid: (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : String(Math.random()),
       _selected: false,
     };
@@ -981,6 +983,7 @@ export default function WeeklyRosterPage() {
             <thead className="bg-slate-50">
               <tr>
                 <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">選択</th>
+                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">祝日休み</th>
                 <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">曜日</th>
                 <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">提供時間</th>
                 <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">サービス</th>
@@ -998,6 +1001,12 @@ export default function WeeklyRosterPage() {
                   <tr key={r._cid} className={errs.length ? "bg-amber-50" : ""}>
                     <td className="px-2 py-2 align-top border-b">
                       <input type="checkbox" checked={!!r._selected} onChange={(e) => updateRow(r._cid as string, { _selected: e.target.checked })} />
+                    </td>
+                    <td className="px-2 py-2 align-top border-b">
+                      <label className="inline-flex items-center gap-2 text-xs">
+                        <input type="checkbox" checked={!!r.holiday_off} onChange={(e) => updateRow(r._cid as string, { holiday_off: e.target.checked })} />
+                        祝日はお休み
+                      </label>
                     </td>
                     <td className="px-2 py-2 align-top border-b">
                       <select

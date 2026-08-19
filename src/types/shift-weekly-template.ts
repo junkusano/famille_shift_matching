@@ -22,6 +22,7 @@ export interface ShiftWeeklyTemplate {
   effective_to: string | null   // 'YYYY-MM-DD'
   is_biweekly: boolean | null
   nth_weeks: number[] | null    // [1..5]
+  holiday_off: boolean
 }
 
 // upsert の受け取り用（template_id は省略可）

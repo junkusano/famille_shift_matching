@@ -321,8 +321,6 @@ for (const row of csDocsData ?? []) {
         shift: ShiftData,
         attendRequest: boolean,
         timeAdjustNote?: string,
-        regularShift = false,
-        weeklyShiftId?: string,
     ) => {
         setCreatingShiftRequest(true);
         try {
@@ -426,18 +424,6 @@ for (const row of csDocsData ?? []) {
                     console.log("[SHIFT ASSIGN] payload", { traceId, payload });
 
                     if (resp.ok && payload && "assign" in payload && payload.assign) {
-                        if (regularShift && weeklyShiftId) {
-                            try {
-                                const regularResp = await fetch('/api/regular-shift-requests', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ source_shift_id: shift.shift_id, weekly_shift_id: weeklyShiftId }),
-                                });
-                                if (!regularResp.ok) console.error('[regular-shift] save failed', await regularResp.text());
-                            } catch (regularError) {
-                                console.error('[regular-shift] save failed', regularError);
-                            }
-                        }
                         const { status, slot, message } = payload.assign;
                         void slot
                         void message
@@ -698,7 +684,7 @@ for (const row of csDocsData ?? []) {
                         shift={shift}
                         mode="request"
                         creatingRequest={creatingShiftRequest}
-                        onRequest={(attend, note, regular, weeklyShiftId) => handleShiftRequest(shift, attend, note, regular, weeklyShiftId)}
+                        onRequest={(attend, note) => handleShiftRequest(shift, attend, note)}
                         extraActions={<GroupAddButton shift={shift} />}
                     />
                 ))}
