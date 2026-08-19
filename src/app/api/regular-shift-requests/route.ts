@@ -35,12 +35,22 @@ async function actor() {
   const client = createRouteHandlerClient({ cookies });
   const { data: auth } = await client.auth.getUser();
   if (!auth.user) return null;
-  const { data } = await supabaseAdmin
+  const { data: user, error: userError } = await supabaseAdmin
     .from('users')
-    .select('user_id,lw_userid,manager_lw_userid')
+    .select('user_id,lw_userid')
     .eq('auth_user_id', auth.user.id)
     .maybeSingle();
-  return data ? { ...data, authUserId: auth.user.id } : null;
+  if (userError) throw userError;
+  if (!user) return null;
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('user_entry_united_view_single')
+    .select('manager_lw_userid')
+    .eq('auth_user_id', auth.user.id)
+    .maybeSingle();
+  if (profileError) throw profileError;
+
+  return { ...user, manager_lw_userid: profile?.manager_lw_userid ?? null, authUserId: auth.user.id };
 }
 
 async function findCandidates(source: ShiftRow, userId: string) {

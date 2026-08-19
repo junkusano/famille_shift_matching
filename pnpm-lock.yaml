@@ -71,6 +71,9 @@ importers:
       date-fns-tz:
         specifier: ^3.2.0
         version: 3.2.0(date-fns@4.4.0)
+      domhandler:
+        specifier: ^5.0.3
+        version: 5.0.3
       googleapis:
         specifier: ^150.0.1
         version: 150.0.1(supports-color@7.2.0)
@@ -80,6 +83,9 @@ importers:
       jsonwebtoken:
         specifier: ^9.0.2
         version: 9.0.3
+      jose:
+        specifier: ^4.15.9
+        version: 4.15.9
       lucide-react:
         specifier: ^0.522.0
         version: 0.522.0(react@19.2.8)
@@ -137,6 +143,9 @@ importers:
       twilio:
         specifier: ^5.13.1
         version: 5.13.1(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3

@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   }
   const allowed = new Set(["deleted", "keep", "changed"]);
   if (!body.holiday_date || !body.weekly_shift_id || !body.client_id || !body.status || !allowed.has(body.status)) return json({ error: "不正な対応内容です" }, 400);
-  let shiftId = body.shift_id ?? null;
+  const shiftId = body.shift_id ?? null;
   if (body.status === "deleted" && !shiftId) return json({ error: "削除対象シフトがありません" }, 400);
   if (body.status === "deleted") {
     const { data: before } = await supabaseAdmin.from("shift").select("shift_id,kaipoke_cs_id,shift_start_date,shift_start_time,shift_end_time,staff_01_user_id").eq("shift_id", shiftId).maybeSingle();
