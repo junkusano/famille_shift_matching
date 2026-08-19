@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { getAccessToken } from '@/lib/getAccessToken';
 import { sendLWBotMentionMessage, type MentionTarget } from '@/lib/lineworks/sendLWBotMentionMessage';
-import { regularStartMonth, timeOverlaps, weekdayOf } from '@/lib/shift/regularShift';
+import { regularStartMonth, timeOverlaps } from '@/lib/shift/regularShift';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -63,7 +63,6 @@ async function findCandidates(source: ShiftRow, userId: string) {
   const requested = new Set((requests.data ?? []).map((row) => String(row.weekly_shift_id)));
 
   return ((data ?? []) as WeeklyTemplateRow[])
-    .filter((row) => row.weekday === weekdayOf(source.shift_start_date))
     .filter((row) => timeOverlaps({ shift_start_time: row.start_time, shift_end_time: row.end_time }, source))
     .slice(0, 20)
     .map((row) => ({
