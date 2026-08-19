@@ -487,7 +487,10 @@ export default function ShiftCoordinatePerformanceTestClient() {
               try {
                 const regularResp = await fetch("/api/regular-shift-requests", {
                   method: "POST",
-                  headers: { "Content-Type": "application/json" },
+                  headers: {
+                    "Content-Type": "application/json",
+                    ...(session.data.session?.access_token ? { Authorization: `Bearer ${session.data.session.access_token}` } : {}),
+                  },
                   body: JSON.stringify({ source_shift_id: shift.shift_id, weekly_shift_id: weeklyShiftId }),
                 });
                 if (!regularResp.ok) console.error("[regular-shift] save failed", await regularResp.text());

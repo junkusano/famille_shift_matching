@@ -31,14 +31,18 @@ type WeeklyTemplateRow = {
   nth_weeks?: number[] | null;
 };
 
-async function actor() {
-  const client = createRouteHandlerClient({ cookies });
-  const { data: auth } = await client.auth.getUser();
-  if (!auth.user) return null;
+async function actor(req: Request) {
+  const authorization = req.headers.get('authorization') ?? '';
+  const bearer = /^Bearer\s+(.+)$/i.exec(authorization)?.[1] ?? null;
+  const auth = bearer
+    ? await supabaseAdmin.auth.getUser(bearer)
+    : await createRouteHandlerClient({ cookies }).auth.getUser();
+  const authUser = auth.data.user;
+  if (!authUser) return null;
   const { data: user, error: userError } = await supabaseAdmin
     .from('users')
     .select('user_id,lw_userid')
-    .eq('auth_user_id', auth.user.id)
+    .eq('auth_user_id', authUser.id)
     .maybeSingle();
   if (userError) throw userError;
   if (!user) return null;
@@ -46,11 +50,11 @@ async function actor() {
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('user_entry_united_view_single')
     .select('manager_lw_userid')
-    .eq('auth_user_id', auth.user.id)
+    .eq('auth_user_id', authUser.id)
     .maybeSingle();
   if (profileError) throw profileError;
 
-  return { ...user, manager_lw_userid: profile?.manager_lw_userid ?? null, authUserId: auth.user.id };
+  return { ...user, manager_lw_userid: profile?.manager_lw_userid ?? null, authUserId: authUser.id };
 }
 
 async function findCandidates(source: ShiftRow, userId: string) {
@@ -89,7 +93,7 @@ async function findCandidates(source: ShiftRow, userId: string) {
 
 export async function GET(req: Request) {
   try {
-    const me = await actor();
+    const me = await actor(req);
     if (!me?.user_id) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     const id = new URL(req.url).searchParams.get('shift_id');
     if (!id) return NextResponse.json({ error: 'shift_id is required' }, { status: 400 });
@@ -105,7 +109,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const me = await actor();
+    const me = await actor(req);
     if (!me?.user_id) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     const body = await req.json() as { source_shift_id?: string; weekly_shift_id?: string };
     if (!body.source_shift_id || !body.weekly_shift_id) return NextResponse.json({ error: 'source_shift_id and weekly_shift_id are required' }, { status: 400 });

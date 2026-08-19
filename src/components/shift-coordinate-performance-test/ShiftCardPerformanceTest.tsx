@@ -153,7 +153,11 @@ export default function ShiftCardPerformanceTest({
       return;
     }
     let cancelled = false;
-    void fetch(`/api/regular-shift-requests?shift_id=${encodeURIComponent(shift.shift_id)}`, { cache: "no-store" })
+    void supabase.auth.getSession()
+      .then(({ data }) => fetch(`/api/regular-shift-requests?shift_id=${encodeURIComponent(shift.shift_id)}`, {
+        cache: "no-store",
+        headers: data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : {},
+      }))
       .then(async (response) => response.ok ? await response.json() as { candidates?: RegularShiftCandidate[]; available_from_month?: string } : null)
       .then((result) => {
         if (cancelled) return;
