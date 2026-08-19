@@ -1842,7 +1842,27 @@ if (!res.ok || json?.ok !== true) {
             </>
           )}
 
-          {mode !== "view" && (
+{mode === "request" && regularCandidates.length > 0 && (
+  <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
+    <label className="flex items-start gap-2 font-medium">
+      <input type="checkbox" checked={regularShift} onChange={(e) => setRegularShift(e.target.checked)} />
+      <span>このシフトを今後レギュラーで入りたい</span>
+    </label>
+    {regularShift && (
+      <div className="mt-2 space-y-2 pl-6">
+        <div className="text-xs text-amber-800">レギュラー開始可能: {regularAvailableFrom || "確認中"}</div>
+        {regularCandidates.map((candidate) => (
+          <label key={candidate.weekly_shift_id} className="flex items-start gap-2 text-xs">
+            <input type="radio" name={`regular-weekly-${shiftIdStr}`} value={candidate.weekly_shift_id} checked={regularWeeklyShiftId === candidate.weekly_shift_id} onChange={() => setRegularWeeklyShiftId(candidate.weekly_shift_id)} />
+            <span>週間シフト（{candidate.recurring_label}）: {candidate.shift_start_time.slice(0, 5)}〜{candidate.shift_end_time.slice(0, 5)}{candidate.requested ? "（希望登録済み）" : ""}</span>
+          </label>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
+{mode !== "view" && (
   mode === "request" ? (
     <Button onClick={() => setOpen(true)}>
       このシフトを希望する
@@ -1882,25 +1902,6 @@ if (!res.ok || json?.ok !== true) {
                         />
                         同行を希望する
                       </label>
-                      {regularCandidates.length > 0 && (
-                        <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
-                          <label className="flex items-start gap-2 font-medium">
-                            <input type="checkbox" checked={regularShift} onChange={(e) => setRegularShift(e.target.checked)} />
-                            <span>このシフトを今後レギュラーで入りたい</span>
-                          </label>
-                          {regularShift && (
-                            <div className="mt-2 space-y-2 pl-6">
-                              <div className="text-xs text-amber-800">レギュラー開始可能: {regularAvailableFrom || "確認中"}</div>
-                              {regularCandidates.map((candidate) => (
-                                <label key={candidate.weekly_shift_id} className="flex items-start gap-2 text-xs">
-                                  <input type="radio" name={`regular-weekly-${shiftIdStr}`} value={candidate.weekly_shift_id} checked={regularWeeklyShiftId === candidate.weekly_shift_id} onChange={() => setRegularWeeklyShiftId(candidate.weekly_shift_id)} />
-                                  <span>週間シフト: {candidate.shift_start_date} {candidate.shift_start_time.slice(0, 5)}〜{candidate.shift_end_time.slice(0, 5)}{candidate.requested ? "（希望登録済み）" : ""}</span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
                       <div className="mt-4">
                         <label className="text-sm font-medium">希望の時間調整（任意）</label>
                         <textarea
