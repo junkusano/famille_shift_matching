@@ -1,17 +1,17 @@
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { ensureSystemAlert } from "@/lib/alert/ensureSystemAlert";
+import { shouldDeployTemplateOnDate, weekdayOf } from "@/lib/roster/weeklyRecurrence";
 
 export const HOLIDAY_ALERT_LOOKAHEAD_DAYS = Number(process.env.HOLIDAY_ALERT_LOOKAHEAD_DAYS ?? 45);
 export type HolidayActionStatus = "pending" | "deleted" | "keep" | "changed" | "no_shift";
 
-type Template = { template_id: number; kaipoke_cs_id: string; weekday: number; start_time: string; end_time: string; service_code: string | null; required_staff_count: number; holiday_off: boolean; effective_from: string | null; effective_to: string | null; is_biweekly: boolean | null; nth_weeks: number[] | null };
+type Template = { template_id: number; kaipoke_cs_id: string; weekday: number; active: boolean; start_time: string; end_time: string; service_code: string | null; required_staff_count: number; holiday_off: boolean; effective_from: string | null; effective_to: string | null; is_biweekly: boolean | null; nth_weeks: number[] | null };
 type Holiday = { holiday_date: string; holiday_name: string };
 type Shift = { shift_id: number; kaipoke_cs_id: string | null; shift_start_date: string | null; shift_start_time: string | null; shift_end_time: string | null; service_code: string | null; required_staff_count: number };
 
 const hm = (v: string | null | undefined) => (v ?? "").slice(0, 5);
 const dateJst = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
 const addDays = (ymd: string, days: number) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10); };
-const weekday = (ymd: string) => new Date(`${ymd}T00:00:00Z`).getUTCDay();
 const severity = (days: number) => days <= 2 ? 5 : days <= 6 ? 4 : days <= 13 ? 3 : days <= 29 ? 2 : 1;
 
 export async function scanHolidayShifts() {
@@ -27,11 +27,25 @@ export async function scanHolidayShifts() {
   const ts = (templates ?? []) as Template[];
   let withShift = 0, alerts = 0, skipped = 0, errors = 0;
   for (const holiday of hs) {
-    const occurrence = Math.floor((Number(holiday.holiday_date.slice(-2)) - 1) / 7) + 1;
-    const targetTemplates = ts.filter(t => t.weekday === weekday(holiday.holiday_date)
-      && (!t.effective_from || t.effective_from <= holiday.holiday_date)
-      && (!t.effective_to || t.effective_to >= holiday.holiday_date)
-      && (!t.nth_weeks?.length || t.nth_weeks.includes(occurrence)));
+    const targetTemplates = [] as Template[];
+    for (const template of ts) {
+      if (template.weekday !== weekdayOf(holiday.holiday_date)) continue;
+      let previousServiceDate: string | null = null;
+      if (template.is_biweekly && !(template.nth_weeks?.length)) {
+        const { data: previous } = await supabaseAdmin.from("shift")
+          .select("shift_start_date")
+          .eq("kaipoke_cs_id", template.kaipoke_cs_id)
+          .lt("shift_start_date", holiday.holiday_date)
+          .eq("shift_start_time", template.start_time)
+          .eq("shift_end_time", template.end_time)
+          .eq("service_code", template.service_code)
+          .eq("required_staff_count", template.required_staff_count)
+          .order("shift_start_date", { ascending: false })
+          .limit(1);
+        previousServiceDate = previous?.[0]?.shift_start_date ?? null;
+      }
+      if (shouldDeployTemplateOnDate(template, holiday.holiday_date, previousServiceDate).include) targetTemplates.push(template);
+    }
     for (const template of targetTemplates) {
       try {
         const { data: shifts, error: shiftError } = await supabaseAdmin.from("shift")
