@@ -156,7 +156,13 @@ export default function ManagerDistanceIndexPage() {
         method: "POST",
         headers: session?.access_token ? { "x-supabase-access-token": session.access_token } : {},
       });
-      const body = await response.json();
+      const responseText = await response.text();
+      let body: { error?: string } = {};
+      try {
+        body = JSON.parse(responseText) as { error?: string };
+      } catch {
+        body = { error: responseText || `HTTP ${response.status}` };
+      }
       if (!response.ok) throw new Error(body.error ?? "距離データの更新に失敗しました");
       await loadData();
     } catch (error) {
