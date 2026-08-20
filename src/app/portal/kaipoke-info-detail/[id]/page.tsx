@@ -924,6 +924,12 @@ export default function KaipokeInfoDetailPage() {
                 <h1 className="text-xl font-bold">CS詳細</h1>
                 <div className="flex items-center gap-2">
                     <Link
+                        className="border rounded px-3 py-1 bg-emerald-600 text-white"
+                        href={`/portal/kaipoke-info-detail/${encodeURIComponent(row.id)}/monitoring`}
+                    >
+                        モニタリング
+                    </Link>
+                    <Link
                         className="border rounded px-3 py-1 bg-blue-600 text-white"
                         href={`/portal/assessment?client_id=${encodeURIComponent(row.kaipoke_cs_id)}&service_kind=${encodeURIComponent(
                             normalizeSvc(row.service_kind)

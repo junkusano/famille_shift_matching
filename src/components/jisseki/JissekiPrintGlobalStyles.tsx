@@ -12,7 +12,7 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
       /* =========================
          共通（印刷設定・罫線・文字詰め）
          ========================= */
-      @page { size: A4; margin: 0mm; }
+      @page { size: A4 portrait; margin: 0mm; }
 
       html, body{
         margin: 0 !important;
@@ -80,8 +80,39 @@ ${mode === "bulk" ? `
       .title { font-size: 14px; font-weight: 700; text-align: center; }
 
       @media print{
+        :root{ --row-2line: 8mm; }
+
         .title{ font-size: 12px !important; }
-        .grid th, .grid td{ padding: 1px 2px !important; }
+        .print-only .formBox{ padding: 1mm !important; }
+        .print-only .mt-2{ margin-top: 2px !important; }
+        .print-only .digits10{ height: 10px !important; }
+
+        .print-only .grid th{
+          padding: 1px !important;
+          font-size: 9px !important;
+          line-height: 1.05 !important;
+          white-space: nowrap;
+          word-break: keep-all;
+          overflow-wrap: normal;
+        }
+
+        .print-only .grid td{
+          padding: 1px 2px !important;
+          font-size: 10px !important;
+          line-height: 1 !important;
+        }
+
+        .print-only .detail-row > td{
+          height: var(--row-2line);
+          padding: 0 1px !important;
+          font-size: 10px !important;
+          line-height: 1 !important;
+        }
+
+        .print-only .biko-box{
+          padding: 0 1px;
+          justify-content: center;
+        }
       }
 
       /* 10桁：外枠なし、区切り線のみ */
@@ -178,7 +209,51 @@ ${mode === "bulk" ? `
 
       /* ----- single: /portal/jisseki/print ----- */
       ${mode === "single" ? `
-     @media print { /* 印刷時は帳票だけ可視化（白紙化の原因になりやすいので必ず print 内に） */ body * { visibility: hidden !important; } .print-only, .print-only * { visibility: visible !important; } /* 左右対称の余白＋中央寄せ */ .print-only{ position: relative; margin: 0 auto; width: 210mm; padding: 0mm 3mm 1mm 3mm; box-sizing: border-box; /* ★IDOU（移動支援）だけ、右下のページ数と表が重ならないように下余白を確保 */ .idou-sheet{ padding-bottom: 12mm !important; /* ページ数ブロック分の逃げ */ } /* ★IDOUの上余白を詰めて全体を上に寄せる（1枚維持のため） */ .idou-sheet .mt-2{ margin-top: 2px !important; /* mt-2(約8px) → 2px */ } } /* ★同行援護（様式19）だけ、用紙幅 204mm で必ず中央寄せ */ .doko-sheet{ width: 204mm !important; margin-left: auto !important; margin-right: auto !important; box-sizing: border-box !important; } /* ★同行援護の表も念のため中央寄せ */ .doko-sheet table{ margin-left: auto !important; margin-right: auto !important; } .print-only .p-6, .print-only .page-break { width: 100% !important; box-sizing: border-box !important; } /* ★追加：実績記録票ごとに必ず改ページさせる */ .print-only .page-break{ page-break-before: always !important; /* 旧仕様（Chrome安定） */ break-before: page !important; /* 新仕様 */ } /* ★追加：print-page を常にページ幅いっぱいにし、帳票を中央へ */ .print-only .print-page{ width: 100% !important; box-sizing: border-box !important; display: flex; justify-content: center; } /* ★修正：帳票本体は“印刷可能幅(mm)”で固定し、左右autoで中央寄せ */ .print-only .print-page > .formBox{ width: 204mm !important; /* 210mm - 左右3mmパディング×2 = 204mm */ margin-left: auto !important; margin-right: auto !important; box-sizing: border-box !important; }
+     @media print {
+       body *{ visibility: hidden !important; }
+       .print-only, .print-only *{ visibility: visible !important; }
+
+       .print-only{
+         position: static !important;
+         width: 210mm !important;
+         margin: 0 auto !important;
+         padding: 0 3mm 1mm !important;
+         box-sizing: border-box !important;
+       }
+
+       .print-only .print-page{
+         display: block;
+         width: 100% !important;
+         box-sizing: border-box !important;
+         page-break-inside: avoid;
+         break-inside: avoid-page;
+         page-break-after: auto !important;
+         break-after: auto !important;
+       }
+
+       .print-only .print-page + .print-page,
+       .print-only .page-break{
+         page-break-before: always !important;
+         break-before: page !important;
+       }
+
+       .print-only > :last-child{
+         page-break-after: auto !important;
+         break-after: auto !important;
+       }
+
+       .print-only .print-page > .formBox{
+         width: 204mm !important;
+         margin: 0 auto !important;
+         box-sizing: border-box !important;
+       }
+
+       .print-only .doko-sheet,
+       .print-only .doko-sheet table{
+         margin-left: auto !important;
+         margin-right: auto !important;
+       }
+     }
 
 /* =========================
    iOS Safari 印刷：サイズ調整85%をCSSで再現

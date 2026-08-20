@@ -328,32 +328,23 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                 <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
                     {/* ★列数を固定（ズレの原因を排除） */}
                     <colgroup>
-                        {/* 日付・曜日 */}
-                        <col style={{ width: "3%" }} />
-                        <col style={{ width: "3%" }} />
-
-                        {/* サービス内容 */}
-                        <col style={{ width: "12%" }} />
-
-                        {/* 居宅介護計画（2列） */}
-                        <col style={{ width: "7%" }} />
-                        <col style={{ width: "7%" }} />
-
-                        {/* サービス提供時間（2列） */}
-                        <col style={{ width: "7%" }} />
-                        <col style={{ width: "7%" }} />
-
-                        {/* 算定時間数（2列：時間／乗降） */}
-                        <col style={{ width: "5%" }} />
-                        <col style={{ width: "5%" }} />
-
-                        {/* 右側 */}
-                        <col style={{ width: "4%" }} />  {/* 派遣人数 */}
-                        <col style={{ width: "4%" }} />  {/* 初回加算 */}
-                        <col style={{ width: "5%" }} />  {/* 緊急時対応加算 */}
-                        <col style={{ width: "5%" }} />  {/* 福祉専門職員等連携加算 */}
-                        <col style={{ width: "7%" }} />  {/* 利用者確認欄 */}
-                        <col style={{ width: "19%" }} /> {/* 備考（必要ならここをさらに増やす） */}
+                        <col style={{ width: "2.8%" }} />  {/* 日付 */}
+                        <col style={{ width: "2.8%" }} />  {/* 曜日 */}
+                        <col style={{ width: "10%" }} />   {/* サービス内容 */}
+                        <col style={{ width: "5%" }} />    {/* 計画 開始 */}
+                        <col style={{ width: "5%" }} />    {/* 計画 終了 */}
+                        <col style={{ width: "4%" }} />    {/* 計画 時間 */}
+                        <col style={{ width: "4%" }} />    {/* 計画 乗降 */}
+                        <col style={{ width: "5%" }} />    {/* 提供 開始 */}
+                        <col style={{ width: "5%" }} />    {/* 提供 終了 */}
+                        <col style={{ width: "4%" }} />    {/* 算定 時間 */}
+                        <col style={{ width: "4%" }} />    {/* 算定 乗降 */}
+                        <col style={{ width: "3.5%" }} />  {/* 派遣人数 */}
+                        <col style={{ width: "3.5%" }} />  {/* 初回加算 */}
+                        <col style={{ width: "5.5%" }} />  {/* 緊急時対応加算 */}
+                        <col style={{ width: "6.5%" }} />  {/* 福祉専門職員等連携加算 */}
+                        <col style={{ width: "6%" }} />    {/* 利用者確認欄 */}
+                        <col style={{ width: "23.4%" }} /> {/* 備考・サービス提供者名 */}
                     </colgroup>
 
                     <tbody>
@@ -894,25 +885,20 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                 <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
                     {/* 明細14列で固定（PDFの縦罫に合わせる） */}
                     <colgroup>
-                        <col style={{ width: "5%" }} />  {/* 日付 */}
-                        <col style={{ width: "5%" }} />  {/* 曜日 */}
-
-                        <col style={{ width: "8%" }} />  {/* 計画開始 */}
-                        <col style={{ width: "8%" }} />  {/* 計画終了 */}
-                        <col style={{ width: "7%" }} />  {/* 計画時間数 */}
-
-                        <col style={{ width: "8%" }} />  {/* 提供開始 */}
-                        <col style={{ width: "8%" }} />  {/* 提供終了 */}
-
-                        <col style={{ width: "7%" }} />  {/* 算定時間 */}
-                        <col style={{ width: "6%" }} />  {/* 派遣人数 */}
-
-                        <col style={{ width: "6%" }} />  {/* 初回加算 */}
+                        <col style={{ width: "4%" }} />  {/* 日付 */}
+                        <col style={{ width: "4%" }} />  {/* 曜日 */}
+                        <col style={{ width: "7%" }} />  {/* 計画開始 */}
+                        <col style={{ width: "7%" }} />  {/* 計画終了 */}
+                        <col style={{ width: "6%" }} />  {/* 計画時間数 */}
+                        <col style={{ width: "7%" }} />  {/* 提供開始 */}
+                        <col style={{ width: "7%" }} />  {/* 提供終了 */}
+                        <col style={{ width: "6%" }} />  {/* 算定時間 */}
+                        <col style={{ width: "5%" }} />  {/* 派遣人数 */}
+                        <col style={{ width: "5%" }} />  {/* 初回加算 */}
                         <col style={{ width: "7%" }} />  {/* 緊急時対応加算 */}
-                        <col style={{ width: "9%" }} />  {/* 行動障害支援指導連携加算 */}
-
-                        <col style={{ width: "9%" }} />  {/* 利用者確認欄 */}
-                        <col style={{ width: "15%" }} /> {/* 備考 */}
+                        <col style={{ width: "8%" }} />  {/* 行動障害支援指導連携加算 */}
+                        <col style={{ width: "8%" }} />  {/* 利用者確認欄 */}
+                        <col style={{ width: "19%" }} /> {/* 備考 */}
                     </colgroup>
 
                     <tbody>
@@ -1192,30 +1178,20 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                     {/* 同行援護：14列で固定（列数不一致による「はみ出し」を防止） */}
                     <colgroup>
                         {/* 日付・曜日 */}
-                        <col style={{ width: "4%" }} />
-                        <col style={{ width: "4%" }} />
-
-                        {/* サービス内容 */}
-                        <col style={{ width: "14%" }} />
-
-                        {/* 同行援護計画（開始/終了/時間）= 3列 */}
-                        <col style={{ width: "8%" }} />
-                        <col style={{ width: "8%" }} />
-                        <col style={{ width: "6%" }} />
-
-                        {/* サービス提供時間（開始/終了）= 2列 */}
-                        <col style={{ width: "8%" }} />
-                        <col style={{ width: "8%" }} />
-
-                        {/* 算定時間（時間）= 1列 */}
-                        <col style={{ width: "6%" }} />
-
-                        {/* 派遣人数・初回・緊急・利用者確認・備考 */}
-                        <col style={{ width: "6%" }} />   {/* 派遣人数 */}
-                        <col style={{ width: "6%" }} />   {/* 初回加算 */}
-                        <col style={{ width: "6%" }} />   {/* 緊急時対応加算 */}
-                        <col style={{ width: "8%" }} />   {/* 利用者確認欄 */}
-                        <col style={{ width: "8%" }} />  {/* 備考（担当者名を入れる） */}
+                        <col style={{ width: "3%" }} />  {/* 日付 */}
+                        <col style={{ width: "3%" }} />  {/* 曜日 */}
+                        <col style={{ width: "12%" }} /> {/* サービス内容 */}
+                        <col style={{ width: "7%" }} />  {/* 計画 開始 */}
+                        <col style={{ width: "7%" }} />  {/* 計画 終了 */}
+                        <col style={{ width: "5%" }} />  {/* 計画 時間 */}
+                        <col style={{ width: "7%" }} />  {/* 提供 開始 */}
+                        <col style={{ width: "7%" }} />  {/* 提供 終了 */}
+                        <col style={{ width: "5%" }} />  {/* 算定時間 */}
+                        <col style={{ width: "4%" }} />  {/* 派遣人数 */}
+                        <col style={{ width: "4%" }} />  {/* 初回加算 */}
+                        <col style={{ width: "6%" }} />  {/* 緊急時対応加算 */}
+                        <col style={{ width: "7%" }} />  {/* 利用者確認欄 */}
+                        <col style={{ width: "23%" }} /> {/* 備考（担当者名を入れる） */}
                     </colgroup>
 
                     <tbody>
@@ -1584,31 +1560,25 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                 <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
                     {/* ★列数を固定（ここがズレ対策の本体） */}
                     <colgroup>
-                        <col style={{ width: "5%" }} />  {/* 日付 */}
-                        <col style={{ width: "5%" }} />  {/* 曜日 */}
-                        <col style={{ width: "8%" }} /> {/* サービス提供の状況 */}
-
-                        <col style={{ width: "6%" }} />  {/* 計画 開始 */}
-                        <col style={{ width: "6%" }} />  {/* 計画 終了 */}
-                        <col style={{ width: "5%" }} />  {/* 計画 時間 */}
-                        <col style={{ width: "5%" }} />  {/* 計画 移動 */}
-
-                        <col style={{ width: "6%" }} />  {/* 提供 開始 */}
-                        <col style={{ width: "6%" }} />  {/* 提供 終了 */}
-
-                        <col style={{ width: "5%" }} />  {/* 算定 時間 */}
-                        <col style={{ width: "5%" }} />  {/* 算定 移動 */}
-
-                        <col style={{ width: "5%" }} />  {/* 派遣人数 */}
-
-                        <col style={{ width: "5%" }} />  {/* 同行支援 */}
-                        <col style={{ width: "5%" }} />  {/* 初回加算 */}
-                        <col style={{ width: "6%" }} />  {/* 緊急時対応加算 */}
-                        <col style={{ width: "6%" }} />  {/* 行動障害支援連携加算 */}
-                        <col style={{ width: "6%" }} />  {/* 移動介護緊急時支援加算 */}
-
-                        <col style={{ width: "9%" }} />  {/* 利用者確認欄 */}
-                        <col style={{ width: "18%" }} /> {/* 備考 */}
+                        <col style={{ width: "2.5%" }} />  {/* 日付 */}
+                        <col style={{ width: "2.5%" }} />  {/* 曜日 */}
+                        <col style={{ width: "7%" }} />    {/* サービス提供の状況 */}
+                        <col style={{ width: "5%" }} />    {/* 計画 開始 */}
+                        <col style={{ width: "5%" }} />    {/* 計画 終了 */}
+                        <col style={{ width: "3.5%" }} />  {/* 計画 時間 */}
+                        <col style={{ width: "3.5%" }} />  {/* 計画 移動 */}
+                        <col style={{ width: "5%" }} />    {/* 提供 開始 */}
+                        <col style={{ width: "5%" }} />    {/* 提供 終了 */}
+                        <col style={{ width: "3.5%" }} />  {/* 算定 時間 */}
+                        <col style={{ width: "3.5%" }} />  {/* 算定 移動 */}
+                        <col style={{ width: "3.5%" }} />  {/* 派遣人数 */}
+                        <col style={{ width: "3.5%" }} />  {/* 同行支援 */}
+                        <col style={{ width: "3.5%" }} />  {/* 初回加算 */}
+                        <col style={{ width: "5%" }} />    {/* 緊急時対応加算 */}
+                        <col style={{ width: "5.5%" }} />  {/* 行動障害支援連携加算 */}
+                        <col style={{ width: "5.5%" }} />  {/* 移動介護緊急時支援加算 */}
+                        <col style={{ width: "6%" }} />    {/* 利用者確認欄 */}
+                        <col style={{ width: "21.5%" }} /> {/* 備考 */}
                     </colgroup>
 
                     <tbody>
@@ -2034,7 +2004,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     }, 0);
 
     return (
-        <div className="formBox p-2" style={{ position: "relative" }}>
+        <div className="formBox p-2 idou-sheet" style={{ position: "relative" }}>
             <div style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
@@ -2052,32 +2022,27 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
             {/* ★統合：ヘッダ＋明細を “1つの table” にする（横幅ズレ防止） */}
             <div className="mt-2">
                 <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
-                    {/* 明細と同じ 18列 colgroup を 1回だけ定義（合計100%） */}
+                    {/* 明細と同じ19列を定義し、合計100%に固定 */}
                     <colgroup>
-                        <col style={{ width: "5%" }} />  {/* 日付 */}
-                        <col style={{ width: "5%" }} />  {/* 曜日 */}
-
-                        <col style={{ width: "6%" }} />  {/* 計画 サービス提供 開始 */}
-                        <col style={{ width: "6%" }} />  {/* 計画 サービス提供 終了 */}
-                        <col style={{ width: "4%" }} />  {/* 計画 サービス提供 分 */}
-
-                        <col style={{ width: "6%" }} />  {/* 計画 控除 開始 */}
-                        <col style={{ width: "6%" }} />  {/* 計画 控除 終了 */}
-                        <col style={{ width: "4%" }} />  {/* 計画 控除 分 */}
-
-                        <col style={{ width: "5%" }} />  {/* 計画時間(分) */}
-                        <col style={{ width: "5%" }} />  {/* 内訳 不可欠 */}
-                        <col style={{ width: "5%" }} />  {/* 内訳 その他 */}
-
-                        <col style={{ width: "6%" }} />  {/* 算定時間(時間) */}
-                        <col style={{ width: "4%" }} />  {/* 利用形態 ★追加 */}
-                        <col style={{ width: "4%" }} />  {/* 片道支援加算 */}
-                        <col style={{ width: "6%" }} />  {/* 利用者負担額 */}
-
-                        <col style={{ width: "6%" }} />  {/* サービス提供時間 開始 */}
-                        <col style={{ width: "6%" }} />  {/* サービス提供時間 終了 */}
-                        <col style={{ width: "11%" }} />  {/* サービス提供者名 */}
-                        <col style={{ width: "7%" }} />  {/* 利用者確認欄 */}
+                        <col style={{ width: "3%" }} />    {/* 日付 */}
+                        <col style={{ width: "3%" }} />    {/* 曜日 */}
+                        <col style={{ width: "5.5%" }} />  {/* 計画 サービス提供 開始 */}
+                        <col style={{ width: "5.5%" }} />  {/* 計画 サービス提供 終了 */}
+                        <col style={{ width: "3.5%" }} />  {/* 計画 サービス提供 分 */}
+                        <col style={{ width: "5%" }} />    {/* 計画 控除 開始 */}
+                        <col style={{ width: "5%" }} />    {/* 計画 控除 終了 */}
+                        <col style={{ width: "3.5%" }} />  {/* 計画 控除 分 */}
+                        <col style={{ width: "4.5%" }} />  {/* 計画時間(分) */}
+                        <col style={{ width: "4.5%" }} />  {/* 内訳 不可欠 */}
+                        <col style={{ width: "4.5%" }} />  {/* 内訳 その他 */}
+                        <col style={{ width: "5.5%" }} />  {/* 算定時間(時間) */}
+                        <col style={{ width: "3.5%" }} />  {/* 利用形態 */}
+                        <col style={{ width: "4.5%" }} />  {/* 片道支援加算 */}
+                        <col style={{ width: "5.5%" }} />  {/* 利用者負担額 */}
+                        <col style={{ width: "5.5%" }} />  {/* サービス提供時間 開始 */}
+                        <col style={{ width: "5.5%" }} />  {/* サービス提供時間 終了 */}
+                        <col style={{ width: "17%" }} />   {/* サービス提供者名 */}
+                        <col style={{ width: "5.5%" }} />  {/* 利用者確認欄 */}
                     </colgroup>
 
                     <tbody>
@@ -2215,19 +2180,19 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             <th className="center" rowSpan={3}>日付</th>
                             <th className="center" rowSpan={3}>曜日</th>
                             <th className="center" colSpan={9}>移動支援計画</th>
-                            <th className="center" rowSpan={3}>算定時間(時間)</th>
+                            <th className="center" rowSpan={3}>算定時間<br />(時間)</th>
                             <th className="center vtext" rowSpan={3}>利用形態</th>
                             <th className="center vtext" rowSpan={3}>片道支援加算</th>
-                            <th className="center" rowSpan={3}>利用者負担額</th>
+                            <th className="center" rowSpan={3}>利用者<br />負担額</th>
                             <th className="center" colSpan={2}>サービス提供時間</th>
                             <th className="center" rowSpan={3}>サービス提供者名</th>
-                            <th className="center" rowSpan={3}>利用者確認欄</th>
+                            <th className="center" rowSpan={3}>利用者<br />確認欄</th>
                         </tr>
 
                         <tr>
                             <th className="center" colSpan={3}>サービス提供</th>
                             <th className="center" colSpan={3}>控除</th>
-                            <th className="center" rowSpan={2}>計画時間(分)</th>
+                            <th className="center" rowSpan={2}>計画時間<br />(分)</th>
                             <th className="center" colSpan={2}>内訳(分)</th>
                             <th className="center" colSpan={2}>サービス提供</th>
                         </tr>
@@ -2392,4 +2357,3 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
         </div>
     );
 }
-

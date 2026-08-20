@@ -65,6 +65,17 @@ export const CM_OP_LOG_FAX_DOCUMENTS = "fax.documents";
 export const CM_OP_LOG_FAX_DOCUMENT_PAGES = "fax.document-pages";
 export const CM_OP_LOG_FAX_ASSIGN_OFFICE = "fax.assign-office";
 
+// --- 利用者モニタリング ---
+export const CM_OP_LOG_MONITORING_CREATE = "monitoring.create";
+export const CM_OP_LOG_MONITORING_AI_GENERATE = "monitoring.ai-generate";
+export const CM_OP_LOG_MONITORING_AI_REGENERATE = "monitoring.ai-regenerate";
+export const CM_OP_LOG_MONITORING_EDIT = "monitoring.edit";
+export const CM_OP_LOG_MONITORING_CONFIRM = "monitoring.confirm";
+export const CM_OP_LOG_MONITORING_PDF_CREATE = "monitoring.pdf-create";
+export const CM_OP_LOG_MONITORING_FAX_SEND = "monitoring.fax-send";
+export const CM_OP_LOG_MONITORING_FAX_RESEND = "monitoring.fax-resend";
+export const CM_OP_LOG_MONITORING_DELETE = "monitoring.delete";
+
 // -------------------------------------------------------------
 // ユーティリティ: アクション名からカテゴリを自動抽出
 // "client.update" → "client", "rpa-api.client-info" → "rpa-api"

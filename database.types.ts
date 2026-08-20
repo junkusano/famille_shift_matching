@@ -540,6 +540,266 @@ export type Database = {
         }
         Relationships: []
       }
+      client_monitoring_events: {
+        Row: {
+          action: string
+          actor_name: string | null
+          actor_user_id: string
+          created_at: string
+          id: string
+          metadata: Json
+          monitoring_id: string
+        }
+        Insert: {
+          action: string
+          actor_name?: string | null
+          actor_user_id: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          monitoring_id: string
+        }
+        Update: {
+          action?: string
+          actor_name?: string | null
+          actor_user_id?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          monitoring_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_monitoring_events_monitoring_id_fkey"
+            columns: ["monitoring_id"]
+            isOneToOne: false
+            referencedRelation: "client_monitorings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_monitoring_goals: {
+        Row: {
+          achievement_status: string
+          ai_evidence_json: Json
+          created_at: string
+          evaluation_end: string | null
+          evaluation_start: string | null
+          evaluation_text: string
+          generated_by_ai: boolean
+          goal_text: string
+          goal_type: string
+          id: string
+          monitoring_id: string
+          parent_plan_goal_id: string | null
+          plan_goal_id: string | null
+          review_content: string
+          review_required: boolean
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          achievement_status?: string
+          ai_evidence_json?: Json
+          created_at?: string
+          evaluation_end?: string | null
+          evaluation_start?: string | null
+          evaluation_text?: string
+          generated_by_ai?: boolean
+          goal_text: string
+          goal_type: string
+          id?: string
+          monitoring_id: string
+          parent_plan_goal_id?: string | null
+          plan_goal_id?: string | null
+          review_content?: string
+          review_required?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          achievement_status?: string
+          ai_evidence_json?: Json
+          created_at?: string
+          evaluation_end?: string | null
+          evaluation_start?: string | null
+          evaluation_text?: string
+          generated_by_ai?: boolean
+          goal_text?: string
+          goal_type?: string
+          id?: string
+          monitoring_id?: string
+          parent_plan_goal_id?: string | null
+          plan_goal_id?: string | null
+          review_content?: string
+          review_required?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_monitoring_goals_monitoring_id_fkey"
+            columns: ["monitoring_id"]
+            isOneToOne: false
+            referencedRelation: "client_monitorings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_monitoring_pdf_snapshots: {
+        Row: {
+          content_hash: string
+          content_snapshot: Json
+          created_at: string
+          created_by: string
+          created_by_name: string | null
+          filename: string
+          id: string
+          monitoring_id: string
+          storage_bucket: string
+          storage_path: string
+          version_no: number
+        }
+        Insert: {
+          content_hash: string
+          content_snapshot: Json
+          created_at?: string
+          created_by: string
+          created_by_name?: string | null
+          filename: string
+          id?: string
+          monitoring_id: string
+          storage_bucket?: string
+          storage_path: string
+          version_no: number
+        }
+        Update: {
+          content_hash?: string
+          content_snapshot?: Json
+          created_at?: string
+          created_by?: string
+          created_by_name?: string | null
+          filename?: string
+          id?: string
+          monitoring_id?: string
+          storage_bucket?: string
+          storage_path?: string
+          version_no?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_monitoring_pdf_snapshots_monitoring_id_fkey"
+            columns: ["monitoring_id"]
+            isOneToOne: false
+            referencedRelation: "client_monitorings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_monitorings: {
+        Row: {
+          ai_generated_at: string | null
+          ai_model: string | null
+          assessment_id: string | null
+          client_info_id: string
+          client_request: string
+          confirmed_at: string | null
+          confirmed_by: string | null
+          confirmed_by_name: string | null
+          created_at: string
+          created_by: string
+          created_by_name: string | null
+          current_pdf_snapshot_id: string | null
+          evaluation_date: string
+          family_request: string
+          generated_by_ai: boolean
+          id: string
+          is_deleted: boolean
+          issues: string
+          kaipoke_cs_id: string
+          monitoring_json: Json
+          notable_observations: Json
+          office_notice: string
+          period_end: string
+          period_start: string
+          plan_id: string | null
+          service_type: string
+          status: string
+          summary: string
+          updated_at: string
+        }
+        Insert: {
+          ai_generated_at?: string | null
+          ai_model?: string | null
+          assessment_id?: string | null
+          client_info_id: string
+          client_request?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          confirmed_by_name?: string | null
+          created_at?: string
+          created_by: string
+          created_by_name?: string | null
+          current_pdf_snapshot_id?: string | null
+          evaluation_date: string
+          family_request?: string
+          generated_by_ai?: boolean
+          id?: string
+          is_deleted?: boolean
+          issues?: string
+          kaipoke_cs_id: string
+          monitoring_json?: Json
+          notable_observations?: Json
+          office_notice?: string
+          period_end: string
+          period_start: string
+          plan_id?: string | null
+          service_type: string
+          status?: string
+          summary?: string
+          updated_at?: string
+        }
+        Update: {
+          ai_generated_at?: string | null
+          ai_model?: string | null
+          assessment_id?: string | null
+          client_info_id?: string
+          client_request?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          confirmed_by_name?: string | null
+          created_at?: string
+          created_by?: string
+          created_by_name?: string | null
+          current_pdf_snapshot_id?: string | null
+          evaluation_date?: string
+          family_request?: string
+          generated_by_ai?: boolean
+          id?: string
+          is_deleted?: boolean
+          issues?: string
+          kaipoke_cs_id?: string
+          monitoring_json?: Json
+          notable_observations?: Json
+          office_notice?: string
+          period_end?: string
+          period_start?: string
+          plan_id?: string | null
+          service_type?: string
+          status?: string
+          summary?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_monitorings_current_pdf_snapshot_id_fkey"
+            columns: ["current_pdf_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "client_monitoring_pdf_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cm_alert_batch_runs: {
         Row: {
           completed_at: string | null
@@ -5004,6 +5264,111 @@ export type Database = {
         }
         Relationships: []
       }
+      google_maps_distance_cache: {
+        Row: {
+          calculated_at: string | null
+          created_at: string
+          destination_address: string
+          destination_address_hash: string
+          distance_meters: number | null
+          duration_seconds: number | null
+          id: string
+          last_error: string | null
+          origin_address: string
+          origin_address_hash: string
+          retry_after: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          calculated_at?: string | null
+          created_at?: string
+          destination_address: string
+          destination_address_hash: string
+          distance_meters?: number | null
+          duration_seconds?: number | null
+          id?: string
+          last_error?: string | null
+          origin_address: string
+          origin_address_hash: string
+          retry_after?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          calculated_at?: string | null
+          created_at?: string
+          destination_address?: string
+          destination_address_hash?: string
+          distance_meters?: number | null
+          duration_seconds?: number | null
+          id?: string
+          last_error?: string | null
+          origin_address?: string
+          origin_address_hash?: string
+          retry_after?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      google_maps_distance_cron_runs: {
+        Row: {
+          cache_hit_count: number
+          created_by: string | null
+          error_message: string | null
+          failure_count: number
+          finished_at: string | null
+          google_maps_request_count: number
+          id: string
+          processing_time_ms: number | null
+          recalculated_staff_count: number
+          skipped_by_limit_count: number
+          started_at: string
+          status: string
+          success_count: number
+          target_segment_count: number
+          target_shift_count: number
+          trigger_type: string
+        }
+        Insert: {
+          cache_hit_count?: number
+          created_by?: string | null
+          error_message?: string | null
+          failure_count?: number
+          finished_at?: string | null
+          google_maps_request_count?: number
+          id?: string
+          processing_time_ms?: number | null
+          recalculated_staff_count?: number
+          skipped_by_limit_count?: number
+          started_at?: string
+          status?: string
+          success_count?: number
+          target_segment_count?: number
+          target_shift_count?: number
+          trigger_type: string
+        }
+        Update: {
+          cache_hit_count?: number
+          created_by?: string | null
+          error_message?: string | null
+          failure_count?: number
+          finished_at?: string | null
+          google_maps_request_count?: number
+          id?: string
+          processing_time_ms?: number | null
+          recalculated_staff_count?: number
+          skipped_by_limit_count?: number
+          started_at?: string
+          status?: string
+          success_count?: number
+          target_segment_count?: number
+          target_shift_count?: number
+          trigger_type?: string
+        }
+        Relationships: []
+      }
       group_lw_channel_info: {
         Row: {
           channel_id: string
@@ -5091,6 +5456,223 @@ export type Database = {
         }
         Relationships: []
       }
+      holiday_master: {
+        Row: {
+          created_at: string
+          holiday_date: string
+          holiday_name: string
+          id: number
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          holiday_date: string
+          holiday_name: string
+          id?: number
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          holiday_date?: string
+          holiday_name?: string
+          id?: number
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      holiday_shift_action: {
+        Row: {
+          action_note: string | null
+          client_id: string
+          created_at: string
+          holiday_date: string
+          id: number
+          processed_at: string | null
+          processed_by: string | null
+          shift_id: number | null
+          status: string
+          updated_at: string
+          weekly_shift_id: number
+        }
+        Insert: {
+          action_note?: string | null
+          client_id: string
+          created_at?: string
+          holiday_date: string
+          id?: number
+          processed_at?: string | null
+          processed_by?: string | null
+          shift_id?: number | null
+          status?: string
+          updated_at?: string
+          weekly_shift_id: number
+        }
+        Update: {
+          action_note?: string | null
+          client_id?: string
+          created_at?: string
+          holiday_date?: string
+          id?: number
+          processed_at?: string | null
+          processed_by?: string | null
+          shift_id?: number | null
+          status?: string
+          updated_at?: string
+          weekly_shift_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "audit_log_display_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_add_status_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_csinfo_postalname_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_csinfo_postalname_view2"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_csinfo_roster_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_daily_dialog_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_daily_dialog_view2"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_daily_dialog_view3"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_rpa_status_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_self_coordinate_card_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_self_coordinate_card_view2"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_shift_record_view"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_shift_record_view2"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "tokutei_clone_targets_view"
+            referencedColumns: ["prev_shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "tokutei_clone_targets_view"
+            referencedColumns: ["target_shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "v_shift_detail"
+            referencedColumns: ["shift_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "plan_generation_source_view"
+            referencedColumns: ["template_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_weekly_template"
+            referencedColumns: ["template_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shift_weekly_template_view"
+            referencedColumns: ["template_id"]
+          },
+          {
+            foreignKeyName: "holiday_shift_action_weekly_shift_id_fkey"
+            columns: ["weekly_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shit_weekly_template_view"
+            referencedColumns: ["template_id"]
+          },
+        ]
+      }
       insurance_unit_amount: {
         Row: {
           cal_hour: number | null
@@ -5142,6 +5724,36 @@ export type Database = {
           form_name?: string
           id?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      jisseki_record_sort_municipalities: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          municipality: string
+          municipality_display_name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          municipality: string
+          municipality_display_name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          municipality?: string
+          municipality_display_name?: string
+          sort_order?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -5298,6 +5910,185 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      manager_distance_segments: {
+        Row: {
+          calculated_at: string | null
+          destination_address: string
+          destination_address_hash: string
+          distance_cache_id: string | null
+          distance_meters: number | null
+          duration_seconds: number | null
+          id: string
+          last_error: string | null
+          origin_address: string
+          origin_address_hash: string
+          segment_date: string
+          segment_kind: string
+          shift_id: number
+          staff_user_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          calculated_at?: string | null
+          destination_address: string
+          destination_address_hash: string
+          distance_cache_id?: string | null
+          distance_meters?: number | null
+          duration_seconds?: number | null
+          id?: string
+          last_error?: string | null
+          origin_address: string
+          origin_address_hash: string
+          segment_date: string
+          segment_kind?: string
+          shift_id: number
+          staff_user_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          calculated_at?: string | null
+          destination_address?: string
+          destination_address_hash?: string
+          distance_cache_id?: string | null
+          distance_meters?: number | null
+          duration_seconds?: number | null
+          id?: string
+          last_error?: string | null
+          origin_address?: string
+          origin_address_hash?: string
+          segment_date?: string
+          segment_kind?: string
+          shift_id?: number
+          staff_user_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manager_distance_segments_distance_cache_id_fkey"
+            columns: ["distance_cache_id"]
+            isOneToOne: false
+            referencedRelation: "google_maps_distance_cache"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monitoring_fax_history: {
+        Row: {
+          client_info_id: string
+          contact_name: string | null
+          created_at: string
+          destination_name: string
+          error_message: string | null
+          external_fax_id: string | null
+          fax_number: string
+          faximo_result_code: string | null
+          id: string
+          kaipoke_cs_id: string
+          monitoring_id: string
+          pdf_snapshot_id: string
+          process_key: string | null
+          sent_at: string | null
+          sent_by: string
+          sent_by_name: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client_info_id: string
+          contact_name?: string | null
+          created_at?: string
+          destination_name: string
+          error_message?: string | null
+          external_fax_id?: string | null
+          fax_number: string
+          faximo_result_code?: string | null
+          id?: string
+          kaipoke_cs_id: string
+          monitoring_id: string
+          pdf_snapshot_id: string
+          process_key?: string | null
+          sent_at?: string | null
+          sent_by: string
+          sent_by_name?: string | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          client_info_id?: string
+          contact_name?: string | null
+          created_at?: string
+          destination_name?: string
+          error_message?: string | null
+          external_fax_id?: string | null
+          fax_number?: string
+          faximo_result_code?: string | null
+          id?: string
+          kaipoke_cs_id?: string
+          monitoring_id?: string
+          pdf_snapshot_id?: string
+          process_key?: string | null
+          sent_at?: string | null
+          sent_by?: string
+          sent_by_name?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoring_fax_history_monitoring_id_fkey"
+            columns: ["monitoring_id"]
+            isOneToOne: false
+            referencedRelation: "client_monitorings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monitoring_fax_history_pdf_snapshot_id_fkey"
+            columns: ["pdf_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "client_monitoring_pdf_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monitoring_office_notices: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          notice: string
+          period_end: string
+          period_start: string
+          service_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean
+          notice: string
+          period_end: string
+          period_start: string
+          service_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          notice?: string
+          period_end?: string
+          period_start?: string
+          service_type?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -7227,6 +8018,48 @@ export type Database = {
           },
         ]
       }
+      rpa_job_presets: {
+        Row: {
+          created_at: string
+          id: string
+          is_enabled: boolean
+          label: string
+          office_id: string | null
+          office_name: string | null
+          provider: string
+          recruiting_id: string | null
+          template_id: string | null
+          template_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          label: string
+          office_id?: string | null
+          office_name?: string | null
+          provider: string
+          recruiting_id?: string | null
+          template_id?: string | null
+          template_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          label?: string
+          office_id?: string | null
+          office_name?: string | null
+          provider?: string
+          recruiting_id?: string | null
+          template_id?: string | null
+          template_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rpa_page_snapshots: {
         Row: {
           body_html: string | null
@@ -7872,6 +8705,7 @@ export type Database = {
           effective_from: string | null
           effective_to: string | null
           end_time: string
+          holiday_off: boolean
           is_biweekly: boolean | null
           judo_ido: string | null
           kaipoke_cs_id: string
@@ -7896,6 +8730,7 @@ export type Database = {
           effective_from?: string | null
           effective_to?: string | null
           end_time: string
+          holiday_off?: boolean
           is_biweekly?: boolean | null
           judo_ido?: string | null
           kaipoke_cs_id: string
@@ -7920,6 +8755,7 @@ export type Database = {
           effective_from?: string | null
           effective_to?: string | null
           end_time?: string
+          holiday_off?: boolean
           is_biweekly?: boolean | null
           judo_ido?: string | null
           kaipoke_cs_id?: string
@@ -11249,6 +12085,18 @@ export type Database = {
         Relationships: []
       }
       manager_monthly_distance_index_view: {
+        Row: {
+          last_updated_at: string | null
+          monthly_distance_index: number | null
+          movement_segment_count: number | null
+          staff_name: string | null
+          target_month: string | null
+          user_id: string | null
+          work_day_count: number | null
+        }
+        Relationships: []
+      }
+      manager_monthly_google_maps_distance_view: {
         Row: {
           last_updated_at: string | null
           monthly_distance_index: number | null
