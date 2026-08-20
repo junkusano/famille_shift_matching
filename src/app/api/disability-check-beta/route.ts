@@ -1,6 +1,7 @@
 //api/disability-check/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { getKanaParts } from "@/lib/jissekiBetaRecordSort";
 
 type Body = {
   yearMonth: string;
@@ -31,8 +32,22 @@ type ViewRow = {
 
 type CsKaipokeInfoRow = {
   kaipoke_cs_id: string;
+  address: string | null;
   kana: string | null;
   shogai_jukyusha_no: string | null;
+};
+
+type MunicipalitySetting = {
+  municipality: string;
+  municipality_display_name: string;
+  sort_order: number;
+};
+
+const findMunicipalitySetting = (address: string | null | undefined, settings: MunicipalitySetting[]) => {
+  const normalizedAddress = (address ?? "").replace(/[\s　]/g, "");
+  return [...settings]
+    .sort((a, b) => b.municipality.length - a.municipality.length)
+    .find((setting) => normalizedAddress.includes(setting.municipality));
 };
 
 // GET メソッドを追加
@@ -59,7 +74,7 @@ export async function GET(req: NextRequest) {
             <div id="root"></div>
             <script>
               // フロントエンドのJSコード
-              const payload = localStorage.getItem("jisseki_bulk_print");
+              const payload = localStorage.getItem("jisseki_beta_bulk_print");
               if (payload) {
                 const data = JSON.parse(payload);
                 // 必要なデータで一括印刷を処理
@@ -353,14 +368,21 @@ export async function POST(req: NextRequest) {
     // ★重要：targetCsIds も rows 更新後に作り直す（かな取得対象がズレない）
     const targetCsIds = Array.from(new Set(rows.map((r) => r.kaipoke_cs_id))).filter(Boolean);
 
-    // ★追加：かな（よみがな）と shogai_jukyusha_no を cs_kaipoke_info から取得
-    const kanaMap = new Map<string, string | null>();
+    // 住所・正式な苗字/名前読みは利用者マスタから取得する。
+    const clientInfoMap = new Map<string, CsKaipokeInfoRow>();
     const shogaiMap = new Map<string, string | null>();
+
+    const { data: municipalitySettings, error: municipalitySettingsError } = await supabaseAdmin
+      .from("jisseki_record_sort_municipalities")
+      .select("municipality,municipality_display_name,sort_order")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true });
+    if (municipalitySettingsError) throw municipalitySettingsError;
 
     if (targetCsIds.length > 0) {
       const { data: csRows, error: csErr } = await supabaseAdmin
         .from("cs_kaipoke_info")
-        .select("kaipoke_cs_id,kana,shogai_jukyusha_no")
+        .select("kaipoke_cs_id,address,kana,shogai_jukyusha_no")
         .in("kaipoke_cs_id", targetCsIds);
 
       if (csErr) throw csErr;
@@ -369,7 +391,7 @@ export async function POST(req: NextRequest) {
         const row = r as CsKaipokeInfoRow;
         if (!row.kaipoke_cs_id) return;
 
-        kanaMap.set(row.kaipoke_cs_id, row.kana);
+        clientInfoMap.set(row.kaipoke_cs_id, row);
         shogaiMap.set(row.kaipoke_cs_id, row.shogai_jukyusha_no);
       });
     }
@@ -389,16 +411,35 @@ export async function POST(req: NextRequest) {
 
       const shogaiNo = (shogaiMap.get(csId) ?? "").trim();
       const idoNo = (r.ido_jukyusyasho ?? "").trim();
-      const kana = (kanaMap.get(csId) ?? "").trim();
+      const clientInfo = clientInfoMap.get(csId);
+      const municipalitySetting = findMunicipalitySetting(clientInfo?.address, (municipalitySettings ?? []) as MunicipalitySetting[]);
+      const kanaParts = getKanaParts({ kana: clientInfo?.kana ?? null });
 
       return {
         ...r,
-        client_kana: kana || null,
+        client_kana: clientInfo?.kana || null,
+        last_name_kana: kanaParts.lastName || null,
+        first_name_kana: kanaParts.firstName || null,
+        municipality_display_name: municipalitySetting?.municipality_display_name ?? null,
+        municipality_sort_order: municipalitySetting?.sort_order ?? null,
         shogai_jukyusha_no: shogaiNo || null,
         ido_jukyusyasho: idoNo || null,
         is_submitted: isSubmitted,
         application_check: isSubmitted,
       };
+    });
+
+    const kanaCollator = new Intl.Collator("ja", { sensitivity: "base" });
+    merged.sort((a, b) => {
+      const service = (a.kaipoke_servicek === "移動支援" ? 1 : 0) - (b.kaipoke_servicek === "移動支援" ? 1 : 0);
+      if (service !== 0) return service;
+      const municipality = (a.municipality_sort_order ?? Number.MAX_SAFE_INTEGER) - (b.municipality_sort_order ?? Number.MAX_SAFE_INTEGER);
+      if (municipality !== 0) return municipality;
+      const lastName = kanaCollator.compare(a.last_name_kana ?? "", b.last_name_kana ?? "");
+      if (lastName !== 0) return lastName;
+      const firstName = kanaCollator.compare(a.first_name_kana ?? "", b.first_name_kana ?? "");
+      if (firstName !== 0) return firstName;
+      return String(a.kaipoke_cs_id).localeCompare(String(b.kaipoke_cs_id), "ja", { numeric: true });
     });
 
     return NextResponse.json(merged);

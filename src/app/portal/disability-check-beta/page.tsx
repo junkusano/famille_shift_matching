@@ -11,6 +11,10 @@ interface Row {
   kaipoke_cs_id: string;
   client_name: string;
   client_kana: string | null; // ★追加
+  last_name_kana: string | null;
+  first_name_kana: string | null;
+  municipality_display_name: string | null;
+  municipality_sort_order: number | null;
   year_month: string;         // YYYY-MM
   kaipoke_servicek: string;   // "障害" | "移動支援" など
   shogai_jukyusha_no: string | null;
@@ -95,20 +99,8 @@ const DisabilityCheckPage: React.FC = () => {
     []
   );
 
-  // ★地域ランク（表示とSelectを揃える）
-  const areaRank = (d?: string | null) => {
-    const s = norm(d ?? "");
-    if (s.includes("春日井")) return 0;
-    if (s.includes("名古屋")) return 1;
-    return 2;
-  };
-
-  const areaLabel = (d?: string | null) => {
-    const r = areaRank(d);
-    if (r === 0) return "春日井市";
-    if (r === 1) return "名古屋市";
-    return "その他";
-  };
+  const municipalityLabel = (row: Pick<Row, "municipality_display_name">) =>
+    row.municipality_display_name?.trim() || "市町村未設定";
 
   // ① 初期フィルタ：10日までは前月、11日以降は当月
   const [yearMonth, setYearMonth] = useState<string>(getDefaultYearMonth());
@@ -216,7 +208,7 @@ const DisabilityCheckPage: React.FC = () => {
     name: string;
     kana: string;
     district: string | null;
-    group: string; // "春日井市" | "名古屋市" | "その他"
+    group: string;
   };
 
   type ClientGroup = { label: string; options: ClientOption[] };
@@ -241,22 +233,15 @@ const DisabilityCheckPage: React.FC = () => {
         name,
         kana,
         district: r.district ?? null,
-        group: areaLabel(r.district),
+        group: municipalityLabel(r),
       });
     });
 
     const all = Array.from(map.values());
 
     // グループ分け
-    const groups: Record<string, ClientOption[]> = {
-      春日井市: [],
-      名古屋市: [],
-      その他: [],
-    };
-
-    all.forEach((o) => {
-      (groups[o.group] ?? groups["その他"]).push(o);
-    });
+    const groups = new Map<string, ClientOption[]>();
+    all.forEach((o) => groups.set(o.group, [...(groups.get(o.group) ?? []), o]));
 
     // 各グループ内を「かな優先の五十音順」
     const sortByKana = (a: ClientOption, b: ClientOption) => {
@@ -267,11 +252,9 @@ const DisabilityCheckPage: React.FC = () => {
       return jaCollator.compare(norm(a.id), norm(b.id));
     };
 
-    const result: ClientGroup[] = [
-      { label: "春日井市", options: groups["春日井市"].sort(sortByKana) },
-      { label: "名古屋市", options: groups["名古屋市"].sort(sortByKana) },
-      { label: "その他", options: groups["その他"].sort(sortByKana) },
-    ].filter((g) => g.options.length > 0);
+    const result: ClientGroup[] = Array.from(groups.entries())
+      .map(([label, options]) => ({ label, options: options.sort(sortByKana) }))
+      .sort((a, b) => jaCollator.compare(a.label, b.label));
 
     return result;
   }, [records, jaCollator]);
@@ -338,8 +321,8 @@ const DisabilityCheckPage: React.FC = () => {
     arr.sort((a, b) => {
       switch (sortKey) {
         case "district": {
-          const av = areaLabel(a.district);
-          const bv = areaLabel(b.district);
+          const av = municipalityLabel(a);
+          const bv = municipalityLabel(b);
           return jaCollator.compare(av, bv) * dir;
         }
 
@@ -520,7 +503,7 @@ const DisabilityCheckPage: React.FC = () => {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
 
-      const res = await fetch("/api/disability-check", {
+      const res = await fetch("/api/disability-check-beta", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -564,24 +547,16 @@ const DisabilityCheckPage: React.FC = () => {
         numeric: false,
       });
 
-      // ★置換：春日井→名古屋市→その他、同エリア内は五十音順
+      // APIと同じ既定順（サービス区分→市町村設定→正式な苗字読み→名前読み）を保持する。
       rows.sort((a, b) => {
-        const areaRank = (d?: string | null) => {
-          const s = norm(d ?? "");
-          if (s.includes("春日井")) return 0;
-          if (s.includes("名古屋")) return 1;
-          return 2;
-        };
-
-        const ra = areaRank(a.district);
-        const rb = areaRank(b.district);
-        if (ra !== rb) return ra - rb;
-
-        const ak = kanaKey(a.client_kana ?? a.client_name ?? "");
-        const bk = kanaKey(b.client_kana ?? b.client_name ?? "");
-        const byName = jaCollator.compare(ak, bk);
-
-        if (byName !== 0) return byName;
+        const service = (a.kaipoke_servicek === "移動支援" ? 1 : 0) - (b.kaipoke_servicek === "移動支援" ? 1 : 0);
+        if (service !== 0) return service;
+        const municipality = (a.municipality_sort_order ?? Number.MAX_SAFE_INTEGER) - (b.municipality_sort_order ?? Number.MAX_SAFE_INTEGER);
+        if (municipality !== 0) return municipality;
+        const byLastName = jaCollator.compare(kanaKey(a.last_name_kana ?? ""), kanaKey(b.last_name_kana ?? ""));
+        if (byLastName !== 0) return byLastName;
+        const byFirstName = jaCollator.compare(kanaKey(a.first_name_kana ?? ""), kanaKey(b.first_name_kana ?? ""));
+        if (byFirstName !== 0) return byFirstName;
 
         // 同名安定化
         return norm(a.kaipoke_cs_id ?? "").localeCompare(norm(b.kaipoke_cs_id ?? ""), "ja");
@@ -855,10 +830,10 @@ const DisabilityCheckPage: React.FC = () => {
       clientIds: bulkClientIds,
     };
 
-    localStorage.setItem("jisseki_bulk_print", JSON.stringify(payload));
+    localStorage.setItem("jisseki_beta_bulk_print", JSON.stringify(payload));
 
     window.open(
-      `/portal/jisseki/print/bulk?month=${encodeURIComponent(yearMonth)}`,
+      `/portal/jisseki-beta/print/bulk?month=${encodeURIComponent(yearMonth)}`,
       "_blank",
       "noopener,noreferrer"
     );
@@ -1051,7 +1026,7 @@ const DisabilityCheckPage: React.FC = () => {
 
   return (
     <div>
-      <h1>実績記録チェック</h1>
+      <h1>実績記録チェック β版</h1>
 
       <div
         style={{
@@ -1436,7 +1411,7 @@ const DisabilityCheckPage: React.FC = () => {
                 {/* ★追加：利用者名を印刷ページへのリンクにする */}
                 <td style={{ padding: 8 }}>
                   <Link
-                    href={`/portal/jisseki/print?kaipoke_cs_id=${encodeURIComponent(
+                    href={`/portal/jisseki-beta/print?kaipoke_cs_id=${encodeURIComponent(
                       r.kaipoke_cs_id
                     )}&month=${encodeURIComponent(r.year_month)}`}
                     target="_blank"

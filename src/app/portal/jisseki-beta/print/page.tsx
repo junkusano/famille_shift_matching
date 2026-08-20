@@ -1,70 +1,95 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useSearchParams } from "next/navigation";
+import JissekiPrintGlobalStyles from "@/components/jisseki-beta/JissekiPrintGlobalStyles";
+import { createJissekiRecordSortLabel, type JissekiServiceCategory } from "@/lib/jissekiBetaRecordSort";
 
-import {
-    TAKINO_JUKYUSHA_NO,
-    TAKINO_OFFICE_NO,
-    TAKINO_OFFICE_NAME,
-    KODO_JUKYUSHA_NO,
-    KODO_OFFICE_NO,
-    KODO_OFFICE_NAME,
-    DOKO_JUKYUSHA_NO,
-    DOKO_OFFICE_NO,
-    DOKO_CONTRACT,
-    DOKO_OFFICE_NAME,
-    JYUHO_JUKYUSHA_NO,
-    JYUHO_OFFICE_NO,
-    JYUHO_OFFICE_NAME,
-    OFFICE_NO,
-    OFFICE_NAME_LINES,
-} from "@/components/jisseki/jissekiPrintConstants";
-
-// page.tsx にあった型をそのまま移植
-export type PrintPayload = {
+type PrintPayload = {
     client: {
         kaipoke_cs_id: string;
         client_name: string;
         ido_jukyusyasho?: string | null;
+        shogai_jukyusha_no?: string | null;
+        municipality_display_name?: string | null;
+        municipality_sort_order?: number | null;
+        last_name_kana?: string | null;
+        first_name_kana?: string | null;
+        kana?: string | null;
+        // もし今後使うなら postal_code 等もここに追加できます
     };
-    month: string;
+    month: string; // YYYY-MM
     forms: Array<{
         formType: "TAKINO" | "KODO" | "DOKO" | "JYUHO" | "IDOU";
         service_codes: string[];
+        // rows はシフト等の明細（必要に応じて拡張）
         rows: Array<{
-            date: string;
-            start: string;
-            end: string;
-            service_code?: string;
+            date: string;        // YYYY-MM-DD
+            start: string;       // HH:mm
+            end: string;         // HH:mm
+            service_code?: string;          // ★追加：サービス内容（身体/家事/通院…）
             minutes?: number;
-            required_staff_count?: number;
+            required_staff_count?: number; // 旧：派遣人数
+            two_person_work_flg?: boolean; // ★派遣人数判定用
             staffNames?: string[];
             calc_hour?: number | null;
             cs_pay?: number | null;
             katamichi_addon?: 0 | 1;
-            judo_ido?: string | null;
+            judo_ido?: string | null; // "0100" "0630" "0105" 等
         }>;
     }>;
 };
 
 type FormData = PrintPayload["forms"][number];
+
 type FormProps = {
     data: PrintPayload;
     form: FormData;
-    pageNo?: number;
-    totalPages?: number;
+    pageNo?: number;      // 1始まり（任意）
+    totalPages?: number;  // 総枚数（任意）
     fitRefs?: RefObject<HTMLElement[]>;
 };
-// page.tsx にあった定数も移植
+
+function RecordSortLabel({ data, service }: { data: PrintPayload; service: JissekiServiceCategory }) {
+    return <span className="font-semibold" style={{ fontSize: "12px", whiteSpace: "nowrap" }}>
+        {createJissekiRecordSortLabel(service, data.client)}
+    </span>;
+}
+
+const OFFICE_NO = "2360181545";
+const OFFICE_NAME_LINES = ["ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知"];
+// 同行援護（様式19）用
+const DOKO_OFFICE_NO = "2311100974";
+const DOKO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
+// 居宅介護（様式1）用（PDF要件）
+//const TAKINO_JUKYUSHA_NO = ""; // 10桁（未連携なら空でOK）
+
+// 重度訪問介護用（PDF要件）
+const JYUHO_JUKYUSHA_NO = ""; // 10桁（未連携なら空）
+const JYUHO_OFFICE_NO = "2311100974";
+const JYUHO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
+
+// 行動援護（様式2）用（PDF要件）
+const KODO_OFFICE_NO = "2311100974";
+const KODO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
+
+// 要件⑤：事業所番号は 2311100974、事業所名は「ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知」
+const TAKINO_OFFICE_NO = "2311100974";
+const TAKINO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
+
+// 受給者証番号はデータ連携が未定なら空文字でOK（表示は10桁枠のみ出ます）
+//const DOKO_JUKYUSHA_NO = ""; // 例: "2320600812"
+const DOKO_CONTRACT = "同行援護 25時間/月";
+
+// ★1ページあたりの明細行数（+10）
 const ROWS_PER_PAGE = {
-    TAKINO: 24,
-    KODO: 25,
-    DOKO: 25,
-    JYUHO: 25,
-    IDOU: 24,
+    TAKINO: 24, // 30 → 24（-6）
+    KODO: 25,   // 31 → 25（-6）
+    DOKO: 25,   // 31 → 25（-6）
+    JYUHO: 25,  // 31 → 25（-6）
+    IDOU: 24,   // 31 → 25（-6）
 } as const;
 
-// page.tsx にあった DigitBoxes10 を移植
 function DigitBoxes10({ value }: { value: string }) {
     const v = (value ?? "").replace(/\D/g, "").slice(0, 10).padEnd(10, " ");
     return (
@@ -84,45 +109,40 @@ function formatReiwaYearMonth(yyyyMm: string) {
     const month = Number(m[2]);
     if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return "";
 
-    // 令和元年 = 2019年（2019/05/01〜）
-    // ※2019年4月以前は平成ですが、帳票要件が「令和」固定なので、ここでは 2019年は令和1年として扱います。
     const reiwaYear = Math.max(1, year - 2018);
     return `令和${reiwaYear}年${month}月`;
 }
 
-// ★これが「帳票を描く本体」：page.tsx の print-only の中身を移植して export
-export default function JissekiPrintBody({
-    data,
-    wrapPrintOnly = true, // ★追加：bulk側では false にする
-}: {
-    data: PrintPayload;
-    wrapPrintOnly?: boolean;
-}) {
-    // ★追加：備考の文字詰め対象を集める
+export default function JissekiPrintPage() {
+    const sp = useSearchParams();
+    const kaipoke_cs_id = sp.get("kaipoke_cs_id") ?? "";
+    const month = sp.get("month") ?? "";
+
+    const [data, setData] = useState<PrintPayload | null>(null);
+    const [error, setError] = useState<string>("");
     const fitRefs = useRef<HTMLElement[]>([]);
 
-    // ★追加：文字詰め処理（page.tsx と同等）
     const fitAllText = () => {
-        const MIN_PX = 8;
-        const STEP = 0.1;
+        const MIN_PX = 8;     // 最小フォント（これ以下にはしない）
+        const STEP = 0.1;     // 縮小刻み（10%ずつ）
 
-        // 念のため重複を除去（同一要素が複数回pushされるのを防ぐ）
-        const uniq = Array.from(new Set(fitRefs.current));
-        fitRefs.current = uniq;
-
-        uniq.forEach((el) => {
+        fitRefs.current.forEach((el) => {
+            // 毎回リセット
             el.style.fontSize = "";
             el.style.transform = "";
             el.style.transformOrigin = "";
 
             const parent = el.parentElement as HTMLElement | null;
             const maxWidth = parent?.clientWidth ?? el.clientWidth;
+
+            // 収まっているなら何もしない
             if (el.scrollWidth <= maxWidth) return;
 
             const cs = window.getComputedStyle(el);
             const base = Number.parseFloat(cs.fontSize || "11");
             if (!Number.isFinite(base) || base <= 0) return;
 
+            // まず font-size を下げていく
             let size = base;
             while (size > MIN_PX) {
                 size = Math.max(MIN_PX, size - base * STEP);
@@ -131,119 +151,176 @@ export default function JissekiPrintBody({
                 if (size === MIN_PX) break;
             }
 
+            // それでも溢れる場合は scaleX で最後の安全弁
             if (el.scrollWidth > maxWidth) {
                 const scale = Math.max(0.7, Math.min(1, maxWidth / el.scrollWidth));
                 el.style.transform = `scaleX(${scale})`;
-                el.style.transformOrigin = "center center";
+                el.style.transformOrigin = "center center";  // ★中央基準で縮小
             }
         });
     };
 
-    // ★追加：描画後と印刷直前でfit
+    // data描画後＋印刷直前にもfitを実行
     useEffect(() => {
+        if (!data) return;
+
+        // DOMが描画された後に計測したいので rAF
         requestAnimationFrame(() => fitAllText());
+
         const onBeforePrint = () => fitAllText();
         window.addEventListener("beforeprint", onBeforePrint);
         return () => window.removeEventListener("beforeprint", onBeforePrint);
     }, [data]);
 
-    const pages = useMemo(() => {
-        const chunk = <T,>(arr: T[], size: number): T[][] => {
-            if (!arr.length) return [];
-            const res: T[][] = [];
-            for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size));
-            return res;
+    useEffect(() => {
+        if (!data) return;
+
+        const oldTitle = document.title;
+        const ym = data.month.replace("-", "");
+        document.title = `実績記録_${data.client.client_name}_${ym}`;
+
+        return () => {
+            document.title = oldTitle;
         };
-
-        const FILTER_FROM = "2025-11-01";
-
-        const pages = data.forms.flatMap((f) => {
-            const size = ROWS_PER_PAGE[f.formType];
-            const rows = (f.rows ?? []).filter((r) => r.date >= FILTER_FROM);
-
-            // ★0件ならスキップ（空白ページを作らない）
-            if (rows.length === 0) return [];
-
-            const chunks = chunk(rows, size);
-
-            return chunks.map((rowsPage, pageIndex) => ({
-                formType: f.formType,
-                service_codes: f.service_codes,
-                rowsPage,
-                pageIndex,
-                pageCount: chunks.length,
-            }));
-        });
-
-        return pages;
     }, [data]);
 
-    const totalPages = pages.length;
+    useEffect(() => {
+        if (!kaipoke_cs_id || !month) return;
 
-    const content = (
-        <>
-            {pages.map((p, idx) => (
-                <div
-                    key={`${p.formType}-${idx}`}
-                    className={idx === 0 ? "print-page" : "print-page page-break"}
+        (async () => {
+            setError("");
+            const q = new URLSearchParams({ kaipoke_cs_id, month });
+            const res = await fetch(`/api/jisseki-beta/print?${q.toString()}`, { cache: "no-store" });
+            if (!res.ok) {
+                const t = await res.text().catch(() => "");
+                setError(t || "印刷データ取得に失敗しました");
+                return;
+            }
+            const json = (await res.json()) as PrintPayload;
+            setData(json);
+        })();
+    }, [kaipoke_cs_id, month]);
+
+    const title = useMemo(() => {
+        if (!data) return "実績記録 印刷";
+        return `実績記録 印刷（${data.client.client_name} ${data.month}）`;
+    }, [data]);
+
+    return (
+        <div className="min-h-screen bg-white text-black">
+            <JissekiPrintGlobalStyles mode="single" />
+
+            <div className="no-print p-4 flex items-center gap-3 border-b">
+                <h1 className="text-lg font-semibold">{title}</h1>
+                <button
+                    className="ml-auto px-3 py-2 border rounded"
+                    onClick={() => window.print()}
                 >
-                    {p.formType === "TAKINO" && (
-                        <TakinokyoForm
-                            data={data}
-                            form={{ formType: "TAKINO", service_codes: p.service_codes, rows: p.rowsPage }}
-                            pageNo={idx + 1}
-                            totalPages={totalPages}
-                            fitRefs={fitRefs}   // ★修正箇所4で追加する fitRefs を渡す
-                        />
-                    )}
-                    {p.formType === "KODO" && (
-                        <KodoEngoForm
-                            data={data}
-                            form={{ formType: "KODO", service_codes: p.service_codes, rows: p.rowsPage }}
-                            pageNo={idx + 1}
-                            totalPages={totalPages}
-                            fitRefs={fitRefs}
-                        />
-                    )}
-                    {p.formType === "DOKO" && (
-                        <DokoEngoForm
-                            data={data}
-                            form={{ formType: "DOKO", service_codes: p.service_codes, rows: p.rowsPage }}
-                            pageNo={idx + 1}
-                            totalPages={totalPages}
-                            fitRefs={fitRefs}
-                        />
-                    )}
-                    {p.formType === "JYUHO" && (
-                        <JudoHommonForm
-                            data={data}
-                            form={{ formType: "JYUHO", service_codes: p.service_codes, rows: p.rowsPage }}
-                            pageNo={idx + 1}
-                            totalPages={totalPages}
-                            fitRefs={fitRefs}
-                        />
-                    )}
-                    {p.formType === "IDOU" && (
-                        <IdoShienForm
-                            data={data}
-                            form={{ formType: "IDOU", service_codes: p.service_codes, rows: p.rowsPage }}
-                            pageNo={idx + 1}
-                            totalPages={totalPages}
-                            fitRefs={fitRefs}
-                        />
-                    )}
-                </div>
-            ))}
-        </>
+                    印刷
+                </button>
+            </div>
+
+            {error && <div className="p-4 text-red-600">{error}</div>}
+            {!data && !error && <div className="p-4">読み込み中…</div>}
+
+            {/* ★印刷対象エリア：帳票だけ */}
+            <div className="print-only">
+                {data && (() => {
+                    // rows を n 行ごとに分割
+                    const chunk = <T,>(arr: T[], size: number): T[][] => {
+                        if (!arr.length) return [];
+                        const res: T[][] = [];
+                        for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size));
+                        return res;
+                    };
+
+                    // 「印刷ページ」の配列を作る（フォームが複数ページになる）
+                    // ★2025年11月以降のみ（文字列 YYYY-MM-DD の比較でOK）
+                    const FILTER_FROM = "2025-11-01";
+
+                    const pages = data.forms.flatMap((f) => {
+                        const size = ROWS_PER_PAGE[f.formType];
+
+                        const rows = (f.rows ?? []).filter((r) => r.date >= FILTER_FROM);
+
+                        /* ★ここで0件ならスキップ（空白ページの原因を除去） */
+                        if (rows.length === 0) return [];
+
+                        const chunks = chunk(rows, size);
+
+                        return chunks.map((rowsPage, pageIndex) => ({
+                            formType: f.formType,
+                            service_codes: f.service_codes,
+                            rowsPage,
+                            pageIndex,
+                            pageCount: chunks.length,
+                        }));
+                    });
+
+                    const totalPages = pages.length;
+
+                    return pages.map((p, idx) => (
+                        <div key={`${p.formType}-${idx}`} className={idx === 0 ? "print-page" : "print-page page-break"}>
+                            {p.formType === "TAKINO" && (
+                                <TakinokyoForm
+                                    data={data}
+                                    form={{ formType: "TAKINO", service_codes: p.service_codes, rows: p.rowsPage }}
+                                    pageNo={idx + 1}
+                                    totalPages={totalPages}
+                                    fitRefs={fitRefs}
+                                />
+                            )}
+
+                            {p.formType === "KODO" && (
+                                <KodoEngoForm
+                                    data={data}
+                                    form={{ formType: "KODO", service_codes: p.service_codes, rows: p.rowsPage }}
+                                    pageNo={idx + 1}
+                                    totalPages={totalPages}
+                                    fitRefs={fitRefs}
+                                />
+                            )}
+
+                            {p.formType === "DOKO" && (
+                                <DokoEngoForm
+                                    data={data}
+                                    form={{ formType: "DOKO", service_codes: p.service_codes, rows: p.rowsPage }}
+                                    pageNo={idx + 1}
+                                    totalPages={totalPages}
+                                    fitRefs={fitRefs}
+                                />
+                            )}
+
+                            {p.formType === "JYUHO" && (
+                                <JudoHommonForm
+                                    data={data}
+                                    form={{ formType: "JYUHO", service_codes: p.service_codes, rows: p.rowsPage }}
+                                    pageNo={idx + 1}
+                                    totalPages={totalPages}
+                                    fitRefs={fitRefs}
+                                />
+                            )}
+
+                            {p.formType === "IDOU" && (
+                                <IdoShienForm
+                                    data={data}
+                                    form={{ formType: "IDOU", service_codes: p.service_codes, rows: p.rowsPage }}
+                                    pageNo={idx + 1}
+                                    totalPages={totalPages}
+                                    fitRefs={fitRefs}
+                                />
+                            )}
+                        </div>
+                    ));
+                })()}
+            </div>
+        </div>
     );
-    return wrapPrintOnly ? <div className="print-only">{content}</div> : content;
 }
 
-// ↓↓↓ ここから下に page.tsx にあった各 Form 関数を「そのまま」移植 ↓↓↓
 function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
     return (
         <div className="formBox p-2">
-            {/* タイトル行：左に「令和〇年〇月」、中央に帳票名 */}
             <div style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
@@ -253,9 +330,8 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                     居宅介護サービス提供実績記録票（様式１）
                 </div>
 
-                {/* 右側は他帳票と高さ合わせ用（必要なら将来ページ数等を表示可） */}
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    &nbsp;
+                    <RecordSortLabel data={data} service="disability" />
                 </div>
             </div>
 
@@ -310,7 +386,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "0px 3px" }}>
-                                            <DigitBoxes10 value={TAKINO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 
@@ -467,24 +543,11 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                 .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
                             const MAX = ROWS_PER_PAGE.TAKINO;
-
-                            const padded = [
-                                ...src,
-                                ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
-                            ].slice(0, MAX);
-
+                            const padded = [...src, ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null)].slice(0, MAX);
                             return padded.map((r, i) => {
-                                if (!r) {
-                                    return (
-                                        <tr key={`blank-${i}`} className="detail-row">
-                                            {Array.from({ length: 17 }).map((__, j) => (
-                                                <td key={j}>&nbsp;</td>
-                                            ))}
-                                        </tr>
-                                    );
-                                }
+                                if (!r) return <tr key={`blank-${i}`} className="detail-row">{Array.from({ length: 17 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
 
-                                const dispatch = r.required_staff_count ?? 1;
+                                const dispatch = r.two_person_work_flg ? 2 : 1;
 
                                 return (
                                     <tr key={`row-${i}`} className="detail-row">
@@ -504,10 +567,12 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                         {/* 居宅介護計画：乗降は要望外なので空 */}
                                         <td>&nbsp;</td>
 
-                                        {/* 以降の列（提供時間、算定、加算等）は要望外なので空のまま */}
-                                        <td>&nbsp;</td>
-                                        <td>&nbsp;</td>
-                                        <td>&nbsp;</td>
+                                        {/* サービス提供時間：計画と同じ */}
+                                        <td className="center">{r.start}</td>
+                                        <td className="center">{r.end}</td>
+
+                                        {/* 算定時間数：計画時間数と同じ */}
+                                        <td className="center">{hoursText(r)}</td>
                                         <td>&nbsp;</td>
 
                                         {/* 派遣人数 */}
@@ -530,7 +595,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                             <span
                                                 className="fit-text"
                                                 ref={(el) => {
-                                                    if (el) fitRefs?.current.push(el);
+                                                    if (el && !fitRefs.current.includes(el)) fitRefs.current.push(el);
                                                 }}
                                             >
                                                 {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
@@ -752,7 +817,8 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
         </div>
     );
 }
-function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
+
+function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     // 計画時間数計：rows.minutes を「時間」に換算して合計（小数1桁まで）
     // minutes が無い行でも、start/end から分数を算出する
     const FILTER_FROM = "2025-11-01";
@@ -800,13 +866,6 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
         .slice()
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
-    const MAX = ROWS_PER_PAGE.KODO;
-
-    const padded: Array<(typeof src)[number] | null> = [
-        ...src,
-        ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
-    ].slice(0, MAX);
-    // ▲▲▲ 追加ここまで ▲▲▲
     return (
         <div className="formBox p-2">
             {/* タイトル行（PDF寄せ：左右に小枠がある体裁） */}
@@ -818,7 +877,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                     行動援護サービス提供実績記録票
                 </div>
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    （様式２）
+                    <RecordSortLabel data={data} service="disability" /> （様式２）
                 </div>
             </div>
 
@@ -866,7 +925,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "1px 3px" }}>
-                                            <DigitBoxes10 value={KODO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 
@@ -958,20 +1017,15 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                         </tr>
 
                         {/* 明細行（rowsを表示＋不足分は空行） */}
-                        {padded.map((r, i) => {
-                            if (!r) {
-                                return (
-                                    <tr key={`blank-${i}`} className="detail-row">
-                                        {Array.from({ length: 14 }).map((__, j) => (
-                                            <td key={j}>&nbsp;</td>
-                                        ))}
-                                    </tr>
-                                );
-                            }
+                        {(() => {
+                          const MAX = ROWS_PER_PAGE.KODO;
+                          const padded = [...src, ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null)].slice(0, MAX);
+                          return padded.map((r, i) => {
+                            if (!r) return <tr key={`blank-${i}`} className="detail-row">{Array.from({ length: 14 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
 
                             const mins = getMinutes(r);
                             const hours = fmtHours(mins);
-                            const dispatch = r.required_staff_count ?? 1;
+                            const dispatch = r.two_person_work_flg ? 2 : 1;
 
                             return (
                                 <tr key={`row-${i}`} className="detail-row">
@@ -996,18 +1050,12 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
 
                                     {/* 備考：担当者名（staffNames があれば表示） */}
                                     <td className="biko-td">
-                                        <span
-                                            className="fit-text"
-                                            ref={(el) => {
-                                                if (el) fitRefs?.current.push(el);
-                                            }}
-                                        >
-                                            {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
-                                        </span>
+                                        {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
                                     </td>
                                 </tr>
                             );
-                        })}
+                          });
+                        })()}
 
                         {/* ===== 追加：最下部 合計（2行） ===== */}
                         <tr>
@@ -1075,7 +1123,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
     );
 }
 
-function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
+function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     const FILTER_FROM = "2025-11-01";
 
     const getMinutes = (r: { start: string; end: string; minutes?: number }) => {
@@ -1119,7 +1167,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                 </div>
 
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    &nbsp;
+                    <RecordSortLabel data={data} service="disability" />
                 </div>
             </div>
 
@@ -1132,30 +1180,30 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                     {/* 同行援護：14列で固定（列数不一致による「はみ出し」を防止） */}
                     <colgroup>
                         {/* 日付・曜日 */}
-                        <col style={{ width: "3%" }} />
-                        <col style={{ width: "3%" }} />
+                        <col style={{ width: "4%" }} />
+                        <col style={{ width: "4%" }} />
 
                         {/* サービス内容 */}
-                        <col style={{ width: "12%" }} />
+                        <col style={{ width: "14%" }} />
 
                         {/* 同行援護計画（開始/終了/時間）= 3列 */}
-                        <col style={{ width: "7%" }} />
-                        <col style={{ width: "7%" }} />
-                        <col style={{ width: "3%" }} />
-
-                        {/* サービス提供時間（開始/終了）= 2列 */}
-                        <col style={{ width: "7%" }} />
+                        <col style={{ width: "8%" }} />
+                        <col style={{ width: "8%" }} />
                         <col style={{ width: "6%" }} />
 
+                        {/* サービス提供時間（開始/終了）= 2列 */}
+                        <col style={{ width: "8%" }} />
+                        <col style={{ width: "8%" }} />
+
                         {/* 算定時間（時間）= 1列 */}
-                        <col style={{ width: "3%" }} />
+                        <col style={{ width: "6%" }} />
 
                         {/* 派遣人数・初回・緊急・利用者確認・備考 */}
-                        <col style={{ width: "3%" }} />   {/* 派遣人数 */}
-                        <col style={{ width: "3%" }} />   {/* 初回加算 */}
-                        <col style={{ width: "4%" }} />   {/* 緊急時対応加算 */}
-                        <col style={{ width: "6%" }} />   {/* 利用者確認欄 */}
-                        <col style={{ width: "33%" }} />  {/* 備考（担当者名を入れる） */}
+                        <col style={{ width: "6%" }} />   {/* 派遣人数 */}
+                        <col style={{ width: "6%" }} />   {/* 初回加算 */}
+                        <col style={{ width: "6%" }} />   {/* 緊急時対応加算 */}
+                        <col style={{ width: "8%" }} />   {/* 利用者確認欄 */}
+                        <col style={{ width: "8%" }} />  {/* 備考（担当者名を入れる） */}
                     </colgroup>
 
                     <tbody>
@@ -1163,7 +1211,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                         {/* 1行目：受給者証番号（左）＋氏名（右） ／ 右ブロック：事業所番号（縦幅を小さくするため、この行にのみ置く） */}
                         <tr>
                             {/* 左ブロック（8/14）：2列横並び */}
-                            <td colSpan={9} className="small" style={{ padding: 0 }}>
+                            <td colSpan={8} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "50% 50%" }}>
                                     {/* 受給者証番号 */}
                                     <div style={{ display: "grid", gridTemplateColumns: "36% 64%", borderRight: "1px solid #000" }}>
@@ -1171,7 +1219,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "1px 3px" }}>
-                                            <DigitBoxes10 value={DOKO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 
@@ -1188,7 +1236,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                             </td>
 
                             {/* 右ブロック（6/14）：事業所番号（この行だけ＝縦幅が小さくなる） */}
-                            <td colSpan={5} className="small" style={{ padding: 0 }}>
+                            <td colSpan={6} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
                                     <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
                                         事業所番号
@@ -1203,7 +1251,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                         {/* 2行目：契約支給量（左ブロックは横一杯） ／ 右ブロック：事業者及びその事業所（こちらの方が縦幅大きくなる） */}
                         <tr>
                             {/* 左ブロック（8/14）：契約支給量（横一杯） */}
-                            <td colSpan={9} className="small" style={{ padding: 0 }}>
+                            <td colSpan={8} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "18% 82%" }}>
                                     <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
                                         契約支給量
@@ -1215,7 +1263,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                             </td>
 
                             {/* 右ブロック（6/14）：事業者及びその事業所 */}
-                            <td colSpan={5} className="small" style={{ padding: 0 }}>
+                            <td colSpan={6} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
                                     <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
                                         事業者及び<br />その事業所
@@ -1290,25 +1338,12 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                 .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
                             const MAX = ROWS_PER_PAGE.DOKO;
-
-                            const padded: Array<(typeof src)[number] | null> = [
-                                ...src,
-                                ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
-                            ].slice(0, MAX);
-
+                            const padded = [...src, ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null)].slice(0, MAX);
                             return padded.map((r, i) => {
-                                if (!r) {
-                                    return (
-                                        <tr key={`blank-${i}`} className="detail-row">
-                                            {Array.from({ length: 14 }).map((__, j) => (
-                                                <td key={j}>&nbsp;</td>
-                                            ))}
-                                        </tr>
-                                    );
-                                }
+                                if (!r) return <tr key={`blank-${i}`} className="detail-row">{Array.from({ length: 14 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
 
                                 const planHours = fmtHours(getMinutes(r));
-                                const dispatch = r.required_staff_count ?? 1;
+                                const dispatch = r.two_person_work_flg ? 2 : 1;
 
                                 return (
                                     <tr key={`row-${i}`} className="detail-row">
@@ -1345,21 +1380,12 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                         {/* 利用者確認欄（はんこ欄なので空でOK） */}
                                         <td>&nbsp;</td>
 
-                                        {/* 備考：担当者名（fitRefs 対応） */}
+                                        {/* 備考：担当者名（staffNames があれば表示） */}
                                         <td className="left small biko-td">
-                                            <div
-                                                className="biko-box"
-                                                ref={(el) => {
-                                                    if (el) fitRefs?.current.push(el);
-                                                }}
-                                            >
-                                                {(r.staffNames ?? []).length > 0 ? (
-                                                    (r.staffNames ?? []).slice(0, 4).map((name, idx) => (
-                                                        <div key={idx} className="biko-line">{name}</div>
-                                                    ))
-                                                ) : (
-                                                    <div className="biko-line">{"\u00A0"}</div>
-                                                )}
+                                            <div className="biko-box">
+                                                <span className="biko-line">
+                                                    {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                                </span>
                                             </div>
                                         </td>
                                     </tr>
@@ -1458,6 +1484,8 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
     );
 }
 
+// "HHMM" 文字列（例 "0630"）→ 時間文字列（例 "6.5"）
+// ルール：分は 0〜29 → 切り捨て、30〜59 → 0.5
 function judoIdoToHoursText(v?: string | null): string {
     const s = (v ?? "").trim();
     if (!/^\d{4}$/.test(s)) return "";
@@ -1492,7 +1520,7 @@ function minutesToHoursText(mins?: number | null): string {
     return String(hours).replace(/\.0$/, "");        // "3.0" → "3"
 }
 
-function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
+function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     const sumPlanHoursRaw =
         (form?.rows ?? []).reduce((a, r) => a + (r.minutes ?? 0), 0) / 60;
     // ★追加：移動（judo_ido）の合計（時間）
@@ -1522,7 +1550,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                     重度訪問介護サービス提供実績記録票
                 </div>
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    （様式３－１）
+                    <RecordSortLabel data={data} service="disability" /> （様式３－１）
                 </div>
             </div>
 
@@ -1577,7 +1605,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "1px 3px" }}>
-                                            <DigitBoxes10 value={(data.client.ido_jukyusyasho ?? "").trim() || JYUHO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim() || JYUHO_JUKYUSHA_NO} />
                                         </div>
                                     </div>
 
@@ -1699,15 +1727,9 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                         {/* 明細行（データ行＋不足分は空行で埋める） */}
                         {(() => {
                             const rows = form?.rows ?? [];
+                            const pageRows = rows;
                             const pageSize = ROWS_PER_PAGE.JYUHO;
-                            const startIndex = (pageNo - 1) * pageSize;
-                            const pageRows = rows.slice(startIndex, startIndex + pageSize);
-
-                            // 末尾まで空行で埋める
-                            const padded = [
-                                ...pageRows,
-                                ...Array.from({ length: Math.max(0, pageSize - pageRows.length) }).map(() => null),
-                            ];
+                            const padded = [...pageRows, ...Array.from({ length: Math.max(0, pageSize - pageRows.length) }).map(() => null)].slice(0, pageSize);
 
                             // 曜日（日本語表記）
                             const weekdayJa = (d?: string) => {
@@ -1721,16 +1743,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                             const hm = (t?: string) => (t ? t.slice(0, 5) : "");
 
                             return padded.map((r, i) => {
-                                if (!r) {
-                                    // 空行（19列）
-                                    return (
-                                        <tr key={i} className="detail-row">
-                                            {Array.from({ length: 19 }).map((__, j) => (
-                                                <td key={j}>&nbsp;</td>
-                                            ))}
-                                        </tr>
-                                    );
-                                }
+                                if (!r) return <tr key={i} className="detail-row">{Array.from({ length: 19 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
 
                                 // 備考：担当者（漢字氏名） staff_01 / staff_02（API側で staffNames を返している前提）
                                 const staffMemo = (r.staffNames ?? []).join("、");
@@ -1776,8 +1789,8 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                                         {/* 11 算定 移動 */}
                                         <td className="center">{judoIdoToHoursText(r.judo_ido) || "\u00A0"}</td>
 
-                                        {/* 12 派遣人数（常に1） */}
-                                        <td className="center">1</td>
+                                        {/* 12 派遣人数 */}
+                                        <td className="center">{r.two_person_work_flg ? 2 : 1}</td>
 
                                         {/* 13 同行支援 */}
                                         <td className="center">&nbsp;</td>
@@ -1798,16 +1811,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                                         <td className="center">&nbsp;</td>
 
                                         {/* 19 備考（担当者名） */}
-                                        <td className="biko-td">
-                                            <span
-                                                className="fit-text"
-                                                ref={(el) => {
-                                                    if (el) fitRefs?.current.push(el);
-                                                }}
-                                            >
-                                                {staffMemo || "\u00A0"}
-                                            </span>
-                                        </td>
+                                        <td className="biko-td">{staffMemo}</td>
                                     </tr>
                                 );
                             });
@@ -1900,7 +1904,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
     );
 }
 
-function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
+function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     // ★2025年11月以降のみ
     const FILTER_FROM = "2025-11-01";
 
@@ -1932,25 +1936,45 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
         .slice()
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
-    // ★指定行数にパディング（不足分は空行）
-    const MAX = ROWS_PER_PAGE.IDOU;
-    const padded: Array<(typeof src)[number] | null> = [
-        ...src,
-        ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
-    ].slice(0, MAX);
 
     // ★合計（要望：サービス提供「分」＝計画時間（分）＝内訳（不可欠）を同じにする）
+    const isUphitService = (serviceCode?: string) =>
+        serviceCode === "移：必要不可欠な外出" ||
+        serviceCode === "移：必要不可欠な外出（片道加算）" ||
+        serviceCode === "移：必要不可欠な外出（片道支援）";
+
+    const isOtherService = (serviceCode?: string) =>
+        serviceCode === "移：その他" ||
+        serviceCode === "移：その他（片道加算）" ||
+        serviceCode === "移：その他の外出" ||
+        serviceCode === "移：その他の外出（片道支援）";
+
+    const isKatamichiUphit = (serviceCode?: string) =>
+        serviceCode === "移：必要不可欠な外出（片道加算）" ||
+        serviceCode === "移：必要不可欠な外出（片道支援）";
+
     const sumPlanMin = src.reduce((a, r) => a + getMinutes(r), 0);
-    const sumUphitMin = sumPlanMin; // 不可欠（分）＝同じ数
-    const sumOtherMin = 0;
+
+    const sumUphitMin = src.reduce((a, r) => {
+        const mins = getMinutes(r);
+        return a + (isUphitService(r.service_code) ? mins : 0);
+    }, 0);
+
+    const sumOtherMin = src.reduce((a, r) => {
+        const mins = getMinutes(r);
+        return a + (isOtherService(r.service_code) ? mins : 0);
+    }, 0);
+
+    const sumKatamichi = src.reduce((a, r) => {
+        const mins = getMinutes(r);
+        return a + (isKatamichiUphit(r.service_code) && mins > 90 ? 1 : 0);
+    }, 0);
 
     // ★算定時間(時間) 合計：明細の calc_hour を合計
     const sumSanteiHour = src.reduce((a, r) => {
         const h = r.calc_hour;
         return a + (typeof h === "number" ? h : 0);
     }, 0);
-
-    const sumKatamichi = 0;
 
     // ★修正：利用者負担額（cs_pay）は「IDOU 全行」の合計にする（ページ分割の影響を受けない）
     const allIdouRows =
@@ -1963,10 +1987,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
     }, 0);
 
     return (
-        <div
-            className="formBox p-2"
-            style={{ position: "relative", paddingTop: "12mm" }}
-        >
+        <div className="formBox p-2" style={{ position: "relative" }}>
             <div style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
@@ -1977,7 +1998,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                 </div>
 
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    &nbsp;
+                    <RecordSortLabel data={data} service="mobility" />
                 </div>
             </div>
 
@@ -2119,9 +2140,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                         事業者事業所の名称
                                     </div>
                                     <div style={{ padding: "2px 4px", textAlign: "left" }}>
-                                        {OFFICE_NAME_LINES[0]}<br />
-                                        {OFFICE_NAME_LINES[1]}<br />
-                                        {OFFICE_NAME_LINES[2]}
+                                        {OFFICE_NAME_LINES[0]}
                                     </div>
                                 </div>
                             </td>
@@ -2138,7 +2157,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
 
                         {/* （ヘッダと明細の間の空白行：見た目調整） */}
                         <tr>
-                            <td colSpan={19} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={19} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* =========================
@@ -2182,19 +2201,28 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                             <th className="center">終了時刻</th>
                         </tr>
 
-                        {/* 明細：rows を表示＋不足分は空行（2025-11-01以降のみ） */}
-                        {padded.map((r, i) => {
-                            if (!r) {
-                                return (
-                                    <tr key={`blank-${i}`} className="detail-row">
-                                        {Array.from({ length: 19 }).map((__, j) => (
-                                            <td key={j}>&nbsp;</td>
-                                        ))}
-                                    </tr>
-                                );
-                            }
+                        {/* 明細：rows を表示＋不足分は空行 */}
+                        {(() => {
+                          const MAX = ROWS_PER_PAGE.IDOU;
+                          const padded = [...src, ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null)].slice(0, MAX);
+                          return padded.map((r, i) => {
+                            if (!r) return <tr key={`blank-${i}`} className="detail-row">{Array.from({ length: 19 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
 
                             const mins = getMinutes(r);
+
+                            const isUphit =
+                                r.service_code === "移：必要不可欠な外出" ||
+                                r.service_code === "移：必要不可欠な外出（片道加算）" ||
+                                r.service_code === "移：必要不可欠な外出（片道支援）";
+
+                            const isOther =
+                                r.service_code === "移：その他" ||
+                                r.service_code === "移：その他（片道加算）" ||
+                                r.service_code === "移：その他の外出" ||
+                                r.service_code === "移：その他の外出（片道支援）";
+
+                            const uphitMin = isUphit ? mins : null;
+                            const otherMin = isOther ? mins : null;
 
                             return (
                                 <tr key={`row-${i}`} className="detail-row">
@@ -2216,9 +2244,9 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                     {/* 計画時間（分）＝サービス提供「分」と同じ */}
                                     <td className="right">{mins}</td>
 
-                                    {/* 内訳（分）不可欠＝同じ、その他は空欄 */}
-                                    <td className="right">{mins}</td>
-                                    <td>&nbsp;</td>
+                                    {/* 内訳（分） */}
+                                    <td className="right">{uphitMin ?? "\u00A0"}</td>
+                                    <td className="right">{otherMin ?? "\u00A0"}</td>
 
                                     {/* 算定時間(時間)：内訳(分)を0.5h単位で丸めた値（route.tsのcalc_hour） */}
                                     <td className="right">
@@ -2244,22 +2272,14 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                     <td className="center">{r.end}</td>
 
                                     {/* サービス提供者名／利用者確認欄 */}
-                                    <td className="left small biko-td">
-                                        <div
-                                            className="biko-box"
-                                            ref={(el) => {
-                                                if (el) fitRefs?.current.push(el);
-                                            }}
-                                        >
-                                            <div className="biko-line">
-                                                {(r.staffNames?.join(" ") ?? "").trim() || "\u00A0"}
-                                            </div>
-                                        </div>
+                                    <td className="left small">
+                                        {(r.staffNames?.join(" ") ?? "").trim() || "\u00A0"}
                                     </td>
                                     <td>&nbsp;</td>
                                 </tr>
                             );
-                        })}
+                          });
+                        })()}
 
                         {/* 合計行（列数19に一致させる） */}
                         <tr>
@@ -2321,3 +2341,4 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
         </div>
     );
 }
+

@@ -3,8 +3,9 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import JissekiPrintBody, { type PrintPayload } from "@/components/jisseki/JissekiPrintBody";
-import JissekiPrintGlobalStyles from "@/components/jisseki/JissekiPrintGlobalStyles";
+import JissekiPrintBody, { type PrintPayload } from "@/components/jisseki-beta/JissekiPrintBody";
+import JissekiPrintGlobalStyles from "@/components/jisseki-beta/JissekiPrintGlobalStyles";
+import { getKanaParts, jissekiServiceSortOrder, toHiragana } from "@/lib/jissekiBetaRecordSort";
 
 type BulkItem = { kaipoke_cs_id: string; month: string };
 
@@ -20,9 +21,9 @@ export default function BulkPrintPage() {
                 setLoading(true);
                 setError(null);
 
-                const payload = localStorage.getItem("jisseki_bulk_print");
+                const payload = localStorage.getItem("jisseki_beta_bulk_print");
                 if (!payload) {
-                    setError("印刷対象がありません。（localStorage: jisseki_bulk_print が空です）");
+                    setError("印刷対象がありません。（localStorage: jisseki_beta_bulk_print が空です）");
                     return;
                 }
 
@@ -201,7 +202,7 @@ export default function BulkPrintPage() {
                 if (normalized.length === 0) {
                     setError(
                         "印刷対象の形式が不正です。（kaipoke_cs_id / month が取れません）\n\n" +
-                        "jisseki_bulk_print(先頭800文字):\n" +
+                        "jisseki_beta_bulk_print(先頭800文字):\n" +
                         payload.slice(0, 800)
                     );
                     return;
@@ -214,7 +215,7 @@ export default function BulkPrintPage() {
                 const results: PrintPayload[] = [];
                 for (const it of normalized) {
                     const res = await fetch(
-                        `/api/jisseki/print?kaipoke_cs_id=${encodeURIComponent(it.kaipoke_cs_id)}&month=${encodeURIComponent(it.month)}`,
+                        `/api/jisseki-beta/print?kaipoke_cs_id=${encodeURIComponent(it.kaipoke_cs_id)}&month=${encodeURIComponent(it.month)}`,
                         {
                             headers: {
                                 ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
@@ -232,6 +233,27 @@ export default function BulkPrintPage() {
                     results.push((await res.json()) as PrintPayload);
                 }
 
+                // 印刷順は「サービス区分 → 市町村設定の順番 → 苗字読み → 名前読み」。
+                // 同一利用者に障害・移動の両帳票がある場合は、障害帳票を先に出す。
+                results.sort((a, b) => {
+                    const serviceOf = (payload: PrintPayload) =>
+                        payload.forms.every((form) => form.formType === "IDOU") ? "mobility" : "disability";
+                    const service = jissekiServiceSortOrder(serviceOf(a)) - jissekiServiceSortOrder(serviceOf(b));
+                    if (service !== 0) return service;
+
+                    const municipality = (a.client.municipality_sort_order ?? Number.MAX_SAFE_INTEGER)
+                        - (b.client.municipality_sort_order ?? Number.MAX_SAFE_INTEGER);
+                    if (municipality !== 0) return municipality;
+
+                    const kana = new Intl.Collator("ja", { sensitivity: "base" });
+                    const aKana = getKanaParts(a.client);
+                    const bKana = getKanaParts(b.client);
+                    const lastName = kana.compare(toHiragana(aKana.lastName), toHiragana(bKana.lastName));
+                    if (lastName !== 0) return lastName;
+                    const firstName = kana.compare(toHiragana(aKana.firstName), toHiragana(bKana.firstName));
+                    if (firstName !== 0) return firstName;
+                    return a.client.kaipoke_cs_id.localeCompare(b.client.kaipoke_cs_id, "ja", { numeric: true });
+                });
                 setDatas(results);
             } catch (e: unknown) {
                 if (e instanceof Error) {
@@ -280,7 +302,7 @@ export default function BulkPrintPage() {
             <JissekiPrintGlobalStyles mode="single" />
 
             <div className="no-print p-3 border-b flex items-center gap-2 bg-white">
-                <div className="font-semibold">実績記録 一括印刷</div>
+                <div className="font-semibold">実績記録 β版 一括印刷</div>
                 <button className="ml-auto px-3 py-2 border rounded" onClick={() => window.print()}>
                     印刷
                 </button>

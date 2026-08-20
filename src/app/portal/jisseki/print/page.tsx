@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useSearchParams } from "next/navigation";
 import JissekiPrintGlobalStyles from "@/components/jisseki/JissekiPrintGlobalStyles";
-import { createJissekiRecordSortLabel, type JissekiServiceCategory } from "@/lib/jissekiRecordSort";
 
 type PrintPayload = {
     client: {
@@ -11,11 +10,6 @@ type PrintPayload = {
         client_name: string;
         ido_jukyusyasho?: string | null;
         shogai_jukyusha_no?: string | null;
-        municipality_display_name?: string | null;
-        municipality_sort_order?: number | null;
-        last_name_kana?: string | null;
-        first_name_kana?: string | null;
-        kana?: string | null;
         // もし今後使うなら postal_code 等もここに追加できます
     };
     month: string; // YYYY-MM
@@ -49,12 +43,6 @@ type FormProps = {
     totalPages?: number;  // 総枚数（任意）
     fitRefs?: RefObject<HTMLElement[]>;
 };
-
-function RecordSortLabel({ data, service }: { data: PrintPayload; service: JissekiServiceCategory }) {
-    return <span className="font-semibold" style={{ fontSize: "12px", whiteSpace: "nowrap" }}>
-        {createJissekiRecordSortLabel(service, data.client)}
-    </span>;
-}
 
 const OFFICE_NO = "2360181545";
 const OFFICE_NAME_LINES = ["ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知"];
@@ -331,7 +319,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                 </div>
 
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    <RecordSortLabel data={data} service="disability" />
+                    &nbsp;
                 </div>
             </div>
 
@@ -543,9 +531,22 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                 .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
                             const MAX = ROWS_PER_PAGE.TAKINO;
-                            const padded = [...src, ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null)].slice(0, MAX);
+
+                            const padded = [
+                                ...src,
+                                ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
+                            ].slice(0, MAX);
+
                             return padded.map((r, i) => {
-                                if (!r) return <tr key={`blank-${i}`} className="detail-row">{Array.from({ length: 17 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
+                                if (!r) {
+                                    return (
+                                        <tr key={`blank-${i}`} className="detail-row">
+                                            {Array.from({ length: 17 }).map((__, j) => (
+                                                <td key={j}>&nbsp;</td>
+                                            ))}
+                                        </tr>
+                                    );
+                                }
 
                                 const dispatch = r.two_person_work_flg ? 2 : 1;
 
@@ -866,6 +867,13 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
         .slice()
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
+    const MAX = ROWS_PER_PAGE.KODO;
+
+    const padded: Array<(typeof src)[number] | null> = [
+        ...src,
+        ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
+    ].slice(0, MAX);
+    // ▲▲▲ 追加ここまで ▲▲▲
     return (
         <div className="formBox p-2">
             {/* タイトル行（PDF寄せ：左右に小枠がある体裁） */}
@@ -877,7 +885,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                     行動援護サービス提供実績記録票
                 </div>
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    <RecordSortLabel data={data} service="disability" /> （様式２）
+                    （様式２）
                 </div>
             </div>
 
@@ -1017,11 +1025,16 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         </tr>
 
                         {/* 明細行（rowsを表示＋不足分は空行） */}
-                        {(() => {
-                          const MAX = ROWS_PER_PAGE.KODO;
-                          const padded = [...src, ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null)].slice(0, MAX);
-                          return padded.map((r, i) => {
-                            if (!r) return <tr key={`blank-${i}`} className="detail-row">{Array.from({ length: 14 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
+                        {padded.map((r, i) => {
+                            if (!r) {
+                                return (
+                                    <tr key={`blank-${i}`} className="detail-row">
+                                        {Array.from({ length: 14 }).map((__, j) => (
+                                            <td key={j}>&nbsp;</td>
+                                        ))}
+                                    </tr>
+                                );
+                            }
 
                             const mins = getMinutes(r);
                             const hours = fmtHours(mins);
@@ -1054,8 +1067,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                     </td>
                                 </tr>
                             );
-                          });
-                        })()}
+                        })}
 
                         {/* ===== 追加：最下部 合計（2行） ===== */}
                         <tr>
@@ -1167,7 +1179,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                 </div>
 
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    <RecordSortLabel data={data} service="disability" />
+                    &nbsp;
                 </div>
             </div>
 
@@ -1338,9 +1350,22 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                 .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
                             const MAX = ROWS_PER_PAGE.DOKO;
-                            const padded = [...src, ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null)].slice(0, MAX);
+
+                            const padded: Array<(typeof src)[number] | null> = [
+                                ...src,
+                                ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
+                            ].slice(0, MAX);
+
                             return padded.map((r, i) => {
-                                if (!r) return <tr key={`blank-${i}`} className="detail-row">{Array.from({ length: 14 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
+                                if (!r) {
+                                    return (
+                                        <tr key={`blank-${i}`} className="detail-row">
+                                            {Array.from({ length: 14 }).map((__, j) => (
+                                                <td key={j}>&nbsp;</td>
+                                            ))}
+                                        </tr>
+                                    );
+                                }
 
                                 const planHours = fmtHours(getMinutes(r));
                                 const dispatch = r.two_person_work_flg ? 2 : 1;
@@ -1550,7 +1575,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                     重度訪問介護サービス提供実績記録票
                 </div>
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    <RecordSortLabel data={data} service="disability" /> （様式３－１）
+                    （様式３－１）
                 </div>
             </div>
 
@@ -1727,9 +1752,16 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         {/* 明細行（データ行＋不足分は空行で埋める） */}
                         {(() => {
                             const rows = form?.rows ?? [];
-                            const pageRows = rows;
                             const pageSize = ROWS_PER_PAGE.JYUHO;
-                            const padded = [...pageRows, ...Array.from({ length: Math.max(0, pageSize - pageRows.length) }).map(() => null)].slice(0, pageSize);
+
+                            // ★ここでは slice しない（上で pages を chunk 済みのため）
+                            const pageRows = rows;
+
+                            // 末尾まで空行で埋める
+                            const padded = [
+                                ...pageRows,
+                                ...Array.from({ length: Math.max(0, pageSize - pageRows.length) }).map(() => null),
+                            ].slice(0, pageSize);
 
                             // 曜日（日本語表記）
                             const weekdayJa = (d?: string) => {
@@ -1743,7 +1775,16 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             const hm = (t?: string) => (t ? t.slice(0, 5) : "");
 
                             return padded.map((r, i) => {
-                                if (!r) return <tr key={i} className="detail-row">{Array.from({ length: 19 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
+                                if (!r) {
+                                    // 空行（19列）
+                                    return (
+                                        <tr key={i} className="detail-row">
+                                            {Array.from({ length: 19 }).map((__, j) => (
+                                                <td key={j}>&nbsp;</td>
+                                            ))}
+                                        </tr>
+                                    );
+                                }
 
                                 // 備考：担当者（漢字氏名） staff_01 / staff_02（API側で staffNames を返している前提）
                                 const staffMemo = (r.staffNames ?? []).join("、");
@@ -1936,6 +1977,12 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
         .slice()
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
+    // ★指定行数にパディング（不足分は空行）
+    const MAX = ROWS_PER_PAGE.IDOU;
+    const padded: Array<(typeof src)[number] | null> = [
+        ...src,
+        ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
+    ].slice(0, MAX);
 
     // ★合計（要望：サービス提供「分」＝計画時間（分）＝内訳（不可欠）を同じにする）
     const isUphitService = (serviceCode?: string) =>
@@ -1998,7 +2045,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                 </div>
 
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    <RecordSortLabel data={data} service="mobility" />
+                    &nbsp;
                 </div>
             </div>
 
@@ -2201,12 +2248,17 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             <th className="center">終了時刻</th>
                         </tr>
 
-                        {/* 明細：rows を表示＋不足分は空行 */}
-                        {(() => {
-                          const MAX = ROWS_PER_PAGE.IDOU;
-                          const padded = [...src, ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null)].slice(0, MAX);
-                          return padded.map((r, i) => {
-                            if (!r) return <tr key={`blank-${i}`} className="detail-row">{Array.from({ length: 19 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
+                        {/* 明細：rows を表示＋不足分は空行（2025-11-01以降のみ） */}
+                        {padded.map((r, i) => {
+                            if (!r) {
+                                return (
+                                    <tr key={`blank-${i}`} className="detail-row">
+                                        {Array.from({ length: 19 }).map((__, j) => (
+                                            <td key={j}>&nbsp;</td>
+                                        ))}
+                                    </tr>
+                                );
+                            }
 
                             const mins = getMinutes(r);
 
@@ -2278,8 +2330,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                     <td>&nbsp;</td>
                                 </tr>
                             );
-                          });
-                        })()}
+                        })}
 
                         {/* 合計行（列数19に一致させる） */}
                         <tr>

@@ -969,7 +969,6 @@ export default function KaipokeInfoDetailPage() {
                     />
                 </div>
 
-
                 <div className="space-y-2">
                     <label className="block text-sm text-gray-600">カイポケCS ID</label>
                     <input

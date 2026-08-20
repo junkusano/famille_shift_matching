@@ -19,6 +19,7 @@ import {
     OFFICE_NO,
     OFFICE_NAME_LINES,
 } from "@/components/jisseki/jissekiPrintConstants";
+import { createJissekiRecordSortLabel, type JissekiServiceCategory } from "@/lib/jissekiBetaRecordSort";
 
 // page.tsx にあった型をそのまま移植
 export type PrintPayload = {
@@ -26,6 +27,11 @@ export type PrintPayload = {
         kaipoke_cs_id: string;
         client_name: string;
         ido_jukyusyasho?: string | null;
+        municipality_display_name?: string | null;
+        municipality_sort_order?: number | null;
+        last_name_kana?: string | null;
+        first_name_kana?: string | null;
+        kana?: string | null;
     };
     month: string;
     forms: Array<{
@@ -55,6 +61,12 @@ type FormProps = {
     totalPages?: number;
     fitRefs?: RefObject<HTMLElement[]>;
 };
+
+function RecordSortLabel({ data, service }: { data: PrintPayload; service: JissekiServiceCategory }) {
+    return <span className="font-semibold" style={{ fontSize: "12px", whiteSpace: "nowrap" }}>
+        {createJissekiRecordSortLabel(service, data.client)}
+    </span>;
+}
 // page.tsx にあった定数も移植
 const ROWS_PER_PAGE = {
     TAKINO: 24,
@@ -255,7 +267,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
 
                 {/* 右側は他帳票と高さ合わせ用（必要なら将来ページ数等を表示可） */}
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    &nbsp;
+                    <RecordSortLabel data={data} service="disability" />
                 </div>
             </div>
 
@@ -467,22 +479,9 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                 .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
                             const MAX = ROWS_PER_PAGE.TAKINO;
-
-                            const padded = [
-                                ...src,
-                                ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
-                            ].slice(0, MAX);
-
+                            const padded = [...src, ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null)].slice(0, MAX);
                             return padded.map((r, i) => {
-                                if (!r) {
-                                    return (
-                                        <tr key={`blank-${i}`} className="detail-row">
-                                            {Array.from({ length: 17 }).map((__, j) => (
-                                                <td key={j}>&nbsp;</td>
-                                            ))}
-                                        </tr>
-                                    );
-                                }
+                                if (!r) return <tr key={`blank-${i}`} className="detail-row">{Array.from({ length: 17 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
 
                                 const dispatch = r.required_staff_count ?? 1;
 
@@ -800,13 +799,6 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
         .slice()
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
-    const MAX = ROWS_PER_PAGE.KODO;
-
-    const padded: Array<(typeof src)[number] | null> = [
-        ...src,
-        ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
-    ].slice(0, MAX);
-    // ▲▲▲ 追加ここまで ▲▲▲
     return (
         <div className="formBox p-2">
             {/* タイトル行（PDF寄せ：左右に小枠がある体裁） */}
@@ -818,7 +810,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                     行動援護サービス提供実績記録票
                 </div>
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    （様式２）
+                    <RecordSortLabel data={data} service="disability" /> （様式２）
                 </div>
             </div>
 
@@ -958,16 +950,11 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                         </tr>
 
                         {/* 明細行（rowsを表示＋不足分は空行） */}
-                        {padded.map((r, i) => {
-                            if (!r) {
-                                return (
-                                    <tr key={`blank-${i}`} className="detail-row">
-                                        {Array.from({ length: 14 }).map((__, j) => (
-                                            <td key={j}>&nbsp;</td>
-                                        ))}
-                                    </tr>
-                                );
-                            }
+                        {(() => {
+                          const MAX = ROWS_PER_PAGE.KODO;
+                          const padded = [...src, ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null)].slice(0, MAX);
+                          return padded.map((r, i) => {
+                            if (!r) return <tr key={`blank-${i}`} className="detail-row">{Array.from({ length: 14 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
 
                             const mins = getMinutes(r);
                             const hours = fmtHours(mins);
@@ -1007,7 +994,8 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                     </td>
                                 </tr>
                             );
-                        })}
+                          });
+                        })()}
 
                         {/* ===== 追加：最下部 合計（2行） ===== */}
                         <tr>
@@ -1119,7 +1107,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                 </div>
 
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    &nbsp;
+                    <RecordSortLabel data={data} service="disability" />
                 </div>
             </div>
 
@@ -1290,22 +1278,9 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                 .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
                             const MAX = ROWS_PER_PAGE.DOKO;
-
-                            const padded: Array<(typeof src)[number] | null> = [
-                                ...src,
-                                ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
-                            ].slice(0, MAX);
-
+                            const padded = [...src, ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null)].slice(0, MAX);
                             return padded.map((r, i) => {
-                                if (!r) {
-                                    return (
-                                        <tr key={`blank-${i}`} className="detail-row">
-                                            {Array.from({ length: 14 }).map((__, j) => (
-                                                <td key={j}>&nbsp;</td>
-                                            ))}
-                                        </tr>
-                                    );
-                                }
+                                if (!r) return <tr key={`blank-${i}`} className="detail-row">{Array.from({ length: 14 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
 
                                 const planHours = fmtHours(getMinutes(r));
                                 const dispatch = r.required_staff_count ?? 1;
@@ -1522,7 +1497,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                     重度訪問介護サービス提供実績記録票
                 </div>
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    （様式３－１）
+                    <RecordSortLabel data={data} service="disability" /> （様式３－１）
                 </div>
             </div>
 
@@ -1702,12 +1677,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                             const pageSize = ROWS_PER_PAGE.JYUHO;
                             const startIndex = (pageNo - 1) * pageSize;
                             const pageRows = rows.slice(startIndex, startIndex + pageSize);
-
-                            // 末尾まで空行で埋める
-                            const padded = [
-                                ...pageRows,
-                                ...Array.from({ length: Math.max(0, pageSize - pageRows.length) }).map(() => null),
-                            ];
+                            const padded = [...pageRows, ...Array.from({ length: Math.max(0, pageSize - pageRows.length) }).map(() => null)];
 
                             // 曜日（日本語表記）
                             const weekdayJa = (d?: string) => {
@@ -1721,16 +1691,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                             const hm = (t?: string) => (t ? t.slice(0, 5) : "");
 
                             return padded.map((r, i) => {
-                                if (!r) {
-                                    // 空行（19列）
-                                    return (
-                                        <tr key={i} className="detail-row">
-                                            {Array.from({ length: 19 }).map((__, j) => (
-                                                <td key={j}>&nbsp;</td>
-                                            ))}
-                                        </tr>
-                                    );
-                                }
+                                if (!r) return <tr key={i} className="detail-row">{Array.from({ length: 19 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
 
                                 // 備考：担当者（漢字氏名） staff_01 / staff_02（API側で staffNames を返している前提）
                                 const staffMemo = (r.staffNames ?? []).join("、");
@@ -1932,12 +1893,6 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
         .slice()
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
-    // ★指定行数にパディング（不足分は空行）
-    const MAX = ROWS_PER_PAGE.IDOU;
-    const padded: Array<(typeof src)[number] | null> = [
-        ...src,
-        ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
-    ].slice(0, MAX);
 
     // ★合計（要望：サービス提供「分」＝計画時間（分）＝内訳（不可欠）を同じにする）
     const sumPlanMin = src.reduce((a, r) => a + getMinutes(r), 0);
@@ -1977,7 +1932,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                 </div>
 
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    &nbsp;
+                    <RecordSortLabel data={data} service="mobility" />
                 </div>
             </div>
 
@@ -2182,17 +2137,12 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                             <th className="center">終了時刻</th>
                         </tr>
 
-                        {/* 明細：rows を表示＋不足分は空行（2025-11-01以降のみ） */}
-                        {padded.map((r, i) => {
-                            if (!r) {
-                                return (
-                                    <tr key={`blank-${i}`} className="detail-row">
-                                        {Array.from({ length: 19 }).map((__, j) => (
-                                            <td key={j}>&nbsp;</td>
-                                        ))}
-                                    </tr>
-                                );
-                            }
+                        {/* 明細：rows を表示＋不足分は空行 */}
+                        {(() => {
+                          const MAX = ROWS_PER_PAGE.IDOU;
+                          const padded = [...src, ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null)].slice(0, MAX);
+                          return padded.map((r, i) => {
+                            if (!r) return <tr key={`blank-${i}`} className="detail-row">{Array.from({ length: 19 }).map((__, j) => <td key={j}>&nbsp;</td>)}</tr>;
 
                             const mins = getMinutes(r);
 
@@ -2259,7 +2209,8 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                     <td>&nbsp;</td>
                                 </tr>
                             );
-                        })}
+                          });
+                        })()}
 
                         {/* 合計行（列数19に一致させる） */}
                         <tr>
