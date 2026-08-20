@@ -96,16 +96,23 @@ export async function GET(req: NextRequest) {
     const dryRun = ["1", "true"].includes(req.nextUrl.searchParams.get("dry_run") ?? "");
     const targetWeek = getTargetWeek();
     const template = await getTemplate();
-    if (!template || !template.kaiteku_offer_id || !template.ucare_offer_id) {
-      return json({ ok: true, skipped: true, reason: "saseki_template_or_recruiting_id_not_found", targetWeek });
-    }
     const plans = [
-      { provider: "kaitek" as const, recruitingId: template.kaiteku_offer_id },
-      { provider: "ucare" as const, recruitingId: template.ucare_offer_id },
+      {
+        provider: "kaitek" as const,
+        recruitingId: process.env.SASEKI_KAITEKU_RECRUITING_ID?.trim() || template?.kaiteku_offer_id || "",
+      },
+      {
+        provider: "ucare" as const,
+        recruitingId: process.env.SASEKI_UCARE_RECRUITING_ID?.trim() || template?.ucare_offer_id || "",
+      },
     ];
     const results: JsonRecord[] = [];
     for (const plan of plans) {
       const operationKey = makeOperationKey(plan.provider, targetWeek.targetWeekFrom);
+      if (!plan.recruitingId) {
+        results.push({ provider: plan.provider, operationKey, action: "skipped", reason: "recruiting_id_not_configured" });
+        continue;
+      }
       const existing = await findExisting(operationKey);
       if (existing) { results.push({ provider: plan.provider, operationKey, action: "skipped", reason: "duplicate", requestId: existing.id, status: existing.status }); continue; }
       if (dryRun) { results.push({ provider: plan.provider, operationKey, action: "dry_run", status: process.env.SASEKI_RPA_AUTO_APPROVE === "1" ? "approved" : "waiting_approval" }); continue; }
