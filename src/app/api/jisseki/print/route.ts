@@ -39,6 +39,12 @@ type ShiftRow = {
   judo_ido: string | null;
 };
 
+type MunicipalitySetting = {
+  municipality: string;
+  municipality_display_name: string;
+  sort_order: number;
+};
+
 const toFormType = (serviceCode: string): FormType => {
   if (
     serviceCode === "移：必要不可欠な外出" ||
@@ -93,12 +99,12 @@ const ymToRange = (ym: string) => {
   return { start, endExclusive };
 };
 
-const isNagoyaZip = (zipRaw: string | null | undefined): boolean => {
-  const z = (zipRaw ?? "").replace(/\D/g, ""); // 例: 4600001
-  if (z.length < 3) return false;
-  const head3 = Number(z.slice(0, 3));
-  // 名古屋市: 450-459, 460-469 が中心 → 450〜469 で判定
-  return Number.isFinite(head3) && head3 >= 450 && head3 <= 469;
+const findMunicipalitySetting = (address: string | null | undefined, settings: MunicipalitySetting[]) => {
+  const normalizedAddress = (address ?? "").replace(/[\s　]/g, "");
+  // 同名の短い地域名に先に一致しないよう、長い市町村名から照合する。
+  return [...settings]
+    .sort((a, b) => b.municipality.length - a.municipality.length)
+    .find((setting) => normalizedAddress.includes(setting.municipality));
 };
 
 export async function GET(req: NextRequest) {
@@ -121,17 +127,28 @@ export async function GET(req: NextRequest) {
 
   const { start, endExclusive } = ymToRange(month);
 
-  // ★①：利用者名と郵便番号（名古屋市判定用）を取得
+  // 利用者の正式な住所・既存のフル読みを取得する。読みは表示時に漢字から推測しない。
   const { data: cs } = await supabaseAdmin
     .from("cs_kaipoke_info")
-    .select("kaipoke_cs_id,name,postal_code,ido_jukyusyasho,shogai_jukyusha_no")
+    .select("kaipoke_cs_id,name,address,kana,ido_jukyusyasho,shogai_jukyusha_no")
     .eq("kaipoke_cs_id", kaipoke_cs_id)
     .maybeSingle();
 
   const client_name = cs?.name ?? "";
   const ido_jukyusyasho = (cs as { ido_jukyusyasho?: string } | null)?.ido_jukyusyasho ?? "";
   const shogai_jukyusha_no = (cs as { shogai_jukyusha_no?: string } | null)?.shogai_jukyusha_no ?? "";
-  const address_zip = (cs as { postal_code?: string } | null)?.postal_code ?? "";
+  const address = (cs as { address?: string } | null)?.address ?? "";
+
+  const { data: municipalitySettings, error: municipalitySettingsError } = await supabaseAdmin
+    .from("jisseki_record_sort_municipalities")
+    .select("municipality,municipality_display_name,sort_order")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+  if (municipalitySettingsError) {
+    return NextResponse.json({ error: municipalitySettingsError.message }, { status: 500 });
+  }
+
+  const municipalitySetting = findMunicipalitySetting(address, (municipalitySettings ?? []) as MunicipalitySetting[]);
 
   // シフト取得（staff_01_user_id 追加）
   const { data: shifts, error } = await supabaseAdmin
@@ -186,8 +203,8 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // ★⑦：名古屋市なら insurance_unit_amount を引いて cal_hour=>cs_pay の辞書
-  const insurer = isNagoyaZip(address_zip) ? "名古屋市" : null;
+  // 利用者住所とDB設定の市町村を照合し、該当する自治体の単価だけを取得する。
+  const insurer = municipalitySetting?.municipality ?? null;
   const csPayByHour = new Map<number, string | number>();
 
   if (insurer) {
@@ -284,7 +301,15 @@ export async function GET(req: NextRequest) {
   }));
 
   return NextResponse.json({
-    client: { kaipoke_cs_id, client_name, ido_jukyusyasho, shogai_jukyusha_no, address_zip },
+    client: {
+      kaipoke_cs_id,
+      client_name,
+      ido_jukyusyasho,
+      shogai_jukyusha_no,
+      municipality_display_name: municipalitySetting?.municipality_display_name ?? null,
+      municipality_sort_order: municipalitySetting?.sort_order ?? null,
+      kana: (cs as { kana?: string | null } | null)?.kana ?? null,
+    },
     month,
     forms,
   });

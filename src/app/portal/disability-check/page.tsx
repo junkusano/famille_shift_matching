@@ -11,6 +11,10 @@ interface Row {
   kaipoke_cs_id: string;
   client_name: string;
   client_kana: string | null; // ★追加
+  last_name_kana: string | null;
+  first_name_kana: string | null;
+  municipality_display_name: string | null;
+  municipality_sort_order: number | null;
   year_month: string;         // YYYY-MM
   kaipoke_servicek: string;   // "障害" | "移動支援" など
   shogai_jukyusha_no: string | null;
@@ -95,20 +99,8 @@ const DisabilityCheckPage: React.FC = () => {
     []
   );
 
-  // ★地域ランク（表示とSelectを揃える）
-  const areaRank = (d?: string | null) => {
-    const s = norm(d ?? "");
-    if (s.includes("春日井")) return 0;
-    if (s.includes("名古屋")) return 1;
-    return 2;
-  };
-
-  const areaLabel = (d?: string | null) => {
-    const r = areaRank(d);
-    if (r === 0) return "春日井市";
-    if (r === 1) return "名古屋市";
-    return "その他";
-  };
+  const municipalityLabel = (row: Pick<Row, "municipality_display_name">) =>
+    row.municipality_display_name?.trim() || "市町村未設定";
 
   // ① 初期フィルタ：10日までは前月、11日以降は当月
   const [yearMonth, setYearMonth] = useState<string>(getDefaultYearMonth());
@@ -124,6 +116,7 @@ const DisabilityCheckPage: React.FC = () => {
 
   // ② 検索用ステート
   const [filterKaipokeCsId, setFilterKaipokeCsId] = useState<string>("");  // 利用者（kaipoke_cs_id）
+  const [clientNameQuery, setClientNameQuery] = useState<string>("");      // 利用者名（フロント側部分一致）
   const [filterStaffId, setFilterStaffId] = useState<string>("");          // 実績担当者（Select）
   //const [filterKaipokeId, setFilterKaipokeId] = useState<string>("");      // カイポケID（Text）
   //const [filterIdo, setFilterIdo] = useState<string>("");                  // 受給者証番号（Text）
@@ -132,6 +125,7 @@ const DisabilityCheckPage: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   // ★追加：未チェック絞り込み
   const [checkFilter, setCheckFilter] = useState<string>("");
+  const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
 
   // ★追加：member 判定（manager/admin 以外はすべて member）
   const isMember = !(isManager || isAdmin);
@@ -214,7 +208,7 @@ const DisabilityCheckPage: React.FC = () => {
     name: string;
     kana: string;
     district: string | null;
-    group: string; // "春日井市" | "名古屋市" | "その他"
+    group: string;
   };
 
   type ClientGroup = { label: string; options: ClientOption[] };
@@ -239,22 +233,15 @@ const DisabilityCheckPage: React.FC = () => {
         name,
         kana,
         district: r.district ?? null,
-        group: areaLabel(r.district),
+        group: municipalityLabel(r),
       });
     });
 
     const all = Array.from(map.values());
 
     // グループ分け
-    const groups: Record<string, ClientOption[]> = {
-      春日井市: [],
-      名古屋市: [],
-      その他: [],
-    };
-
-    all.forEach((o) => {
-      (groups[o.group] ?? groups["その他"]).push(o);
-    });
+    const groups = new Map<string, ClientOption[]>();
+    all.forEach((o) => groups.set(o.group, [...(groups.get(o.group) ?? []), o]));
 
     // 各グループ内を「かな優先の五十音順」
     const sortByKana = (a: ClientOption, b: ClientOption) => {
@@ -265,11 +252,9 @@ const DisabilityCheckPage: React.FC = () => {
       return jaCollator.compare(norm(a.id), norm(b.id));
     };
 
-    const result: ClientGroup[] = [
-      { label: "春日井市", options: groups["春日井市"].sort(sortByKana) },
-      { label: "名古屋市", options: groups["名古屋市"].sort(sortByKana) },
-      { label: "その他", options: groups["その他"].sort(sortByKana) },
-    ].filter((g) => g.options.length > 0); // 空グループは非表示
+    const result: ClientGroup[] = Array.from(groups.entries())
+      .map(([label, options]) => ({ label, options: options.sort(sortByKana) }))
+      .sort((a, b) => jaCollator.compare(a.label, b.label));
 
     return result;
   }, [records, jaCollator]);
@@ -292,7 +277,17 @@ const DisabilityCheckPage: React.FC = () => {
 
   // ② 各種フィルタ（年月・サービス・地域 + 検索条件）をかけた後のリスト
   const filteredRecords = useMemo(() => {
+    const normalizedNameQuery = kanaKey(clientNameQuery);
+
     return records.filter((r) => {
+      if (normalizedNameQuery) {
+        const name = kanaKey(r.client_name ?? "");
+        const kana = kanaKey(r.client_kana ?? "");
+        if (!name.includes(normalizedNameQuery) && !kana.includes(normalizedNameQuery)) {
+          return false;
+        }
+      }
+
       if (
         filterKaipokeCsId &&
         normCsId(r.kaipoke_cs_id) !== normCsId(filterKaipokeCsId)
@@ -311,7 +306,7 @@ const DisabilityCheckPage: React.FC = () => {
 
       return true;
     });
-  }, [records, filterKaipokeCsId, filterStaffId, filterTeamId, checkFilter]);
+  }, [records, clientNameQuery, filterKaipokeCsId, filterStaffId, filterTeamId, checkFilter]);
 
   const sortedRecords = useMemo(() => {
     const arr = [...filteredRecords];
@@ -326,8 +321,8 @@ const DisabilityCheckPage: React.FC = () => {
     arr.sort((a, b) => {
       switch (sortKey) {
         case "district": {
-          const av = areaLabel(a.district);
-          const bv = areaLabel(b.district);
+          const av = municipalityLabel(a);
+          const bv = municipalityLabel(b);
           return jaCollator.compare(av, bv) * dir;
         }
 
@@ -552,24 +547,16 @@ const DisabilityCheckPage: React.FC = () => {
         numeric: false,
       });
 
-      // ★置換：春日井→名古屋市→その他、同エリア内は五十音順
+      // APIと同じ既定順（サービス区分→市町村設定→正式な苗字読み→名前読み）を保持する。
       rows.sort((a, b) => {
-        const areaRank = (d?: string | null) => {
-          const s = norm(d ?? "");
-          if (s.includes("春日井")) return 0;
-          if (s.includes("名古屋")) return 1;
-          return 2;
-        };
-
-        const ra = areaRank(a.district);
-        const rb = areaRank(b.district);
-        if (ra !== rb) return ra - rb;
-
-        const ak = kanaKey(a.client_kana ?? a.client_name ?? "");
-        const bk = kanaKey(b.client_kana ?? b.client_name ?? "");
-        const byName = jaCollator.compare(ak, bk);
-
-        if (byName !== 0) return byName;
+        const service = (a.kaipoke_servicek === "移動支援" ? 1 : 0) - (b.kaipoke_servicek === "移動支援" ? 1 : 0);
+        if (service !== 0) return service;
+        const municipality = (a.municipality_sort_order ?? Number.MAX_SAFE_INTEGER) - (b.municipality_sort_order ?? Number.MAX_SAFE_INTEGER);
+        if (municipality !== 0) return municipality;
+        const byLastName = jaCollator.compare(kanaKey(a.last_name_kana ?? ""), kanaKey(b.last_name_kana ?? ""));
+        if (byLastName !== 0) return byLastName;
+        const byFirstName = jaCollator.compare(kanaKey(a.first_name_kana ?? ""), kanaKey(b.first_name_kana ?? ""));
+        if (byFirstName !== 0) return byFirstName;
 
         // 同名安定化
         return norm(a.kaipoke_cs_id ?? "").localeCompare(norm(b.kaipoke_cs_id ?? ""), "ja");
@@ -858,12 +845,23 @@ const DisabilityCheckPage: React.FC = () => {
     setKaipokeServicek("");
     setDistricts([]);
     setFilterKaipokeCsId("");
+    setClientNameQuery("");
     setFilterStaffId((isManager || isAdmin) ? "" : myUserId);
     setFilterTeamId("");
     setCheckFilter("");
     setSortKey(null);
     setSortOrder("none");
   };
+
+  const activeFilterCount = [
+    clientNameQuery.trim(),
+    kaipokeServicek,
+    districts.length > 0 ? "district" : "",
+    filterKaipokeCsId,
+    (isManager || isAdmin) ? filterStaffId : "",
+    filterTeamId,
+    checkFilter,
+  ].filter(Boolean).length;
 
   // ★追加：ログインユーザーの system_role を取得して権限判定
   useEffect(() => {
@@ -1113,20 +1111,53 @@ const DisabilityCheckPage: React.FC = () => {
         </div>
       )}
 
-      {/* フィルタ：横並び・幅180 */}
-      <div className="filters" style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 12 }}>
+      {/* 名前検索（一覧取得済みデータをフロント側で部分一致絞り込み） */}
+      <div style={{ marginBottom: 10 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "end",
+            flexWrap: "wrap",
+          }}
+        >
+          <label style={{ flex: "1 1 280px", maxWidth: 520 }}>
+            <span style={{ display: "block", marginBottom: 4 }}>利用者名・苗字で検索</span>
+            <input
+              type="search"
+              value={clientNameQuery}
+              onChange={(e) => setClientNameQuery(e.target.value)}
+              placeholder="🔍 利用者名・苗字で検索..."
+              aria-label="利用者名・苗字で検索"
+              style={{ width: "100%", minHeight: 36, padding: "6px 10px", border: "1px solid #999", borderRadius: 6 }}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => setIsFilterOpen((open) => !open)}
+            aria-expanded={isFilterOpen}
+            style={{ height: 36, padding: "0 12px", border: "1px solid #999", borderRadius: 6, background: "#fff", cursor: "pointer" }}
+          >
+            フィルター{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""} {isFilterOpen ? "▲" : "▼"}
+          </button>
+        </div>
+        {activeFilterCount > 0 && (
+          <div style={{ marginTop: 6, fontSize: 13, color: "#555" }}>
+            {clientNameQuery.trim() ? `「${clientNameQuery.trim()}」で検索中・` : ""}{filteredCount}件表示
+          </div>
+        )}
+      </div>
+
+      {/* 既存条件をまとめたフィルターパネル */}
+      {isFilterOpen && (
+      <div
+        className="filters"
+        style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 12, alignItems: "end", padding: 12, background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 8 }}
+      >
         <label style={{ width: 180 }}>
           年月
-          <select
-            value={yearMonth}
-            onChange={(e) => setYearMonth(e.target.value)}
-            style={{ width: 180 }}
-          >
-            {yearMonthOptions.map((ym) => (
-              <option key={ym} value={ym}>
-                {ym}
-              </option>
-            ))}
+          <select value={yearMonth} onChange={(e) => setYearMonth(e.target.value)} style={{ width: 180 }}>
+            {yearMonthOptions.map((ym) => <option key={ym} value={ym}>{ym}</option>)}
           </select>
         </label>
 
@@ -1137,8 +1168,6 @@ const DisabilityCheckPage: React.FC = () => {
             onChange={(e) => {
               const v = e.target.value;
               setKaipokeServicek(v);
-
-              // ★追加：サービス切替時に検索条件をリセット（これが効きます）
               setFilterKaipokeCsId("");
               setFilterStaffId((isManager || isAdmin) ? "" : myUserId);
               setFilterTeamId("");
@@ -1155,53 +1184,22 @@ const DisabilityCheckPage: React.FC = () => {
         <label style={{ width: 180 }}>
           地域（複数可）
           <select
-            value={districts[0] ?? ""} // 1件目 or 全て
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "") {
-                // 全件
-                setDistricts([]);
-              } else {
-                setDistricts([v]); // 1件だけ選択
-              }
-            }}
+            value={districts[0] ?? ""}
+            onChange={(e) => setDistricts(e.target.value ? [e.target.value] : [])}
             style={{ width: 180 }}
           >
             <option value="">（全て）</option>
-            {allDistricts.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
+            {allDistricts.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
         </label>
-      </div>
 
-      {/* ② 追加の検索欄 */}
-      <div
-        style={{
-          display: "flex",
-          gap: 20,
-          flexWrap: "wrap",
-          marginBottom: 12,
-          alignItems: "end",
-        }}
-      >
-        <label style={{ width: 180 }}>
-          利用者名
-          <select
-            value={filterKaipokeCsId}
-            onChange={(e) => setFilterKaipokeCsId(e.target.value)}
-            style={{ width: 180 }}
-          >
+        <label style={{ width: 220 }}>
+          利用者（一覧から選択）
+          <select value={filterKaipokeCsId} onChange={(e) => setFilterKaipokeCsId(e.target.value)} style={{ width: 220 }}>
             <option value="">（全て）</option>
             {clientGroups.map((g) => (
               <optgroup key={g.label} label={g.label}>
-                {g.options.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                {g.options.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </optgroup>
             ))}
           </select>
@@ -1297,6 +1295,7 @@ const DisabilityCheckPage: React.FC = () => {
 */}
 
       </div>
+      )}
       <table style={{ borderCollapse: "collapse", width: "100%" }}>
         <thead>
           <tr>
@@ -1392,7 +1391,13 @@ const DisabilityCheckPage: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {uniqueFilteredRecords.map((r) => {
+          {uniqueFilteredRecords.length === 0 ? (
+            <tr>
+              <td colSpan={9} style={{ padding: 24, textAlign: "center", color: "#666" }}>
+                条件に一致する利用者はいません。検索条件を確認するか、「クリア」を押してください。
+              </td>
+            </tr>
+          ) : uniqueFilteredRecords.map((r) => {
             const key = normCsId(r.kaipoke_cs_id);
             return (
               <tr

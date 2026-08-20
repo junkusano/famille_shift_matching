@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useSearchParams } from "next/navigation";
 import JissekiPrintGlobalStyles from "@/components/jisseki/JissekiPrintGlobalStyles";
+import { createJissekiRecordSortLabel, type JissekiServiceCategory } from "@/lib/jissekiRecordSort";
 
 type PrintPayload = {
     client: {
@@ -10,6 +11,11 @@ type PrintPayload = {
         client_name: string;
         ido_jukyusyasho?: string | null;
         shogai_jukyusha_no?: string | null;
+        municipality_display_name?: string | null;
+        municipality_sort_order?: number | null;
+        last_name_kana?: string | null;
+        first_name_kana?: string | null;
+        kana?: string | null;
         // もし今後使うなら postal_code 等もここに追加できます
     };
     month: string; // YYYY-MM
@@ -43,6 +49,12 @@ type FormProps = {
     totalPages?: number;  // 総枚数（任意）
     fitRefs?: RefObject<HTMLElement[]>;
 };
+
+function RecordSortLabel({ data, service }: { data: PrintPayload; service: JissekiServiceCategory }) {
+    return <span className="font-semibold" style={{ fontSize: "12px", whiteSpace: "nowrap" }}>
+        {createJissekiRecordSortLabel(service, data.client)}
+    </span>;
+}
 
 const OFFICE_NO = "2360181545";
 const OFFICE_NAME_LINES = ["ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知"];
@@ -319,7 +331,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                 </div>
 
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    &nbsp;
+                    <RecordSortLabel data={data} service="disability" />
                 </div>
             </div>
 
@@ -885,7 +897,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                     行動援護サービス提供実績記録票
                 </div>
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    （様式２）
+                    <RecordSortLabel data={data} service="disability" /> （様式２）
                 </div>
             </div>
 
@@ -1179,7 +1191,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                 </div>
 
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    &nbsp;
+                    <RecordSortLabel data={data} service="disability" />
                 </div>
             </div>
 
@@ -1575,7 +1587,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                     重度訪問介護サービス提供実績記録票
                 </div>
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    （様式３－１）
+                    <RecordSortLabel data={data} service="disability" /> （様式３－１）
                 </div>
             </div>
 
@@ -2045,7 +2057,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                 </div>
 
                 <div className="small right" style={{ flex: "1 1 0%" }}>
-                    &nbsp;
+                    <RecordSortLabel data={data} service="mobility" />
                 </div>
             </div>
 
