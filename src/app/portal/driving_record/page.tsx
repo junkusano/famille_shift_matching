@@ -11,7 +11,6 @@ type MonthlyDistanceRow = {
   work_day_count: number | null;
   movement_segment_count: number | null;
   monthly_distance_index: number | null;
-  last_updated_at: string | null;
 };
 
 type ManagerSummary = {
@@ -98,7 +97,7 @@ export default function ManagerDistanceIndexPage() {
     const startMonth = `${monthKeys[0]}-01`;
 
     const { data, error } = await supabase
-      .from("manager_monthly_distance_index_view")
+      .from("manager_monthly_google_maps_distance_view")
       .select(
         [
           "target_month",
@@ -107,7 +106,6 @@ export default function ManagerDistanceIndexPage() {
           "work_day_count",
           "movement_segment_count",
           "monthly_distance_index",
-          "last_updated_at",
         ].join(",")
       )
       .gte("target_month", startMonth)
@@ -135,11 +133,17 @@ export default function ManagerDistanceIndexPage() {
 
     const typedRows = (data ?? []) as unknown as MonthlyDistanceRow[];
     setRows(typedRows);
-    const timestamps = typedRows
-      .map((row) => row.last_updated_at)
-      .filter((value): value is string => Boolean(value))
-      .sort();
-    setLastUpdatedAt(timestamps.at(-1) ?? null);
+
+    // migration適用前のDBでも画面表示できるよう、最終更新日時は
+    // distance viewではなくCron実行ログから取得する。
+    const { data: latestRun } = await supabase
+      .from("google_maps_distance_cron_runs")
+      .select("finished_at")
+      .in("status", ["success", "partial"])
+      .order("finished_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setLastUpdatedAt(latestRun?.finished_at ?? null);
     setLoading(false);
   }, [monthKeys]);
 
