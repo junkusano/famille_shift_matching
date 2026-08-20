@@ -242,26 +242,66 @@
     .mobile-app-ui .mobile-app-main {
         min-height: 100dvh;
         padding-top: calc(3.5rem + env(safe-area-inset-top));
-        padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+        /* Bottom Navigation (64px) + 余裕 (24px) を共通で確保する。 */
+        padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
     }
 
-    .mobile-app-ui .mobile-app-drawer {
-        z-index: 40;
-        width: min(20rem, calc(100vw - 2rem));
-        padding: calc(3.5rem + env(safe-area-inset-top)) 0 env(safe-area-inset-bottom);
-        box-shadow: 12px 0 28px rgba(15, 23, 42, 0.3);
+    /* Drawerはヘッダー・本文・フッターを分離し、本文だけをスクロールさせる。 */
+    .mobile-navigation-drawer {
+        display: flex;
+        padding: 0;
+        overflow: hidden;
     }
 
-    .mobile-app-ui .mobile-app-drawer .hamburger {
-        position: absolute;
-        top: calc(env(safe-area-inset-top) + 0.5rem);
-        right: 0.5rem;
+    .mobile-drawer-header {
+        display: flex;
+        min-height: calc(3.75rem + env(safe-area-inset-top));
+        flex: none;
+        align-items: end;
+        justify-content: space-between;
+        padding: env(safe-area-inset-top) 0.75rem 0.5rem 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .mobile-navigation-drawer .hamburger {
         display: flex;
         width: 44px;
         height: 44px;
         align-items: center;
         justify-content: center;
+        padding: 0;
         border-radius: 9999px;
+    }
+
+    .mobile-drawer-scroll {
+        min-height: 0;
+        flex: 1 1 auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .mobile-drawer-scroll > div {
+        min-height: 100%;
+        height: auto;
+    }
+
+    .mobile-drawer-footer {
+        flex: none;
+        padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+        border-top: 1px solid rgba(255, 255, 255, 0.15);
+        background: #2c3e50;
+    }
+
+    .mobile-app-ui .mobile-app-drawer {
+        z-index: 40;
+        bottom: calc(4rem + env(safe-area-inset-bottom));
+        width: min(20rem, calc(100vw - 2rem));
+        height: auto;
+        box-shadow: 12px 0 28px rgba(15, 23, 42, 0.3);
+    }
+
+    .mobile-app-overlay {
+        bottom: calc(4rem + env(safe-area-inset-bottom));
     }
 }
 

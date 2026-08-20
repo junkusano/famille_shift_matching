@@ -318,7 +318,7 @@ function TreeMenu({ role, onUseLegacy }: { role: string | null; onUseLegacy: () 
     {isManagerOrAdmin && <div className="space-y-2"><h3 className="px-1 text-xs font-bold tracking-wide text-slate-200">管理メニュー</h3>{managerMenuGroups.map((group) => <TreeGroup key={group.label} group={group} pathname={pathname} searchParams={searchParams} />)}</div>}
     <div className="space-y-2"><h3 className="px-1 text-xs font-bold tracking-wide text-slate-200">全員共通メニュー</h3>{commonMenuGroups(currentYm).map((group) => <TreeGroup key={group.label} group={group} pathname={pathname} searchParams={searchParams} />)}</div>
     <div className="space-y-0.5 border-t border-white/20 pt-3"><MenuLink item={{ label: "🏠 サイトHome", href: "/" }} pathname={pathname} searchParams={searchParams} /><MenuLink item={{ label: "LINE WORKSログインガイド", href: "/lineworks-login-guide" }} pathname={pathname} searchParams={searchParams} /></div>
-    <button type="button" onClick={onUseLegacy} className="w-full rounded-md border border-white/20 px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 hover:text-white">旧メニューに戻す</button>
+    <button type="button" onClick={onUseLegacy} className="w-full rounded-md border border-white/20 px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 hover:text-white">従来の一覧メニューに切り替える</button>
   </nav>;
 }
 
@@ -332,7 +332,7 @@ function NavLinks({ role }: { role: string | null }) {
     window.localStorage.setItem("portalMenuMode", mode);
     setMenuMode(mode);
   };
-  return menuMode === "tree" ? <TreeMenu role={role} onUseLegacy={() => changeMenuMode("legacy")} /> : <><LegacyMenu role={role} /><button type="button" onClick={() => changeMenuMode("tree")} className="mt-4 w-full rounded-md border border-white/20 px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 hover:text-white">新メニューを使う</button></>;
+  return menuMode === "tree" ? <TreeMenu role={role} onUseLegacy={() => changeMenuMode("legacy")} /> : <><LegacyMenu role={role} /><button type="button" onClick={() => changeMenuMode("tree")} className="mt-4 w-full rounded-md border border-white/20 px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 hover:text-white">新しい一覧メニューに切り替える</button></>;
 }
 
 function UserHeader({ userData, role }: { userData: UserData; role: string | null }) {
@@ -373,6 +373,52 @@ function SidebarContent({
   );
 }
 
+function MobileNavigationDrawer({
+  isOpen,
+  useNewMobileUi,
+  userData,
+  role,
+  onClose,
+  onDeletePhoto,
+  onReuploadPhoto,
+  onChangeMobileUiMode,
+}: {
+  isOpen: boolean;
+  useNewMobileUi: boolean;
+  userData: UserData;
+  role: string | null;
+  onClose: () => void;
+  onDeletePhoto: () => Promise<void> | void;
+  onReuploadPhoto: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void> | void;
+  onChangeMobileUiMode: (mode: MobileUiMode) => void;
+}) {
+  const handleNavigationClick: React.MouseEventHandler<HTMLElement> = (event) => {
+    if ((event.target as HTMLElement).closest("a")) onClose();
+  };
+
+  return (
+    <nav className={`menu mobile-navigation-drawer ${isOpen ? "open" : ""} ${useNewMobileUi ? "mobile-app-drawer" : ""}`} aria-hidden={!isOpen}>
+      <header className="mobile-drawer-header">
+        <p className="text-base font-bold">メニュー</p>
+        <button type="button" className="hamburger" aria-label="メニューを閉じる" onClick={onClose}>×</button>
+      </header>
+      <div className="mobile-drawer-scroll" onClick={handleNavigationClick}>
+        <SidebarContent userData={userData} role={role} onDeletePhoto={onDeletePhoto} onReuploadPhoto={onReuploadPhoto} />
+      </div>
+      <footer className="mobile-drawer-footer">
+        <p className="mb-2 text-xs font-bold tracking-wide text-slate-200">表示設定</p>
+        <button
+          type="button"
+          onClick={() => onChangeMobileUiMode(useNewMobileUi ? "old" : "new")}
+          className="min-h-11 w-full rounded-lg border border-white/30 px-3 text-sm font-semibold text-white transition hover:bg-white/10"
+        >
+          {useNewMobileUi ? "旧スマホメニューに切り替える" : "新スマホメニューに切り替える"}
+        </button>
+      </footer>
+    </nav>
+  );
+}
+
 function MobileHeader({ onOpenMenu, pathname }: { onOpenMenu: () => void; pathname: string }) {
   return (
     <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center border-b border-slate-200 bg-white/95 px-3 shadow-sm backdrop-blur md:hidden" style={{ paddingTop: "env(safe-area-inset-top)" }}>
@@ -389,22 +435,23 @@ function MobileHeader({ onOpenMenu, pathname }: { onOpenMenu: () => void; pathna
   );
 }
 
-function MobileBottomNavigation({ pathname }: { pathname: string }) {
+function MobileBottomNavigation({ pathname, onNavigate }: { pathname: string; onNavigate: () => void }) {
   const items = [
     { label: "ホーム", href: "/portal", icon: Home, active: pathname === "/portal" },
     { label: "職員証", href: "/portal/badge", icon: Badge, active: pathname.startsWith("/portal/badge") },
     { label: "給与", href: "/portal/user_salary_monthly", icon: Wallet, active: pathname.startsWith("/portal/user_salary_monthly") },
-    { label: "シフ子", href: "/portal/shift-coordinate", icon: CalendarDays, active: pathname.startsWith("/portal/shift-coordinate") },
-    { label: "訪問記録", href: "/portal/shift", icon: ClipboardCheck, active: pathname.startsWith("/portal/shift") && !pathname.startsWith("/portal/shift-coordinate") },
+    { label: "シフ子", href: "/portal/shift-coordinate-performance-test", icon: CalendarDays, active: pathname.startsWith("/portal/shift-coordinate") },
+    { label: "訪問記録", href: "/portal/shift-reject-performance-test", icon: ClipboardCheck, active: pathname.startsWith("/portal/shift") && !pathname.startsWith("/portal/shift-coordinate") },
   ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 shadow-[0_-3px_12px_rgba(15,23,42,0.08)] backdrop-blur md:hidden" aria-label="主要メニュー" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <nav className="fixed inset-x-0 bottom-0 z-[45] border-t border-slate-200 bg-white/95 shadow-[0_-3px_12px_rgba(15,23,42,0.08)] backdrop-blur md:hidden" aria-label="主要メニュー" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div className="mx-auto grid h-16 max-w-lg grid-cols-5 px-1">
         {items.map(({ label, href, icon: Icon, active }) => (
           <Link
             key={href}
             href={href}
+            onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium transition active:scale-95 ${active ? "bg-orange-50 text-orange-700" : "text-slate-500 active:bg-slate-100"}`}
           >
@@ -498,12 +545,6 @@ export default function PortalLayout({ children }: Props) {
 
   const asideWidth = isCollapsed ? 18 : 280; // PC折りたたみ時は細いタブ幅
 
-  // モバイル：メニュー内リンクを押したら自動で閉じる
-  const handleMobileNavClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
-    const a = (e.target as HTMLElement).closest("a");
-    if (a) setIsMobileMenuOpen(false);
-  };
-
   // モバイル：左端ホットゾーンをタップで開閉（表示・非表示どちらも）
   const toggleByEdge = () => setIsMobileMenuOpen((v) => !v);
 
@@ -532,20 +573,20 @@ export default function PortalLayout({ children }: Props) {
       {/* ===== モバイル：左端ホットゾーン（常時固定） ===== */}
       {!useNewMobileUi && <button className="edge-hotzone" aria-label="メニューの開閉" onClick={toggleByEdge} />}
 
-      {/* ===== モバイル：スライドメニュー ===== */}
-      <nav className={`menu ${isMobileMenuOpen ? "open" : ""} ${useNewMobileUi ? "mobile-app-drawer" : ""}`} onClick={handleMobileNavClick} aria-hidden={!isMobileMenuOpen}>
-        {/* ×で閉じる（メニュー上部） */}
-        <button className="hamburger" aria-label="メニューを閉じる" onClick={() => setIsMobileMenuOpen(false)}>×</button>
-        <SidebarContent userData={userData} role={role} onDeletePhoto={handleDeletePhoto} onReuploadPhoto={handlePhotoReupload} />
-        {useNewMobileUi ? (
-          <button type="button" onClick={() => changeMobileUiMode("old")} className="mx-4 mb-5 min-h-11 rounded-lg border border-white/30 px-3 text-sm font-semibold text-white transition hover:bg-white/10">旧メニューに戻す</button>
-        ) : (
-          <button type="button" onClick={() => changeMobileUiMode("new")} className="mx-4 mb-5 min-h-11 rounded-lg border border-white/30 px-3 text-sm font-semibold text-white transition hover:bg-white/10">新しいスマホメニューを使用する</button>
-        )}
-      </nav>
+      {/* ===== モバイル：固定ヘッダー・スクロール領域・固定フッターのDrawer ===== */}
+      <MobileNavigationDrawer
+        isOpen={isMobileMenuOpen}
+        useNewMobileUi={useNewMobileUi}
+        userData={userData}
+        role={role}
+        onClose={() => setIsMobileMenuOpen(false)}
+        onDeletePhoto={handleDeletePhoto}
+        onReuploadPhoto={handlePhotoReupload}
+        onChangeMobileUiMode={changeMobileUiMode}
+      />
 
       {/* オーバーレイ（背景タップで閉じる） */}
-      <div className={isMobileMenuOpen ? (useNewMobileUi ? "fixed inset-0 z-[35] bg-black/30" : "fixed inset-0 bg-black/30 z-[90]") : "hidden"} onClick={() => setIsMobileMenuOpen(false)} />
+      <div className={isMobileMenuOpen ? (useNewMobileUi ? "mobile-app-overlay fixed inset-x-0 top-0 z-[35] bg-black/30" : "fixed inset-0 bg-black/30 z-[90]") : "hidden"} onClick={() => setIsMobileMenuOpen(false)} />
 
       {/* ===== メイン ===== */}
       {useNewMobileUi && <MobileHeader pathname={pathname ?? "/portal"} onOpenMenu={() => setIsMobileMenuOpen(true)} />}
@@ -557,7 +598,7 @@ export default function PortalLayout({ children }: Props) {
         </div>
         <Footer />
       </main>
-      {useNewMobileUi && <MobileBottomNavigation pathname={pathname ?? "/portal"} />}
+      {useNewMobileUi && <MobileBottomNavigation pathname={pathname ?? "/portal"} onNavigate={() => setIsMobileMenuOpen(false)} />}
     </div>
   );
 }
