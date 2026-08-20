@@ -82,6 +82,14 @@ ${mode === "bulk" ? `
       @media print{
         .title{ font-size: 12px !important; }
         .grid th, .grid td{ padding: 1px 2px !important; }
+        /* A4縦の左右5mm余白を使い切る。帳票全体へのscale/zoomは行わない。 */
+        .print-only { width: 210mm !important; padding: 0 5mm !important; box-sizing: border-box !important; }
+        .print-only .print-page { display: block !important; width: 100% !important; }
+        .print-only .print-page > .formBox,
+        .print-only .formBox.doko-sheet,
+        .print-only .formBox.idou-sheet { width: 200mm !important; margin: 0 auto !important; box-sizing: border-box !important; }
+        .print-only .print-page + .print-page { break-before: page !important; page-break-before: always !important; }
+        .grid tr { break-inside: avoid; page-break-inside: avoid; }
       }
 
       /* 10桁：外枠なし、区切り線のみ */

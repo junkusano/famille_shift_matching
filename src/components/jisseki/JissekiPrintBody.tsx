@@ -478,23 +478,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                 .slice()
                                 .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
-                            const MAX = ROWS_PER_PAGE.TAKINO;
-
-                            const padded = [
-                                ...src,
-                                ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
-                            ].slice(0, MAX);
-
-                            return padded.map((r, i) => {
-                                if (!r) {
-                                    return (
-                                        <tr key={`blank-${i}`} className="detail-row">
-                                            {Array.from({ length: 17 }).map((__, j) => (
-                                                <td key={j}>&nbsp;</td>
-                                            ))}
-                                        </tr>
-                                    );
-                                }
+                            return src.map((r, i) => {
 
                                 const dispatch = r.required_staff_count ?? 1;
 
@@ -812,13 +796,6 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
         .slice()
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
-    const MAX = ROWS_PER_PAGE.KODO;
-
-    const padded: Array<(typeof src)[number] | null> = [
-        ...src,
-        ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
-    ].slice(0, MAX);
-    // ▲▲▲ 追加ここまで ▲▲▲
     return (
         <div className="formBox p-2">
             {/* タイトル行（PDF寄せ：左右に小枠がある体裁） */}
@@ -969,17 +946,8 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                             <th className="center">終了時間</th>
                         </tr>
 
-                        {/* 明細行（rowsを表示＋不足分は空行） */}
-                        {padded.map((r, i) => {
-                            if (!r) {
-                                return (
-                                    <tr key={`blank-${i}`} className="detail-row">
-                                        {Array.from({ length: 14 }).map((__, j) => (
-                                            <td key={j}>&nbsp;</td>
-                                        ))}
-                                    </tr>
-                                );
-                            }
+                        {/* 明細。固定空行は出力しない。 */}
+                        {src.map((r, i) => {
 
                             const mins = getMinutes(r);
                             const hours = fmtHours(mins);
@@ -1301,23 +1269,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                 .slice()
                                 .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
-                            const MAX = ROWS_PER_PAGE.DOKO;
-
-                            const padded: Array<(typeof src)[number] | null> = [
-                                ...src,
-                                ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
-                            ].slice(0, MAX);
-
-                            return padded.map((r, i) => {
-                                if (!r) {
-                                    return (
-                                        <tr key={`blank-${i}`} className="detail-row">
-                                            {Array.from({ length: 14 }).map((__, j) => (
-                                                <td key={j}>&nbsp;</td>
-                                            ))}
-                                        </tr>
-                                    );
-                                }
+                            return src.map((r, i) => {
 
                                 const planHours = fmtHours(getMinutes(r));
                                 const dispatch = r.required_staff_count ?? 1;
@@ -1710,16 +1662,8 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
 
                         {/* 明細行（データ行＋不足分は空行で埋める） */}
                         {(() => {
-                            const rows = form?.rows ?? [];
-                            const pageSize = ROWS_PER_PAGE.JYUHO;
-                            const startIndex = (pageNo - 1) * pageSize;
-                            const pageRows = rows.slice(startIndex, startIndex + pageSize);
-
-                            // 末尾まで空行で埋める
-                            const padded = [
-                                ...pageRows,
-                                ...Array.from({ length: Math.max(0, pageSize - pageRows.length) }).map(() => null),
-                            ];
+                            // 親でページごとに分割済み。固定空行は追加しない。
+                            const pageRows = form?.rows ?? [];
 
                             // 曜日（日本語表記）
                             const weekdayJa = (d?: string) => {
@@ -1732,17 +1676,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                             // "HH:MM" 表示（time型が "HH:MM:SS" で来ても対応）
                             const hm = (t?: string) => (t ? t.slice(0, 5) : "");
 
-                            return padded.map((r, i) => {
-                                if (!r) {
-                                    // 空行（19列）
-                                    return (
-                                        <tr key={i} className="detail-row">
-                                            {Array.from({ length: 19 }).map((__, j) => (
-                                                <td key={j}>&nbsp;</td>
-                                            ))}
-                                        </tr>
-                                    );
-                                }
+                            return pageRows.map((r, i) => {
 
                                 // 備考：担当者（漢字氏名） staff_01 / staff_02（API側で staffNames を返している前提）
                                 const staffMemo = (r.staffNames ?? []).join("、");
@@ -1944,12 +1878,6 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
         .slice()
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
-    // ★指定行数にパディング（不足分は空行）
-    const MAX = ROWS_PER_PAGE.IDOU;
-    const padded: Array<(typeof src)[number] | null> = [
-        ...src,
-        ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
-    ].slice(0, MAX);
 
     // ★合計（要望：サービス提供「分」＝計画時間（分）＝内訳（不可欠）を同じにする）
     const sumPlanMin = src.reduce((a, r) => a + getMinutes(r), 0);
@@ -2194,17 +2122,8 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                             <th className="center">終了時刻</th>
                         </tr>
 
-                        {/* 明細：rows を表示＋不足分は空行（2025-11-01以降のみ） */}
-                        {padded.map((r, i) => {
-                            if (!r) {
-                                return (
-                                    <tr key={`blank-${i}`} className="detail-row">
-                                        {Array.from({ length: 19 }).map((__, j) => (
-                                            <td key={j}>&nbsp;</td>
-                                        ))}
-                                    </tr>
-                                );
-                            }
+                        {/* 明細。様式のためだけの固定空行は出力しない。 */}
+                        {src.map((r, i) => {
 
                             const mins = getMinutes(r);
 
