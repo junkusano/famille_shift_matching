@@ -34,6 +34,15 @@ export function getHealthCheckType(payload: unknown): HealthCheckType {
   return value === "employment" || value === "periodic" ? value : "unknown";
 }
 
+/** Imported records were completed before the workflow screen existed and have no attachment. */
+export function isLegacyHealthCheckBackfill(payload: unknown): boolean {
+  return Boolean(
+    payload &&
+    typeof payload === "object" &&
+    (payload as Record<string, unknown>).health_check_legacy_backfill === true
+  );
+}
+
 export function isHealthCheckForFiscalYear(
   payload: unknown,
   fiscalYear: number,

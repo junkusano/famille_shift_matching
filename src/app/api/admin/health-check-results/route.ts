@@ -5,6 +5,7 @@ import {
   getHealthCheckFiscalYear,
   getHealthCheckType,
   HEALTH_CHECK_SUBMITTED_STATUSES,
+  isLegacyHealthCheckBackfill,
 } from "@/lib/healthCheck";
 
 type RequestRow = {
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest) {
     const latestByUser = new Map<string, RequestRow>();
     for (const request of (requests ?? []) as RequestRow[]) {
       const date = getHealthCheckDate(request.payload);
-      if (!date || getHealthCheckFiscalYear(date) !== fiscalYear || !(attachmentsByRequest.get(request.id)?.length)) continue;
+      if (!date || getHealthCheckFiscalYear(date) !== fiscalYear || (!(attachmentsByRequest.get(request.id)?.length) && !isLegacyHealthCheckBackfill(request.payload))) continue;
       const current = latestByUser.get(request.applicant_user_id);
       if (!current || (request.submitted_at ?? request.created_at) > (current.submitted_at ?? current.created_at)) latestByUser.set(request.applicant_user_id, request);
     }
@@ -77,7 +78,8 @@ export async function GET(req: NextRequest) {
       return {
         user_id: person.user_id, entry_id: person.entry_id, staff_name: `${person.last_name_kanji ?? ""}${person.first_name_kanji ?? ""}`.trim() || person.user_id,
         orgunitname: person.orgunitname, role: person.system_role, status: person.status,
-        submitted: Boolean(request), request: request ? { ...request, ...review, health_check_date: getHealthCheckDate(request.payload), health_check_type: getHealthCheckType(request.payload), attachments: attachmentsByRequest.get(request.id) ?? [] } : null,
+        submitted: Boolean(request),
+        request: request ? { ...request, ...review, health_check_date: getHealthCheckDate(request.payload), health_check_type: getHealthCheckType(request.payload), attachments: attachmentsByRequest.get(request.id) ?? [] } : null,
       };
     }).sort((a, b) => a.staff_name.localeCompare(b.staff_name, "ja"));
     return NextResponse.json({ ok: true, rows, review_metadata_available: reviewMetadataAvailable });

@@ -10,6 +10,7 @@ import {
 } from "@/lib/performanceScoreBadge";
 import {
     HEALTH_CHECK_SUBMITTED_STATUSES,
+    isLegacyHealthCheckBackfill,
     isHealthCheckForFiscalYear,
 } from "@/lib/healthCheck";
 
@@ -749,9 +750,8 @@ export async function GET(req: NextRequest) {
 
                     for (const req of healthRequests ?? []) {
                         if (!req.applicant_user_id) continue;
-                        if (!submittedHealthRequestIds.has(req.id)) continue;
-
                         const payload = req.payload as Record<string, unknown> | null;
+                        if (!submittedHealthRequestIds.has(req.id) && !isLegacyHealthCheckBackfill(payload)) continue;
                         if (!isHealthCheckForFiscalYear(payload, getFiscalYearRangeByTargetMonth(targetMonth).fiscalYear)) {
                             continue;
                         }
