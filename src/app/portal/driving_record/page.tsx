@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabaseClient";
 
 type MonthlyDistanceRow = {
   target_month: string;
@@ -10,6 +11,7 @@ type MonthlyDistanceRow = {
   work_day_count: number | null;
   movement_segment_count: number | null;
   monthly_distance_index: number | null;
+  last_updated_at: string | null;
 };
 
 type ManagerSummary = {
@@ -71,6 +73,8 @@ export default function ManagerDistanceIndexPage() {
   const [rows, setRows] = useState<MonthlyDistanceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [updatingDistance, setUpdatingDistance] = useState(false);
 
   const monthKeys = useMemo(() => createRecentMonthKeys(4), []);
 
@@ -103,6 +107,7 @@ export default function ManagerDistanceIndexPage() {
           "work_day_count",
           "movement_segment_count",
           "monthly_distance_index",
+          "last_updated_at",
         ].join(",")
       )
       .gte("target_month", startMonth)
@@ -128,9 +133,34 @@ export default function ManagerDistanceIndexPage() {
       return;
     }
 
-    setRows((data ?? []) as unknown as MonthlyDistanceRow[]);
+    const typedRows = (data ?? []) as unknown as MonthlyDistanceRow[];
+    setRows(typedRows);
+    const timestamps = typedRows
+      .map((row) => row.last_updated_at)
+      .filter((value): value is string => Boolean(value))
+      .sort();
+    setLastUpdatedAt(timestamps.at(-1) ?? null);
     setLoading(false);
   }, [monthKeys]);
+
+  const updateDistance = async () => {
+    setUpdatingDistance(true);
+    setErrorMessage("");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch("/api/cron/google-maps-distance", {
+        method: "POST",
+        headers: session?.access_token ? { "x-supabase-access-token": session.access_token } : {},
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "距離データの更新に失敗しました");
+      await loadData();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setUpdatingDistance(false);
+    }
+  };
 
   useEffect(() => {
     void loadData();
@@ -243,8 +273,11 @@ export default function ManagerDistanceIndexPage() {
 </div>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            自宅と各シフト先の郵便番号上3桁の
-            差分を、月ごとに合計しています。
+            Google Mapsの道路距離を、職員ごとに月間集計しています。
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Google Maps距離　最終更新：{lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString("ja-JP") : "未更新"}
+            <br />※移動距離は3日に1回自動更新されます。シフト変更分は次回更新時に反映されます。
           </p>
         </div>
 
@@ -257,6 +290,14 @@ export default function ManagerDistanceIndexPage() {
           className="inline-flex h-10 items-center justify-center rounded-md border bg-background px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? "更新中..." : "再読み込み"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void updateDistance()}
+          disabled={loading || updatingDistance}
+          className="inline-flex h-10 items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {updatingDistance ? "距離更新中..." : "距離データを更新"}
         </button>
       </div>
 
@@ -326,17 +367,13 @@ export default function ManagerDistanceIndexPage() {
                           key={monthKey}
                           className="px-4 py-3 text-right tabular-nums"
                         >
-                          {value.toLocaleString(
-                            "ja-JP"
-                          )}
+                          {value.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
                         </td>
                       );
                     })}
 
                     <td className="bg-muted/30 px-4 py-3 text-right font-semibold tabular-nums">
-                      {manager.total.toLocaleString(
-                        "ja-JP"
-                      )}
+                      {manager.total.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
                     </td>
                   </tr>
                 ))}
@@ -355,14 +392,12 @@ export default function ManagerDistanceIndexPage() {
                     >
                       {monthlyTotals[
                         monthKey
-                      ].toLocaleString("ja-JP")}
+                      ].toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
                     </td>
                   ))}
 
                   <td className="bg-muted/70 px-4 py-3 text-right tabular-nums">
-                    {grandTotal.toLocaleString(
-                      "ja-JP"
-                    )}
+                    {grandTotal.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
                   </td>
                 </tr>
               </tfoot>
@@ -372,8 +407,7 @@ export default function ManagerDistanceIndexPage() {
       </div>
 
       <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-        この指数は実際の走行距離ではなく、
-        郵便番号上3桁の差を利用した比較用の概算値です。
+        Google Mapsの道路距離をメートル単位で保存し、画面ではキロメートルに変換して表示しています。
       </div>
     </main>
   );

@@ -425,6 +425,71 @@ function shouldConnectLW(
   return false;
 }
 
+// 訪問記録フォームの入力値を、そのままLWメッセージ本文へ整形する。
+// 特記事項サマリは次回シフト用の補助情報なので、LW連携本文には使わない。
+function buildVisitRecordMessage(
+  defs: ShiftRecordItemDef[],
+  values: Record<string, unknown>,
+  categoryNames: Record<string, string>
+): string {
+  const seen = new Set<string>();
+  const rows: Array<{ category: string; label: string; value: string }> = [];
+
+  const formatValue = (def: ShiftRecordItemDef, raw: unknown): string => {
+    const optionsRaw = def.options ?? def.options_json;
+    const options = def.input_type === "checkbox"
+      ? parseCheckboxOptions(optionsRaw, def.exclusive).items
+      : def.input_type === "select"
+        ? parseSelectOptions(optionsRaw).items
+        : [];
+
+    if (Array.isArray(raw)) {
+      const selected = raw.map(String).map((v) => options.find((o) => o.value === v)?.label ?? v).filter(Boolean);
+      return selected.join("、");
+    }
+
+    const value = String(raw ?? "").trim();
+    if (!value) return "";
+    if (options.length > 0) {
+      const matched = options.find((o) => o.value === value);
+      if (matched) return matched.label;
+    }
+    if (def.input_type === "checkbox" && value === "1") return "はい / 実施";
+    return def.unit ? `${value}${def.unit}` : value;
+  };
+
+  for (const def of defs) {
+    if (seen.has(def.id) || def.input_type === "display") continue;
+    seen.add(def.id);
+    if (def.code === "lw_connect" || def.code === "lw_channel_id") continue;
+    if (!Object.prototype.hasOwnProperty.call(values, def.id)) continue;
+
+    const value = formatValue(def, values[def.id]);
+    if (!value) continue;
+    rows.push({
+      category: categoryNames[def.s_id] ?? "訪問記録",
+      label: def.label,
+      value,
+    });
+  }
+
+  if (rows.length === 0) return "（入力内容なし）";
+
+  const grouped = new Map<string, Array<{ label: string; value: string }>>();
+  for (const row of rows) {
+    const items = grouped.get(row.category) ?? [];
+    items.push({ label: row.label, value: row.value });
+    grouped.set(row.category, items);
+  }
+
+  return Array.from(grouped.entries())
+    .map(([category, items]) => [
+      `【${category}】`,
+      ...items.map((item) => `・${item.label}: ${item.value}`),
+    ].join("\n"))
+    .join("\n");
+}
+
 
 // 「状況】」の直後〜「【指示】」の直前を抽出
 function extractTokuteiStatusSlice(raw: string): string {
@@ -1103,8 +1168,10 @@ export default function ShiftRecord({
         });
         if (!res.ok) throw new Error("complete failed");
 
-        // ★ サマリ生成は1回だけ呼び、返り値を本文として使う
-        const summaryText = await fetchTokuteiSummarySlice(shiftId);
+        // 次回シフト用の特記事項サマリは、LW本文とは別に生成する。
+        await fetchTokuteiSummarySlice(shiftId).catch((e) => {
+          console.error("[tokutei] summary generation error:", e);
+        });
 
         setRecordLocked(true);
         setStatus(STATUS.completed);
@@ -1113,19 +1180,17 @@ export default function ShiftRecord({
         // === LW連携（確定時） ===
         try {
           const mergedDefs = [...(defs.items ?? []), ...(effectiveItems ?? [])];
+          const categoryNames = Object.fromEntries(defs.S.map((s) => [s.id, s.name]));
           const shouldSend = shouldConnectLW(mergedDefs, values);
 
           //alert(`[LW DEBUG] trigger=${shouldSend} (mergedDefs=${mergedDefs.length})`);
 
           if (shouldSend) {
             const channelId = await resolveChannelIdForClient(values, mergedDefs, mergedInfo);
-            //alert(`[LW DEBUG] resolved channelId=${String(channelId)}`);
-            // ★ ここを再宣言せず、そのまま使う
-            //alert(`[LW DEBUG] summaryText.len=${summaryText?.length ?? 0}\nhead="${(summaryText || "").slice(0, 80)}"`);
 
             if (channelId) {
-              const text = summaryText ? `${LW_HEADER}\n${summaryText}` : LW_HEADER;
-              //alert(`[LW DEBUG] postToLW()\nchannelId=${channelId}\ntext.len=${text.length}`);
+              const visitRecordText = buildVisitRecordMessage(mergedDefs, values, categoryNames);
+              const text = `${LW_HEADER}\n${visitRecordText}`;
               await postToLW(channelId, text);
             }
           }
@@ -1156,6 +1221,7 @@ export default function ShiftRecord({
         // === LW連携（更新時） ===
         try {
           const mergedDefs = [...(defs.items ?? []), ...(effectiveItems ?? [])];
+          const categoryNames = Object.fromEntries(defs.S.map((s) => [s.id, s.name]));
           const shouldSend = shouldConnectLW(mergedDefs, values);
           //alert(`[LW DEBUG] trigger=${shouldSend} (mergedDefs=${mergedDefs.length})`);
 
@@ -1163,9 +1229,12 @@ export default function ShiftRecord({
             const channelId = await resolveChannelIdForClient(values, mergedDefs, mergedInfo);
 
             if (channelId) {
-              // ★ 更新時も最新サマリを1回生成して使う
-              const summaryText = await fetchTokuteiSummarySlice(shiftId);
-              const text = summaryText ? `${LW_HEADER}\n${summaryText}` : LW_HEADER;
+              // 更新時も次回シフト用サマリの生成は維持するが、LW本文は入力値を送る。
+              await fetchTokuteiSummarySlice(shiftId).catch((e) => {
+                console.error("[tokutei] summary generation error:", e);
+              });
+              const visitRecordText = buildVisitRecordMessage(mergedDefs, values, categoryNames);
+              const text = `${LW_HEADER}\n${visitRecordText}`;
               await postToLW(channelId, text);
             }
           }

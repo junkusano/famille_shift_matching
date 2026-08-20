@@ -8,6 +8,8 @@ import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/S
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import ShiftRecordLinkButton from '@/components/shift/ShiftRecordLinkButton'
+import ShiftDialog from '@/components/roster/ShiftDialog'
+import type { RosterShiftDialogData, RosterStaff } from '@/types/roster'
 import { useRoleContext } from "@/context/RoleContext";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -75,6 +77,13 @@ type ShiftRow = {
     // ★★★ 修正箇所 (2): dispatch_size に '02' を追加 ★★★
     // エラーメッセージが示唆している通り、dispatch_size の型も更新が必要です。
     dispatch_size: '-' | '01' | '02'
+}
+
+type MonthlySpotStatus = {
+    status: string | null
+    applicant_name: string | null
+    applicant_sex: string | null
+    applicant_control_url: string | null
 }
 
 type NewShiftDraft = {
@@ -415,11 +424,44 @@ export default function MonthlyRosterPage() {
 
     // 明細
     const [shifts, setShifts] = useState<ShiftRow[]>([])
+    const [spotStatuses, setSpotStatuses] = useState<Record<string, MonthlySpotStatus>>({})
+    const [spotDialogShift, setSpotDialogShift] = useState<RosterShiftDialogData | null>(null)
+    const [spotDialogOpen, setSpotDialogOpen] = useState(false)
     const [openRecordFor, setOpenRecordFor] = useState<string | null>(null)
     void openRecordFor
 
     // 削除選択
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+    const loadSpotStatuses = useCallback(async (rows: ShiftRow[]) => {
+        const ids = rows.map((row) => Number(row.shift_id)).filter(Number.isFinite)
+        if (ids.length === 0) {
+            setSpotStatuses({})
+            return
+        }
+
+        const { data, error } = await supabase
+            .from('spot_offer_request_table')
+            .select('shift_id,status,applicant_name,applicant_sex,applicant_control_url')
+            .in('shift_id', ids)
+            .in('status', ['募集中', '確定'])
+
+        if (error) {
+            console.error('スポット募集状態取得エラー:', error)
+            return
+        }
+
+        const next: Record<string, MonthlySpotStatus> = {}
+        for (const row of data ?? []) {
+            next[String(row.shift_id)] = {
+                status: row.status ?? null,
+                applicant_name: row.applicant_name ?? null,
+                applicant_sex: row.applicant_sex ?? null,
+                applicant_control_url: row.applicant_control_url ?? null,
+            }
+        }
+        setSpotStatuses(next)
+    }, [])
 
 
     // ▼ 新規行ドラフト
@@ -766,12 +808,13 @@ export default function MonthlyRosterPage() {
             setShifts(normalized);
             setOpenRecordFor(null);
             setSelectedIds(new Set());
+            void loadSpotStatuses(normalized);
 
             // ★ 追加: 訪問記録ステータスの一括取得
             void loadRecordStatuses(normalized.map(r => r.shift_id));
         }
         void loadShifts()
-    }, [selectedKaipokeCS, selectedMonth])
+    }, [selectedKaipokeCS, selectedMonth, loadSpotStatuses])
 
     // 前後ナビ（利用者）
     const csIndex = useMemo(() => kaipokeCs.findIndex((c) => c.kaipoke_cs_id === selectedKaipokeCS), [kaipokeCs, selectedKaipokeCS])
@@ -1246,6 +1289,41 @@ if (
         return m;
     }, [kaipokeCs, shifts]);
 
+    const rosterStaffOptions = useMemo<RosterStaff[]>(
+        () => staffOptions.map((staff) => ({
+            id: staff.value,
+            name: staff.label || staff.value,
+        })),
+        [staffOptions]
+    )
+
+    const openSpotDialog = useCallback((row: ShiftRow) => {
+        const client = kaipokeCs.find((cs) => cs.kaipoke_cs_id === row.kaipoke_cs_id)
+        const service = serviceCodes.find((code) => code.service_code === row.service_code)
+        const startAt = `${row.shift_start_date}T${row.shift_start_time}:00+09:00`
+        const endAt = `${row.shift_start_date}T${row.shift_end_time}:00+09:00`
+
+        setSpotDialogShift({
+            shift_id: Number(row.shift_id),
+            shift_date: row.shift_start_date,
+            start_at: startAt,
+            end_at: endAt,
+            kaipoke_cs_id: row.kaipoke_cs_id,
+            client_name: client?.name ?? row.kaipoke_cs_id,
+            service_code: row.service_code ?? '',
+            service_name: service?.kaipoke_servicek ?? row.service_code ?? '',
+            staff_id_1: row.staff_01_user_id,
+            staff_id_2: row.staff_02_user_id,
+            staff_id_3: row.staff_03_user_id,
+            staff_02_attend_flg: row.staff_02_attend_flg,
+            staff_03_attend_flg: row.staff_03_attend_flg,
+            required_staff_count: row.required_staff_count,
+            two_person_work_flg: row.two_person_work_flg,
+            judo_ido: row.judo_ido,
+        })
+        setSpotDialogOpen(true)
+    }, [kaipokeCs, serviceCodes])
+
     return (
         <div className="p-4 space-y-4">
             {/* フィルターバー */}
@@ -1612,8 +1690,40 @@ if (
                                                     />
                                                 </div>
 
-                                                {/* 操作（右寄せ）：特定コメント・訪問記録・保存・× */}
+                                                {/* 操作（右寄せ）：スポット・特定コメント・訪問記録・保存・× */}
                                                 <div className="ml-auto flex gap-2">
+                                                    {(() => {
+                                                        const spot = spotStatuses[row.shift_id]
+                                                        return spot?.status === '募集中' ? (
+                                                            <span className="inline-flex items-center rounded border border-orange-300 bg-orange-50 px-2 text-sm font-medium text-orange-700">
+                                                                スポット募集中
+                                                            </span>
+                                                        ) : spot?.status === '確定' ? (
+                                                            <span className="inline-flex items-center gap-2 rounded border border-green-300 bg-green-50 px-2 text-sm font-medium text-green-700">
+                                                                <span>スポット確定：{spot.applicant_name ?? '応募者'}（{spot.applicant_sex ?? '性別未設定'}）</span>
+                                                                {spot.applicant_control_url && (
+                                                                    <a
+                                                                        href={spot.applicant_control_url}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="font-normal text-blue-600 underline"
+                                                                    >
+                                                                        応募者管理
+                                                                    </a>
+                                                                )}
+                                                            </span>
+                                                        ) : null
+                                                    })()}
+                                                    {!readOnly && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            className="border-orange-500 text-orange-700 hover:bg-orange-50"
+                                                            onClick={() => openSpotDialog(row)}
+                                                        >
+                                                            スポット募集
+                                                        </Button>
+                                                    )}
                                                     {(() => {
                                                         const s = recordStatus[row.shift_id] as RecordStatus | undefined;
 
@@ -1720,6 +1830,18 @@ if (
                     </TableBody>
                 </Table>
             </div>
+
+            <ShiftDialog
+                open={spotDialogOpen}
+                onClose={() => {
+                    setSpotDialogOpen(false)
+                    setSpotDialogShift(null)
+                    void loadSpotStatuses(shifts)
+                }}
+                shift={spotDialogShift}
+                staffOptions={rosterStaffOptions}
+                serviceOptions={serviceOptions}
+            />
 
             {/* ★ 特定コメント編集ダイアログ */}
             <Dialog
