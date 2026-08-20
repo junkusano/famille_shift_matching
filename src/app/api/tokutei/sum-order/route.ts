@@ -79,63 +79,59 @@ export async function POST(req: NextRequest) {
     const effectiveEndDate = cur.shift_end_date ?? cur.shift_start_date;
     const effectiveEndTime = cur.shift_end_time ?? cur.shift_start_time;
 
-  // ★ 日付も時刻も両方そろっていないときだけスキップ
-if (!effectiveEndDate || !effectiveEndTime) {
-  return NextResponse.json({
-    ok: true,
-    reason: "skip: insufficient end fields to compute next",
-  });
-}
+    // 本文の生成は、次回シフトへの書き込み可否とは独立して行う。
+    // 最終シフトや終了日時が未設定のシフトでも、今回の訪問記録本文は
+    // LW連携で利用する必要があるため、次回シフトがなくても処理を続ける。
+    let nextShift: Shift | undefined;
 
-// ★ チェーンの起点も effectiveEnd* を使う
-let chainEndDate = effectiveEndDate;
-let chainEndTime = effectiveEndTime;
+    if (effectiveEndDate && effectiveEndTime) {
+      // ★ チェーンの起点も effectiveEnd* を使う
+      let chainEndDate = effectiveEndDate;
+      let chainEndTime = effectiveEndTime;
 
-    for (let i = 0; i < 20; i++) {
-      const { data: conts, error: eCont } = await supabase
-        .from("shift")
-        .select("*")
-        .eq("kaipoke_cs_id", cur.kaipoke_cs_id)
-        .eq("shift_start_date", chainEndDate)
-        .eq("shift_start_time", chainEndTime)
-        .order("shift_start_date", { ascending: true })
-        .order("shift_start_time", { ascending: true })
-        .limit(1);
-      if (eCont) throw eCont;
+      for (let i = 0; i < 20; i++) {
+        const { data: conts, error: eCont } = await supabase
+          .from("shift")
+          .select("*")
+          .eq("kaipoke_cs_id", cur.kaipoke_cs_id)
+          .eq("shift_start_date", chainEndDate)
+          .eq("shift_start_time", chainEndTime)
+          .order("shift_start_date", { ascending: true })
+          .order("shift_start_time", { ascending: true })
+          .limit(1);
+        if (eCont) throw eCont;
 
-      const cont = (conts as unknown as Shift[] | null)?.[0];
-      if (!cont) break; // 連結終端
+        const cont = (conts as unknown as Shift[] | null)?.[0];
+        if (!cont) break; // 連結終端
 
-      chainEndDate = cont.shift_end_date ?? cont.shift_start_date ?? chainEndDate;
-      chainEndTime = cont.shift_end_time ?? cont.shift_start_time ?? chainEndTime;
-    }
+        chainEndDate = cont.shift_end_date ?? cont.shift_start_date ?? chainEndDate;
+        chainEndTime = cont.shift_end_time ?? cont.shift_start_time ?? chainEndTime;
+      }
 
-    const [sameDayLater, laterDay] = await Promise.all([
-      supabase
-        .from("shift")
-        .select("*")
-        .eq("kaipoke_cs_id", cur.kaipoke_cs_id)
-        .eq("shift_start_date", chainEndDate)
-        .gt("shift_start_time", chainEndTime)
-        .order("shift_start_date", { ascending: true })
-        .order("shift_start_time", { ascending: true })
-        .limit(1),
-      supabase
-        .from("shift")
-        .select("*")
-        .eq("kaipoke_cs_id", cur.kaipoke_cs_id)
-        .gt("shift_start_date", chainEndDate)
-        .order("shift_start_date", { ascending: true })
-        .order("shift_start_time", { ascending: true })
-        .limit(1),
-    ]);
+      const [sameDayLater, laterDay] = await Promise.all([
+        supabase
+          .from("shift")
+          .select("*")
+          .eq("kaipoke_cs_id", cur.kaipoke_cs_id)
+          .eq("shift_start_date", chainEndDate)
+          .gt("shift_start_time", chainEndTime)
+          .order("shift_start_date", { ascending: true })
+          .order("shift_start_time", { ascending: true })
+          .limit(1),
+        supabase
+          .from("shift")
+          .select("*")
+          .eq("kaipoke_cs_id", cur.kaipoke_cs_id)
+          .gt("shift_start_date", chainEndDate)
+          .order("shift_start_date", { ascending: true })
+          .order("shift_start_time", { ascending: true })
+          .limit(1),
+      ]);
 
-    const cand1 = (sameDayLater.data as unknown as Shift[] | null)?.[0];
-    const cand2 = (laterDay.data as unknown as Shift[] | null)?.[0];
+      const cand1 = (sameDayLater.data as unknown as Shift[] | null)?.[0];
+      const cand2 = (laterDay.data as unknown as Shift[] | null)?.[0];
 
-    const nextShift: Shift | undefined = cand1 ?? cand2 ?? undefined;
-    if (!nextShift) {
-      return NextResponse.json({ ok: true, reason: "no_next_shift_after_chain" });
+      nextShift = cand1 ?? cand2 ?? undefined;
     }
 
     /* 2) “過去連結チェーン”を遡って収集（prev.end == cur.start の連なり）
@@ -271,19 +267,21 @@ let chainEndTime = effectiveEndTime;
       .join("\n");
 
     /* 6) 書き込み先: 必ず「真の次回」に書く（なければ書かない） */
-    const { error: eUp } = await supabase
-      .from("shift")
-      .update({ tokutei_comment: finalPlain })
-      .eq("shift_id", nextShift.shift_id);
-    if (eUp) throw eUp;
+    if (nextShift) {
+      const { error: eUp } = await supabase
+        .from("shift")
+        .update({ tokutei_comment: finalPlain })
+        .eq("shift_id", nextShift.shift_id);
+      if (eUp) throw eUp;
+    }
 
     console.log("[tokutei/sum-order] finalPlain.len", finalPlain.length);
     console.log("[tokutei/sum-order] finalPlain.head", finalPlain.slice(0, 120).replace(/\n/g, "\\n"));
 
     return NextResponse.json({
       ok: true,
-      target_shift_id: nextShift.shift_id,
-      wrote_to: "next_after_chain",
+      target_shift_id: nextShift?.shift_id ?? null,
+      wrote_to: nextShift ? "next_after_chain" : null,
       length: finalPlain.length,
       tokutei_comment: finalPlain,
       summary: finalPlain,

@@ -17,6 +17,7 @@ const ACTIVE_STATUSES = ["waiting_approval", "approved", "running", "done"];
 type JsonRecord = Record<string, unknown>;
 type SasekiTemplate = { core_id: string; kaiteku_offer_id: string | null; ucare_offer_id: string | null };
 type RpaRequest = { id: string; status: string; request_details: JsonRecord | null };
+type JobPreset = { id: string; label: string; office_id: string | null; office_name: string | null; template_id: string | null; template_name: string | null; recruiting_id: string | null };
 
 function json(body: unknown, status = 200) { return NextResponse.json(body, { status }); }
 
@@ -54,6 +55,15 @@ async function getTemplate(): Promise<SasekiTemplate | null> {
   return data as SasekiTemplate | null;
 }
 
+async function getPreset(provider: "kaitek" | "ucare", label: string | undefined): Promise<JobPreset | null> {
+  if (!label) return null;
+  const { data, error } = await supabaseAdmin.from("rpa_job_presets")
+    .select("id, label, office_id, office_name, template_id, template_name, recruiting_id")
+    .eq("provider", provider).eq("label", label).eq("is_enabled", true).maybeSingle();
+  if (error) throw new Error(`${provider}プリセットの取得に失敗しました: ${error.message}`);
+  return data as JobPreset | null;
+}
+
 async function findExisting(operationKey: string): Promise<RpaRequest | null> {
   const { data, error } = await supabaseAdmin.from("rpa_command_requests")
     .select("id, status, request_details")
@@ -64,14 +74,16 @@ async function findExisting(operationKey: string): Promise<RpaRequest | null> {
   return ((data ?? []) as RpaRequest[]).find((row) => row.request_details?.operationKey === operationKey) ?? null;
 }
 
-async function createRequest(provider: "kaitek" | "ucare", recruitingId: string, targetWeek: ReturnType<typeof getTargetWeek>) {
+async function createRequest(provider: "kaitek" | "ucare", recruitingId: string, targetWeek: ReturnType<typeof getTargetWeek>, preset: JobPreset | null) {
   const requestedAt = new Date().toISOString();
   const operationKey = makeOperationKey(provider, targetWeek.targetWeekFrom);
   const status = process.env.SASEKI_RPA_AUTO_APPROVE === "1" ? "approved" : "waiting_approval";
   const requestDetails = {
     action: ACTION, provider, operationKey,
     targetWeekFrom: targetWeek.targetWeekFrom, targetWeekTo: targetWeek.targetWeekTo,
-    targetDates: targetWeek.targetDates, officeName: OFFICE_NAME, templateName: TEMPLATE_NAME,
+    targetDates: targetWeek.targetDates, officeName: preset?.office_name ?? OFFICE_NAME, templateName: preset?.template_name ?? TEMPLATE_NAME,
+    presetId: preset?.id ?? null, presetLabel: preset?.label ?? null,
+    officeId: preset?.office_id ?? null, templateId: preset?.template_id ?? null,
     recruitingId, visibility: "general",
   };
   const resultDetails = {
@@ -96,14 +108,18 @@ export async function GET(req: NextRequest) {
     const dryRun = ["1", "true"].includes(req.nextUrl.searchParams.get("dry_run") ?? "");
     const targetWeek = getTargetWeek();
     const template = await getTemplate();
+    const kaitekPreset = await getPreset("kaitek", process.env.SASEKI_KAITEKU_PRESET_LABEL?.trim());
+    const ucarePreset = await getPreset("ucare", process.env.SASEKI_UCARE_PRESET_LABEL?.trim());
     const plans = [
       {
         provider: "kaitek" as const,
-        recruitingId: process.env.SASEKI_KAITEKU_RECRUITING_ID?.trim() || template?.kaiteku_offer_id || "",
+        preset: kaitekPreset,
+        recruitingId: kaitekPreset?.recruiting_id || process.env.SASEKI_KAITEKU_RECRUITING_ID?.trim() || template?.kaiteku_offer_id || "",
       },
       {
         provider: "ucare" as const,
-        recruitingId: process.env.SASEKI_UCARE_RECRUITING_ID?.trim() || template?.ucare_offer_id || "",
+        preset: ucarePreset,
+        recruitingId: ucarePreset?.recruiting_id || process.env.SASEKI_UCARE_RECRUITING_ID?.trim() || template?.ucare_offer_id || "",
       },
     ];
     const results: JsonRecord[] = [];
@@ -116,7 +132,7 @@ export async function GET(req: NextRequest) {
       const existing = await findExisting(operationKey);
       if (existing) { results.push({ provider: plan.provider, operationKey, action: "skipped", reason: "duplicate", requestId: existing.id, status: existing.status }); continue; }
       if (dryRun) { results.push({ provider: plan.provider, operationKey, action: "dry_run", status: process.env.SASEKI_RPA_AUTO_APPROVE === "1" ? "approved" : "waiting_approval" }); continue; }
-      const created = await createRequest(plan.provider, plan.recruitingId, targetWeek);
+      const created = await createRequest(plan.provider, plan.recruitingId, targetWeek, plan.preset);
       results.push({ provider: plan.provider, operationKey, action: "created", requestId: created.id, status: created.status });
     }
     return json({ ok: true, dryRun, targetWeek, results, published: false, startedAt });
