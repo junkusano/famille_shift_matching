@@ -51,7 +51,7 @@ export type CsDocsQuery = CsDocsFilters & {
 };
 
 const UNASSIGNED_CLIENT_FILTER =
-  'kaipoke_cs_id.is.null,kaipoke_cs_id.eq."",cs_kaipoke_info_id.is.null';
+  'kaipoke_cs_id.is.null,kaipoke_cs_id.eq.""';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const JST_DATE_FORMATTER = new Intl.DateTimeFormat("ja-JP", {

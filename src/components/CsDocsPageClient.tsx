@@ -3,6 +3,7 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import type { CsDocRow, CsDocsFilters, CsDocsInitialData } from "@/lib/cs_docs";
+import { isCsDocUserUnset } from "@/lib/cs-docs-user-unset";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
@@ -273,15 +274,8 @@ export default function CsDocsPageClient({
         });
     };
 
-    const hasKaipokeOption = (value: string): boolean => {
-        const v = value.trim();
-        if (v === "") return false;
-        return initialData.kaipokeList.some((k) => k.kaipoke_cs_id === v);
-    };
-
     const needsPinkKaipoke = (value: string): boolean => {
-        // 空欄 または 候補に無い値
-        return value.trim() === "" || !hasKaipokeOption(value);
+        return isCsDocUserUnset(value);
     };
 
     const isMissing = (v: string) => v.trim() === "";
@@ -585,7 +579,11 @@ export default function CsDocsPageClient({
                                                     </Link>
                                                 </div>
                                             ) : (
-                                                <div className="text-gray-400">（利用者未特定）</div>
+                                                <div className={isCsDocUserUnset(row.kaipoke_cs_id) ? "text-red-600" : "text-amber-600"}>
+                                                    {isCsDocUserUnset(row.kaipoke_cs_id)
+                                                        ? "（利用者未設定）"
+                                                        : "（利用者情報取得エラー）"}
+                                                </div>
                                             )}
 
                                             <SearchableSelect
@@ -594,12 +592,12 @@ export default function CsDocsPageClient({
                                                     patchDraft(row.id, { kaipoke_cs_id: nextValue ?? "" }, row)
                                                 }
                                                 options={kaipokeSelectOptions}
-                                                placeholder="(未設定)"
+                                                placeholder="未設定"
                                                 searchPlaceholder="氏名・カナ・kaipoke_cs_idで検索..."
                                                 maxVisibleOptions={50}
                                                 triggerClassName={[
                                                     "min-h-8 py-1 text-xs",
-                                                    needsPinkKaipoke(d.kaipoke_cs_id) ? "bg-pink-100" : "",
+                                                    needsPinkKaipoke(d.kaipoke_cs_id) ? "bg-pink-100 text-red-600" : "",
                                                 ].join(" ")}
                                             />
                                         </div>
