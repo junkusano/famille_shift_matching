@@ -12,9 +12,9 @@ type ShiftRow = {
   staff_02_user_id: string | null;
   staff_03_user_id: string | null;
 };
-type UserRow = { user_id: string; entry_id: string | null };
+type UserRow = { user_id: string; entry_id: string | null; auth_user_id: string | null };
 type ClientRow = { kaipoke_cs_id: string; address: string | null };
-type EntryRow = { id: string; address: string | null };
+type EntryRow = { id: string; auth_uid: string | null; address: string | null };
 
 export type DistanceRunResult = {
   runId: string;
@@ -99,7 +99,7 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
     const staffIds = [...new Set(shiftRows.flatMap((s: ShiftRow) => [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id]).filter((v): v is string => Boolean(v && v !== "-")))];
     const clientIds = [...new Set(shiftRows.map((s: ShiftRow) => s.kaipoke_cs_id).filter((v): v is string => Boolean(v)))];
     const [{ data: users, error: usersError }, { data: clients, error: clientsError }] = await Promise.all([
-      supabaseAdmin.from("users").select("user_id, entry_id").in("user_id", staffIds),
+      supabaseAdmin.from("users").select("user_id, entry_id, auth_user_id").in("user_id", staffIds),
       supabaseAdmin.from("cs_kaipoke_info").select("kaipoke_cs_id, address").in("kaipoke_cs_id", clientIds),
     ]);
     if (usersError) throw new Error(usersError.message);
@@ -107,11 +107,19 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
     const userRows = (users ?? []) as UserRow[];
     const clientRows = (clients ?? []) as ClientRow[];
     const entryIds = userRows.map((u: UserRow) => u.entry_id).filter((v): v is string => Boolean(v));
-    const { data: entries, error: entriesError } = await supabaseAdmin.from("form_entries").select("id, address").in("id", entryIds);
-    if (entriesError) throw new Error(entriesError.message);
+    const authUserIds = userRows.map((u: UserRow) => u.auth_user_id).filter((v): v is string => Boolean(v));
+    const [{ data: entriesById, error: entriesByIdError }, { data: entriesByAuth, error: entriesByAuthError }] = await Promise.all([
+      supabaseAdmin.from("form_entries").select("id, auth_uid, address").in("id", entryIds.length ? entryIds : ["__no_entry__"]),
+      supabaseAdmin.from("form_entries").select("id, auth_uid, address").in("auth_uid", authUserIds.length ? authUserIds : ["__no_auth_user__"]),
+    ]);
+    if (entriesByIdError) throw new Error(entriesByIdError.message);
+    if (entriesByAuthError) throw new Error(entriesByAuthError.message);
+    const entries = [...(entriesById ?? []), ...(entriesByAuth ?? [])] as EntryRow[];
     const addressByStaff = new Map<string, string>();
     for (const user of users ?? []) {
-      const address = clean(((entries ?? []) as EntryRow[]).find((e: EntryRow) => e.id === user.entry_id)?.address);
+      const address = clean(entries.find((e: EntryRow) =>
+        e.id === user.entry_id || e.auth_uid === user.auth_user_id
+      )?.address);
       if (address) addressByStaff.set(user.user_id, address);
     }
     const addressByClient = new Map<string, string>(clientRows.map((c: ClientRow) => [c.kaipoke_cs_id, clean(c.address)]));
