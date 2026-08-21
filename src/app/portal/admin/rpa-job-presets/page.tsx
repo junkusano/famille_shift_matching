@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 type Provider = "kaitek" | "ucare";
 type Preset = { id: string; provider: Provider; label: string; office_name: string | null; office_id: string | null; template_name: string | null; template_id: string | null; recruiting_id: string | null; is_enabled: boolean };
@@ -12,20 +13,36 @@ export default function RpaJobPresetsPage() {
   const [form, setForm] = useState(empty);
   const [message, setMessage] = useState("");
 
+  async function authHeaders() {
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session?.access_token) {
+      throw new Error("ログインセッションを確認できません。再ログインしてください。");
+    }
+    return { Authorization: `Bearer ${data.session.access_token}` };
+  }
+
   async function load() {
-    const response = await fetch("/api/rpa/job-presets");
-    const body = await response.json();
-    if (response.ok) setRows(body.presets ?? []);
-    else setMessage(body.error ?? "読み込みに失敗しました。");
+    try {
+      const response = await fetch("/api/rpa/job-presets", { headers: await authHeaders() });
+      const body = await response.json();
+      if (response.ok) setRows(body.presets ?? []);
+      else setMessage(body.error ?? "読み込みに失敗しました。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "読み込みに失敗しました。");
+    }
   }
   useEffect(() => { void load(); }, []);
 
   async function save() {
     setMessage("");
-    const response = await fetch("/api/rpa/job-presets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-    const body = await response.json();
-    if (!response.ok) { setMessage(body.error ?? "保存に失敗しました。"); return; }
-    setMessage("保存しました。"); setForm(empty); await load();
+    try {
+      const response = await fetch("/api/rpa/job-presets", { method: "POST", headers: { "Content-Type": "application/json", ...await authHeaders() }, body: JSON.stringify(form) });
+      const body = await response.json();
+      if (!response.ok) { setMessage(body.error ?? "保存に失敗しました。"); return; }
+      setMessage("保存しました。"); setForm(empty); await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "保存に失敗しました。");
+    }
   }
 
   const field = (key: keyof typeof empty, label: string, required = false) => (
