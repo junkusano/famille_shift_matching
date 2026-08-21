@@ -12086,7 +12086,6 @@ export type Database = {
       }
       manager_monthly_distance_index_view: {
         Row: {
-          last_updated_at: string | null
           monthly_distance_index: number | null
           movement_segment_count: number | null
           staff_name: string | null

@@ -4,6 +4,11 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
 import OpenAI from "openai";
 import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
+import { isElderCareAssessmentKind } from "@/lib/assessment/assessment-kind-detector";
+import {
+  resolvePlanGenerationSourcePolicy,
+  type PlanGenerationSourceAvailability,
+} from "@/lib/plans/generation-source-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -166,7 +171,7 @@ type PlanSourceTextResult = {
    */
   serviceText: string;
 
-  hasUsableSource: boolean;
+  availability: PlanGenerationSourceAvailability;
   sourceLabels: string[];
   serviceSupportDocNames: string[];
 };
@@ -524,47 +529,33 @@ async function buildPlanSourceText(
       : "";
 
   /*
-   * サービス生成では以下の順に優先する。
+   * サービス内容の生成元もサービス体系ごとに分ける。
    *
-   * 1. 担当者会議
-   * 2. 実際の訪問記録
-   * 3. アセスメント
-   * 4. 選択ケアプラン
-   * 5. その他資料
+   * 介護保険:
+   *   ケアプラン → アセスメント → 担当者会議等 → 訪問記録 → その他
+   * 障害福祉・移動支援:
+   *   既存の優先順を維持する。
    */
-  const serviceText = [
-    /*
-     * assessments_records側に保存された
-     * 担当者会議議事録
-     */
-    meetingMinutes,
+  const serviceTextParts =
+    isElderCareAssessmentKind(a.service_kind)
+      ? [
+          selectedCarePlanServiceText,
+          assessmentText,
+          meetingMinutes,
+          serviceSupportDocText,
+          visitNotesText,
+          docText,
+        ]
+      : [
+          meetingMinutes,
+          serviceSupportDocText,
+          visitNotesText,
+          assessmentText,
+          selectedCarePlanServiceText,
+          docText,
+        ];
 
-    /*
-     * cs_docs側の
-     * サ担会・担当者会議・情報連携・看護サマリー
-     */
-    serviceSupportDocText,
-
-    /*
-     * 実際に行った訪問介護記録
-     */
-    visitNotesText,
-
-    /*
-     * アセスメント
-     */
-    assessmentText,
-
-    /*
-     * 選択したケアプラン
-     */
-    selectedCarePlanServiceText,
-
-    /*
-     * その他資料
-     */
-    docText,
-  ]
+  const serviceText = serviceTextParts
 
     .filter(
       (value) =>
@@ -574,17 +565,52 @@ async function buildPlanSourceText(
     .join("\n\n")
     .slice(0, 16000);
 
-  const hasUsableSource = sourceLabels.some((x) =>
-    x.includes("基本情報") ||
-    x.includes("サービス等利用計画") ||
-    x.includes("利用計画") ||
-    x.includes("担当者会議議事録")
-  );
+  const ordinaryDocs =
+    (docs ?? []) as CsDocRow[];
+
+  const availability: PlanGenerationSourceAvailability = {
+    carePlan:
+      Boolean(
+        selectedCarePlan &&
+        (
+          String(selectedCarePlan.summary ?? "").trim() ||
+          String(selectedCarePlan.ocr_text ?? "").trim()
+        ),
+      ),
+
+    basicInfo:
+      ordinaryDocs.some(
+        (doc) =>
+          String(doc.doc_name ?? "").includes("基本情報"),
+      ),
+
+    servicePlan:
+      ordinaryDocs.some(
+        (doc) => {
+          const docName =
+            String(doc.doc_name ?? "");
+
+          return (
+            docName.includes("サービス等利用計画") ||
+            docName.includes("利用計画")
+          );
+        },
+      ),
+
+    meetingMinutes:
+      Boolean(meetingMinutes),
+
+    assessment:
+      Boolean(assessmentText.trim()),
+
+    visitNotes:
+      Boolean(visitNotesText.trim()),
+  };
 
   return {
     text,
     serviceText,
-    hasUsableSource,
+    availability,
 
     sourceLabels:
       [...new Set(sourceLabels)],
@@ -1830,10 +1856,9 @@ export async function GET(
     }
 
     const isElderCare =
-      assessment.service_kind ===
-      "要介護" ||
-      assessment.service_kind ===
-      "要支援";
+      isElderCareAssessmentKind(
+        assessment.service_kind,
+      );
 
     /*
      * 障害アセスメントでは、
@@ -2028,8 +2053,9 @@ export async function POST(req: NextRequest) {
       assessment as AssessmentRow;
 
     const isElderCare =
-      a.service_kind === "要介護" ||
-      a.service_kind === "要支援";
+      isElderCareAssessmentKind(
+        a.service_kind,
+      );
 
     if (
       isElderCare &&
@@ -2039,7 +2065,7 @@ export async function POST(req: NextRequest) {
         {
           ok: false,
           error:
-            "ベースとなるケアプランを選択してください。",
+            "訪問介護計画の生成に必要なケアプランが選択されていません。",
           error_code:
             "BASE_CARE_PLAN_REQUIRED",
         },
@@ -2332,6 +2358,13 @@ export async function POST(req: NextRequest) {
         selectedCarePlan,
       );
 
+    const sourcePolicy =
+      resolvePlanGenerationSourcePolicy({
+        isElderCare,
+        availability:
+          source.availability,
+      });
+
     console.info(
       "[plans/generate] source prepared",
       {
@@ -2364,6 +2397,44 @@ export async function POST(req: NextRequest) {
       },
     );
 
+    console.info(
+      "[plans/generate] source policy resolved",
+      {
+        assessment_id:
+          a.assessment_id,
+
+        client_id:
+          a.kaipoke_cs_id,
+
+        resolved_client_uuid:
+          a.client_info_id,
+
+        service_kind:
+          a.service_kind,
+
+        care_plan_found:
+          source.availability.carePlan,
+
+        basic_info_found:
+          source.availability.basicInfo,
+
+        service_plan_found:
+          source.availability.servicePlan,
+
+        meeting_minutes_found:
+          source.availability.meetingMinutes,
+
+        assessment_found:
+          source.availability.assessment,
+
+        visit_notes_found:
+          source.availability.visitNotes,
+
+        selected_plan_source:
+          sourcePolicy.selectedPlanSource,
+      },
+    );
+
     console.info("[plans/generate] source built", {
       assessment_id: a.assessment_id,
       kaipoke_cs_id: a.kaipoke_cs_id,
@@ -2371,13 +2442,17 @@ export async function POST(req: NextRequest) {
       source_chars: source.text.length,
     });
 
-    if (!source.hasUsableSource) {
+    if (!sourcePolicy.canGenerate) {
       return json(
         {
           ok: false,
           error:
-            "基本情報、サービス等利用計画、担当者会議議事録のいずれも無いため、プランを自動生成できません。",
+            sourcePolicy.error,
           source_labels: source.sourceLabels,
+          source_availability:
+            source.availability,
+          selected_plan_source:
+            sourcePolicy.selectedPlanSource,
         },
         400,
       );

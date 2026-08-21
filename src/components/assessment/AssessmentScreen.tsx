@@ -11,6 +11,7 @@ import type {
 } from "@/types/assessment";
 import {
     getAssessmentContentTemplate,
+    isElderCareAssessmentKind,
 } from "@/lib/assessment/assessment-kind-detector";
 import { supabase } from "@/lib/supabaseClient";
 import PlanEditor, { type PlanDetailForEditor } from "@/components/assessment/PlanEditor";
@@ -206,8 +207,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
         fetchPlans(detail.assessment_id);
 
         const isElderCare =
-            detail.service_kind === "要介護" ||
-            detail.service_kind === "要支援";
+            isElderCareAssessmentKind(detail.service_kind);
 
         if (isElderCare) {
             fetchCarePlanCandidates(
@@ -542,15 +542,16 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
         if (!detail?.assessment_id) return;
 
         const isElderCare =
-            detail.service_kind === "要介護" ||
-            detail.service_kind === "要支援";
+            isElderCareAssessmentKind(detail.service_kind);
 
         if (
             isElderCare &&
             !selectedCarePlanId
         ) {
             window.alert(
-                "ベースとなるケアプランを選択してください。",
+                carePlanCandidates.length === 0
+                    ? "訪問介護計画の生成に必要なケアプランを取得できませんでした。"
+                    : "ベースとなるケアプランを選択してください。",
             );
             return;
         }
@@ -902,8 +903,9 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                             <div className="flex gap-2">
                                 {detail &&
                                     (
-                                        detail.service_kind === "要介護" ||
-                                        detail.service_kind === "要支援"
+                                        isElderCareAssessmentKind(
+                                            detail.service_kind,
+                                        )
                                     ) && (
                                         <div className="rounded border border-amber-300 bg-amber-50 p-3">
                                             <div className="mb-1 text-sm font-semibold text-amber-900">
@@ -993,8 +995,9 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                                         !detail ||
                                         (
                                             (
-                                                detail.service_kind === "要介護" ||
-                                                detail.service_kind === "要支援"
+                                                isElderCareAssessmentKind(
+                                                    detail.service_kind,
+                                                )
                                             ) &&
                                             !selectedCarePlanId
                                         )
@@ -1079,8 +1082,9 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                                 </div>
                             )}
 
-                            {detail.service_kind === "要介護" ||
-                                detail.service_kind === "要支援" ? (
+                            {isElderCareAssessmentKind(
+                                detail.service_kind,
+                            ) ? (
                                 <ElderCareAssessmentForm
                                     content={detail.content}
                                     onChange={(nextContent) => {
