@@ -308,7 +308,7 @@ function TreeMenu({ role, onUseLegacy }: { role: string | null; onUseLegacy: () 
   const searchParams = useSearchParams();
   const isManagerOrAdmin = ["manager", "admin"].includes((role ?? "").trim().toLowerCase());
   const currentYm = getCurrentYmJst();
-  const managerFrequentItems: MenuItem[] = [{ label: "ダッシュボード", href: "/portal/dashboard" }, { label: "エントリー一覧", href: "/portal/entry-list" }, { label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "シフト表", href: "/portal/roster/daily" }];
+  const managerFrequentItems: MenuItem[] = [{ label: "ダッシュボード", href: "/portal/dashboard" }, { label: "エントリー一覧", href: "/portal/entry-list" }, { label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "シフト表", href: "/portal/roster/daily" }, { label: "月間シフト", href: "/portal/roster/monthly" }];
   const commonFrequentItems: MenuItem[] = [{ label: "ポータルHome", href: "/portal" }, { label: "シフト・訪問記録", href: "/portal/shift", secondary: { label: "β版", href: "/portal/shift-reject-performance-test", beta: true } }, { label: "シフ子", href: "/portal/shift-coordinate", secondary: { label: "β版", href: "/portal/shift-coordinate-performance-test", beta: true } }, { label: "職員証", href: "/portal/badge" }];
   return <nav className="mt-5 space-y-4" aria-label="ポータルメニュー">
     <div className="rounded-lg border border-sky-300/25 bg-sky-950/25 p-2">
