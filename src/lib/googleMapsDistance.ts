@@ -48,22 +48,46 @@ async function fetchGoogleDistance(origin: string, destination: string): Promise
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) throw new Error("GOOGLE_MAPS_API_KEY is not configured");
 
-  const url = new URL("https://maps.googleapis.com/maps/api/distancematrix/json");
-  url.searchParams.set("origins", origin);
-  url.searchParams.set("destinations", destination);
-  url.searchParams.set("mode", "driving");
-  url.searchParams.set("language", "ja");
-  url.searchParams.set("key", key);
-  const response = await fetch(url, {
+  const response = await fetch("https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": key,
+      "X-Goog-FieldMask": "originIndex,destinationIndex,distanceMeters,duration,status,condition",
+    },
+    body: JSON.stringify({
+      origins: [{ waypoint: { address: origin } }],
+      destinations: [{ waypoint: { address: destination } }],
+      travelMode: "DRIVE",
+      routingPreference: "TRAFFIC_UNAWARE",
+      languageCode: "ja",
+      units: "METRIC",
+    }),
     cache: "no-store",
     signal: AbortSignal.timeout(10_000),
   });
-  const body = await response.json() as { status?: string; error_message?: string; rows?: Array<{ elements?: Array<{ status?: string; distance?: { value?: number }; duration?: { value?: number } }> }> };
-  const element = body.rows?.[0]?.elements?.[0];
-  if (!response.ok || body.status !== "OK" || element?.status !== "OK" || !element.distance?.value || !element.duration?.value) {
-    throw new Error(body.error_message || element?.status || body.status || `HTTP ${response.status}`);
+  const responseText = await response.text();
+  let body: unknown;
+  try {
+    body = JSON.parse(responseText);
+  } catch {
+    throw new Error(responseText || `HTTP ${response.status}`);
   }
-  return { distanceMeters: element.distance.value, durationSeconds: element.duration.value };
+  const element = Array.isArray(body) ? body[0] : body;
+  const item = element as {
+    distanceMeters?: number;
+    duration?: string;
+    condition?: string;
+    status?: { code?: number; message?: string } | string;
+  };
+  const statusMessage = typeof item.status === "string"
+    ? item.status
+    : item.status?.message;
+  const durationSeconds = item.duration ? Number.parseFloat(item.duration.replace(/s$/, "")) : 0;
+  if (!response.ok || item.condition !== "ROUTE_EXISTS" || !item.distanceMeters || !durationSeconds) {
+    throw new Error(statusMessage || item.condition || `HTTP ${response.status}`);
+  }
+  return { distanceMeters: item.distanceMeters, durationSeconds };
 }
 
 export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual", createdBy?: string): Promise<DistanceRunResult> {
