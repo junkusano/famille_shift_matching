@@ -9,6 +9,11 @@ import {
   resolvePlanGenerationSourcePolicy,
   type PlanGenerationSourceAvailability,
 } from "@/lib/plans/generation-source-policy";
+import {
+  buildWeeklyShiftScheduleFallback,
+  buildWeeklyShiftServiceContext,
+  type WeeklyShiftServiceContextRow,
+} from "@/lib/plans/weekly-shift-service-context";
 
 export const dynamic = "force-dynamic";
 
@@ -1242,6 +1247,24 @@ function normalizeIsoDate(
   return trimmed;
 }
 
+function toWeeklyShiftServiceContextRow(
+  row: SourceRow,
+): WeeklyShiftServiceContextRow {
+  return {
+    templateId: row.template_id,
+    weekday: row.weekday,
+    weekdayJp: row.weekday_jp,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    serviceCode: row.service_code,
+    planServiceCategory: row.plan_service_category,
+    planDisplayName: row.plan_display_name,
+    requiredStaffCount: row.required_staff_count,
+    isBiweekly: row.is_biweekly,
+    nthWeeks: row.nth_weeks,
+  };
+}
+
 
 async function buildServiceDraftsByCategory(params: {
   sourceText: string;
@@ -1250,12 +1273,27 @@ async function buildServiceDraftsByCategory(params: {
 }): Promise<Record<string, ServiceTextDraft>> {
   const { sourceText, targetRows } = params;
 
-  const keys = [...new Set(targetRows.map(buildServiceDraftKey))];
-
-  const fallback: Record<string, ServiceTextDraft> = {};
+  const rowsByKey = new Map<string, SourceRow[]>();
   for (const row of targetRows) {
     const key = buildServiceDraftKey(row);
-    fallback[key] = fallbackServiceDraft();
+    const existingRows = rowsByKey.get(key) ?? [];
+    existingRows.push(row);
+    rowsByKey.set(key, existingRows);
+  }
+
+  const keys = [...rowsByKey.keys()];
+
+  const fallback: Record<string, ServiceTextDraft> = {};
+  for (const [key, rows] of rowsByKey) {
+    fallback[key] = {
+      ...fallbackServiceDraft(),
+      service_detail:
+        buildWeeklyShiftScheduleFallback(
+          rows.map(
+            toWeeklyShiftServiceContextRow,
+          ),
+        ),
+    };
   }
 
   if (!process.env.OPENAI_API_KEY || !sourceText.trim()) {
@@ -1282,6 +1320,8 @@ async function buildServiceDraftsByCategory(params: {
 
 【サービスの内容 service_detail】
 - ケアプラン、アセスメント、担当者会議、訪問記録、週間シフトから、実際に訪問介護員が行う支援内容を作成してください。
+- 「週間シフト（実際の登録内容）」は、実施曜日・時間・頻度・サービス区分の一次情報です。記載された曜日・時間・サービス区分を必ず反映してください。
+- 週間シフトに具体的な援助内容がなく、他資料にも根拠がない場合は、曜日・時間・サービス区分の事実だけを記載し、身体介護や生活援助の内容を推測して追加してはいけません。
 - 入浴、更衣、排泄、移動、食事、服薬確認、掃除、洗濯、調理、買い物等、資料に根拠のある具体的な支援を記載してください。
 - 単に「身体介護」「生活援助」とだけ書かず、実施する動作が分かる内容にしてください。
 - 資料から読み取れない内容は追加しないでください。
@@ -1369,9 +1409,14 @@ ${sourceText}
 
       const obj = v as Record<string, unknown>;
 
+      const fallbackDraft =
+        fallback[key] ?? fallbackServiceDraft();
+
       const merged = {
         service_detail: limitJapaneseText(
-          typeof obj.service_detail === "string" ? obj.service_detail.trim() : "",
+          typeof obj.service_detail === "string" && obj.service_detail.trim()
+            ? obj.service_detail.trim()
+            : fallbackDraft.service_detail,
           100,
         ),
         procedure_notes: limitJapaneseText(
@@ -2759,16 +2804,130 @@ export async function POST(req: NextRequest) {
       if (eErr) throw eErr;
 
       if (existing && !replaceExisting) {
-        results.push({
-          plan_id: existing.plan_id,
-          title: existing.title,
-          plan_document_kind: kind,
-          skipped: true,
-        });
-        continue;
+        const {
+          count: existingServiceCount,
+          error: existingServiceCountError,
+        } = await supabaseAdmin
+          .from("plan_services")
+          .select(
+            "plan_service_id",
+            {
+              count: "exact",
+              head: true,
+            },
+          )
+          .eq(
+            "plan_id",
+            existing.plan_id,
+          )
+          .eq(
+            "active",
+            true,
+          );
+
+        if (existingServiceCountError) {
+          throw existingServiceCountError;
+        }
+
+        if ((existingServiceCount ?? 0) > 0) {
+          results.push({
+            plan_id: existing.plan_id,
+            title: existing.title,
+            plan_document_kind: kind,
+            skipped: true,
+          });
+          continue;
+        }
+
+        /*
+         * 旧実装などでプラン本体だけが保存され、
+         * plan_services が1件もない不完全な生成済みプランは
+         * 再生成の妨げにしない。
+         */
+        const {
+          data: incompleteLongTermGoals,
+          error: incompleteLongTermGoalsError,
+        } = await supabaseAdmin
+          .from("plan_long_term_goals")
+          .select("plan_long_term_goal_id")
+          .eq("plan_id", existing.plan_id)
+          .eq("active", true);
+
+        if (incompleteLongTermGoalsError) {
+          throw incompleteLongTermGoalsError;
+        }
+
+        const incompleteLongTermGoalIds =
+          (incompleteLongTermGoals ?? []).map(
+            (goal) => goal.plan_long_term_goal_id,
+          );
+
+        if (incompleteLongTermGoalIds.length > 0) {
+          const { error: incompleteShortTermGoalsError } =
+            await supabaseAdmin
+              .from("plan_short_term_goals")
+              .update({ active: false })
+              .in(
+                "plan_long_term_goal_id",
+                incompleteLongTermGoalIds,
+              );
+
+          if (incompleteShortTermGoalsError) {
+            throw incompleteShortTermGoalsError;
+          }
+
+          const { error: incompleteLongTermGoalsOffError } =
+            await supabaseAdmin
+              .from("plan_long_term_goals")
+              .update({ active: false })
+              .in(
+                "plan_long_term_goal_id",
+                incompleteLongTermGoalIds,
+              );
+
+          if (incompleteLongTermGoalsOffError) {
+            throw incompleteLongTermGoalsOffError;
+          }
+        }
+
+        const { error: incompletePlanArchiveError } =
+          await supabaseAdmin
+            .from("plans")
+            .update({
+              is_deleted: true,
+              status: "archived",
+            })
+            .eq("plan_id", existing.plan_id);
+
+        if (incompletePlanArchiveError) {
+          throw incompletePlanArchiveError;
+        }
+
+        console.warn(
+          "[plans/generate] incomplete plan archived before regeneration",
+          {
+            assessment_id: a.assessment_id,
+            plan_id: existing.plan_id,
+            plan_document_kind: kind,
+            active_service_count: existingServiceCount ?? 0,
+          },
+        );
       }
 
       const monthlySummary = calcMonthlySummary(targetRows);
+      const weeklyShiftContext =
+        buildWeeklyShiftServiceContext(
+          targetRows.map(
+            toWeeklyShiftServiceContextRow,
+          ),
+        );
+
+      const serviceGenerationSourceText = [
+        weeklyShiftContext.text,
+        source.serviceText,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
 
       console.info(
         "[plans/generate] service source prepared",
@@ -2780,7 +2939,31 @@ export async function POST(req: NextRequest) {
             kind,
 
           service_source_chars:
-            source.serviceText.length,
+            serviceGenerationSourceText.length,
+
+          client_id:
+            a.kaipoke_cs_id,
+
+          resolved_client_uuid:
+            a.client_info_id,
+
+          service_kind:
+            a.service_kind,
+
+          weekly_shift_count:
+            weeklyShiftContext.weeklyShiftCount,
+
+          weekly_shift_ids:
+            weeklyShiftContext.weeklyShiftIds,
+
+          weekly_shift_found:
+            weeklyShiftContext.weeklyShiftCount > 0,
+
+          weekly_shift_service_content_count:
+            weeklyShiftContext.serviceContentCount,
+
+          selected_plan_source:
+            sourcePolicy.selectedPlanSource,
 
           has_meeting_minutes:
             Boolean(
@@ -2814,13 +2997,39 @@ export async function POST(req: NextRequest) {
            * サービス生成専用資料を使う。
            */
           sourceText:
-            source.serviceText,
+            serviceGenerationSourceText,
 
           assessmentContent:
             a.content ?? {},
 
           targetRows,
         });
+
+      console.info(
+        "[plans/generate] service drafts prepared",
+        {
+          assessment_id:
+            a.assessment_id,
+
+          plan_document_kind:
+            kind,
+
+          weekly_shift_count:
+            weeklyShiftContext.weeklyShiftCount,
+
+          generated_service_content_length:
+            Object.values(serviceDraftByCategory)
+              .reduce(
+                (total, draft) =>
+                  total +
+                  draft.service_detail.length,
+                0,
+              ),
+
+          generated_service_keys:
+            Object.keys(serviceDraftByCategory),
+        },
+      );
 
       const { data: insertedPlan, error: pErr } = await supabaseAdmin
         .from("plans")
@@ -2921,6 +3130,17 @@ export async function POST(req: NextRequest) {
 
             warnings:
               buildWarnings(targetRows),
+
+            weekly_shift_context: {
+              count:
+                weeklyShiftContext.weeklyShiftCount,
+
+              template_ids:
+                weeklyShiftContext.weeklyShiftIds,
+
+              service_content_count:
+                weeklyShiftContext.serviceContentCount,
+            },
 
             base_care_plan_cs_doc_id:
               selectedCarePlan?.id ?? null,
@@ -3485,6 +3705,18 @@ export async function POST(req: NextRequest) {
 
           service_count:
             insertedPlanServices.length,
+
+          weekly_shift_count:
+            weeklyShiftContext.weeklyShiftCount,
+
+          weekly_shift_ids:
+            weeklyShiftContext.weeklyShiftIds,
+
+          saved_service_content_lengths:
+            planServices.map(
+              (service) =>
+                service.service_detail.length,
+            ),
 
           services:
             insertedPlanServices.map(
