@@ -6,8 +6,25 @@ export const dynamic = "force-dynamic";
 
 type Provider = "kaitek" | "ucare";
 
-function json(body: unknown, status = 200) {
-  return NextResponse.json(body, { status });
+function corsHeaders(request: NextRequest): HeadersInit {
+  const origin = request.headers.get("origin");
+  const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://myfamille.shi-on.net";
+  const allowed = !origin || origin === siteOrigin || /^chrome-extension:\/\/[a-z]{32}$/.test(origin);
+  return {
+    ...(allowed && origin ? { "Access-Control-Allow-Origin": origin } : {}),
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    Vary: "Origin",
+  };
+}
+
+function json(request: NextRequest, body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: corsHeaders(request) });
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, { status: 204, headers: corsHeaders(request) });
 }
 
 function text(value: unknown, max = 300): string | null {
@@ -55,11 +72,11 @@ export async function GET(request: NextRequest) {
     if (label) query = query.eq("label", label);
     const { data, error } = await query;
     if (error) throw error;
-    return json({ ok: true, presets: data ?? [] });
+    return json(request, { ok: true, presets: data ?? [] });
   } catch (error) {
-    if (isRpaTaimeeError(error)) return json({ ok: false, error: error.message }, error.status);
+    if (isRpaTaimeeError(error)) return json(request, { ok: false, error: error.message }, error.status);
     console.error("[rpa/job-presets] GET failed", error);
-    return json({ ok: false, error: "プリセットの取得に失敗しました。" }, 500);
+    return json(request, { ok: false, error: "プリセットの取得に失敗しました。" }, 500);
   }
 }
 
@@ -68,14 +85,14 @@ export async function POST(request: NextRequest) {
     await requireTaimeeRpaOperator(request);
     const body = await request.json() as Record<string, unknown>;
     const normalized = normalize(body);
-    if ("error" in normalized) return json({ ok: false, error: normalized.error }, 400);
+    if ("error" in normalized) return json(request, { ok: false, error: normalized.error }, 400);
     const { data, error } = await supabaseAdmin.from("rpa_job_presets").insert(normalized.value).select("*").single();
-    if (error) return json({ ok: false, error: error.message }, error.code === "23505" ? 409 : 500);
-    return json({ ok: true, preset: data }, 201);
+    if (error) return json(request, { ok: false, error: error.message }, error.code === "23505" ? 409 : 500);
+    return json(request, { ok: true, preset: data }, 201);
   } catch (error) {
-    if (isRpaTaimeeError(error)) return json({ ok: false, error: error.message }, error.status);
+    if (isRpaTaimeeError(error)) return json(request, { ok: false, error: error.message }, error.status);
     console.error("[rpa/job-presets] POST failed", error);
-    return json({ ok: false, error: "プリセットの登録に失敗しました。" }, 500);
+    return json(request, { ok: false, error: "プリセットの登録に失敗しました。" }, 500);
   }
 }
 
@@ -84,15 +101,15 @@ export async function PATCH(request: NextRequest) {
     await requireTaimeeRpaOperator(request);
     const body = await request.json() as Record<string, unknown>;
     const id = text(body.id, 50);
-    if (!id) return json({ ok: false, error: "idは必須です。" }, 400);
+    if (!id) return json(request, { ok: false, error: "idは必須です。" }, 400);
     const normalized = normalize(body);
-    if ("error" in normalized) return json({ ok: false, error: normalized.error }, 400);
+    if ("error" in normalized) return json(request, { ok: false, error: normalized.error }, 400);
     const { data, error } = await supabaseAdmin.from("rpa_job_presets").update(normalized.value).eq("id", id).select("*").single();
-    if (error) return json({ ok: false, error: error.message }, 500);
-    return json({ ok: true, preset: data });
+    if (error) return json(request, { ok: false, error: error.message }, 500);
+    return json(request, { ok: true, preset: data });
   } catch (error) {
-    if (isRpaTaimeeError(error)) return json({ ok: false, error: error.message }, error.status);
+    if (isRpaTaimeeError(error)) return json(request, { ok: false, error: error.message }, error.status);
     console.error("[rpa/job-presets] PATCH failed", error);
-    return json({ ok: false, error: "プリセットの更新に失敗しました。" }, 500);
+    return json(request, { ok: false, error: "プリセットの更新に失敗しました。" }, 500);
   }
 }
