@@ -31,6 +31,9 @@ export type DistanceRunResult = {
 };
 
 const MAX_REQUESTS = Math.max(1, Number(process.env.MAX_GOOGLE_MAPS_REQUESTS_PER_RUN ?? 100));
+const MAX_CONCURRENCY = Math.max(1, Math.min(8, Number(process.env.GOOGLE_MAPS_CONCURRENCY ?? 5)));
+// Vercelの関数タイムアウト前に結果を保存して終了するための安全時間。
+const MAX_RUNTIME_MS = Math.max(15_000, Number(process.env.GOOGLE_MAPS_MAX_RUNTIME_MS ?? 45_000));
 const RETRY_MINUTES = Math.max(5, Number(process.env.GOOGLE_MAPS_RETRY_MINUTES ?? 60));
 
 function addressHash(address: string) {
@@ -51,7 +54,10 @@ async function fetchGoogleDistance(origin: string, destination: string): Promise
   url.searchParams.set("mode", "driving");
   url.searchParams.set("language", "ja");
   url.searchParams.set("key", key);
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await fetch(url, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
+  });
   const body = await response.json() as { status?: string; error_message?: string; rows?: Array<{ elements?: Array<{ status?: string; distance?: { value?: number }; duration?: { value?: number } }> }> };
   const element = body.rows?.[0]?.elements?.[0];
   if (!response.ok || body.status !== "OK" || element?.status !== "OK" || !element.distance?.value || !element.duration?.value) {
@@ -62,6 +68,7 @@ async function fetchGoogleDistance(origin: string, destination: string): Promise
 
 export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual", createdBy?: string): Promise<DistanceRunResult> {
   const started = Date.now();
+  const deadline = started + MAX_RUNTIME_MS;
   const { data: run, error: runError } = await supabaseAdmin
     .from("google_maps_distance_cron_runs")
     .insert({ trigger_type: triggerType, created_by: createdBy ?? null })
@@ -114,7 +121,8 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
       .filter((t) => Boolean(t.shift.shift_start_date && t.origin && t.destination && t.origin !== t.destination))) as Array<{ shift: ShiftRow; staffId: string; origin: string; destination: string }>;
 
     await supabaseAdmin.from("google_maps_distance_cron_runs").update({ target_shift_count: shiftRows.length, target_segment_count: targets.length }).eq("id", run.id);
-    for (const target of targets) {
+    let nextTargetIndex = 0;
+    const processTarget = async (target: (typeof targets)[number]) => {
       const originHash = addressHash(target.origin);
       const destinationHash = addressHash(target.destination);
       const { data: segment } = await supabaseAdmin.from("manager_distance_segments").upsert({
@@ -122,14 +130,14 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
         segment_kind: "home_to_client", origin_address: target.origin, destination_address: target.destination,
         origin_address_hash: originHash, destination_address_hash: destinationHash, status: "pending", last_error: null, updated_at: new Date().toISOString(),
       }, { onConflict: "shift_id,staff_user_id,segment_kind" }).select("id, distance_cache_id, status, origin_address_hash, destination_address_hash").single();
-      if (!segment) continue;
+      if (!segment) return;
       const { data: cache } = await supabaseAdmin.from("google_maps_distance_cache").select("*").eq("origin_address_hash", originHash).eq("destination_address_hash", destinationHash).maybeSingle();
       if (cache?.status === "success" && cache.distance_meters != null) {
         cacheHitCount++;
         await supabaseAdmin.from("manager_distance_segments").update({ distance_cache_id: cache.id, status: "success", distance_meters: cache.distance_meters, duration_seconds: cache.duration_seconds, calculated_at: cache.calculated_at, last_error: null, updated_at: new Date().toISOString() }).eq("id", segment.id);
-        continue;
+        return;
       }
-      if (requestCount >= MAX_REQUESTS) { skippedByLimitCount++; continue; }
+      if (requestCount >= MAX_REQUESTS) { skippedByLimitCount++; return; }
       requestCount++;
       try {
         const result = await fetchGoogleDistance(target.origin, target.destination);
@@ -143,7 +151,25 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
         await supabaseAdmin.from("google_maps_distance_cache").upsert({ origin_address: target.origin, destination_address: target.destination, origin_address_hash: originHash, destination_address_hash: destinationHash, status: "error", last_error: message, retry_after: retryAfter, updated_at: new Date().toISOString() }, { onConflict: "origin_address_hash,destination_address_hash" });
         await supabaseAdmin.from("manager_distance_segments").update({ status: "error", last_error: message, updated_at: new Date().toISOString() }).eq("id", segment.id);
       }
-    }
+    };
+
+    // Google Maps呼び出しを直列にすると、対象が多い場合にVercelの
+    // 実行時間上限へ到達するため、最大5件（設定で最大8件）ずつ処理する。
+    const worker = async () => {
+      while (true) {
+        const index = nextTargetIndex++;
+        if (index >= targets.length) return;
+        if (Date.now() >= deadline) {
+          skippedByLimitCount++;
+          nextTargetIndex = targets.length;
+          return;
+        }
+        await processTarget(targets[index]);
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(MAX_CONCURRENCY, targets.length) }, () => worker())
+    );
     const status = failureCount || skippedByLimitCount ? "partial" : "success";
     const result = { runId: run.id, targetShiftCount: shiftRows.length, targetSegmentCount: targets.length, cacheHitCount, googleMapsRequestCount: requestCount, successCount, failureCount, recalculatedStaffCount: changedStaff.size, skippedByLimitCount, status, processingTimeMs: Date.now() - started } satisfies DistanceRunResult;
     await supabaseAdmin.from("google_maps_distance_cron_runs").update({ status, finished_at: new Date().toISOString(), cache_hit_count: cacheHitCount, google_maps_request_count: requestCount, success_count: successCount, failure_count: failureCount, recalculated_staff_count: changedStaff.size, skipped_by_limit_count: skippedByLimitCount, processing_time_ms: result.processingTimeMs }).eq("id", run.id);
