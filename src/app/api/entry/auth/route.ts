@@ -22,6 +22,10 @@ function smsMessage(actionLink: string): string {
   ].join('\n');
 }
 
+function signupCompleteRedirect(flow: 'invite' | 'recovery'): string {
+  return `${getAppBaseUrl()}/signup/complete?authFlow=${flow}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { entryId, action, email: rawEmail, deliveryMethod: rawDeliveryMethod } = await req.json() as Body;
@@ -49,7 +53,27 @@ export async function POST(req: NextRequest) {
     }
 
     if (!email) return NextResponse.json({ error: 'メールアドレスが必要です', code: 'EMAIL_REQUIRED' }, { status: 400 });
-    const existingUid = userRow?.auth_user_id ?? entry.auth_uid;
+    const storedAuthUids = [...new Set([userRow?.auth_user_id, entry.auth_uid].filter((authUid): authUid is string => Boolean(authUid)))];
+    let existingUid: string | null = null;
+
+    // Auth だけが削除され、業務データに古い ID が残っている場合は再招待として扱う。
+    // 業務データの存在だけで recovery を選択しない。
+    for (const storedAuthUid of storedAuthUids) {
+      const { data: authLookup, error: authLookupError } = await supabaseAdmin.auth.admin.getUserById(storedAuthUid);
+      if (authLookupError) {
+        if (authLookupError.status === 404) {
+          console.info('[entry-auth] stale auth UID detected', { entryId });
+          continue;
+        } else {
+          console.error('[entry-auth] auth user lookup failed', { entryId, error: authLookupError.message });
+          return NextResponse.json({ error: '認証ユーザーの確認に失敗しました', code: 'AUTH_USER_LOOKUP_FAILED' }, { status: 502 });
+        }
+      }
+      if (authLookup.user) {
+        existingUid = authLookup.user.id;
+        break;
+      }
+    }
 
     // SMS選択時は、既存のSupabase認証メールを送らない。
     // 同一トークン種別でメール送信とgenerateLinkを併用すると、先に発行したURLが無効になるため。
@@ -70,13 +94,13 @@ export async function POST(req: NextRequest) {
         ? await supabaseAdmin.auth.admin.generateLink({
           type: 'recovery',
           email,
-          options: { redirectTo: `${getAppBaseUrl()}/signup/complete` },
+          options: { redirectTo: signupCompleteRedirect('recovery') },
         })
         : await supabaseAdmin.auth.admin.generateLink({
           type: 'invite',
           email,
           options: {
-            redirectTo: `${getAppBaseUrl()}/signup/complete`,
+            redirectTo: signupCompleteRedirect('invite'),
             data: { full_name: `${entry.last_name_kanji} ${entry.first_name_kanji}`.trim() },
           },
         });
@@ -134,13 +158,13 @@ export async function POST(req: NextRequest) {
 
     // 既存のメール送信処理。deliveryMethod 未指定時もここへ入り、従来の挙動を維持する。
     if (existingUid) {
-      const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, { redirectTo: `${getAppBaseUrl()}/signup/complete` });
+      const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, { redirectTo: signupCompleteRedirect('recovery') });
       if (error) return NextResponse.json({ error: error.message, code: 'AUTH_EMAIL_SEND_FAILED' }, { status: 502 });
       return NextResponse.json({ success: true, mode: 'recovery', authUid: existingUid, deliveryMethod: 'email' });
     }
 
     const { data: invited, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${getAppBaseUrl()}/signup/complete`,
+      redirectTo: signupCompleteRedirect('invite'),
       data: { full_name: `${entry.last_name_kanji} ${entry.first_name_kanji}`.trim() },
     });
     if (inviteError || !invited.user?.id) return NextResponse.json({ error: inviteError?.message ?? '認証ユーザーを作成できませんでした', code: 'AUTH_INVITE_FAILED' }, { status: 502 });

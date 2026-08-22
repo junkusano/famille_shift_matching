@@ -23,6 +23,7 @@ export default function SignupCompletePage() {
 
   const [linked, setLinked] = useState(false);
   const [isOAuthUser, setIsOAuthUser] = useState(false);
+  const [requiresPasswordSetup, setRequiresPasswordSetup] = useState(false);
 
   useEffect(() => {
     const run = async () => {
@@ -47,6 +48,12 @@ export default function SignupCompletePage() {
 
         const oauthUser = providers.some((p) => p !== "email");
         setIsOAuthUser(oauthUser);
+
+        // invite / recovery からの遷移は、業務データの有無とは独立して
+        // 必ずパスワード設定を求める。
+        const authFlow = new URLSearchParams(window.location.search).get("authFlow");
+        const passwordSetupFlow = authFlow === "invite" || authFlow === "recovery";
+        setRequiresPasswordSetup(passwordSetupFlow || !oauthUser);
 
         const email = user.email;
         if (!email) {
@@ -93,10 +100,10 @@ export default function SignupCompletePage() {
 
         setLinked(true);
 
-        if (oauthUser) {
-          setStatusMsg("認証が完了しました。ポータルへ進めます。");
-        } else {
+        if (passwordSetupFlow || !oauthUser) {
           setStatusMsg("初回ログイン／パスワード設定のため、パスワードを設定してください。");
+        } else {
+          setStatusMsg("認証が完了しました。ポータルへ進めます。");
         }
         setStatusType("success");
       } catch (e: unknown) {
@@ -147,7 +154,7 @@ export default function SignupCompletePage() {
   return (
     <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded shadow space-y-4">
       <h1 className="text-xl font-bold">
-        {linked ? (isOAuthUser ? "認証完了" : "初回ログイン設定") : "認証確認"}
+        {linked ? (requiresPasswordSetup ? "初回ログイン設定" : "認証完了") : "認証確認"}
       </h1>
 
       {statusMsg && (
@@ -156,7 +163,7 @@ export default function SignupCompletePage() {
         </p>
       )}
 
-      {linked && isOAuthUser && (
+      {linked && isOAuthUser && !requiresPasswordSetup && (
         <>
           <p className="text-sm text-gray-600">
             OAuth認証ユーザーのため、パスワード設定なしでポータルへ進めます。
@@ -172,7 +179,7 @@ export default function SignupCompletePage() {
         </>
       )}
 
-      {linked && !isOAuthUser && (
+      {linked && requiresPasswordSetup && (
         <div className="border-t pt-4">
           <p className="text-sm text-gray-600 mb-2">
             初回利用のため、パスワードを設定してください。
