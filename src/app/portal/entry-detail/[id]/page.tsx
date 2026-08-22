@@ -718,11 +718,19 @@ export default function EntryDetailPage() {
     void sendingInvite;
     const [inviteSent, setInviteSent] = useState(false);
     void inviteSent;
+    const [authDeliveryMethod, setAuthDeliveryMethod] = useState<'email' | 'sms'>('email');
 
     const handleSendInvite = async () => {
         if (!userId || !entry?.email) {
             alert('必要な情報が不足しています。');
             return;
+        }
+
+        if (authDeliveryMethod === 'sms') {
+            const confirmed = window.confirm(
+                'SMSで新しい認証リンクを送信します。\n\n以前に発行された認証リンクは利用できなくなる場合があります。\n\n送信しますか？'
+            );
+            if (!confirmed) return;
         }
 
         setSendingInvite(true);
@@ -732,27 +740,44 @@ export default function EntryDetailPage() {
         try {
             const res = await fetch('/api/entry/auth', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ entryId: entry.id, action: 'invite', email: entry.email }),
+                body: JSON.stringify({
+                    entryId: entry.id,
+                    action: 'invite',
+                    email: entry.email,
+                    deliveryMethod: authDeliveryMethod,
+                }),
             });
             const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.error ?? '認証メールを送信できませんでした');
+            if (!res.ok || !data.success) {
+                if (data.reason === 'NO_PHONE_NUMBER') {
+                    throw new Error('携帯電話番号が登録されていないため、SMSを送信できませんでした。');
+                }
+                if (data.reason === 'SMS_SEND_FAILED') {
+                    throw new Error('認証情報のSMS送信に失敗しました。');
+                }
+                throw new Error(data.error ?? (authDeliveryMethod === 'sms' ? '認証情報のSMS送信に失敗しました。' : '認証メールを送信できませんでした'));
+            }
             setInviteSent(true);
-            setAuthMessage('✓ 認証メールを送信しました。');
+            setAuthMessage(authDeliveryMethod === 'sms'
+                ? '✓ 認証情報をSMSで送信しました。'
+                : '✓ 認証メールを送信しました。');
 
             await addStaffLog({
                 staff_id: entry.id,
                 action_at: new Date().toISOString(),
-                action_detail: '認証メール送信',
+                action_detail: authDeliveryMethod === 'sms' ? '認証情報SMS送信' : '認証メール送信',
                 registered_by: 'システム'
             });
-            console.log('📝 認証メール送信ログを記録しました');
+            console.log('📝 認証情報送信ログを記録しました');
 
             await fetchUserRecord();
             await fetchEntry();
 
         } catch (e) {
-            console.error('招待送信中エラー:', e);
-            setAuthMessage(`認証メールの送信に失敗しました: ${e instanceof Error ? e.message : '予期しないエラー'}`);
+            console.error('認証情報送信中エラー:', e);
+            setAuthMessage(e instanceof Error
+                ? e.message
+                : authDeliveryMethod === 'sms' ? '認証情報のSMS送信に失敗しました。' : '認証メールの送信に失敗しました。');
         } finally {
             setSendingInvite(false);
         }
@@ -1460,21 +1485,48 @@ export default function EntryDetailPage() {
     // ★ 上下に同じボタン群を出す（ユーザーID決定は含めない）
     const ActionButtons = () => (
         <div className="flex flex-wrap justify-center items-center gap-3 pt-4">
-            {/* 認証メール送信 */}
-            {userRecord && !userRecord.auth_user_id ? (
-                <button
-                    className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition disabled:opacity-50"
-                    onClick={handleSendInvite}
-                    disabled={!userId || !entry?.email || sendingInvite}
-                >
-                    {sendingInvite ? '送信中...' : '認証メール送信'}
-                </button>
+            {/* 認証情報送信 */}
+            {userRecord ? (
+                <div className="flex flex-col items-center gap-1">
+                    <span className="text-sm font-medium">認証情報の送信方法</span>
+                    <div className="flex items-center gap-3 text-sm">
+                        <label className="flex items-center gap-1 cursor-pointer">
+                            <input
+                                type="radio"
+                                name="auth-delivery-method"
+                                value="email"
+                                checked={authDeliveryMethod === 'email'}
+                                onChange={() => setAuthDeliveryMethod('email')}
+                                disabled={sendingInvite}
+                            />
+                            メール
+                        </label>
+                        <label className="flex items-center gap-1 cursor-pointer">
+                            <input
+                                type="radio"
+                                name="auth-delivery-method"
+                                value="sms"
+                                checked={authDeliveryMethod === 'sms'}
+                                onChange={() => setAuthDeliveryMethod('sms')}
+                                disabled={sendingInvite}
+                            />
+                            SMS
+                        </label>
+                    </div>
+                    {authDeliveryMethod === 'sms' && (
+                        <span className="text-xs text-gray-600">登録されている携帯電話番号へログイン設定用URLを送信します。</span>
+                    )}
+                    <button
+                        className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition disabled:opacity-50"
+                        onClick={handleSendInvite}
+                        disabled={!userId || !entry?.email || sendingInvite}
+                    >
+                        {sendingInvite ? '送信中...' : '認証情報を送信'}
+                    </button>
+                    {userRecord.auth_user_id && <span className="text-xs text-green-700">認証登録済み（再送できます）</span>}
+                </div>
             ) : (
-                userRecord?.auth_user_id ? (
-                    <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
-                ) : (
-                    <span className="text-sm text-gray-500">ユーザーID未登録（まずIDを決定）</span>
-                )
+                <span className="text-sm text-gray-500">ユーザーID未登録（まずIDを決定）</span>
             )}
 
             {/* 認証情報削除 */}
