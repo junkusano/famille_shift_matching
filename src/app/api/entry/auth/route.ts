@@ -26,6 +26,15 @@ function signupCompleteRedirect(flow: 'invite' | 'recovery'): string {
   return `${getAppBaseUrl()}/signup/complete?authFlow=${flow}`;
 }
 
+function smsSignupCompleteUrl(flow: 'invite' | 'recovery', tokenHash: string): string {
+  const url = new URL('/signup/complete', getAppBaseUrl());
+  url.searchParams.set('authFlow', flow);
+  url.searchParams.set('type', flow);
+  // fragmentはHTTPリクエストに含まれないため、短期トークンをアプリやアクセスログへ渡さない。
+  url.hash = new URLSearchParams({ token_hash: tokenHash }).toString();
+  return url.toString();
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { entryId, action, email: rawEmail, deliveryMethod: rawDeliveryMethod } = await req.json() as Body;
@@ -105,7 +114,7 @@ export async function POST(req: NextRequest) {
           },
         });
 
-      if (generateError || !generated.user?.id || !generated.properties?.action_link) {
+      if (generateError || !generated.user?.id || !generated.properties?.hashed_token) {
         console.error('[entry-auth] auth link generation failed', {
           entryId,
           type: linkType,
@@ -141,7 +150,9 @@ export async function POST(req: NextRequest) {
 
       const smsResult = await sendSms({
         to: phone,
-        body: smsMessage(generated.properties.action_link),
+        // SMSではブラウザ側で一回限りのtoken_hashをverifyOtpし、
+        // /signup/complete のlocalStorageセッションを確立する。
+        body: smsMessage(smsSignupCompleteUrl(linkType, generated.properties.hashed_token)),
       });
       if (smsResult.status !== 'ok') {
         console.error('[entry-auth] sms send failed', { entryId, reason: smsResult.status === 'skipped' ? smsResult.reason : 'send_error' });

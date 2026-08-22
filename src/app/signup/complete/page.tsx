@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 
 type StatusType = "success" | "error" | "";
@@ -31,6 +32,32 @@ export default function SignupCompletePage() {
         setStatusMsg("");
         setStatusType("");
 
+        const queryParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.slice(1));
+        const authFlow = queryParams.get("authFlow");
+        const tokenHash = hashParams.get("token_hash");
+        const tokenType = queryParams.get("type");
+        const passwordSetupFlow = authFlow === "invite" || authFlow === "recovery";
+
+        // generateLink()をSMSで送る場合、Supabaseのverify URLを経由せず、
+        // このブラウザでセッションを確立する。token_hashは成功後すぐ履歴から除去する。
+        if (tokenHash && (tokenType === "invite" || tokenType === "recovery")) {
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: tokenType as EmailOtpType,
+          });
+
+          if (verifyError) {
+            setStatusMsg("認証リンクの確認に失敗しました。リンクの有効期限を確認して、必要であれば再送してください。");
+            setStatusType("error");
+            return;
+          }
+
+          queryParams.delete("type");
+          const remainingQuery = queryParams.toString();
+          window.history.replaceState(null, "", `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ""}`);
+        }
+
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -51,8 +78,6 @@ export default function SignupCompletePage() {
 
         // invite / recovery からの遷移は、業務データの有無とは独立して
         // 必ずパスワード設定を求める。
-        const authFlow = new URLSearchParams(window.location.search).get("authFlow");
-        const passwordSetupFlow = authFlow === "invite" || authFlow === "recovery";
         setRequiresPasswordSetup(passwordSetupFlow || !oauthUser);
 
         const email = user.email;
