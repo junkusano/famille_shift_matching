@@ -36,6 +36,16 @@ type SumOrderResponse = {
     length?: number;
 };
 
+function isUnsupportedOpenAIRequestParameterError(message: string): boolean {
+    const normalized = message.toLowerCase();
+
+    return (
+        normalized.includes("unsupported parameter") ||
+        (normalized.includes("is not supported with this model") &&
+            normalized.includes("parameter"))
+    );
+}
+
 /**
  * 特定コメント クローン処理
  *
@@ -402,6 +412,14 @@ export async function runTokuteiSumOrderClone(options?: {
                     ok: false,
                     error: json.error,
                 });
+
+                if (isUnsupportedOpenAIRequestParameterError(json.error)) {
+                    console.error(
+                        "[tokutei/clone] aborting run because OpenAI rejected a request parameter",
+                        json.error
+                    );
+                    break;
+                }
             } else {
                 successCount++;
                 if (successCount <= 3) {

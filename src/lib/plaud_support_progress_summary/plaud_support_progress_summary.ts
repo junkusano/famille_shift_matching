@@ -797,7 +797,7 @@ async function generateSummary(
   // OpenAI API呼び出し
   const response = await openai.chat.completions.create({
     model: OPENAI_PROFILES.standard.model,
-    max_tokens: promptResult.max_tokens,
+    max_completion_tokens: promptResult.max_tokens,
     messages: [
       { role: "user", content: finalPrompt },
     ],

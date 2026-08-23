@@ -7300,6 +7300,66 @@ export type Database = {
         }
         Relationships: []
       }
+      recording_transcripts: {
+        Row: {
+          client_id: string | null
+          client_name: string | null
+          context_id: string | null
+          context_name: string | null
+          created_at: string
+          duration_millis: number
+          file_name: string
+          file_size_bytes: number
+          id: string
+          local_recording_id: string
+          recorded_at: string
+          recorder_email: string | null
+          recorder_user_id: string
+          transcribed_at: string | null
+          transcript_raw: string | null
+          transcript_status: string
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          client_name?: string | null
+          context_id?: string | null
+          context_name?: string | null
+          created_at?: string
+          duration_millis: number
+          file_name: string
+          file_size_bytes: number
+          id?: string
+          local_recording_id: string
+          recorded_at: string
+          recorder_email?: string | null
+          recorder_user_id: string
+          transcribed_at?: string | null
+          transcript_raw?: string | null
+          transcript_status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          client_name?: string | null
+          context_id?: string | null
+          context_name?: string | null
+          created_at?: string
+          duration_millis?: number
+          file_name?: string
+          file_size_bytes?: number
+          id?: string
+          local_recording_id?: string
+          recorded_at?: string
+          recorder_email?: string | null
+          recorder_user_id?: string
+          transcribed_at?: string | null
+          transcript_raw?: string | null
+          transcript_status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       reentry_campaign_recipients: {
         Row: {
           campaign_key: string

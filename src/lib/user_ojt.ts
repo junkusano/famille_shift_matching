@@ -720,7 +720,7 @@ ${lines || "記録内容がほとんどありません。"}
             },
             { role: "user", content: prompt },
         ],
-        max_tokens: 400,
+        max_completion_tokens: 400,
     });
 
     const content = res.choices[0]?.message?.content;

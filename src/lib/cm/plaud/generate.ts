@@ -113,7 +113,7 @@ export async function generateWithTemplates(
             // OpenAI API呼び出し
             const response = await openai.chat.completions.create({
               model: OPENAI_PROFILES.standard.model,
-              max_tokens: MAX_TOKENS,
+              max_completion_tokens: MAX_TOKENS,
               messages: [
                 {
                   role: "system",

@@ -357,7 +357,7 @@ async function generateInstruction(
       { role: "system", content: sys },
       { role: "user", content: usr },
     ],
-    max_tokens: 220,
+    max_completion_tokens: 220,
   });
 
   const text = resp.choices?.[0]?.message?.content?.trim() ?? "";
