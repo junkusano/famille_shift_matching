@@ -39,6 +39,7 @@ export function ClientMenuBeta() {
   const { role, loading: roleLoading } = useRoleContext();
   const [open, setOpen] = useState(false);
   const [clients, setClients] = useState<ClientRow[]>([]);
+  const [loadError, setLoadError] = useState("");
   const [manualId, setManualId] = useState<string | null>(null);
   const pageContext = useMemo(
     () => resolveCurrentClientBeta(pathname, new URLSearchParams(searchParams.toString())),
@@ -48,13 +49,20 @@ export function ClientMenuBeta() {
   useEffect(() => {
     let alive = true;
     async function loadClients() {
-      const { data, error } = await supabase
-        .from("cs_kaipoke_info")
-        .select("id,kaipoke_cs_id,name,kana,asigned_org,asigned_jisseki_staff")
-        .eq("is_active", true)
-        .order("kana", { ascending: true })
-        .order("name", { ascending: true });
-      if (!error && alive) setClients((data ?? []) as ClientRow[]);
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      const response = await fetch("/api/client-menu-beta/clients", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        cache: "no-store",
+      });
+      const payload = await response.json().catch(() => null);
+      if (!alive) return;
+      if (!response.ok || !payload?.ok) {
+        setLoadError(payload?.error || "利用者一覧を取得できませんでした。");
+        return;
+      }
+      setClients(payload.data as ClientRow[]);
+      setLoadError("");
     }
     void loadClients();
     return () => { alive = false; };
@@ -90,7 +98,8 @@ export function ClientMenuBeta() {
           <label className={styles.label}>利用者
             <SearchableSelect options={options} value={selectedClient?.id ?? null} onChange={setManualId} placeholder="利用者を選択してください" searchPlaceholder="氏名・カナ・利用者IDで検索..." clearable />
           </label>
-          {selectedClient ? <div className={styles.summary}><strong>{selectedClient.name ?? "氏名未設定"} 様</strong><span>利用者ID：{selectedClient.kaipoke_cs_id ?? "未設定"}</span>{selectedClient.asigned_org && <span>担当部門：{selectedClient.asigned_org}</span>}{selectedClient.asigned_jisseki_staff && <span>担当マネージャー：{selectedClient.asigned_jisseki_staff}</span>}</div> : <p className={styles.empty}>利用者を選択すると、その利用者の関連情報を確認できます。</p>}
+          {loadError ? <p className={styles.error}>{loadError}</p> : null}
+          {selectedClient ? <div className={styles.summary}><strong>{selectedClient.name ?? "氏名未設定"} 様</strong><span>利用者ID：{selectedClient.kaipoke_cs_id ?? "未設定"}</span>{selectedClient.asigned_org && <span>担当部門：{selectedClient.asigned_org}</span>}{selectedClient.asigned_jisseki_staff && <span>担当マネージャー：{selectedClient.asigned_jisseki_staff}</span>}</div> : <p className={styles.empty}>{loadError ? "権限とログイン状態を確認してください。" : "利用者を選択すると、その利用者の関連情報を確認できます。"}</p>}
           <nav className={styles.links} aria-label="利用者別メニュー">
             {links.map(([label, href, group]) => <Link key={label} href={href} onClick={() => setOpen(false)}><span>{group}</span>{label}</Link>)}
             {!selectedClient && ["基本情報詳細", "月間シフト", "週間シフト", "実績記録", "アセス／プラン", "モニタリング", "書類一覧"].map((label) => <button key={label} type="button" disabled>{label}</button>)}
