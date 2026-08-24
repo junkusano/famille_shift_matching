@@ -1,4 +1,4 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
@@ -17,9 +17,31 @@ export async function requireTaimeeRpaOperator(request?: Request): Promise<void>
   // いずれもSupabaseで検証し、認証情報自体は保存しない。
   // Bearerは既存の管理APIと同じく、Supabase Adminクライアントで検証する。
   // 匿名クライアント経由だと、本番環境で拡張機能から渡されたJWTが401になる場合がある。
-  const { data, error } = bearer
+  const authResult = bearer
     ? await supabaseAdmin.auth.getUser(bearer)
-    : await createRouteHandlerClient({ cookies }).auth.getUser();
+    : await (async () => {
+      const cookieStore = await cookies();
+      const auth = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            getAll() {
+              return cookieStore.getAll();
+            },
+            setAll(cookiesToSet) {
+              try {
+                for (const { name, value, options } of cookiesToSet) cookieStore.set(name, value, options);
+              } catch {
+                // Read-only callers do not need to persist a refreshed cookie.
+              }
+            },
+          },
+        },
+      );
+      return auth.auth.getUser();
+    })();
+  const { data, error } = authResult;
   if (error || !data.user) throw new RpaTaimeeError("ログインしてください", 401);
 
   const { data: staff, error: staffError } = await supabaseAdmin
