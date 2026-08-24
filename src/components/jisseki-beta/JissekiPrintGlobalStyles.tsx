@@ -260,6 +260,11 @@ ${mode === "bulk" ? `
 
      /* β版の単票は、A4縦・余白3mmの印刷可能幅(204mm)に帳票全体を収める。 */
      @media print {
+       /* 非印刷の操作ヘッダーが高さだけ残ると、先頭帳票が次ページへ押し出される。 */
+       .no-print {
+         display: none !important;
+       }
+
        .print-only {
          position: static !important;
          width: 204mm !important;
@@ -275,10 +280,18 @@ ${mode === "bulk" ? `
          width: 100% !important;
          max-width: 100% !important;
          box-sizing: border-box !important;
-         break-inside: avoid-page;
-         page-break-inside: avoid;
+         margin-left: auto !important;
+         margin-right: auto !important;
+         break-inside: auto;
+         page-break-inside: auto;
          page-break-after: auto !important;
          break-after: auto !important;
+       }
+
+       .print-only > .print-page:first-child {
+         break-before: auto !important;
+         page-break-before: auto !important;
+         margin-top: 0 !important;
        }
 
        .print-only .print-page + .print-page,
@@ -299,6 +312,15 @@ ${mode === "bulk" ? `
          width: 100% !important;
          max-width: 100% !important;
          table-layout: fixed !important;
+       }
+     }
+
+     /* iOSだけに残っていた縮小を解除し、他ブラウザと同じ中央配置・寸法で印刷する。 */
+     @supports (-webkit-touch-callout: none) {
+       @media print {
+         .print-only {
+           zoom: 1 !important;
+         }
        }
      }
       ` : ""}
