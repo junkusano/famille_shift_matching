@@ -283,7 +283,7 @@ ${mode === "bulk" ? `
          position: static !important;
          width: 204mm !important;
          max-width: 204mm !important;
-         margin: 0 auto !important;
+         margin: 0 !important;
          padding: 0 0 1mm !important;
          box-sizing: border-box !important;
          overflow: visible !important;
