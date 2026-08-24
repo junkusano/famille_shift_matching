@@ -302,14 +302,22 @@ ${mode === "bulk" ? `
          break-before: page !important;
        }
 
-       .print-only .print-page > .formBox {
+       .print-only .print-page > .print-scale {
+         position: relative;
+         width: 204mm;
+         max-width: 100%;
+         margin: 0;
+         flex: 0 0 auto;
+         overflow: visible;
+       }
+
+       .print-only .print-page > .print-scale > .formBox {
          width: 204mm !important;
-         max-width: 100% !important;
-         margin: 0 auto !important;
+         max-width: none !important;
+         margin: 0 !important;
          box-sizing: border-box !important;
          transform: none !important;
-         transform-origin: top center !important;
-         flex: 0 0 auto;
+         transform-origin: top left !important;
        }
 
        .print-only .grid,

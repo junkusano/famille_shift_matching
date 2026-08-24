@@ -162,22 +162,28 @@ export default function JissekiPrintPage() {
     };
 
     /**
-     * β版の帳票は内容を変えず、印刷可能なA4領域に収まる比率だけを帳票単位で求める。
-     * zoom は Chrome の印刷レイアウト計算にも反映されるため、表の末尾だけが次ページへ
-     * 押し出されることを防げる。ページ側は flex で中央配置する。
+     * β版の帳票は内容を変えず、A4の安全領域に収まる比率だけを帳票単位で求める。
+     * 縮小後の実寸を外側 wrapper に設定してから wrapper 自体を中央配置することで、
+     * transform/zoom の見た目だけが右へずれる問題を防ぐ。
      */
     const fitPrintPages = () => {
-        const printableWidthPx = (204 / 25.4) * 96;
-        const printableHeightPx = (291 / 25.4) * 96;
+        const printableWidthPx = (200 / 25.4) * 96;
+        const printableHeightPx = (287 / 25.4) * 96;
 
         printPageRefs.current.forEach((page) => {
-            const sheet = page.querySelector<HTMLElement>(":scope > .formBox");
-            if (!sheet) return;
+            const scaleWrapper = page.querySelector<HTMLElement>(":scope > .print-scale");
+            const sheet = scaleWrapper?.querySelector<HTMLElement>(":scope > .formBox");
+            if (!scaleWrapper || !sheet) return;
 
-            sheet.style.setProperty("zoom", "1", "important");
+            scaleWrapper.style.setProperty("width", "204mm");
+            scaleWrapper.style.removeProperty("height");
+            sheet.style.removeProperty("zoom");
+            sheet.style.setProperty("transform", "none", "important");
 
-            const sourceWidth = Math.max(sheet.offsetWidth, sheet.scrollWidth);
-            const sourceHeight = Math.max(sheet.offsetHeight, sheet.scrollHeight);
+            // 表内の文字や装飾の scrollWidth ではなく、帳票外枠そのものを基準にする。
+            // table-layout: fixed の帳票で scrollWidth を使うと、外枠より大きく誤計測される。
+            const sourceWidth = sheet.offsetWidth;
+            const sourceHeight = sheet.offsetHeight;
             if (!sourceWidth || !sourceHeight) return;
 
             const scale = Math.min(
@@ -186,7 +192,10 @@ export default function JissekiPrintPage() {
                 printableHeightPx / sourceHeight
             );
 
-            sheet.style.setProperty("zoom", scale.toFixed(3), "important");
+            scaleWrapper.style.setProperty("width", `${sourceWidth * scale}px`);
+            scaleWrapper.style.setProperty("height", `${sourceHeight * scale}px`);
+            sheet.style.setProperty("transform", `scale(${scale.toFixed(4)})`, "important");
+            sheet.style.setProperty("transform-origin", "top left", "important");
         });
     };
 
@@ -309,6 +318,7 @@ export default function JissekiPrintPage() {
                             }}
                             className={idx === 0 ? "print-page" : "print-page page-break"}
                         >
+                            <div className="print-scale">
                             {p.formType === "TAKINO" && (
                                 <TakinokyoForm
                                     data={data}
@@ -358,6 +368,7 @@ export default function JissekiPrintPage() {
                                     fitRefs={fitRefs}
                                 />
                             )}
+                            </div>
                         </div>
                     ));
                 })()}
