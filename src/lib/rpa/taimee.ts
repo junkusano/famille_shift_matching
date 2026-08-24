@@ -1,6 +1,5 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 export type TaimeeSmsStatus = "unsent" | "sent" | "failed" | "duplicate" | "skipped" | "phone_not_found";
@@ -16,14 +15,11 @@ export async function requireTaimeeRpaOperator(request?: Request): Promise<void>
   const bearer = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
   // 通常操作はCookie、RPAはログイン済み画面から渡される短期Bearerを使う。
   // いずれもSupabaseで検証し、認証情報自体は保存しない。
-  const auth = bearer
-    ? createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { auth: { persistSession: false, autoRefreshToken: false } },
-    )
-    : createRouteHandlerClient({ cookies });
-  const { data, error } = bearer ? await auth.auth.getUser(bearer) : await auth.auth.getUser();
+  // Bearerは既存の管理APIと同じく、Supabase Adminクライアントで検証する。
+  // 匿名クライアント経由だと、本番環境で拡張機能から渡されたJWTが401になる場合がある。
+  const { data, error } = bearer
+    ? await supabaseAdmin.auth.getUser(bearer)
+    : await createRouteHandlerClient({ cookies }).auth.getUser();
   if (error || !data.user) throw new RpaTaimeeError("ログインしてください", 401);
 
   const { data: staff, error: staffError } = await supabaseAdmin
