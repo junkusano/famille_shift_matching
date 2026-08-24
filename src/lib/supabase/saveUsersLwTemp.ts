@@ -1,9 +1,22 @@
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { User } from "@/types/lineworks";
 
-export async function saveUsersLWTemp(users: User[]) {
+type SaveUsersLWTempOptions = {
+  replace?: boolean;
+};
+
+export async function saveUsersLWTemp(
+  users: User[],
+  options: SaveUsersLWTempOptions = {}
+) {
   if (!Array.isArray(users)) {
     throw new Error("users は配列である必要があります");
+  }
+  if (users.length === 0) {
+    throw new Error("LINE WORKSユーザーが0件のため同期を中止しました");
+  }
+  if (users.some((user) => !user.userId || !user.email)) {
+    throw new Error("同期識別子がないLINE WORKSユーザーが含まれています");
   }
 
   const formatted = users.map((u) => {
@@ -71,6 +84,17 @@ export async function saveUsersLWTemp(users: User[]) {
       employee_number: u.employeeNumber,
     };
   });
+
+  if (options.replace) {
+    const { error: deleteError } = await supabaseAdmin
+      .from("users_lw_temp")
+      .delete()
+      .not("user_id", "is", null);
+
+    if (deleteError) {
+      throw new Error(`既存一時データの削除に失敗しました: ${deleteError.message}`);
+    }
+  }
 
   const { error } = await supabaseAdmin
     .from("users_lw_temp")
