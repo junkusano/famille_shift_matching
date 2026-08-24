@@ -276,14 +276,16 @@ ${mode === "bulk" ? `
        }
 
        .print-only .print-page {
-         display: block !important;
+         display: flex !important;
+         justify-content: center !important;
+         align-items: flex-start !important;
          width: 100% !important;
          max-width: 100% !important;
          box-sizing: border-box !important;
          margin-left: auto !important;
          margin-right: auto !important;
-         break-inside: auto;
-         page-break-inside: auto;
+         break-inside: avoid-page;
+         page-break-inside: avoid;
          page-break-after: auto !important;
          break-after: auto !important;
        }
@@ -305,6 +307,9 @@ ${mode === "bulk" ? `
          max-width: 100% !important;
          margin: 0 auto !important;
          box-sizing: border-box !important;
+         transform: none !important;
+         transform-origin: top center !important;
+         flex: 0 0 auto;
        }
 
        .print-only .grid,

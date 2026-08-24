@@ -121,6 +121,7 @@ export default function JissekiPrintPage() {
     const [data, setData] = useState<PrintPayload | null>(null);
     const [error, setError] = useState<string>("");
     const fitRefs = useRef<HTMLElement[]>([]);
+    const printPageRefs = useRef<HTMLElement[]>([]);
 
     const fitAllText = () => {
         const MIN_PX = 8;     // 最小フォント（これ以下にはしない）
@@ -160,14 +161,55 @@ export default function JissekiPrintPage() {
         });
     };
 
+    /**
+     * β版の帳票は内容を変えず、印刷可能なA4領域に収まる比率だけを帳票単位で求める。
+     * zoom は Chrome の印刷レイアウト計算にも反映されるため、表の末尾だけが次ページへ
+     * 押し出されることを防げる。ページ側は flex で中央配置する。
+     */
+    const fitPrintPages = () => {
+        const printableWidthPx = (204 / 25.4) * 96;
+        const printableHeightPx = (291 / 25.4) * 96;
+
+        printPageRefs.current.forEach((page) => {
+            const sheet = page.querySelector<HTMLElement>(":scope > .formBox");
+            if (!sheet) return;
+
+            sheet.style.setProperty("zoom", "1", "important");
+
+            const sourceWidth = Math.max(sheet.offsetWidth, sheet.scrollWidth);
+            const sourceHeight = Math.max(sheet.offsetHeight, sheet.scrollHeight);
+            if (!sourceWidth || !sourceHeight) return;
+
+            const scale = Math.min(
+                1,
+                printableWidthPx / sourceWidth,
+                printableHeightPx / sourceHeight
+            );
+
+            sheet.style.setProperty("zoom", scale.toFixed(3), "important");
+        });
+    };
+
     // data描画後＋印刷直前にもfitを実行
     useEffect(() => {
         if (!data) return;
 
         // DOMが描画された後に計測したいので rAF
-        requestAnimationFrame(() => fitAllText());
+        const fitForPrint = () => {
+            requestAnimationFrame(() => {
+                fitAllText();
+                fitPrintPages();
+            });
+        };
 
-        const onBeforePrint = () => fitAllText();
+        fitForPrint();
+
+        // beforeprint は印刷プレビューのレイアウト確定直前に発火するため、
+        // 非同期化せずこの場で縮小率を再計算する。
+        const onBeforePrint = () => {
+            fitAllText();
+            fitPrintPages();
+        };
         window.addEventListener("beforeprint", onBeforePrint);
         return () => window.removeEventListener("beforeprint", onBeforePrint);
     }, [data]);
@@ -260,7 +302,13 @@ export default function JissekiPrintPage() {
                     const totalPages = pages.length;
 
                     return pages.map((p, idx) => (
-                        <div key={`${p.formType}-${idx}`} className={idx === 0 ? "print-page" : "print-page page-break"}>
+                        <div
+                            key={`${p.formType}-${idx}`}
+                            ref={(element) => {
+                                if (element) printPageRefs.current[idx] = element;
+                            }}
+                            className={idx === 0 ? "print-page" : "print-page page-break"}
+                        >
                             {p.formType === "TAKINO" && (
                                 <TakinokyoForm
                                     data={data}
