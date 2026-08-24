@@ -6,6 +6,23 @@ import { supabaseAdmin as supabase } from "@/lib/supabase/service";
  * cs_kaipoke_info.asigned_jisseki_staff に自動設定する処理
  */
 export async function autoAssignJissekiStaff() {
+    // 自動割当前後の差分だけをログに残す。氏名は出力しない。
+    const { data: beforeRows, error: beforeErr } = await supabase
+        .from("cs_kaipoke_info")
+        .select("kaipoke_cs_id,asigned_jisseki_staff");
+
+    if (beforeErr) {
+        console.error("[jisseki-staff:auto-assign] snapshot_failed", beforeErr);
+        throw beforeErr;
+    }
+
+    const beforeStaffByClientId = new Map(
+        (beforeRows ?? []).map((row) => [
+            String(row.kaipoke_cs_id ?? ""),
+            row.asigned_jisseki_staff ?? null,
+        ])
+    );
+
     const sql = `
 WITH recent_shifts AS (
   SELECT
@@ -78,6 +95,29 @@ WHERE c.kaipoke_cs_id = s.kaipoke_cs_id;
     if (error) {
         console.error("[autoAssignJissekiStaff] ERROR:", error);
         throw error;
+    }
+
+    const { data: afterRows, error: afterErr } = await supabase
+        .from("cs_kaipoke_info")
+        .select("kaipoke_cs_id,asigned_jisseki_staff");
+
+    if (afterErr) {
+        console.error("[jisseki-staff:auto-assign] snapshot_failed", afterErr);
+        throw afterErr;
+    }
+
+    for (const row of afterRows ?? []) {
+        const recordId = String(row.kaipoke_cs_id ?? "");
+        const beforeStaffId = beforeStaffByClientId.get(recordId) ?? null;
+        const afterStaffId = row.asigned_jisseki_staff ?? null;
+        if (beforeStaffId === afterStaffId) continue;
+
+        console.info("[jisseki-staff:auto-assign]", {
+            recordId,
+            beforeStaffId,
+            afterStaffId,
+            reason: "most_shifts_in_previous_two_months",
+        });
     }
 
     return { ok: true };

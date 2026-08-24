@@ -1027,7 +1027,7 @@ const DisabilityCheckPage: React.FC = () => {
   ]);
 
   return (
-    <div>
+    <div style={{ maxWidth: "100%", overflowX: "hidden" }}>
       <h1>実績記録チェック</h1>
 
       <div
@@ -1297,9 +1297,52 @@ const DisabilityCheckPage: React.FC = () => {
 */}
 
       </div>
-      <table style={{ borderCollapse: "collapse", width: "100%" }}>
+      <div
+        aria-label="実績記録一覧（横スクロール可能）"
+        style={{
+          maxWidth: "100%",
+          overflowX: "auto",
+          overflowY: "hidden",
+          WebkitOverflowScrolling: "touch",
+          touchAction: "pan-x pan-y",
+          overscrollBehaviorX: "contain",
+          border: "1px solid #e5e7eb",
+          borderRadius: 6,
+        }}
+      >
+      <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 1080 }}>
         <thead>
           <tr>
+            <th
+              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", padding: 8, width: 72 }}
+              onClick={() => toggleSort("is_submitted")}
+            >
+              提出✅
+              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                {sortMark("is_submitted")}
+              </span>
+            </th>
+
+            <th
+              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", padding: 8, width: 72 }}
+              onClick={() => toggleSort("is_checked")}
+            >
+              回収✅
+              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                {sortMark("is_checked")}
+              </span>
+            </th>
+
+            <th
+              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
+              onClick={() => toggleSort("client_name")}
+            >
+              利用者名
+              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                {sortMark("client_name")}
+              </span>
+            </th>
+
             <th
               style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
               onClick={() => toggleSort("district")}
@@ -1317,16 +1360,6 @@ const DisabilityCheckPage: React.FC = () => {
               カイポケID
               <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
                 {sortMark("kaipoke_cs_id")}
-              </span>
-            </th>
-
-            <th
-              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
-              onClick={() => toggleSort("client_name")}
-            >
-              利用者名
-              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
-                {sortMark("client_name")}
               </span>
             </th>
 
@@ -1370,25 +1403,6 @@ const DisabilityCheckPage: React.FC = () => {
               </span>
             </th>
 
-            <th
-              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", padding: 8, width: 80 }}
-              onClick={() => toggleSort("is_submitted")}
-            >
-              提出✅
-              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
-                {sortMark("is_submitted")}
-              </span>
-            </th>
-
-            <th
-              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", padding: 8, width: 80 }}
-              onClick={() => toggleSort("is_checked")}
-            >
-              回収✅
-              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
-                {sortMark("is_checked")}
-              </span>
-            </th>
           </tr>
         </thead>
         <tbody>
@@ -1400,8 +1414,28 @@ const DisabilityCheckPage: React.FC = () => {
                 className="group hover:bg-yellow-50"
                 style={{ verticalAlign: "middle" }}
               >
-                <td style={{ padding: 8 }}>{r.district ?? "-"}</td>
-                <td style={{ padding: 8 }}>{r.kaipoke_cs_id}</td>
+                <td style={{ textAlign: "center", padding: 8 }}>
+                  <input
+                    aria-label={`${r.client_name} の提出チェック`}
+                    type="checkbox"
+                    checked={!!r.is_submitted}
+                    onChange={(e) => handleSubmitChange(r, e.target.checked)}
+                    style={{ display: "inline-block", width: 20, height: 20 }}
+                  />
+                </td>
+                <td style={{ textAlign: "center", padding: 8 }}>
+                  <input
+                    aria-label={`${r.client_name} の回収チェック`}
+                    type="checkbox"
+                    checked={!!r.is_checked}
+                    disabled={isMember}
+                    onChange={(e) => {
+                      if (isMember) return;
+                      handleCheckChange(r, e.target.checked);
+                    }}
+                    style={{ display: "inline-block", width: 20, height: 20 }}
+                  />
+                </td>
 
                 {/* ★追加：利用者名を印刷ページへのリンクにする */}
                 <td style={{ padding: 8 }}>
@@ -1416,6 +1450,9 @@ const DisabilityCheckPage: React.FC = () => {
                     {r.client_name}
                   </Link>
                 </td>
+
+                <td style={{ padding: 8 }}>{r.district ?? "-"}</td>
+                <td style={{ padding: 8 }}>{r.kaipoke_cs_id}</td>
 
                 <td style={{ padding: 8 }}>
                   <input
@@ -1496,28 +1533,6 @@ const DisabilityCheckPage: React.FC = () => {
                   {r.asigned_org_name ?? "-"}
                 </td>
 
-                {/* ③ 提出チェックボックス */}
-                <td style={{ textAlign: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={!!r.is_submitted}
-                    onChange={(e) => handleSubmitChange(r, e.target.checked)}
-                    style={{ display: "inline-block" }}
-                  />
-                </td>
-                {/* 既存：回収チェックボックス */}
-                <td style={{ textAlign: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={!!r.is_checked}
-                    disabled={isMember} // ★memberのみ無効
-                    onChange={(e) => {
-                      if (isMember) return;
-                      handleCheckChange(r, e.target.checked);
-                    }}
-                    style={{ display: "inline-block" }}
-                  />
-                </td>
               </tr>
             );
           })}
@@ -1530,6 +1545,7 @@ const DisabilityCheckPage: React.FC = () => {
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 };

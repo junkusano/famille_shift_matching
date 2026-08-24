@@ -1,7 +1,6 @@
 // src/app/api/cron/disability-check-collected/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { assertCronAuth } from "@/lib/cron/auth";
-import { refreshDisabilityCheckJissekiStaff } from "@/lib/disabilityCheckJisseki";
 import { runDisabilityCheckCollectedAlert } from "@/lib/alert_add/disability_check_collected_alert";
 
 export const runtime = "nodejs";
@@ -10,8 +9,7 @@ export async function GET(req: NextRequest) {
     try {
         assertCronAuth(req);
 
-        // 回収も view の担当情報を使うので、提出と同様に同期してから回すのが安全
-        await refreshDisabilityCheckJissekiStaff();
+        // 手動設定済み担当を上書きする同期は行わない。未設定担当は表示API側で補完する。
 
         const result = await runDisabilityCheckCollectedAlert({
             dryRun: false,

@@ -140,6 +140,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+    let updateLogContext: {
+        recordId: string | null;
+        oldStaffId: string | null;
+        newStaffId: string | null;
+    } = { recordId: null, oldStaffId: null, newStaffId: null };
+
     try {
         const { role } = await readRoleFromBearer(req);
         const isAdmin = role === "admin" || role === "super_admin";
@@ -168,7 +174,24 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "bad_request:kaipokeServicek" }, { status: 400 });
         }
 
-        // 1) disability_check に upsert（必ずDBに反映させる）
+        // 1) 変更前を取得。ログと更新対象の照合以外には使用しない。
+        const { data: previous, error: previousErr } = await supabaseAdmin
+            .from("disability_check")
+            .select("id,asigned_jisseki_staff")
+            .eq("kaipoke_cs_id", body.kaipoke_cs_id)
+            .eq("year_month", body.yearMonth)
+            .eq("kaipoke_servicek", body.kaipokeServicek)
+            .maybeSingle();
+
+        if (previousErr) throw previousErr;
+
+        updateLogContext = {
+            recordId: previous?.id ?? null,
+            oldStaffId: previous?.asigned_jisseki_staff ?? null,
+            newStaffId: body.staffId,
+        };
+
+        // 2) disability_check に upsert（必ずDBに反映させる）
         const { error: upsertErr } = await supabaseAdmin
             .from("disability_check")
             .upsert(
@@ -183,10 +206,10 @@ export async function POST(req: NextRequest) {
 
         if (upsertErr) throw upsertErr;
 
-        // 2) DBの保存結果を読み直して返す（フロントが「DB更新済」を判定できる）
+        // 3) DBの保存結果を読み直して返す（フロントが「DB更新済」を判定できる）
         const { data: saved, error: savedErr } = await supabaseAdmin
             .from("disability_check")
-            .select("asigned_jisseki_staff")
+            .select("id,asigned_jisseki_staff")
             .eq("kaipoke_cs_id", body.kaipoke_cs_id)
             .eq("year_month", body.yearMonth)
             .eq("kaipoke_servicek", body.kaipokeServicek)
@@ -194,7 +217,15 @@ export async function POST(req: NextRequest) {
 
         if (savedErr) throw savedErr;
 
-        // 3) 最新view行も返す（UI差し替え用）
+        console.info("[jisseki-staff:update]", {
+            recordId: saved?.id ?? previous?.id ?? null,
+            oldStaffId: previous?.asigned_jisseki_staff ?? null,
+            newStaffId: saved?.asigned_jisseki_staff ?? null,
+            source: "manual",
+            result: saved?.asigned_jisseki_staff === body.staffId ? "success" : "mismatch",
+        });
+
+        // 4) 最新view行も返す（UI差し替え用）
         const { data: updated, error: viewErr } = await supabaseAdmin
             .from("disability_check_view")
             .select("*")
@@ -207,6 +238,11 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ ok: true, saved, updated });
     } catch (e: unknown) {
+        console.error("[jisseki-staff:update]", {
+            ...updateLogContext,
+            source: "manual",
+            result: "error",
+        });
         console.error("[staff-options:POST] error", e);
         const msg = e instanceof Error ? e.message : String(e);
 
