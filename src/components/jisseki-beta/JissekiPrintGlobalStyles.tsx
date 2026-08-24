@@ -260,6 +260,24 @@ ${mode === "bulk" ? `
 
      /* β版の単票は、A4縦・余白3mmの印刷可能幅(204mm)に帳票全体を収める。 */
      @media print {
+       /* 画面幅や min-h-screen を印刷レイアウトへ持ち込まない。 */
+       html,
+       body,
+       body > div,
+       .min-h-screen {
+         width: 100% !important;
+         min-width: 0 !important;
+         height: auto !important;
+         min-height: 0 !important;
+         margin: 0 !important;
+         padding: 0 !important;
+       }
+
+       /* visibility:hidden だけでは要素の高さが残るため、帳票以外をレイアウトから外す。 */
+       .min-h-screen > :not(.print-only) {
+         display: none !important;
+       }
+
        /* 非印刷の操作ヘッダーが高さだけ残ると、先頭帳票が次ページへ押し出される。 */
        .no-print {
          display: none !important;
@@ -267,23 +285,30 @@ ${mode === "bulk" ? `
 
        .print-only {
          position: static !important;
-         width: 204mm !important;
-         max-width: 204mm !important;
-         margin: 0 auto !important;
-         padding: 0 0 1mm !important;
+         display: block !important;
+         width: 100% !important;
+         max-width: 100% !important;
+         height: auto !important;
+         min-height: 0 !important;
+         margin: 0 !important;
+         padding: 0 !important;
          box-sizing: border-box !important;
          overflow: visible !important;
+         break-before: auto !important;
+         page-break-before: auto !important;
        }
 
        .print-only .print-page {
          display: flex !important;
          justify-content: center !important;
-         align-items: flex-start !important;
+         align-items: center !important;
          width: 100% !important;
          max-width: 100% !important;
+         height: 287mm !important;
+         min-height: 287mm !important;
          box-sizing: border-box !important;
-         margin-left: auto !important;
-         margin-right: auto !important;
+         margin: 0 !important;
+         padding: 0 !important;
          break-inside: avoid-page;
          page-break-inside: avoid;
          page-break-after: auto !important;
