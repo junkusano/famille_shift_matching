@@ -12,7 +12,7 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
       /* =========================
          共通（印刷設定・罫線・文字詰め）
          ========================= */
-      @page { size: A4; margin: 0mm; }
+      @page { size: A4 portrait; margin: 3mm; }
 
       html, body{
         margin: 0 !important;
@@ -80,16 +80,39 @@ ${mode === "bulk" ? `
       .title { font-size: 14px; font-weight: 700; text-align: center; }
 
       @media print{
+        :root{ --row-2line: 7.7mm; }
+
         .title{ font-size: 12px !important; }
-        .grid th, .grid td{ padding: 1px 2px !important; }
-        /* A4縦の左右5mm余白を使い切る。帳票全体へのscale/zoomは行わない。 */
-        .print-only { width: 210mm !important; padding: 0 5mm !important; box-sizing: border-box !important; }
-        .print-only .print-page { display: block !important; width: 100% !important; }
-        .print-only .print-page > .formBox,
-        .print-only .formBox.doko-sheet,
-        .print-only .formBox.idou-sheet { width: 200mm !important; margin: 0 auto !important; box-sizing: border-box !important; }
-        .print-only .print-page + .print-page { break-before: page !important; page-break-before: always !important; }
-        .grid tr { break-inside: avoid; page-break-inside: avoid; }
+        .print-only .formBox{ padding: 1mm !important; }
+        .print-only .mt-2{ margin-top: 2px !important; }
+        .print-only .digits10{ height: 10px !important; }
+
+        .print-only .grid th{
+          padding: 1px !important;
+          font-size: 9px !important;
+          line-height: 1.05 !important;
+          white-space: nowrap;
+          word-break: keep-all;
+          overflow-wrap: normal;
+        }
+
+        .print-only .grid td{
+          padding: 1px 2px !important;
+          font-size: 10px !important;
+          line-height: 1 !important;
+        }
+
+        .print-only .detail-row > td{
+          height: var(--row-2line);
+          padding: 0 1px !important;
+          font-size: 10px !important;
+          line-height: 1 !important;
+        }
+
+        .print-only .biko-box{
+          padding: 0 1px;
+          justify-content: center;
+        }
       }
 
       /* 10桁：外枠なし、区切り線のみ */
@@ -233,6 +256,51 @@ ${mode === "bulk" ? `
   margin: 0 auto;
 }
       }
+     }
+
+     /* β版の単票は、A4縦・余白3mmの印刷可能幅(204mm)に帳票全体を収める。 */
+     @media print {
+       .print-only {
+         position: static !important;
+         width: 204mm !important;
+         max-width: 204mm !important;
+         margin: 0 auto !important;
+         padding: 0 0 1mm !important;
+         box-sizing: border-box !important;
+         overflow: visible !important;
+       }
+
+       .print-only .print-page {
+         display: block !important;
+         width: 100% !important;
+         max-width: 100% !important;
+         box-sizing: border-box !important;
+         break-inside: avoid-page;
+         page-break-inside: avoid;
+         page-break-after: auto !important;
+         break-after: auto !important;
+       }
+
+       .print-only .print-page + .print-page,
+       .print-only .page-break {
+         page-break-before: always !important;
+         break-before: page !important;
+       }
+
+       .print-only .print-page > .formBox {
+         width: 204mm !important;
+         max-width: 100% !important;
+         margin: 0 auto !important;
+         box-sizing: border-box !important;
+       }
+
+       .print-only .grid,
+       .print-only .doko-sheet table {
+         width: 100% !important;
+         max-width: 100% !important;
+         table-layout: fixed !important;
+       }
+     }
       ` : ""}
 
       /* ----- bulk: /portal/jisseki/print/bulk ----- */
