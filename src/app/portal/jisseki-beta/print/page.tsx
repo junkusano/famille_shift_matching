@@ -192,10 +192,13 @@ export default function JissekiPrintPage() {
                 printableHeightPx / sourceHeight
             );
 
-            scaleWrapper.style.setProperty("width", `${sourceWidth * scale}px`);
+            // wrapper は元の帳票幅を保持し、帳票自身を中央基準で縮小する。
+            // 縮小後の幅を wrapper に設定すると印刷時のpx/mm換算差で右へずれるため、
+            // 横方向の中心は常に帳票元幅の中央に固定する。
+            scaleWrapper.style.setProperty("width", `${sourceWidth}px`);
             scaleWrapper.style.setProperty("height", `${sourceHeight * scale}px`);
             sheet.style.setProperty("transform", `scale(${scale.toFixed(4)})`, "important");
-            sheet.style.setProperty("transform-origin", "top left", "important");
+            sheet.style.setProperty("transform-origin", "top center", "important");
         });
     };
 

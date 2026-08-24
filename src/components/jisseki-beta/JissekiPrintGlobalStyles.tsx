@@ -260,6 +260,20 @@ ${mode === "bulk" ? `
 
      /* β版の単票は、A4縦・余白3mmの印刷可能幅(204mm)に帳票全体を収める。 */
      @media print {
+       /* 画面のviewport幅ではなく、A4の印刷可能幅を中央配置の基準にする。 */
+       html,
+       body,
+       .min-h-screen {
+         width: 204mm !important;
+         max-width: 204mm !important;
+         min-width: 0 !important;
+         margin-left: 0 !important;
+         margin-right: 0 !important;
+         padding-left: 0 !important;
+         padding-right: 0 !important;
+         box-sizing: border-box !important;
+       }
+
        /* 非印刷の操作ヘッダーが高さだけ残ると、先頭帳票が次ページへ押し出される。 */
        .no-print {
          display: none !important;
@@ -317,7 +331,7 @@ ${mode === "bulk" ? `
          margin: 0 !important;
          box-sizing: border-box !important;
          transform: none !important;
-         transform-origin: top left !important;
+         transform-origin: top center !important;
        }
 
        .print-only .grid,
