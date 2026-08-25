@@ -261,7 +261,7 @@ export default function JissekiPrintPage() {
     }, [data]);
 
     return (
-        <div className="min-h-screen bg-white text-black">
+        <div className="beta-jisseki-print-page min-h-screen bg-white text-black">
             <JissekiPrintGlobalStyles mode="single" />
 
             <div className="no-print p-4 flex items-center gap-3 border-b">

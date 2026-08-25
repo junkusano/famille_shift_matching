@@ -297,7 +297,7 @@ export default function BulkPrintPage() {
     }
 
     return (
-        <div className="print-root">
+        <div className="beta-jisseki-print-page print-root">
             {/* bulk でも /print と同じ見た目・余白に寄せる */}
             <JissekiPrintGlobalStyles mode="single" />
 

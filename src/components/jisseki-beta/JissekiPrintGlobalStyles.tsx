@@ -1,29 +1,39 @@
-// src/components/jisseki/JissekiPrintGlobalStyles.tsx
 "use client";
 
+import { useEffect } from "react";
+
 type Props = {
-  /** single: /portal/jisseki/print 用, bulk: /portal/jisseki/print/bulk 用 */
+  /** single: /portal/jisseki-beta/print, bulk: /portal/jisseki-beta/print/bulk */
   mode: "single" | "bulk";
 };
 
+const PRINT_BODY_CLASS = "beta-jisseki-print-active";
+
 export default function JissekiPrintGlobalStyles({ mode }: Props) {
+  useEffect(() => {
+    document.body.classList.add(PRINT_BODY_CLASS);
+    return () => document.body.classList.remove(PRINT_BODY_CLASS);
+  }, []);
+
   return (
     <style jsx global>{`
-      /* =========================
-         共通（印刷設定・罫線・文字詰め）
-         ========================= */
-      @page { size: A4 portrait; margin: 3mm; }
-
-      html, body{
-        margin: 0 !important;
-        padding: 0 !important;
+      @page {
+        size: A4 portrait;
+        margin: 3mm;
       }
 
-      /* 帳票用 罫線・レイアウト（print/page.tsx を基準） */
-      .formBox { border: none !important; }
+      .formBox {
+        border: none !important;
+        box-sizing: border-box;
+      }
       .box { border: 1px solid #000; }
-      .grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
-      .grid th, .grid td {
+      .grid {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      .grid th,
+      .grid td {
         border: 1px solid #000;
         padding: 2px 4px;
         font-size: 11px;
@@ -31,389 +41,244 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         vertical-align: middle;
       }
 
-      /* 明細行高さ固定（A4安定） */
-      :root{ --row-2line: 8.2mm; }
-      .detail-row > td{
+      :root { --row-2line: 8.2mm; }
+      .detail-row > td {
         height: var(--row-2line);
-        padding: 0px 2px;
-        line-height: 1.0;
-        font-size: 11px;
-        vertical-align: middle;
+        padding: 0 2px;
         overflow: hidden;
+        font-size: 11px;
+        line-height: 1;
+        vertical-align: middle;
       }
-
-       /* ===== ★bulk は印刷時だけ“あと数mm”詰める（1枚化の決定打） ===== */
-${mode === "bulk" ? `
-  @media print {
-    /* ★最重要：明細行高をさらに詰める */
-    :root{ --row-2line: 6.3mm; } /* 7.0mm → 6.3mm */
-
-    /* 表全体（見出し含む）も僅かに詰める */
-    .grid th, .grid td{
-      font-size: 10px !important;
-      line-height: 1.00 !important;
-      padding: 1px 2px !important;
-    }
-    .detail-row > td{
-      padding: 0px 1px !important;
-      font-size: 10px !important;
-      line-height: 1.00 !important;
-    }
-
-    /* ★Tailwind の mt-2 が縦を押し出すので bulk 印刷時だけ縮める */
-    .mt-2{ margin-top: 2px !important; } /* 0.5rem(約8px) → 2px */
-
-    /* 10桁枠の高さも僅かに縮める（上部ヘッダが数px下がる） */
-    .digits10{ height: 10px !important; } /* 12px → 10px */
-
-    /* 外枠（formBox）の余白をもう一段縮める */
-    .formBox{ padding: 1.5mm !important; } /* 2mm → 1.5mm */
-
-    /* タイトルも僅かに縮める（必要な帳票だけ効く） */
-    .title{ font-size: 11px !important; }
-  }
-` : ""}
 
       .center { text-align: center; }
       .right { text-align: right; }
       .small { font-size: 10px; }
-      .title { font-size: 14px; font-weight: 700; text-align: center; }
-
-      @media print{
-        :root{ --row-2line: 7.7mm; }
-
-        .title{ font-size: 12px !important; }
-        .print-only .formBox{ padding: 1mm !important; }
-        .print-only .mt-2{ margin-top: 2px !important; }
-        .print-only .digits10{ height: 10px !important; }
-
-        .print-only .grid th{
-          padding: 1px !important;
-          font-size: 9px !important;
-          line-height: 1.05 !important;
-          white-space: nowrap;
-          word-break: keep-all;
-          overflow-wrap: normal;
-        }
-
-        .print-only .grid td{
-          padding: 1px 2px !important;
-          font-size: 10px !important;
-          line-height: 1 !important;
-        }
-
-        .print-only .detail-row > td{
-          height: var(--row-2line);
-          padding: 0 1px !important;
-          font-size: 10px !important;
-          line-height: 1 !important;
-        }
-
-        .print-only .biko-box{
-          padding: 0 1px;
-          justify-content: center;
-        }
+      .title {
+        font-size: 14px;
+        font-weight: 700;
+        text-align: center;
       }
 
-      /* 10桁：外枠なし、区切り線のみ */
-      .digits10 { display: grid; grid-template-columns: repeat(10, 1fr); height: 12px; }
-      .digitCell { display: flex; align-items: center; justify-content: center; }
+      .digits10 {
+        display: grid;
+        grid-template-columns: repeat(10, 1fr);
+        height: 12px;
+      }
+      .digitCell {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
       .digitCell + .digitCell { border-left: 1px solid #000; }
 
-      /* 斜線 */
       .diag {
         position: relative;
-        background:
-          linear-gradient(to bottom left,
-            transparent calc(50% - 0.5px),
-            #000 calc(50% - 0.5px),
-            #000 calc(50% + 0.5px),
-            transparent calc(50% + 0.5px));
+        background: linear-gradient(
+          to bottom left,
+          transparent calc(50% - 0.5px),
+          #000 calc(50% - 0.5px),
+          #000 calc(50% + 0.5px),
+          transparent calc(50% + 0.5px)
+        );
       }
 
-      /* 縦書き */
       .vtext {
+        padding: 0 !important;
         writing-mode: vertical-rl;
         text-orientation: upright;
         line-height: 1;
-        padding: 0 !important;
       }
-
-      /* セル内折り返し禁止 */
       .cell-wrap {
         display: block;
         height: 100%;
         overflow: hidden;
         white-space: nowrap;
       }
-
-      /* fit-text（縮小計測安定用） */
-      .fit-text{
+      .fit-text {
         display: inline-block;
         max-width: 100%;
-        white-space: nowrap;
         overflow: hidden;
+        white-space: nowrap;
         text-overflow: clip;
         transform-origin: center center;
       }
 
-      /* 同行援護など備考セル */
-      .biko-td{
+      .biko-td {
+        height: var(--row-2line);
         padding: 1px 2px !important;
         overflow: hidden;
-        height: var(--row-2line);
         text-align: center;
         vertical-align: middle;
       }
-
       .biko-box {
-        box-sizing: border-box;
-        height: 100%;
-        padding: 2px 3px;
-        overflow: hidden;
         display: flex;
+        height: 100%;
+        box-sizing: border-box;
         flex-direction: column;
         justify-content: flex-start;
         gap: 1px;
-      }
-
-      .biko-line {
-        line-height: 1.05;
-        white-space: nowrap;
+        padding: 2px 3px;
         overflow: hidden;
-        text-overflow: clip;
       }
-
-     /* =========================
-   同行援護（DOKO）専用指定：一旦停止
-   （まず他帳票と同じ挙動に揃えて原因を切り分ける）
-   ========================= */
-/*
-.doko-sheet{
-  width: 100%;
-  margin: 0 auto;
-  box-sizing: border-box;
-}
-
-.doko-grid{
-  width: 100% !important;
-  max-width: 100% !important;
-  margin: 0 auto !important;
-  table-layout: fixed;
-}
-*/
-
-      /* =========================
-         mode別（single/bulk）
-         ========================= */
-
-      /* ----- single: /portal/jisseki/print ----- */
-      ${mode === "single" ? `
-     @media print { /* 印刷時は帳票だけ可視化（白紙化の原因になりやすいので必ず print 内に） */ body * { visibility: hidden !important; } .print-only, .print-only * { visibility: visible !important; } /* 左右対称の余白＋中央寄せ */ .print-only{ position: relative; margin: 0 auto; width: 210mm; padding: 0mm 3mm 1mm 3mm; box-sizing: border-box; /* ★IDOU（移動支援）だけ、右下のページ数と表が重ならないように下余白を確保 */ .idou-sheet{ padding-bottom: 12mm !important; /* ページ数ブロック分の逃げ */ } /* ★IDOUの上余白を詰めて全体を上に寄せる（1枚維持のため） */ .idou-sheet .mt-2{ margin-top: 2px !important; /* mt-2(約8px) → 2px */ } } /* ★同行援護（様式19）だけ、用紙幅 204mm で必ず中央寄せ */ .doko-sheet{ width: 204mm !important; margin-left: auto !important; margin-right: auto !important; box-sizing: border-box !important; } /* ★同行援護の表も念のため中央寄せ */ .doko-sheet table{ margin-left: auto !important; margin-right: auto !important; } .print-only .p-6, .print-only .page-break { width: 100% !important; box-sizing: border-box !important; } /* ★追加：実績記録票ごとに必ず改ページさせる */ .print-only .page-break{ page-break-before: always !important; /* 旧仕様（Chrome安定） */ break-before: page !important; /* 新仕様 */ } /* ★追加：print-page を常にページ幅いっぱいにし、帳票を中央へ */ .print-only .print-page{ width: 100% !important; box-sizing: border-box !important; display: flex; justify-content: center; } /* ★修正：帳票本体は“印刷可能幅(mm)”で固定し、左右autoで中央寄せ */ .print-only .print-page > .formBox{ width: 204mm !important; /* 210mm - 左右3mmパディング×2 = 204mm */ margin-left: auto !important; margin-right: auto !important; box-sizing: border-box !important; }
-
-/* =========================
-   iOS Safari 印刷：サイズ調整85%をCSSで再現
-   ========================= */
-@supports (-webkit-touch-callout: none) {
-  html, body { -webkit-text-size-adjust: 100% !important; }
-
-  /* ★レイアウト計算に効く縮小（transformではなくzoom） */
-  .print-only{ zoom: 0.85 !important; }
-
-  /* ★保険：縦方向も詰める（= 85%相当） */
-  :root{ --row-2line: 6.9mm; } /* 8.2mm × 0.85 ≒ 6.97mm */
-  .formBox{ padding: 1.5mm !important; }
-  .mt-2{ margin-top: 2px !important; }
-  .digits10{ height: 10px !important; }
-  .title{ font-size: 10.5px !important; }
-  .grid th, .grid td{
-    font-size: 9.5px !important;
-    line-height: 1.00 !important;
-    padding: 1px 2px !important;
-  }
-  .detail-row > td{
-    padding: 0px 1px !important;
-    font-size: 9.5px !important;
-    line-height: 1.00 !important;
-  }
-}
+      .biko-line {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: clip;
+        line-height: 1.05;
+      }
 
       @media screen {
-        .print-only{
+        .beta-jisseki-print-page .print-only {
           width: 210mm;
-          min-height: 295mm;
+          min-height: 297mm;
           margin: 0 auto;
           background: #fff;
         }
-      /* ★追加：画面でもページを中央揃え基準に統一 */
-  .print-only .print-page{
-    width: 100%;
-    display: flex;
-    justify-content: center;
-  }
-  .print-only .print-page > .formBox{
-  width: 204mm;
-  margin: 0 auto;
-}
-      }
-     }
-
-     /* β版の単票は、A4縦・余白3mmの印刷可能幅(204mm)に帳票全体を収める。 */
-     @media print {
-       /* 画面のviewport幅ではなく、A4の印刷可能幅を中央配置の基準にする。 */
-       html,
-       body,
-       .min-h-screen {
-         width: 204mm !important;
-         max-width: 204mm !important;
-         min-width: 0 !important;
-         margin-left: 0 !important;
-         margin-right: 0 !important;
-         padding-left: 0 !important;
-         padding-right: 0 !important;
-         box-sizing: border-box !important;
-       }
-
-       /* 非印刷の操作ヘッダーが高さだけ残ると、先頭帳票が次ページへ押し出される。 */
-       .no-print {
-         display: none !important;
-       }
-
-       .print-only {
-         position: static !important;
-         width: 204mm !important;
-         max-width: 204mm !important;
-         margin: 0 !important;
-         padding: 0 0 1mm !important;
-         box-sizing: border-box !important;
-         overflow: visible !important;
-       }
-
-       .print-only .print-page {
-         display: flex !important;
-         justify-content: center !important;
-         align-items: flex-start !important;
-         width: 100% !important;
-         max-width: 100% !important;
-         box-sizing: border-box !important;
-         margin-left: auto !important;
-         margin-right: auto !important;
-         break-inside: avoid-page;
-         page-break-inside: avoid;
-         page-break-after: auto !important;
-         break-after: auto !important;
-       }
-
-       .print-only > .print-page:first-child {
-         break-before: auto !important;
-         page-break-before: auto !important;
-         margin-top: 0 !important;
-       }
-
-       .print-only .print-page + .print-page,
-       .print-only .page-break {
-         page-break-before: always !important;
-         break-before: page !important;
-       }
-
-       .print-only .print-page > .print-scale {
-         position: relative;
-         width: 204mm;
-         max-width: 100%;
-         margin: 0;
-         flex: 0 0 auto;
-         overflow: visible;
-       }
-
-       .print-only .print-page > .print-scale > .formBox {
-         width: 204mm !important;
-         max-width: none !important;
-         margin: 0 !important;
-         box-sizing: border-box !important;
-         transform: none !important;
-         transform-origin: top center !important;
-       }
-
-       .print-only .grid,
-       .print-only .doko-sheet table {
-         width: 100% !important;
-         max-width: 100% !important;
-         table-layout: fixed !important;
-       }
-     }
-
-     /* iOSだけに残っていた縮小を解除し、他ブラウザと同じ中央配置・寸法で印刷する。 */
-     @supports (-webkit-touch-callout: none) {
-       @media print {
-         .print-only {
-           zoom: 1 !important;
-         }
-       }
-     }
-      ` : ""}
-
-      /* ----- bulk: /portal/jisseki/print/bulk ----- */
-      ${mode === "bulk" ? `
-      :root{
-        --bulk-bottom-reserve: 20px;
-      }
-
-      @page { size: A4; margin: 0mm; }
-
-      .print-root { background: #eee; padding: 12px; }
-
-      @media screen {
-        .sheet{
-          width: 210mm;
-          height: 295mm;
-          margin: 0 auto 12px auto;
-          background: #fff;
-          box-shadow: 0 0 6px rgba(0,0,0,0.15);
-          overflow: hidden;
+        .beta-jisseki-print-page .print-page {
+          display: flex;
+          width: 100%;
+          justify-content: center;
+        }
+        .beta-jisseki-print-page .print-scale,
+        .beta-jisseki-print-page .print-page > .formBox {
+          width: 204mm;
+          margin-right: auto;
+          margin-left: auto;
         }
       }
 
       @media print {
-       /* 単票と同じ：帳票以外を不可視化（余計なDOMが白紙ページ原因になりやすい） */
-  body * { visibility: hidden !important; }
-  .print-only, .print-only * { visibility: visible !important; }
+        :root { --row-2line: ${mode === "bulk" ? "6.3mm" : "7.7mm"}; }
 
-  /* 画面用の余白を印刷では消す */
-  .print-root { padding: 0 !important; background: #fff !important; }
-        .sheet{
-    width: 210mm !important;
-      /* ★固定height/min-heightを両方やめる（白紙ページ対策） */
-  height: auto !important;
-  min-height: auto !important;
+        html,
+        body.beta-jisseki-print-active {
+          width: auto !important;
+          min-width: 0 !important;
+          height: auto !important;
+          min-height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+        }
 
-  margin: 0 auto !important;
-  box-shadow: none !important;
+        body.beta-jisseki-print-active * {
+          visibility: hidden !important;
+        }
+        body.beta-jisseki-print-active .print-only,
+        body.beta-jisseki-print-active .print-only * {
+          visibility: visible !important;
+        }
 
-  page-break-after: always;
-  break-after: page;
+        /* ポータル共通UIを印刷フローから外し、非表示要素の幅・高さを残さない。 */
+        body.beta-jisseki-print-active .left-menu,
+        body.beta-jisseki-print-active .menu,
+        body.beta-jisseki-print-active .hamburger,
+        body.beta-jisseki-print-active .edge-hotzone,
+        body.beta-jisseki-print-active .no-print,
+        body.beta-jisseki-print-active footer,
+        body.beta-jisseki-print-active main > .flex-1 > :not(.beta-jisseki-print-page) {
+          display: none !important;
+        }
 
-  overflow: visible !important;
-  }
+        body.beta-jisseki-print-active .portal-container,
+        body.beta-jisseki-print-active main,
+        body.beta-jisseki-print-active main > .flex-1,
+        body.beta-jisseki-print-active .beta-jisseki-print-page {
+          display: block !important;
+          width: auto !important;
+          min-width: 0 !important;
+          max-width: none !important;
+          height: auto !important;
+          min-height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+        }
 
-  .sheet:last-child{
-    page-break-after: auto !important;
-    break-after: auto !important;
-  }
-}
+        body.beta-jisseki-print-active .print-only {
+          position: static !important;
+          width: 100% !important;
+          max-width: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+          zoom: 1 !important;
+        }
 
-  /* テーブル要素への一括 break-inside:avoid は、
-     ブラウザによっては「無理やり次ページに押し出す」→白紙発生の原因になるので削除 */
-}
+        /* @pageの3mm余白を除いた204x291mmを、全ページ共通の基準領域にする。 */
+        body.beta-jisseki-print-active .print-page {
+          display: flex !important;
+          width: 204mm !important;
+          height: 291mm !important;
+          box-sizing: border-box !important;
+          align-items: center !important;
+          justify-content: center !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+          break-after: page;
+          break-inside: avoid-page;
+          page-break-after: always;
+          page-break-inside: avoid;
+        }
+        body.beta-jisseki-print-active .print-page:last-child {
+          break-after: auto;
+          page-break-after: auto;
+        }
 
-   .sheet-inner{
-  width: 210mm;
-  height: auto;
-  min-height: auto; /* ★白紙/押し出し対策 */
+        body.beta-jisseki-print-active .print-scale {
+          position: relative;
+          width: 204mm;
+          max-width: none;
+          margin: 0;
+          flex: 0 0 auto;
+          overflow: visible;
+        }
+        body.beta-jisseki-print-active .print-scale > .formBox,
+        body.beta-jisseki-print-active .print-page > .formBox {
+          width: 204mm !important;
+          max-width: none !important;
+          box-sizing: border-box !important;
+          margin: 0 !important;
+          transform-origin: top center !important;
+        }
 
-  padding: 0mm 3mm 2mm 3mm;
-  box-sizing: border-box;
-}
-      ` : ""}
+        body.beta-jisseki-print-active .grid,
+        body.beta-jisseki-print-active .doko-sheet table {
+          width: 100% !important;
+          max-width: 100% !important;
+          table-layout: fixed !important;
+        }
+
+        body.beta-jisseki-print-active .title { font-size: ${mode === "bulk" ? "11px" : "12px"} !important; }
+        body.beta-jisseki-print-active .formBox { padding: ${mode === "bulk" ? "1.5mm" : "1mm"} !important; }
+        body.beta-jisseki-print-active .mt-2 { margin-top: 2px !important; }
+        body.beta-jisseki-print-active .digits10 { height: 10px !important; }
+        body.beta-jisseki-print-active .grid th {
+          padding: 1px !important;
+          font-size: ${mode === "bulk" ? "10px" : "9px"} !important;
+          line-height: 1.05 !important;
+          white-space: nowrap;
+          word-break: keep-all;
+          overflow-wrap: normal;
+        }
+        body.beta-jisseki-print-active .grid td {
+          padding: 1px 2px !important;
+          font-size: 10px !important;
+          line-height: 1 !important;
+        }
+        body.beta-jisseki-print-active .detail-row > td {
+          height: var(--row-2line);
+          padding: 0 1px !important;
+          font-size: 10px !important;
+          line-height: 1 !important;
+        }
+        body.beta-jisseki-print-active .biko-box {
+          padding: 0 1px;
+          justify-content: center;
+        }
+      }
     `}</style>
   );
 }

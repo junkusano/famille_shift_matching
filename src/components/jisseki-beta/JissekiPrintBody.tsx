@@ -112,6 +112,7 @@ export default function JissekiPrintBody({
 }) {
     // ★追加：備考の文字詰め対象を集める
     const fitRefs = useRef<HTMLElement[]>([]);
+    const printPageRefs = useRef<HTMLElement[]>([]);
 
     // ★追加：文字詰め処理（page.tsx と同等）
     const fitAllText = () => {
@@ -151,10 +152,46 @@ export default function JissekiPrintBody({
         });
     };
 
-    // ★追加：描画後と印刷直前でfit
+    const fitPrintPages = () => {
+        const printableWidthPx = (200 / 25.4) * 96;
+        const printableHeightPx = (287 / 25.4) * 96;
+
+        printPageRefs.current.forEach((page) => {
+            const scaleWrapper = page.querySelector<HTMLElement>(":scope > .print-scale");
+            const sheet = scaleWrapper?.querySelector<HTMLElement>(":scope > .formBox");
+            if (!scaleWrapper || !sheet) return;
+
+            scaleWrapper.style.setProperty("width", "204mm");
+            scaleWrapper.style.removeProperty("height");
+            sheet.style.setProperty("transform", "none", "important");
+
+            const sourceWidth = sheet.offsetWidth;
+            const sourceHeight = sheet.offsetHeight;
+            if (!sourceWidth || !sourceHeight) return;
+
+            const scale = Math.min(
+                1,
+                printableWidthPx / sourceWidth,
+                printableHeightPx / sourceHeight
+            );
+
+            scaleWrapper.style.setProperty("width", `${sourceWidth}px`);
+            scaleWrapper.style.setProperty("height", `${sourceHeight * scale}px`);
+            sheet.style.setProperty("transform", `scale(${scale.toFixed(4)})`, "important");
+            sheet.style.setProperty("transform-origin", "top center", "important");
+        });
+    };
+
+    // 描画後と印刷直前に、文字と帳票全体をA4印刷領域へ合わせる。
     useEffect(() => {
-        requestAnimationFrame(() => fitAllText());
-        const onBeforePrint = () => fitAllText();
+        requestAnimationFrame(() => {
+            fitAllText();
+            fitPrintPages();
+        });
+        const onBeforePrint = () => {
+            fitAllText();
+            fitPrintPages();
+        };
         window.addEventListener("beforeprint", onBeforePrint);
         return () => window.removeEventListener("beforeprint", onBeforePrint);
     }, [data]);
@@ -197,8 +234,12 @@ export default function JissekiPrintBody({
             {pages.map((p, idx) => (
                 <div
                     key={`${p.formType}-${idx}`}
+                    ref={(element) => {
+                        if (element) printPageRefs.current[idx] = element;
+                    }}
                     className={idx === 0 ? "print-page" : "print-page page-break"}
                 >
+                    <div className="print-scale">
                     {p.formType === "TAKINO" && (
                         <TakinokyoForm
                             data={data}
@@ -244,6 +285,7 @@ export default function JissekiPrintBody({
                             fitRefs={fitRefs}
                         />
                     )}
+                    </div>
                 </div>
             ))}
         </>
