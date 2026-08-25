@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { ClientMenuAlertControlsBeta } from "@/components/client-menu-beta/ClientMenuAlertControlsBeta";
 
 // ✅ 追加
 import {
@@ -269,17 +270,14 @@ export default function AlertBar() {
     <div className="flex-1">
       {/* ヘッダ＋テーブル部分 */}
       <div className="w-full border-b border-gray-200 bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             <span className="text-lg font-semibold">
               優先対応が必要なもの（放置したら不備計上）
             </span>
             <span className="text-sm rounded-full px-2 py-0.5 border">
               未処理 {openCount} 件
             </span>
-            <div className="text-xs text-red-600 font-semibold ml-2">
-              ※ 2日ごとに 放置Lv +1。Lv5 到達で不備率に計上されます。
-            </div>
             {loading && (
               <span className="text-xs text-gray-400">読込中...</span>
             )}
@@ -287,16 +285,10 @@ export default function AlertBar() {
               <span className="text-xs text-red-500">{error}</span>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            {/* 今はダミー：押したら「未実装」だけ出す */}
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 lg:w-auto lg:flex-nowrap">
+            <ClientMenuAlertControlsBeta />
             <button
-              className="text-sm px-3 py-1.5 rounded-md border hover:bg-gray-50"
-              onClick={() => alert("メッセージ追加は、まだ実装されていません。")}
-            >
-              メッセージ追加
-            </button>
-            <button
-              className="text-sm px-3 py-1.5 rounded-md border hover:bg-gray-50"
+              className="shrink-0 rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
               onClick={() => setCollapsed((v) => !v)}
             >
               {collapsed ? "一覧を表示▼" : "一覧を畳む▲"}

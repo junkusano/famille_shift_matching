@@ -5,113 +5,25 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useRoleContext } from "@/context/RoleContext";
-import { supabase } from "@/lib/supabaseClient";
 import { resolveCurrentClientBeta } from "@/lib/client-menu-beta/context";
+import { buildClientMenuBetaLinks } from "@/lib/client-menu-beta/navigation";
 import { ClientMenuPortalBeta } from "./ClientMenuPortalBeta";
+import { ClientSelectorBeta } from "./ClientSelectorBeta";
+import { useClientMenuBetaClients } from "./useClientMenuBetaClients";
 import styles from "./ClientMenuBeta.module.css";
-
-type ClientRow = {
-  id: string;
-  kaipoke_cs_id: string | null;
-  name: string | null;
-  kana: string | null;
-  asigned_org: string | null;
-  asigned_jisseki_staff: string | null;
-};
-
-function ClientSelectorBeta({
-  clients,
-  value,
-  onChange,
-}: {
-  clients: ClientRow[];
-  value: string | null;
-  onChange: (value: string | null) => void;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const rootRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const selected = clients.find((client) => client.id === value) ?? null;
-  const normalizedQuery = query.normalize("NFKC").trim().toLocaleLowerCase();
-  const matches = clients.filter((client) => !normalizedQuery || [client.name, client.kana, client.kaipoke_cs_id]
-    .filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase().includes(normalizedQuery));
-
-  useEffect(() => {
-    if (!isOpen) return;
-    inputRef.current?.focus();
-    const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setIsOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOnOutsidePointer);
-    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
-  }, [isOpen]);
-
-  return <div className={styles.selector} ref={rootRef}>
-    <button type="button" className={styles.selectorTrigger} aria-expanded={isOpen} aria-haspopup="listbox" onClick={() => { setQuery(""); setIsOpen((current) => !current); }}>
-      <span>{selected ? `${selected.name?.trim() || "（氏名未設定）"} (${selected.kaipoke_cs_id ?? "ID未設定"})` : "利用者を選択してください"}</span><span aria-hidden>⌄</span>
-    </button>
-    {isOpen && <div className={styles.selectorPopover} role="listbox" aria-label="利用者候補">
-      <input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="氏名・カナ・利用者IDで検索..." className={styles.selectorSearch} />
-      <div className={styles.selectorList}>
-        {matches.length === 0 ? <p className={styles.selectorEmpty}>該当する利用者がいません。</p> : matches.map((client) => <button key={client.id} type="button" role="option" aria-selected={client.id === value} className={styles.selectorOption} onClick={() => { onChange(client.id); setIsOpen(false); }}>
-          {client.name?.trim() || "（氏名未設定）"}<small>{client.kaipoke_cs_id ?? "ID未設定"}</small>
-        </button>)}
-      </div>
-      {value && <button type="button" className={styles.selectorClear} onClick={() => { onChange(null); setIsOpen(false); }}>選択をクリア</button>}
-    </div>}
-  </div>;
-}
-
-function hrefs(client: ClientRow) {
-  const infoId = encodeURIComponent(client.id);
-  const csId = encodeURIComponent(client.kaipoke_cs_id ?? "");
-  return [
-    ["基本情報詳細", `/portal/kaipoke-info-detail-beta/${infoId}`, "基本情報"],
-    ["月間シフト", `/portal/roster/monthly-beta?kaipoke_cs_id=${csId}`, "シフト"],
-    ["週間シフト", `/portal/roster/weekly-beta?cs=${csId}`, "シフト"],
-    ["実績記録", `/portal/disability-check-menu-beta?kaipoke_cs_id=${csId}`, "実績"],
-    ["アセス／プラン", `/portal/assessment-beta?client_id=${csId}`, "計画・評価"],
-    ["モニタリング", `/portal/kaipoke-info-detail-beta/${infoId}/monitoring`, "計画・評価"],
-    ["書類一覧", `/portal/cs_docs-beta?kaipoke_cs_id=${csId}`, "書類"],
-  ] as const;
-}
 
 export function ClientMenuBeta() {
   const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
   const { role, loading: roleLoading } = useRoleContext();
   const [open, setOpen] = useState(false);
-  const [clients, setClients] = useState<ClientRow[]>([]);
-  const [loadError, setLoadError] = useState("");
+  const { clients, loadError } = useClientMenuBetaClients();
   const [manualId, setManualId] = useState<string | null>(null);
   const sheetRef = useRef<HTMLElement>(null);
   const pageContext = useMemo(
     () => resolveCurrentClientBeta(pathname, new URLSearchParams(searchParams.toString())),
     [pathname, searchParams],
   );
-
-  useEffect(() => {
-    let alive = true;
-    async function loadClients() {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      const response = await fetch("/api/client-menu-beta/clients", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        cache: "no-store",
-      });
-      const payload = await response.json().catch(() => null);
-      if (!alive) return;
-      if (!response.ok || !payload?.ok) {
-        setLoadError(payload?.error || "利用者一覧を取得できませんでした。");
-        return;
-      }
-      setClients(payload.data as ClientRow[]);
-      setLoadError("");
-    }
-    void loadClients();
-    return () => { alive = false; };
-  }, []);
 
   const pageClient = useMemo(() => clients.find((client) =>
     (pageContext.clientInfoId && client.id === pageContext.clientInfoId)
@@ -177,7 +89,7 @@ export function ClientMenuBeta() {
 
   if (roleLoading || !canUse) return null;
 
-  const links = selectedClient ? hrefs(selectedClient) : [];
+  const links = selectedClient ? buildClientMenuBetaLinks(selectedClient) : [];
   return (
     <div className={styles.root}>
       <button type="button" onClick={() => setOpen(true)} className={styles.trigger} aria-haspopup="dialog">
@@ -193,7 +105,7 @@ export function ClientMenuBeta() {
           {loadError ? <p className={styles.error}>{loadError}</p> : null}
           {selectedClient ? <div className={styles.summary}><strong>{selectedClient.name ?? "氏名未設定"} 様</strong><span>利用者ID：{selectedClient.kaipoke_cs_id ?? "未設定"}</span>{selectedClient.asigned_org && <span>担当部門：{selectedClient.asigned_org}</span>}{selectedClient.asigned_jisseki_staff && <span>担当マネージャー：{selectedClient.asigned_jisseki_staff}</span>}</div> : <p className={styles.empty}>{loadError ? "権限とログイン状態を確認してください。" : "利用者を選択すると、その利用者の関連情報を確認できます。"}</p>}
           <nav className={styles.links} aria-label="利用者別メニュー">
-            {links.map(([label, href, group]) => <Link key={label} href={href} onClick={() => setOpen(false)}><span>{group}</span>{label}</Link>)}
+            {links.map(({ label, href, group }) => <Link key={label} href={href} onClick={() => setOpen(false)}><span>{group}</span>{label}</Link>)}
             {!selectedClient && ["基本情報詳細", "月間シフト", "週間シフト", "実績記録", "アセス／プラン", "モニタリング", "書類一覧"].map((label) => <button key={label} type="button" disabled>{label}</button>)}
           </nav>
         </section>
