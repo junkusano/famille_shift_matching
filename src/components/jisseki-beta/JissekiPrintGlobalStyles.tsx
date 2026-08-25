@@ -212,20 +212,19 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
           width: 204mm !important;
           height: 291mm !important;
           box-sizing: border-box !important;
-          align-items: flex-start !important;
+          align-items: center !important;
           justify-content: center !important;
           margin: 0 !important;
-          padding: 10mm 0 0 !important;
+          padding: 0 !important;
           overflow: visible !important;
-          break-after: auto;
+          break-after: page;
           break-inside: avoid-page;
-          page-break-after: auto;
+          page-break-after: always;
           page-break-inside: avoid;
         }
-        body.beta-jisseki-print-active .print-page + .print-page,
-        body.beta-jisseki-print-active .print-only > .page-break {
-          break-before: page;
-          page-break-before: always;
+        body.beta-jisseki-print-active .print-page:last-child {
+          break-after: auto;
+          page-break-after: auto;
         }
 
         body.beta-jisseki-print-active .print-scale {
