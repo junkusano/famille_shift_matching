@@ -20,6 +20,17 @@
   white-space: nowrap;
 }
 
+/* 印刷対象の選択列を、提出・回収の操作列と明確に区別する。 */
+.printSelectionColumn {
+  background-color: #eff6ff;
+  border-right: 2px solid #bfdbfe;
+}
+
+thead .printSelectionColumn {
+  background-color: #dbeafe;
+  color: #1e3a8a;
+}
+
 .checkControl {
   display: inline-flex;
   width: 44px;

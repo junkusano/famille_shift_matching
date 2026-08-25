@@ -1345,7 +1345,7 @@ const DisabilityCheckPage: React.FC = () => {
         <table className={styles.recordsTable}>
           <thead>
             <tr>
-              <th className={styles.checkColumn}>
+              <th className={`${styles.checkColumn} ${styles.printSelectionColumn}`}>
                 <label className={styles.checkControl}>
                   <span className={styles.srOnly}>表示中の利用者を全選択</span>
                   <input
@@ -1464,7 +1464,7 @@ const DisabilityCheckPage: React.FC = () => {
                 className="group hover:bg-yellow-50"
                 style={{ verticalAlign: "middle" }}
               >
-                <td className={styles.checkColumn}>
+                <td className={`${styles.checkColumn} ${styles.printSelectionColumn}`}>
                   <label className={styles.checkControl}>
                     <span className={styles.srOnly}>印刷対象（{r.client_name}）</span>
                     <input
