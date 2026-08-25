@@ -6065,6 +6065,39 @@ export type Database = {
           },
         ]
       }
+      monitoring_monthly_notices: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string
+          id: string
+          service_type: string
+          updated_at: string
+          updated_by: string
+          year_month: string
+        }
+        Insert: {
+          body?: string
+          created_at?: string
+          created_by: string
+          id?: string
+          service_type?: string
+          updated_at?: string
+          updated_by: string
+          year_month: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          service_type?: string
+          updated_at?: string
+          updated_by?: string
+          year_month?: string
+        }
+        Relationships: []
+      }
       monitoring_office_notices: {
         Row: {
           created_at: string
@@ -7321,6 +7354,7 @@ export type Database = {
           file_size_bytes: number
           id: string
           local_recording_id: string
+          participants: Json
           recorded_at: string
           recorder_email: string | null
           recorder_user_id: string
@@ -7340,6 +7374,7 @@ export type Database = {
           file_size_bytes: number
           id?: string
           local_recording_id: string
+          participants?: Json
           recorded_at: string
           recorder_email?: string | null
           recorder_user_id: string
@@ -7359,6 +7394,7 @@ export type Database = {
           file_size_bytes?: number
           id?: string
           local_recording_id?: string
+          participants?: Json
           recorded_at?: string
           recorder_email?: string | null
           recorder_user_id?: string
