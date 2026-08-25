@@ -1,7 +1,7 @@
 .root { position: relative; }
 .trigger { display: inline-flex; align-items: center; gap: .45rem; border: 0; border-radius: .65rem; background: #ea580c; color: #fff; padding: .65rem .9rem; font-weight: 700; box-shadow: 0 2px 8px #9a341c33; }
 .badge { border-radius: 999px; background: #fff3; padding: .05rem .35rem; font-size: .65rem; letter-spacing: .04em; }
-.backdrop { position: fixed; inset: 0; z-index: 100; background: #0f172a66; }
+.backdrop { position: fixed; inset: 0; z-index: 40; background: #0f172a66; }
 .sheet { position: absolute; top: 0; right: 0; min-height: 100%; width: min(27rem, 100vw); overflow: auto; background: #fff; padding: 1.25rem; box-shadow: -10px 0 35px #0f172a33; }
 .header { display: flex; align-items: start; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem; }.header p { margin: 0; color: #64748b; font-size: .8rem; }.header h2 { margin: .15rem 0 0; font-size: 1.25rem; }.header button { border: 0; background: transparent; color: #475569; }
 .label { display: grid; gap: .45rem; margin-top: 1.25rem; color: #334155; font-size: .9rem; font-weight: 700; }.summary { display: grid; gap: .3rem; margin-top: 1rem; border-radius: .65rem; background: #fff7ed; padding: .85rem; color: #7c2d12; font-size: .85rem; }.summary strong { font-size: 1rem; }.empty { margin: 1rem 0; border-radius: .65rem; background: #f8fafc; padding: .85rem; color: #64748b; font-size: .9rem; }
