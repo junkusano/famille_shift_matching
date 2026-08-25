@@ -110,7 +110,8 @@ const managerMenuGroups: MenuGroup[] = [
     { label: "目標・研修【管理用】", href: "/portal/training-goals/manage" }, { label: "健康診断管理", href: "/portal/admin/health-check-results" }, { label: "日払い申請履歴", href: "/portal/user_advance_payment_history" },
     { label: "RPAテンプレ管理", href: "/portal/rpa_temp/list" }, { label: "RPA求人プリセット", href: "/portal/admin/rpa-job-presets" }, { label: "RPAリクエスト管理", href: "/portal/rpa_requests" },
   ]},
-  { label: "利用者管理", icon: "👤", items: [{ label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "利用者担当管理", href: "/portal/assign_matome" }, { label: "利用者書類一覧", href: "/portal/cs_docs" }] },
+  { label: "利用者管理", icon: "👤", items: [{ label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "利用者担当管理", href: "/portal/assign_matome" }, { label: "利用者書類一覧", href: "/portal/cs_docs" }, { label: "famille Voice 文字起こし", href: "/portal/recording-transcripts" }] },
+  { label: "モニタリング", icon: "📝", items: [{ label: "モニタリング「事業所より」設定", href: "/portal/admin/monitoring-office-notice" }] },
   { label: "シフト管理", icon: "📅", items: [{ label: "サービスコード管理", href: "/portal/shift-service-code" }, { label: "訪問記録定義", href: "/portal/shift-record-def" }, { label: "週間シフト", href: "/portal/roster/weekly" }, { label: "月間シフト", href: "/portal/roster/monthly" }, { label: "祝日シフト確認", href: "/portal/roster/holiday-shifts" }, { label: "シフト表", href: "/portal/roster/daily" }, { label: "シフトWish", href: "/portal/shift-wish" }, { label: "シフト・勤務一覧", href: "/portal/shift-view" }, { label: "シフト・訪問記録", href: "/portal/shift" }, { label: "実績記録チェック", href: "/portal/disability-check" }] },
   { label: "応募者管理", icon: "👥", items: [{ label: "エントリー一覧", href: "/portal/entry-list" }, { label: "スポット募集管理", href: "/portal/spot-offer-template" }, { label: "Re-entry募集", href: "/portal/admin/re-entry-recruitment" }, { label: "タイミー応募者管理", href: "/portal/taimee-applicants" }, { label: "タイミーリスト", href: "/portal/taimee-emp" }, { label: "タイミー求人設定", href: "/portal/admin/taimee-job-settings" }, { label: "スキマバイト経費精算", href: "/portal/expense-claims" }] },
   { label: "FAX", icon: "📠", items: [{ label: "fax送信", href: "/portal/fax-sending" }, { label: "fax送信履歴", href: "/portal/fax-history" }, { label: "fax電話帳", href: "/portal/fax" }] },
@@ -183,6 +184,8 @@ function LegacyMenu({ role }: { role: string | null }) {
           <li><Link href="/portal/kaipoke-info" className="text-blue-300 hover:underline">利用者情報</Link></li>
           <li><Link href="/portal/assign_matome" className="text-blue-300 hover:underline">利用者担当管理</Link></li>
           <li><Link href="/portal/cs_docs" className="text-blue-300 hover:underline">利用者書類一覧</Link></li>
+          <li><Link href="/portal/admin/monitoring-office-notice" className="text-blue-300 hover:underline">モニタリング「事業所より」設定</Link></li>
+          <li><Link href="/portal/recording-transcripts" className="text-blue-300 hover:underline">famille Voice 文字起こし</Link></li>
           <li><Link href="/portal/event-tasks" className="text-blue-300 hover:underline">イベント管理</Link></li>
           <li><Link href="/portal/event-template" className="text-blue-300 hover:underline">イベントテンプレート管理</Link></li>
           <li><Link href="/portal/phone" className="text-blue-300 hover:underline">電話帳</Link></li>

@@ -30,15 +30,12 @@ export function assertCronAuth(req: NextRequest) {
   const serverSecret = getServerCronSecret();
   const { token, src } = getIncomingCronToken(req);
 
-  const mask = (s?: string | null) =>
-    s ? `${s.slice(0, 2)}...(${s.length})` : 'null';
-
   console.log('[cron][auth]', {
     path: req.nextUrl.pathname,
     src,
     hasServerSecret: !!serverSecret,
     serverSecretLen: serverSecret?.length ?? 0,
-    tokenPreview: mask(token),
+    hasIncomingToken: !!token,
   });
 
   if (!serverSecret || !token || token !== serverSecret) {

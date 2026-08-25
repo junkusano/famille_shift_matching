@@ -653,6 +653,9 @@ export type Database = {
           created_at: string
           created_by: string
           created_by_name: string | null
+          drive_file_id: string | null
+          drive_folder_id: string | null
+          drive_web_view_link: string | null
           filename: string
           id: string
           monitoring_id: string
@@ -666,6 +669,9 @@ export type Database = {
           created_at?: string
           created_by: string
           created_by_name?: string | null
+          drive_file_id?: string | null
+          drive_folder_id?: string | null
+          drive_web_view_link?: string | null
           filename: string
           id?: string
           monitoring_id: string
@@ -679,6 +685,9 @@ export type Database = {
           created_at?: string
           created_by?: string
           created_by_name?: string | null
+          drive_file_id?: string | null
+          drive_folder_id?: string | null
+          drive_web_view_link?: string | null
           filename?: string
           id?: string
           monitoring_id?: string

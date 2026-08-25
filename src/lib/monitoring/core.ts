@@ -65,6 +65,44 @@ export function monthEnd(value: string): string {
   return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
 }
 
+export function monitoringYearMonth(periodEnd: string): string {
+  const match = /^(\d{4}-\d{2})-\d{2}$/.exec(periodEnd);
+  return match?.[1] ?? "";
+}
+
+export function monitoringContactWarnings(params: {
+  serviceType: MonitoringServiceType | null;
+  hasContact: boolean;
+  hasFax: boolean;
+}): string[] {
+  const { serviceType, hasContact, hasFax } = params;
+  const contactLabel = serviceType === "disability" ? "相談支援専門員" : "ケアマネジャー";
+  if (!hasContact) return [`${contactLabel}が登録されていません`];
+  if (!hasFax) return [`${contactLabel}は登録されていますが、FAX番号が登録されていません`];
+  return [];
+}
+
+export function effectiveOfficeNotice(individual: unknown, monthly: unknown): string {
+  const individualText = typeof individual === "string" ? individual : "";
+  if (individualText.trim()) return individualText;
+  return typeof monthly === "string" ? monthly : "";
+}
+
+export function buildMonitoringPdfFilename(params: {
+  clientName: unknown;
+  periodEnd: string;
+  version: number;
+}): string {
+  const clientName = String(params.clientName ?? "")
+    .trim()
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_")
+    .replace(/\s+/g, " ")
+    .slice(0, 80) || "利用者";
+  const yearMonth = monitoringYearMonth(params.periodEnd) || "対象年月不明";
+  const version = Math.max(1, Math.trunc(params.version) || 1);
+  return `モニタリング_${clientName}_${yearMonth}_v${version}.pdf`;
+}
+
 export function sanitizeEvidenceIds(value: unknown, allowedIds: Set<string>): string[] {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map(String).filter((id) => allowedIds.has(id)))];

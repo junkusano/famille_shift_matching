@@ -8,7 +8,13 @@ const safeError = "送信処理を完了できませんでした。時間をお�
 export async function POST(req: NextRequest) {
   try {
     const { submissionId, payload } = await req.json();
-    if (!submissionId || !payload?.email) return NextResponse.json({ ok: false, message: safeError }, { status: 400 });
+    const validSubmissionId = typeof submissionId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionId);
+    const validPayload = payload && typeof payload === "object"
+      && typeof payload.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email.trim())
+      && typeof payload.last_name_kanji === "string" && payload.last_name_kanji.trim().length <= 100
+      && typeof payload.first_name_kanji === "string" && payload.first_name_kanji.trim().length <= 100
+      && payload.agreed_terms === true && payload.agreed_privacy === true;
+    if (!validSubmissionId || !validPayload) return NextResponse.json({ ok: false, message: safeError }, { status: 400 });
     const { data, error } = await supabaseAdmin.rpc("submit_entry_application", { p_submission_id: submissionId, p_payload: payload });
     if (error || !data) throw error ?? new Error("Missing submission result");
     const result = data as { kind: string; entry_id?: string; candidate_count?: number };

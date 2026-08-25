@@ -1,0 +1,242 @@
+project,file,line,context
+famille_shift_matching,middleware.ts,12,utility / lib
+famille_shift_matching,middleware.ts,16,utility / lib
+famille_shift_matching,src/lib/recording-transcripts.ts,177,utility / lib
+famille_shift_matching,src/lib/rpa/taimee.ts,21,utility / lib
+famille_shift_matching,src/lib/rpa/taimee.ts,42,utility / lib
+famille_shift_matching,src/lib/cm/userAdapter.ts,21,utility / lib
+famille_shift_matching,src/lib/cm/userAdapter.ts,77,utility / lib
+famille_shift_matching,src/lib/cm/contracts/googleDrive.ts,77,utility / lib
+famille_shift_matching,src/lib/cm/auth/cmValidateTokenAndUser.ts,90,utility / lib
+famille_shift_matching,src/lib/cm/auth/getAccessToken.ts,13,utility / lib
+famille_shift_matching,src/lib/cm/audit/getDashboardSummary.ts,611,Server Action
+famille_shift_matching,src/lib/cm/audit/getTimeline.ts,300,Server Action
+famille_shift_matching,src/lib/cm/audit/withAuditLog.ts,48,utility / lib
+famille_shift_matching,src/lib/cm/audit/withAuditLog.ts,73,utility / lib
+famille_shift_matching,src/lib/auth/getUserFromBearer.ts,13,utility / lib
+famille_shift_matching,src/lib/auth/getUserFromBearer.ts,14,utility / lib
+famille_shift_matching,src/context/RoleContext.tsx,24,browser client
+famille_shift_matching,src/components/AlertBar.tsx,63,browser client
+famille_shift_matching,src/components/shift-reject-performance-test/ShiftRejectCardPerformanceTest.tsx,288,browser client
+famille_shift_matching,src/components/shift-reject-performance-test/ShiftRejectCardPerformanceTest.tsx,330,browser client
+famille_shift_matching,src/components/shift-reject-performance-test/ShiftRejectCardPerformanceTest.tsx,345,browser client
+famille_shift_matching,src/components/shift-reject-performance-test/ShiftRejectPerformanceTestClient.tsx,72,browser client
+famille_shift_matching,src/components/shift-reject-performance-test/ShiftRejectPerformanceTestClient.tsx,378,browser client
+famille_shift_matching,src/components/shift-reject-performance-test/ShiftRejectPerformanceTestClient.tsx,513,browser client
+famille_shift_matching,src/components/shift-coordinate-performance-test/GroupAddButtonPerformanceTest.tsx,26,browser client
+famille_shift_matching,src/components/shift-coordinate-performance-test/ShiftCardPerformanceTest.tsx,156,browser client
+famille_shift_matching,src/components/shift-coordinate-performance-test/ShiftCardPerformanceTest.tsx,229,browser client
+famille_shift_matching,src/components/shift-coordinate-performance-test/ShiftCoordinatePerformanceTestClient.tsx,168,browser client
+famille_shift_matching,src/components/shift-coordinate-performance-test/ShiftCoordinatePerformanceTestClient.tsx,297,browser client
+famille_shift_matching,src/components/shift-coordinate-performance-test/ShiftCoordinatePerformanceTestClient.tsx,338,browser client
+famille_shift_matching,src/components/shift-coordinate-performance-test/ShiftCoordinatePerformanceTestClient.tsx,367,browser client
+famille_shift_matching,src/components/shift-coordinate-performance-test/ShiftCoordinatePerformanceTestClient.tsx,922,browser client
+famille_shift_matching,src/components/shift/DepartedStaffShiftBatchCard.tsx,13,browser client
+famille_shift_matching,src/components/shift/GroupAddButton.tsx,16,browser client
+famille_shift_matching,src/components/shift/ShiftCard.tsx,545,browser client
+famille_shift_matching,src/components/shift/ShiftCard.tsx,565,browser client
+famille_shift_matching,src/components/shift/ShiftCard.tsx,689,browser client
+famille_shift_matching,src/components/shift/ShiftCard.tsx,1057,browser client
+famille_shift_matching,src/components/shift/ShiftCard.tsx,1201,browser client
+famille_shift_matching,src/components/shift/ShiftCard.tsx,1261,browser client
+famille_shift_matching,src/components/shift/ShiftCard.tsx,1285,browser client
+famille_shift_matching,src/components/shift/ShiftCard.tsx,1388,browser client
+famille_shift_matching,src/components/shift/ShiftRecord.tsx,818,browser client
+famille_shift_matching,src/components/roster/RosterBoardDaily.tsx,308,browser client
+famille_shift_matching,src/components/roster/RosterBoardDaily.tsx,594,browser client
+famille_shift_matching,src/components/roster/RosterBoardDaily.tsx,600,browser client
+famille_shift_matching,src/components/roster/ShiftDialog.tsx,607,browser client
+famille_shift_matching,src/components/roster/ShiftDialog.tsx,726,browser client
+famille_shift_matching,src/components/portal/PerformanceScoreCard.tsx,178,browser client
+famille_shift_matching,src/components/cm-components/layout/CmPageViewTracker.tsx,36,browser client
+famille_shift_matching,src/components/cm-components/audit/CmAuditDashboardPage.tsx,77,browser client
+famille_shift_matching,src/components/cm-components/audit/CmAuditFlowPage.tsx,54,browser client
+famille_shift_matching,src/components/cm-components/audit/CmAuditFlowView.tsx,189,browser client
+famille_shift_matching,src/components/cm-components/audit/CmAuditListView.tsx,150,browser client
+famille_shift_matching,src/components/cm-components/audit/CmAuditOperationsPage.tsx,55,browser client
+famille_shift_matching,src/components/biz-stats/DefectSum.tsx,157,browser client
+famille_shift_matching,src/components/biz-stats/ShiftSum.tsx,139,browser client
+famille_shift_matching,src/components/biz-stats/StaffRetirementReview.tsx,10,browser client
+famille_shift_matching,src/components/biz-stats/StaffRetirementReview.tsx,11,browser client
+famille_shift_matching,src/components/assessment/AssessmentScreen.tsx,72,browser client
+famille_shift_matching,src/components/assessment/PlanEditor.tsx,10,browser client
+famille_shift_matching,src/components/assessment/PlanPrintView.tsx,146,browser client
+famille_shift_matching,src/app/page.tsx,17,browser client
+famille_shift_matching,src/app/page.tsx,24,browser client
+famille_shift_matching,src/app/signup/complete/page.tsx,45,browser client
+famille_shift_matching,src/app/signup/complete/page.tsx,63,browser client
+famille_shift_matching,src/app/signup/complete/page.tsx,110,browser client
+famille_shift_matching,src/app/signup/complete/page.tsx,157,browser client
+famille_shift_matching,src/app/portal/layout.tsx,57,browser client
+famille_shift_matching,src/app/portal/layout.tsx,498,browser client
+famille_shift_matching,src/app/portal/layout.tsx,516,browser client
+famille_shift_matching,src/app/portal/layout.tsx,526,browser client
+famille_shift_matching,src/app/portal/page.tsx,104,browser client
+famille_shift_matching,src/app/portal/wf-seisan-shinsei/page.tsx,194,browser client
+famille_shift_matching,src/app/portal/wf-seisan-shinsei/page.tsx,666,browser client
+famille_shift_matching,src/app/portal/user_salary_monthly/page.tsx,149,browser client
+famille_shift_matching,src/app/portal/user_advance_payment_history/page.tsx,90,browser client
+famille_shift_matching,src/app/portal/user_advance_payment_applications/page.tsx,262,browser client
+famille_shift_matching,src/app/portal/training-goals/page.tsx,125,browser client
+famille_shift_matching,src/app/portal/training-goals/manage/page.tsx,65,browser client
+famille_shift_matching,src/app/portal/taimee-emp/page.tsx,225,browser client
+famille_shift_matching,src/app/portal/taimee-emp/page.tsx,267,browser client
+famille_shift_matching,src/app/portal/taimee-emp/page.tsx,310,browser client
+famille_shift_matching,src/app/portal/taimee-emp/page.tsx,581,browser client
+famille_shift_matching,src/app/portal/taimee-emp/page.tsx,639,browser client
+famille_shift_matching,src/app/portal/taimee-applicants/[id]/page.tsx,13,browser client
+famille_shift_matching,src/app/portal/taimee-applicants/[id]/page.tsx,20,browser client
+famille_shift_matching,src/app/portal/spot-offer-template/page.tsx,882,browser client
+famille_shift_matching,src/app/portal/shift-view/page.tsx,97,browser client
+famille_shift_matching,src/app/portal/shift-view/page.tsx,106,browser client
+famille_shift_matching,src/app/portal/shift-view/page.tsx,123,browser client
+famille_shift_matching,src/app/portal/shift-coordinate/page.tsx,57,browser client
+famille_shift_matching,src/app/portal/shift-coordinate/page.tsx,327,browser client
+famille_shift_matching,src/app/portal/shift-coordinate/page.tsx,724,browser client
+famille_shift_matching,src/app/portal/shift/page.tsx,619,browser client
+famille_shift_matching,src/app/portal/shift/page.tsx,780,browser client
+famille_shift_matching,src/app/portal/shift/page.tsx,840,browser client
+famille_shift_matching,src/app/portal/shift/page.tsx,1014,browser client
+famille_shift_matching,src/app/portal/rpa/diagnostics/page.tsx,12,Server Component
+famille_shift_matching,src/app/portal/roster/monthly/page.tsx,23,browser client
+famille_shift_matching,src/app/portal/roster/monthly/page.tsx,357,browser client
+famille_shift_matching,src/app/portal/roster/monthly/page.tsx,946,browser client
+famille_shift_matching,src/app/portal/roster/monthly/page.tsx,1145,browser client
+famille_shift_matching,src/app/portal/roster/monthly/page.tsx,1171,browser client
+famille_shift_matching,src/app/portal/roster/holiday-shifts/page.tsx,11,browser client
+famille_shift_matching,src/app/portal/parking_cs_places/page.tsx,79,browser client
+famille_shift_matching,src/app/portal/parking_cs_places/page.tsx,140,browser client
+famille_shift_matching,src/app/portal/notification-determination/page.tsx,52,browser client
+famille_shift_matching,src/app/portal/my-shift-calendar/page.tsx,93,browser client
+famille_shift_matching,src/app/portal/monthly-meeting-check/page.tsx,117,browser client
+famille_shift_matching,src/app/portal/monthly-meeting-check/page.tsx,541,browser client
+famille_shift_matching,src/app/portal/monthly-meeting-check/page.tsx,551,browser client
+famille_shift_matching,src/app/portal/kaipoke-info-detail/[id]/monitoring/page.tsx,62,browser client
+famille_shift_matching,src/app/portal/kaipoke-info-detail/[id]/monitoring/[monitoringId]/page.tsx,59,browser client
+famille_shift_matching,src/app/portal/jisseki-beta/print/bulk/page.tsx,211,browser client
+famille_shift_matching,src/app/portal/jisseki/print/bulk/page.tsx,210,browser client
+famille_shift_matching,src/app/portal/health-check-results/page.tsx,71,browser client
+famille_shift_matching,src/app/portal/expense-claims/page.tsx,202,browser client
+famille_shift_matching,src/app/portal/expense-claims/page.tsx,808,browser client
+famille_shift_matching,src/app/portal/event-template/page.tsx,103,browser client
+famille_shift_matching,src/app/portal/event-template/page.tsx,150,browser client
+famille_shift_matching,src/app/portal/event-tasks/page.tsx,56,browser client
+famille_shift_matching,src/app/portal/entry-list/page.tsx,259,browser client
+famille_shift_matching,src/app/portal/entry-detail/[id]/page.tsx,208,browser client
+famille_shift_matching,src/app/portal/entry-detail/[id]/page.tsx,261,browser client
+famille_shift_matching,src/app/portal/entry-detail/[id]/page.tsx,540,browser client
+famille_shift_matching,src/app/portal/entry-detail/[id]/page.tsx,576,browser client
+famille_shift_matching,src/app/portal/driving_record/page.tsx,154,browser client
+famille_shift_matching,src/app/portal/disability-check-beta/page.tsx,480,browser client
+famille_shift_matching,src/app/portal/disability-check-beta/page.tsx,504,browser client
+famille_shift_matching,src/app/portal/disability-check-beta/page.tsx,581,browser client
+famille_shift_matching,src/app/portal/disability-check-beta/page.tsx,679,browser client
+famille_shift_matching,src/app/portal/disability-check-beta/page.tsx,729,browser client
+famille_shift_matching,src/app/portal/disability-check-beta/page.tsx,799,browser client
+famille_shift_matching,src/app/portal/disability-check-beta/page.tsx,872,browser client
+famille_shift_matching,src/app/portal/disability-check/page.tsx,484,browser client
+famille_shift_matching,src/app/portal/disability-check/page.tsx,508,browser client
+famille_shift_matching,src/app/portal/disability-check/page.tsx,593,browser client
+famille_shift_matching,src/app/portal/disability-check/page.tsx,691,browser client
+famille_shift_matching,src/app/portal/disability-check/page.tsx,741,browser client
+famille_shift_matching,src/app/portal/disability-check/page.tsx,811,browser client
+famille_shift_matching,src/app/portal/disability-check/page.tsx,873,browser client
+famille_shift_matching,src/app/portal/bento/page.tsx,83,browser client
+famille_shift_matching,src/app/portal/badge/page.tsx,31,browser client
+famille_shift_matching,src/app/portal/admin/rpa-job-presets/page.tsx,17,browser client
+famille_shift_matching,src/app/portal/admin/re-entry-recruitment/page.tsx,19,browser client
+famille_shift_matching,src/app/portal/admin/health-check-results/page.tsx,18,browser client
+famille_shift_matching,src/app/portal/admin/health-check-results/page.tsx,22,browser client
+famille_shift_matching,src/app/login/page.tsx,49,browser client
+famille_shift_matching,src/app/login/page.tsx,97,browser client
+famille_shift_matching,src/app/login/page.tsx,148,browser client
+famille_shift_matching,src/app/cm-portal/page.tsx,306,browser client
+famille_shift_matching,src/app/auth/callback/route.ts,12,utility / lib
+famille_shift_matching,src/app/api/upload/route.ts,56,Route Handler / internal API
+famille_shift_matching,src/app/api/upload/meal-cost/route.ts,57,Route Handler / internal API
+famille_shift_matching,src/app/api/taimee-emp/upload/route.ts,26,Route Handler / internal API
+famille_shift_matching,src/app/api/taimee-emp/settings/route.ts,21,Route Handler / internal API
+famille_shift_matching,src/app/api/taimee-emp/send/route.ts,97,Route Handler / internal API
+famille_shift_matching,src/app/api/taimee-emp/delivery-status/route.ts,20,Route Handler / internal API
+famille_shift_matching,src/app/api/taimee-applicants/[id]/route.ts,8,Route Handler / internal API
+famille_shift_matching,src/app/api/sms/send/route.ts,170,Route Handler / internal API
+famille_shift_matching,src/app/api/shifts/route.ts,45,Route Handler / internal API
+famille_shift_matching,src/app/api/shifts/route.ts,47,Route Handler / internal API
+famille_shift_matching,src/app/api/shifts/route.ts,52,Route Handler / internal API
+famille_shift_matching,src/app/api/shift-sum/route.ts,35,Route Handler / internal API
+famille_shift_matching,src/app/api/secure-image/route.ts,9,Route Handler / internal API
+famille_shift_matching,src/app/api/roster/shifts/[id]/route.ts,36,Route Handler / internal API
+famille_shift_matching,src/app/api/roster/shifts/[id]/route.ts,38,Route Handler / internal API
+famille_shift_matching,src/app/api/roster/shifts/[id]/route.ts,43,Route Handler / internal API
+famille_shift_matching,src/app/api/regular-shift-requests/route.ts,38,Route Handler / internal API
+famille_shift_matching,src/app/api/regular-shift-requests/route.ts,39,Route Handler / internal API
+famille_shift_matching,src/app/api/recording-transcripts/[id]/route.ts,23,Route Handler / internal API
+famille_shift_matching,src/app/api/portal/user_salary_monthly/route.ts,25,Route Handler / internal API
+famille_shift_matching,src/app/api/portal/user_notification_determination/route.ts,12,Route Handler / internal API
+famille_shift_matching,src/app/api/portal/shift-batch-reassign/route.ts,14,Route Handler / internal API
+famille_shift_matching,src/app/api/portal/my-score/route.ts,385,Route Handler / internal API
+famille_shift_matching,src/app/api/plans/[id]/pdf/route.ts,198,Route Handler / internal API
+famille_shift_matching,src/app/api/holiday-shifts/route.ts,9,Route Handler / internal API
+famille_shift_matching,src/app/api/google-calendar/test/route.ts,30,Route Handler / internal API
+famille_shift_matching,src/app/api/google-calendar/register-calendars/route.ts,122,Route Handler / internal API
+famille_shift_matching,src/app/api/google-calendar/oauth/start/route.ts,53,Route Handler / internal API
+famille_shift_matching,src/app/api/google-calendar/oauth/callback/route.ts,89,Route Handler / internal API
+famille_shift_matching,src/app/api/expense-claims/upload/route.ts,159,Route Handler / internal API
+famille_shift_matching,src/app/api/event-template/route.ts,20,Route Handler / internal API
+famille_shift_matching,src/app/api/event-template/[id]/route.ts,15,Route Handler / internal API
+famille_shift_matching,src/app/api/entry/reapply/route.ts,41,Route Handler / internal API
+famille_shift_matching,src/app/api/entry/auth/route.ts,56,Route Handler / internal API
+famille_shift_matching,src/app/api/entry/auth/route.ts,71,Route Handler / internal API
+famille_shift_matching,src/app/api/entry/auth/route.ts,103,Route Handler / internal API
+famille_shift_matching,src/app/api/entry/auth/route.ts,108,Route Handler / internal API
+famille_shift_matching,src/app/api/entry/auth/route.ts,172,Route Handler / internal API
+famille_shift_matching,src/app/api/entry/auth/route.ts,177,Route Handler / internal API
+famille_shift_matching,src/app/api/entry/attachments/route.ts,31,Route Handler / internal API
+famille_shift_matching,src/app/api/disability-check-beta/route.ts,114,Route Handler / internal API
+famille_shift_matching,src/app/api/disability-check/route.ts,99,Route Handler / internal API
+famille_shift_matching,src/app/api/disability-check/update-jukyusha-nos/route.ts,19,Route Handler / internal API
+famille_shift_matching,src/app/api/disability-check/update/route.ts,28,Route Handler / internal API
+famille_shift_matching,src/app/api/disability-check/update/route.ts,37,Route Handler / internal API
+famille_shift_matching,src/app/api/disability-check/staff-options/route.ts,51,Route Handler / internal API
+famille_shift_matching,src/app/api/disability-check/staff-options/route.ts,95,Route Handler / internal API
+famille_shift_matching,src/app/api/delete-auth-user/route.ts,40,Route Handler / internal API
+famille_shift_matching,src/app/api/delete-auth-user/route.ts,46,Route Handler / internal API
+famille_shift_matching,src/app/api/defect-sum/route.ts,34,Route Handler / internal API
+famille_shift_matching,src/app/api/debug/route.ts,12,Route Handler / internal API
+famille_shift_matching,src/app/api/debug/route.ts,15,Route Handler / internal API
+famille_shift_matching,src/app/api/cron/google-maps-distance/route.ts,14,Cron
+famille_shift_matching,src/app/api/cron/google-calendar-sync/route.ts,57,Cron
+famille_shift_matching,src/app/api/cron/entry-attachment-reconcile/route.ts,24,Cron
+famille_shift_matching,src/app/api/cm/fax/route.ts,52,Route Handler / internal API
+famille_shift_matching,src/app/api/cm/fax/[id]/offices/route.ts,89,Route Handler / internal API
+famille_shift_matching,src/app/api/cm/fax/pdf/[fileId]/route.ts,63,Route Handler / internal API
+famille_shift_matching,src/app/api/cm/fax/documents/route.ts,69,Route Handler / internal API
+famille_shift_matching,src/app/api/cm/fax/documents/[id]/pages/route.ts,82,Route Handler / internal API
+famille_shift_matching,src/app/api/auth/reset-password-reinvite/route.ts,64,Route Handler / internal API
+famille_shift_matching,src/app/api/auth/reset-password-reinvite/route.ts,76,Route Handler / internal API
+famille_shift_matching,src/app/api/auth/lineworks-2fa/verify/route.ts,95,Route Handler / internal API
+famille_shift_matching,src/app/api/auth/lineworks-2fa/request/route.ts,110,Route Handler / internal API
+famille_shift_matching,src/app/api/advance-payment/history/route.ts,35,Route Handler / internal API
+famille_shift_matching,src/app/api/admin/staff-retirement-review/route.ts,11,Route Handler / internal API
+famille_shift_matching,src/app/api/admin/reentry-recruitment/route.ts,13,Route Handler / internal API
+famille_shift_matching,src/app/api/admin/health-check-results/route.ts,21,Route Handler / internal API
+famille_shift_matching,src/app/account/page.tsx,19,browser client
+famille_shift_matching,src/app/account/page.tsx,34,browser client
+famille_shift_matching,scripts/security/generate-pre-maintenance-audit.mjs,141,utility / lib
+famille-voice54,supabase/functions/transcribe-recording/index.ts,105,Edge Function
+famille-voice54,supabase/functions/recording-options/index.ts,48,Edge Function
+famille-voice54,providers/auth-provider.tsx,9,browser/mobile client
+famille-voice54,providers/auth-provider.tsx,29,browser/mobile client
+famille-voice54,providers/auth-provider.tsx,41,browser/mobile client
+famille-voice54,providers/auth-provider.tsx,54,browser/mobile client
+famille-voice54,providers/auth-provider.tsx,55,browser/mobile client
+famille-voice54,providers/auth-provider.tsx,68,browser/mobile client
+famille-voice54,providers/auth-provider.tsx,77,browser/mobile client
+famille-voice54,providers/auth-provider.tsx,81,browser/mobile client
+famille-voice54,lib/recording-options.ts,24,browser/mobile client
+famille-voice54,lib/supabase.ts,27,browser/mobile client
+famille-voice54,lib/supabase.ts,29,browser/mobile client
+famille-voice54,lib/transcription.ts,65,browser/mobile client
+famille-voice54,components/login-screen.tsx,8,browser/mobile client
+famille-voice54,components/login-screen.tsx,24,browser/mobile client
+famille-voice54,app/(tabs)/index.tsx,176,browser/mobile client

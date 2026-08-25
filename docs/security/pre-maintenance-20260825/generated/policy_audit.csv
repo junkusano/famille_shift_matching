@@ -1,0 +1,69 @@
+table,name,permissive,command,roles,unconditional_true
+alert_log,ins_alert_log,PERMISSIVE,INSERT,authenticated,false
+alert_log,sel_alert_log,PERMISSIVE,SELECT,authenticated,false
+alert_log,upd_alert_log,PERMISSIVE,UPDATE,authenticated,true
+bento_pickup_locations,"""bento pickup locations admin select""",PERMISSIVE,SELECT,authenticated,false
+bento_pickup_locations,"""bento pickup locations admin update""",PERMISSIVE,UPDATE,authenticated,false
+bento_survey_menus,"""bento menus admin delete""",PERMISSIVE,DELETE,authenticated,false
+bento_survey_menus,"""bento menus admin insert""",PERMISSIVE,INSERT,authenticated,false
+bento_survey_menus,"""bento menus admin select""",PERMISSIVE,SELECT,authenticated,false
+bento_survey_menus,"""bento menus admin update""",PERMISSIVE,UPDATE,authenticated,false
+bento_survey_responses,"""bento responses management select""",PERMISSIVE,SELECT,authenticated,false
+bento_survey_responses,"""bento responses management update""",PERMISSIVE,UPDATE,authenticated,false
+bento_surveys,"""admin can delete bento surveys""",PERMISSIVE,DELETE,authenticated,false
+bento_surveys,"""admin can insert bento surveys""",PERMISSIVE,INSERT,authenticated,false
+bento_surveys,"""admin can select bento surveys""",PERMISSIVE,SELECT,authenticated,false
+bento_surveys,"""admin can update bento surveys""",PERMISSIVE,UPDATE,authenticated,false
+cm_alert_batch_runs,cm_alert_batch_runs_insert_policy,PERMISSIVE,INSERT,authenticated,true
+cm_alert_batch_runs,cm_alert_batch_runs_select_policy,PERMISSIVE,SELECT,authenticated,true
+cm_alert_batch_runs,cm_alert_batch_runs_update_policy,PERMISSIVE,UPDATE,authenticated,true
+cm_alerts,cm_alerts_insert_policy,PERMISSIVE,INSERT,authenticated,true
+cm_alerts,cm_alerts_select_policy,PERMISSIVE,SELECT,authenticated,true
+cm_alerts,cm_alerts_update_policy,PERMISSIVE,UPDATE,authenticated,true
+cm_document_types,auth_select_document_types,PERMISSIVE,SELECT,authenticated,true
+cm_document_types,service_role_all_document_types,PERMISSIVE,ALL,service_role,true
+cm_fax_extracted_data,auth_select_fax_extracted_data,PERMISSIVE,SELECT,authenticated,true
+cm_fax_extracted_data,auth_update_fax_extracted_data,PERMISSIVE,UPDATE,authenticated,true
+cm_fax_extracted_data,service_role_all_fax_extracted_data,PERMISSIVE,ALL,service_role,true
+cm_fax_ocr_results,auth_select_fax_ocr_results,PERMISSIVE,SELECT,authenticated,true
+cm_fax_ocr_results,service_role_all_fax_ocr_results,PERMISSIVE,ALL,service_role,true
+cm_fax_office_patterns,auth_select_fax_office_patterns,PERMISSIVE,SELECT,authenticated,true
+cm_fax_office_patterns,service_role_all_fax_office_patterns,PERMISSIVE,ALL,service_role,true
+cm_fax_pages,auth_insert_fax_pages,PERMISSIVE,INSERT,authenticated,true
+cm_fax_pages,auth_select_fax_pages,PERMISSIVE,SELECT,authenticated,true
+cm_fax_pages,auth_update_fax_pages,PERMISSIVE,UPDATE,authenticated,true
+cm_fax_pages,service_role_all_fax_pages,PERMISSIVE,ALL,service_role,true
+cm_fax_received,auth_select_fax_received,PERMISSIVE,SELECT,authenticated,true
+cm_fax_received,auth_update_fax_received,PERMISSIVE,UPDATE,authenticated,true
+cm_fax_received,service_role_all_fax_received,PERMISSIVE,ALL,service_role,true
+cm_fax_text_patterns,auth_select_fax_text_patterns,PERMISSIVE,SELECT,authenticated,true
+cm_fax_text_patterns,service_role_all_fax_text_patterns,PERMISSIVE,ALL,service_role,true
+cm_job_queues,"""Service role full access on cm_job_queues""",PERMISSIVE,ALL,PUBLIC,true
+cm_job_types,"""Service role full access on cm_job_types""",PERMISSIVE,ALL,PUBLIC,true
+cm_plaud_sum_processing,"""Service role has full access to plaud_sum_processing""",PERMISSIVE,ALL,service_role,true
+cm_plaud_sum_processing,"""Users can view their own processing records""",PERMISSIVE,SELECT,authenticated,false
+cm_rpa_api_keys,cm_rpa_api_keys_service_role_select,PERMISSIVE,SELECT,service_role,true
+cm_rpa_credentials,cm_rpa_credentials_service_role_select,PERMISSIVE,SELECT,service_role,true
+google_maps_distance_cache,google_maps_distance_cache_read,PERMISSIVE,SELECT,authenticated,true
+google_maps_distance_cron_runs,google_maps_distance_cron_runs_read,PERMISSIVE,SELECT,authenticated,true
+holiday_master,holiday_master_manage_admin_manager,PERMISSIVE,ALL,authenticated,false
+holiday_master,holiday_master_read_authenticated,PERMISSIVE,SELECT,authenticated,true
+holiday_shift_action,holiday_shift_action_manage_admin_manager,PERMISSIVE,ALL,authenticated,false
+holiday_shift_action,holiday_shift_action_read_authenticated,PERMISSIVE,SELECT,authenticated,true
+lw_channels,"""Allow anon read""",PERMISSIVE,SELECT,anon,true
+lw_channels,"""Allow authenticated read""",PERMISSIVE,SELECT,authenticated,true
+lw_channels,"""Allow service role all""",PERMISSIVE,ALL,service_role,true
+manager_distance_segments,manager_distance_segments_read,PERMISSIVE,SELECT,authenticated,true
+recording_transcripts,"""Users can read their own recording transcripts""",PERMISSIVE,SELECT,PUBLIC,false
+staff_monthly_score_summaries,"""member can read own staff monthly score summaries""",PERMISSIVE,SELECT,authenticated,false
+staff_monthly_stats,"""authenticated users can read staff monthly stats""",PERMISSIVE,SELECT,authenticated,true
+training_goal_catalog,training_goal_catalog_select_authenticated,PERMISSIVE,SELECT,authenticated,true
+training_goal_master,training_goal_master_select_policy,PERMISSIVE,SELECT,authenticated,true
+wf_approval_step,wf_step_select_min,PERMISSIVE,SELECT,authenticated,false
+wf_approval_step,wf_step_update_min,PERMISSIVE,UPDATE,authenticated,false
+wf_request,wf_request_insert_min,PERMISSIVE,INSERT,authenticated,false
+wf_request,wf_request_select_min,PERMISSIVE,SELECT,authenticated,false
+wf_request,wf_request_update_min,PERMISSIVE,UPDATE,authenticated,false
+wf_request_attachment,wf_att_delete_min,PERMISSIVE,DELETE,authenticated,false
+wf_request_attachment,wf_att_insert_min,PERMISSIVE,INSERT,authenticated,false
+wf_request_attachment,wf_att_select_min,PERMISSIVE,SELECT,authenticated,false

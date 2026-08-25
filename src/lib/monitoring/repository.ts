@@ -1,5 +1,6 @@
 import "server-only";
 
+import { buildMonitoringPdfFilename } from "@/lib/monitoring/core";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import type { MonitoringGoal, MonitoringRecord } from "@/types/monitoring";
 
@@ -27,10 +28,14 @@ export async function getMonitoringGoals(id: string): Promise<MonitoringGoal[]> 
   }));
 }
 
-export function monitoringFilename(monitoring: MonitoringRecord, version: number): string {
-  const period = `${monitoring.period_start.replaceAll("-", "")}-${monitoring.period_end.replaceAll(
-    "-",
-    "",
-  )}`;
-  return `monitoring_${monitoring.kaipoke_cs_id}_${period}_v${version}.pdf`;
+export function monitoringFilename(
+  monitoring: MonitoringRecord,
+  version: number,
+  clientName: unknown,
+): string {
+  return buildMonitoringPdfFilename({
+    clientName,
+    periodEnd: monitoring.period_end,
+    version,
+  });
 }

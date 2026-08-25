@@ -9,7 +9,8 @@ import type {
   MonitoringSourceGoal,
   MonitoringVisitRecord,
 } from "@/types/monitoring";
-import { detectMonitoringServiceType } from "./core";
+import { detectMonitoringServiceType, monitoringContactWarnings } from "./core";
+import { getMonitoringMonthlyNotice } from "./notices";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -280,28 +281,26 @@ export async function loadMonitoringContext(params: {
     officeName = text(asRecord(orgRow)?.orgunitname) || officeName;
   }
 
-  let officeNotice = "";
-  if (serviceTypeDetected) {
-    const { data: noticeRow } = await supabaseAdmin
-      .from("monitoring_office_notices")
-      .select("notice")
-      .eq("is_active", true)
-      .or(`service_type.is.null,service_type.eq.${serviceTypeDetected}`)
-      .lte("period_start", periodEnd)
-      .gte("period_end", periodStart)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    officeNotice = text(asRecord(noticeRow)?.notice);
-  }
+  const monthlyNotice = serviceTypeDetected
+    ? await getMonitoringMonthlyNotice({ serviceType: serviceTypeDetected, periodEnd })
+    : null;
+  const officeNotice = text(monthlyNotice?.body);
 
   const warnings: string[] = [];
   if (!assessmentResult.data) warnings.push("対象期間以前のアセスメントがありません");
   if (!plan) warnings.push("対象期間に有効なプランがありません");
   if (goals.length === 0) warnings.push("長期／短期目標がありません");
   if (evidenceRecords.length === 0) warnings.push("対象期間の訪問記録がありません");
-  if (!faxTarget.contact_name) warnings.push("ケアマネジャー・相談支援専門員が登録されていません");
-  if (!faxTarget.fax_number) warnings.push("FAX番号がありません（作成とPDF生成は可能です）");
+  const hasRegisteredContact = Boolean(
+    faxTarget.fax_id || faxTarget.contact_name || faxTarget.office_name,
+  );
+  warnings.push(
+    ...monitoringContactWarnings({
+      serviceType: serviceTypeDetected,
+      hasContact: hasRegisteredContact,
+      hasFax: Boolean(faxTarget.fax_number),
+    }),
+  );
   if (!serviceTypeDetected) warnings.push("サービス種別を自動判定できません");
 
   const insurance = asRecord(insuranceResult.data);
@@ -382,7 +381,7 @@ export async function loadMonitoringContext(params: {
       plan_period: planPeriod(plan),
       visit_count: evidenceRecords.length,
       previous_monitoring_date: nullableText(previousMonitorings[0]?.evaluation_date),
-      care_manager_name: faxTarget.contact_name,
+      care_manager_name: faxTarget.contact_name ?? faxTarget.office_name,
       fax_number: faxTarget.fax_number,
     },
   };

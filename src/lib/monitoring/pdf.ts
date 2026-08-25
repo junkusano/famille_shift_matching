@@ -29,6 +29,20 @@ export type MonitoringPdfSnapshot = {
   context: PdfContext;
 };
 
+export class MonitoringPdfError extends Error {
+  readonly stage: "font" | "render";
+  readonly cause?: unknown;
+
+  constructor(stage: "font" | "render", message: string, cause?: unknown) {
+    super(message);
+    this.name = "MonitoringPdfError";
+    this.stage = stage;
+    this.cause = cause;
+  }
+}
+
+const BUNDLED_FONT_PATH = path.join(process.cwd(), "public", "fonts", "NotoSansJP-Regular.ttf");
+
 function escapeHtml(value: unknown): string {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -43,25 +57,20 @@ function multiline(value: unknown): string {
 }
 
 async function embeddedFontCss(): Promise<string> {
-  const fontDir = path.join(
-    process.cwd(),
-    "node_modules",
-    "@fontsource",
-    "noto-sans-jp",
-    "files",
-  );
-  const [regular, bold] = await Promise.all([
-    fs.readFile(path.join(fontDir, "noto-sans-jp-japanese-400-normal.woff2")),
-    fs.readFile(path.join(fontDir, "noto-sans-jp-japanese-700-normal.woff2")),
-  ]);
-  return `
-    @font-face { font-family: MonitoringJP; src: url(data:font/woff2;base64,${regular.toString(
-      "base64",
-    )}) format("woff2"); font-weight: 400; }
-    @font-face { font-family: MonitoringJP; src: url(data:font/woff2;base64,${bold.toString(
-      "base64",
-    )}) format("woff2"); font-weight: 700; }
-  `;
+  try {
+    const regular = await fs.readFile(BUNDLED_FONT_PATH);
+    const base64 = regular.toString("base64");
+    return `
+      @font-face { font-family: MonitoringJP; src: url(data:font/ttf;base64,${base64}) format("truetype"); font-weight: 400; }
+      @font-face { font-family: MonitoringJP; src: url(data:font/ttf;base64,${base64}) format("truetype"); font-weight: 700; }
+    `;
+  } catch (cause) {
+    console.error("[monitoring:pdf] font load failed", {
+      path: "public/fonts/NotoSansJP-Regular.ttf",
+      message: cause instanceof Error ? cause.message : String(cause),
+    });
+    throw new MonitoringPdfError("font", "日本語フォントの読み込みに失敗しました", cause);
+  }
 }
 
 async function chromiumExecutablePath(): Promise<string> {
@@ -225,6 +234,12 @@ export async function renderMonitoringPdf(snapshot: MonitoringPdfSnapshot): Prom
       margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
     });
     return Buffer.from(bytes);
+  } catch (cause) {
+    if (cause instanceof MonitoringPdfError) throw cause;
+    console.error("[monitoring:pdf] render failed", {
+      message: cause instanceof Error ? cause.message : String(cause),
+    });
+    throw new MonitoringPdfError("render", "PDF生成に失敗しました", cause);
   } finally {
     await browser?.close().catch(() => undefined);
   }

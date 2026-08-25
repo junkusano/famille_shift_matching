@@ -71,6 +71,7 @@ const CmMenuStructure: CmMenuGroup[] = [
     items: [
       { id: 'fax-list', label: 'FAX受信一覧', path: '/cm-portal/fax' },
       { id: 'plaud', label: '文字起こし管理', path: '/cm-portal/plaud' },
+      { id: 'famille-voice-transcripts', label: 'famille Voice 文字起こし', path: '/cm-portal/recording-transcripts' },
     ],
   },
   {

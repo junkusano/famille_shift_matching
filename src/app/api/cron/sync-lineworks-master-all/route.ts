@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+
+import { assertCronAuth } from "@/lib/cron/auth";
 
 import { fetchAllPositions } from "@/lib/lineworks/fetchAllPositions";
 import { fetchAllLevels } from "@/lib/lineworks/fetchAllLevels";
@@ -12,9 +14,10 @@ import { saveOrgsMaster } from "@/lib/supabase/saveOrgsMaster";
 import { saveUsersLWTemp } from "@/lib/supabase/saveUsersLwTemp";
 import { saveGroupsMaster } from "@/lib/supabase/saveGroupsTemp";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    
+    assertCronAuth(req);
+
     const positions = await fetchAllPositions();
     await savePositionsMaster(positions);
 
@@ -44,9 +47,10 @@ export async function GET() {
     });
   } catch (err) {
     console.error("❌ マスター同期全体エラー:", err);
+    const unauthorized = err instanceof Error && err.message === "Unauthorized";
     return NextResponse.json(
-      { error: "マスター同期失敗", detail: String(err) },
-      { status: 500 }
+      { error: unauthorized ? "unauthorized_cron" : "マスター同期失敗" },
+      { status: unauthorized ? 401 : 500 }
     );
   }
 }

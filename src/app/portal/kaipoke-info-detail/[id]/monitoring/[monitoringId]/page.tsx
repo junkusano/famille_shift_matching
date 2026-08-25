@@ -191,7 +191,7 @@ export default function MonitoringEditorPage() {
     setMessage("");
     try {
       await api(`/api/monitorings/${monitoringId}/pdf`, { method: "POST" });
-      setMessage("確定PDFを作成・保存しました");
+      setMessage("確定PDFを作成し、Google Driveへ保存しました");
       await load();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
@@ -295,6 +295,16 @@ export default function MonitoringEditorPage() {
 
   const canManage = data.permissions.can_manage;
   const pdfReady = Boolean(draft.current_pdf_snapshot_id);
+  const currentPdfSnapshot = data.pdf_snapshots.find(
+    (snapshot) => String(snapshot.id) === draft.current_pdf_snapshot_id,
+  );
+  const currentPdfDriveUrl =
+    typeof currentPdfSnapshot?.drive_web_view_link === "string"
+      ? currentPdfSnapshot.drive_web_view_link
+      : "";
+  const previousPdfSnapshots = data.pdf_snapshots.filter(
+    (snapshot) => String(snapshot.id) !== draft.current_pdf_snapshot_id,
+  );
   const isConfirmed = draft.status === "confirmed";
 
   return (
@@ -406,13 +416,23 @@ export default function MonitoringEditorPage() {
                   <button onClick={() => void showPdf("view")} className="inline-flex items-center gap-2 rounded-md border px-3 py-2"><Eye size={17} />PDF表示</button>
                   <button onClick={() => void showPdf("download")} className="inline-flex items-center gap-2 rounded-md border px-3 py-2"><Download size={17} />ダウンロード</button>
                   <button onClick={() => void showPdf("print")} className="inline-flex items-center gap-2 rounded-md border px-3 py-2"><Printer size={17} />印刷</button>
+                  {currentPdfDriveUrl && <a href={currentPdfDriveUrl} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-blue-700">Google Driveで開く</a>}
                 </div>
-                {data.pdf_snapshots.length > 1 && (
+                {previousPdfSnapshots.length > 0 && (
                   <div className="mt-4 border-t pt-3 text-sm">
                     <div className="font-semibold">過去の確定PDF</div>
-                    {data.pdf_snapshots.map((snapshot) => (
-                      <button key={String(snapshot.id)} onClick={() => void showPdf("view", String(snapshot.id))} className="mr-3 mt-2 text-blue-700 hover:underline">v{String(snapshot.version_no)}・{new Date(String(snapshot.created_at)).toLocaleString("ja-JP")}</button>
-                    ))}
+                    {previousPdfSnapshots.map((snapshot) => {
+                      const driveUrl =
+                        typeof snapshot.drive_web_view_link === "string"
+                          ? snapshot.drive_web_view_link
+                          : "";
+                      return (
+                        <div key={String(snapshot.id)} className="mt-2 flex flex-wrap items-center gap-3">
+                          <button onClick={() => void showPdf("view", String(snapshot.id))} className="text-blue-700 hover:underline">v{String(snapshot.version_no)}・{new Date(String(snapshot.created_at)).toLocaleString("ja-JP")}</button>
+                          {driveUrl && <a href={driveUrl} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">Google Drive</a>}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </section>

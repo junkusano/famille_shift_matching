@@ -5,6 +5,9 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
 const ENTRY_DRIVE_FOLDER_ID = "1N1EIT1escqpNREOfwc70YgBC8JVu78j2";
+const MAX_FILE_BYTES = 4 * 1024 * 1024;
+const ALLOWED_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
+const ALLOWED_SLOTS = /^(license_front|license_back|residence_card|photo|certificate_(?:[0-9]|1[0-9]))$/;
 const stream = (buffer: Buffer) => Readable.from(buffer);
 
 export async function POST(req: NextRequest) {
@@ -16,6 +19,8 @@ export async function POST(req: NextRequest) {
     const slot = String(body.get("slot") ?? "").trim();
     submissionId = String(body.get("submissionId") ?? "").trim();
     if (!(file instanceof File) || !slot || !submissionId) return NextResponse.json({ ok: false, message: "添付を受け付けられませんでした。" }, { status: 400 });
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionId)) return NextResponse.json({ ok: false, message: "添付を受け付けられませんでした。" }, { status: 400 });
+    if (!ALLOWED_SLOTS.test(slot) || file.size === 0 || file.size > MAX_FILE_BYTES || !ALLOWED_MIME_TYPES.has(file.type)) return NextResponse.json({ ok: false, message: "ファイル形式またはサイズが不正です。" }, { status: 400 });
 
     const { data: created, error: pendingError } = await supabaseAdmin.from("entry_attachments")
       .insert({ submission_id: submissionId, slot, original_filename: file.name, status: "pending" })

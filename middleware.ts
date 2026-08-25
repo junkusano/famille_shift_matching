@@ -33,6 +33,20 @@ export async function middleware(req: NextRequest) {
   // ★ Cron/内部バッチは素通り（※必要なら署名チェック推奨）
   if (pathname.startsWith('/api/cron/')) return NextResponse.next()
 
+  // GAS専用2経路は各Routeのshared API key検証へ委ねる。
+  const apiKeyRpaPaths = [
+    '/api/rpa/form-entry-attachments',
+    '/api/rpa/lineworks/users/sync',
+  ]
+  if (apiKeyRpaPaths.includes(pathname)) return NextResponse.next()
+
+  // 公開応募は各Routeの入力検証・server-side Supabase処理へ委ねる。
+  const publicEntryApiPaths = [
+    '/api/entry/submit',
+    '/api/entry/attachments',
+  ]
+  if (publicEntryApiPaths.includes(pathname)) return NextResponse.next()
+
   // タイミーRPA APIは各RouteでCookie/Bearerの有効性と管理者権限を検証する。
   // 拡張機能からのログイン済み画面セッションを、ここでCookieだけで拒否しない。
   if (pathname.startsWith('/api/rpa/taimee/')) return NextResponse.next()
@@ -75,6 +89,7 @@ export async function middleware(req: NextRequest) {
       '/portal/entry-detail',
       '/portal/rpa_requests',
       '/portal/rpa_temp',
+      '/portal/admin/monitoring-office-notice',
     ]
 
     const isAdminPath = adminOnlyPaths.some((path) => pathname.startsWith(path))

@@ -1,0 +1,66 @@
+view,owner,security_invoker,security_barrier,anon_select,authenticated_select,referenced_tables,usage_count,contexts,rls_bypass_risk
+_table_definition,postgres,false,false,true,true,,0,,High
+_table_definition_full,postgres,false,false,true,true,,0,,High
+audit_log_display_view,postgres,false,false,true,true,audit_log|cs_kaipoke_info|shift,1,famille_shift_matching:browser client:anon/publishable + user JWT (expected),High
+biz_stats_defect_rate_view,postgres,false,false,true,true,biz_stats_defect_sum|biz_stats_shift_sum|shift,1,famille_shift_matching:browser client:anon/publishable + user JWT (expected),High
+biz_stats_defect_sum_display_view,postgres,false,false,true,true,biz_stats_defect_sum|orgs,0,,High
+biz_stats_shift_sum_display_view,postgres,false,false,true,true,biz_stats_shift_sum|orgs|shift,2,famille_shift_matching:browser client:anon/publishable + user JWT (expected)|famille_shift_matching:Cron:service_role/server secret,High
+cm_active_jobs,postgres,false,false,true,true,cm_jobs,0,,High
+cm_jobs_with_progress,postgres,false,false,true,true,cm_jobs,1,famille_shift_matching:utility / lib:service_role/server secret,High
+cm_office_contacts_view,postgres,false,false,true,true,cm_kaipoke_other_office|cm_local_fax_phonebook|fax|phone,0,,High
+cm_recent_jobs,postgres,false,false,true,true,cm_jobs,0,,High
+cs_docs_extract_target,postgres,false,false,true,true,cs_docs|cs_kaipoke_info,0,,High
+cs_kaipoke_fax_email_view,postgres,false,false,true,true,cs_kaipoke_info|fax,0,,High
+cs_kaipoke_info_shift_detail_view,postgres,false,false,true,true,cs_kaipoke_info|end_at|phone|shift,1,famille_shift_matching:browser client:anon/publishable + user JWT (expected),High
+dashboard_service_time_qualification_breakdown_view,postgres,false,false,true,true,,0,,High
+dashboard_service_time_qualification_monthly_view,postgres,false,false,true,true,,0,,High
+dashboard_service_time_qualification_staff_detail_view,postgres,false,false,true,true,form_entries|user_doc_master,0,,High
+disability_check_view,postgres,false,false,true,true,cs_kaipoke_info|disability_check|orgs|postal_district|shift|shift_service_code|user_org_exception,9,famille_shift_matching:utility / lib:service_role/server secret|famille_shift_matching:Route Handler / internal API:service_role/server secret|famille_shift_matching:Cron:service_role/server secret,High
+form_entries_ordered,postgres,false,false,true,true,form_entries|phone,0,,High
+form_entries_view,postgres,false,false,true,true,form_entries|phone,0,,High
+form_entries_with_status,postgres,false,false,true,true,form_entries|levels|phone|user_status_master|users,2,famille_shift_matching:browser client:anon/publishable + user JWT (expected),High
+group_lw_channel_view,postgres,false,false,true,true,group_lw_channel_info|groups_lw,29,famille_shift_matching:utility / lib:indirect/unknown|famille_shift_matching:utility / lib:service_role/server secret|famille_shift_matching:browser client:anon/publishable + user JWT (expected)|famille_shift_matching:Webhook:service_role/server secret|famille_shift_matching:Route Handler / internal API:indirect/unknown|famille_shift_matching:Route Handler / internal API:service_role/server secret|GAS:GAS:service_role/server secret,High
+manager_monthly_distance_index_view,postgres,false,false,true,true,shift,0,,High
+manager_monthly_google_maps_distance_view,postgres,false,false,true,true,form_entries|manager_distance_segments|users,1,famille_shift_matching:browser client:anon/publishable + user JWT (expected),High
+msg_lw_log_with_group_account,postgres,false,false,true,true,group_lw_channel_info|groups_lw|msg_lw_log,1,famille_shift_matching:utility / lib:indirect/unknown,High
+org_assigned_icon,postgres,false,false,true,true,cs_kaipoke_info|org_icons|org_icons_category|orgs,0,,High
+org_manager_view,postgres,false,false,true,true,form_entries|orgs|phone|user_org_exception|users,0,,High
+orgs_sort,postgres,false,false,true,true,orgs,0,,High
+parking_cs_places_admin_view,postgres,false,false,true,true,cs_kaipoke_info|parking_cs_places|shift,2,famille_shift_matching:browser client:anon/publishable + user JWT (expected)|famille_shift_matching:Route Handler / internal API:service_role/server secret,High
+plan_generation_source_view,postgres,false,false,true,true,shift|shift_service_code|shift_weekly_template,2,famille_shift_matching:Route Handler / internal API:service_role/server secret,High
+plan_goal_tree_view,postgres,false,false,true,true,plan_long_term_goals|plan_short_term_goals|plans,0,,High
+plan_services_view,postgres,false,false,true,true,plan_services|plans|shift|shift_service_code,0,,High
+postal_distinct_fax_link_status,postgres,false,false,true,true,fax|postal_district,0,,High
+reentry_recruitment_candidates,postgres,false,false,true,true,form_entries|levels|phone|reentry_campaign_recipients|shift|users,2,famille_shift_matching:Route Handler / internal API:service_role/server secret,High
+rpa_command_requests_view,postgres,false,false,true,true,form_entries|rpa_command_kind|rpa_command_request_status|rpa_command_requests|rpa_command_templates,1,famille_shift_matching:browser client:anon/publishable + user JWT (expected),High
+rpa_request_view,postgres,false,false,true,true,rpa_command_kind|rpa_command_requests|rpa_command_templates,0,,High
+shift_add_status_view,postgres,false,false,true,true,shift|shift_record_items|shift_records|shift_service_code,1,famille_shift_matching:Route Handler / internal API:service_role/server secret,High
+shift_csinfo_postalname_view,postgres,false,false,true,true,cs_gender_request|cs_kaipoke_info|levels|postal_district|shift|shift_service_code|users,5,famille_shift_matching:utility / lib:indirect/unknown|famille_shift_matching:browser client:anon/publishable + user JWT (expected)|famille_shift_matching:Route Handler / internal API:service_role/server secret|famille_shift_matching:Route Handler / internal API:indirect/unknown,High
+shift_csinfo_postalname_view2,postgres,false,false,true,true,shift|spot_offer_request_table,0,,High
+shift_csinfo_roster_view,postgres,false,false,true,true,end_at|shift,5,famille_shift_matching:utility / lib:service_role/server secret,High
+shift_daily_dialog_view,postgres,false,false,true,true,cs_gender_request|cs_kaipoke_info|end_at|postal_district|shift|shift_service_code,1,famille_shift_matching:utility / lib:indirect/unknown,High
+shift_daily_dialog_view2,postgres,false,false,true,true,end_at|shift|spot_offer_request_table,0,,High
+shift_daily_dialog_view3,postgres,false,false,true,true,cs_docs|end_at|shift,0,,High
+shift_mfcloud_payroll_monthly,postgres,false,false,true,true,shift|shift_service_code|users,0,,High
+shift_mfcloud_payroll_monthly_plus_tsuin,postgres,false,false,true,true,shift|shift_service_code,0,,High
+shift_mfcloud_payroll_monthly_plus_yearend,postgres,false,false,true,true,shift,0,,High
+shift_rpa_status_view,postgres,false,false,true,true,rpa_command_requests|shift,0,,High
+shift_self_coordinate_card_view,postgres,false,false,true,true,cs_kaipoke_info|env_variables|postal_district|shift|shift_service_code,4,famille_shift_matching:browser client:anon/publishable + user JWT (expected)|famille_shift_matching:Route Handler / internal API:indirect/unknown,High
+shift_self_coordinate_card_view2,postgres,false,false,true,true,shift|spot_offer_request_table,5,famille_shift_matching:browser client:anon/publishable + user JWT (expected)|famille_shift_matching:Route Handler / internal API:indirect/unknown|famille_shift_matching:Route Handler / internal API:service_role/server secret,High
+shift_shift_record_view,postgres,false,false,true,true,cs_kaipoke_info|shift|shift_records,8,famille_shift_matching:utility / lib:indirect/unknown|famille_shift_matching:utility / lib:service_role/server secret|famille_shift_matching:browser client:anon/publishable + user JWT (expected)|famille_shift_matching:Route Handler / internal API:indirect/unknown|famille_shift_matching:Cron:service_role/server secret,High
+shift_shift_record_view2,postgres,false,false,true,true,shift|spot_offer_request_table,2,famille_shift_matching:browser client:anon/publishable + user JWT (expected)|famille_shift_matching:Cron:service_role/server secret,High
+shift_summary_monthly_cs_view,postgres,false,false,true,true,cs_kaipoke_info|shift,0,,High
+shift_summary_monthly_team_view,postgres,false,false,true,true,cs_kaipoke_info|orgs|shift,0,,High
+shift_summary_monthly_view,postgres,false,false,true,true,shift,0,,High
+shift_weekly_template_view,postgres,false,false,true,true,shift|shift_weekly_template,0,,High
+shift_wish_portal_view,postgres,false,false,true,true,fax|form_entries|shift|shift_wishes|users,1,famille_shift_matching:Route Handler / internal API:service_role/server secret,High
+shit_weekly_template_view,postgres,false,false,true,true,shift|shift_weekly_template,0,,High
+taimee_applicants_with_entry,postgres,true,false,true,true,phone|shift|taimee_applicant_documents|taimee_applicant_jobs|taimee_applicants,1,famille_shift_matching:Route Handler / internal API:service_role/server secret,Low
+taimee_employee_portal_v,postgres,false,false,true,true,phone|taimee_sms_logs|taimee_work_histories|taimee_workers,0,,High
+taimee_employees_with_entry,postgres,false,false,true,true,form_entries|phone|taimee_employees_monthly,0,,High
+tokutei_clone_targets_view,postgres,false,false,true,true,shift|shift_records,0,,High
+user_entry_united_view,postgres,false,false,true,true,end_at|form_entries|levels|orgs|phone|users,18,famille_shift_matching:utility / lib:indirect/unknown|famille_shift_matching:browser client:anon/publishable + user JWT (expected)|famille_shift_matching:Route Handler / internal API:service_role/server secret,High
+user_entry_united_view_single,postgres,false,false,true,true,end_at|form_entries|levels|orgs|phone|user_org_exception|users,82,famille_shift_matching:utility / lib:indirect/unknown|famille_shift_matching:utility / lib:service_role/server secret|famille_shift_matching:browser client:anon/publishable + user JWT (expected)|famille_shift_matching:Route Handler / internal API:service_role/server secret|famille_shift_matching:Route Handler / internal API:indirect/unknown|famille_shift_matching:Webhook:service_role/server secret|famille_shift_matching:Cron:service_role/server secret|famille_shift_matching:Cron:indirect/unknown|famille-voice54:Edge Function:service_role/server secret,High
+user_entry_united_view_single_career,postgres,false,false,true,true,end_at|form_entries|levels|orgs|phone|user_org_exception|users,1,famille_shift_matching:utility / lib:service_role/server secret,High
+users_personal_group_view,postgres,false,false,true,true,form_entries|users,1,famille_shift_matching:Route Handler / internal API:anon/publishable + user JWT,High
+v_shift_detail,postgres,false,false,true,true,cs_gender_request|cs_kaipoke_info|postal_district|shift,0,,High

@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-08-24T23:57:15.060Z",
+  "snapshot_root": "C:/Users/USER/Downloads/supabase-pre-rls-20260824_000200",
+  "source_usage_rows": 1583,
+  "tables": 183,
+  "tables_rls_enabled": 66,
+  "tables_rls_disabled": 117,
+  "table_classification": {
+    "A": 45,
+    "B": 103,
+    "C": 25,
+    "D": 10
+  },
+  "views": 65,
+  "views_security_invoker": 1,
+  "functions": 315,
+  "functions_security_definer": 35,
+  "functions_public_execute": 305,
+  "functions_anon_execute": 313,
+  "policies": 68,
+  "policies_unconditional": 41,
+  "sensitive_exposures": 94,
+  "rls_disabled_with_anon_or_authenticated_grants": 117,
+  "secret_findings": 59,
+  "storage_references": 0,
+  "drive_findings": 622
+}

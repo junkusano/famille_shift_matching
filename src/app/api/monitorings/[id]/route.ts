@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { requireMonitoringActor, monitoringAuthErrorResponse } from "@/lib/monitoring/auth";
 import { recordMonitoringEvent } from "@/lib/monitoring/audit";
-import { isMonitoringAchievement, sanitizeEvidenceIds } from "@/lib/monitoring/core";
+import { effectiveOfficeNotice, isMonitoringAchievement, sanitizeEvidenceIds } from "@/lib/monitoring/core";
 import { loadMonitoringContext } from "@/lib/monitoring/context";
 import { getMonitoringGoals, getMonitoringRecord } from "@/lib/monitoring/repository";
 
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, { params }: Context) {
         .order("created_at", { ascending: false }),
       supabaseAdmin
         .from("client_monitoring_pdf_snapshots")
-        .select("id,version_no,filename,content_hash,created_by,created_by_name,created_at")
+        .select("id,version_no,filename,content_hash,drive_file_id,drive_web_view_link,drive_folder_id,created_by,created_by_name,created_at")
         .eq("monitoring_id", id)
         .order("version_no", { ascending: false }),
       supabaseAdmin
@@ -47,10 +47,14 @@ export async function GET(request: NextRequest, { params }: Context) {
     if (faxHistoryResult.error) throw faxHistoryResult.error;
     if (snapshotsResult.error) throw snapshotsResult.error;
     if (eventsResult.error) throw eventsResult.error;
+    const effectiveMonitoring = {
+      ...monitoring,
+      office_notice: effectiveOfficeNotice(monitoring.office_notice, context.office_notice),
+    };
     return NextResponse.json({
       ok: true,
       data: {
-        monitoring,
+        monitoring: effectiveMonitoring,
         goals,
         context,
         fax_history: faxHistoryResult.data ?? [],

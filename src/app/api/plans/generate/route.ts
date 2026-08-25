@@ -855,7 +855,17 @@ OCRの文字認識が崩れていて日付を確定できない場合は、
 デイサービスに関する目標も訪問介護の目標として採用してください。
 
 ケアプラン内に訪問介護と関係する目標がある場合は、
-必ず1組以上の長期目標・短期目標を返してください。
+読み取れた目標を返してください。
+
+is_elder_care が true で、
+長期目標または短期目標の片方だけを特定できた場合は、
+特定できた方だけを原文どおり返し、特定できない方は空文字にしてください。
+
+長期目標・短期目標の両方を特定できない場合は、
+care_plan_goals を空配列にしてください。
+
+目標を特定できなくても、他の項目は取得できている資料をもとに作成してください。
+存在しない目標を推測・創作してはいけません。
 
 最大3組まで返してください。
 
@@ -991,14 +1001,27 @@ ${params.sourceText}
             );
 
           /*
-           * 長期・短期の両方が揃ったものだけ採用する。
+           * 介護保険では長期・短期の片方だけでも採用する。
            *
-           * 日付は記載がない場合もあるため、
-           * nullでも目標自体は採用する。
+           * 片方だけを抽出できたケースを捨てず、
+           * 特定できなかった方は空文字のまま保存する。
+           * 両方とも空の場合は採用しない。
+           *
+           * 障害福祉側は従来どおり、
+           * 長期・短期の両方が揃ったものだけ採用する。
            */
           if (
-            !longTermGoal ||
-            !shortTermGoal
+            (
+              !longTermGoal &&
+              !shortTermGoal
+            ) ||
+            (
+              !params.isElderCare &&
+              (
+                !longTermGoal ||
+                !shortTermGoal
+              )
+            )
           ) {
             return null;
           }
@@ -1459,7 +1482,11 @@ async function buildServiceGoalRelations(params: {
 
   if (
     planServices.length === 0 ||
-    carePlanGoals.length === 0
+    carePlanGoals.length === 0 ||
+    !carePlanGoals.some(
+      (goal) =>
+        goal.short_term_goal.trim() !== "",
+    )
   ) {
     return [];
   }
@@ -1490,18 +1517,23 @@ async function buildServiceGoalRelations(params: {
     }));
 
   const goalList =
-    carePlanGoals.map(
-      (goal, index) => ({
-        short_term_goal_index:
-          index,
+    carePlanGoals
+      .map(
+        (goal, index) => ({
+          short_term_goal_index:
+            index,
 
-        long_term_goal:
-          goal.long_term_goal,
+          long_term_goal:
+            goal.long_term_goal,
 
-        short_term_goal:
-          goal.short_term_goal,
-      }),
-    );
+          short_term_goal:
+            goal.short_term_goal,
+        }),
+      )
+      .filter(
+        (goal) =>
+          goal.short_term_goal.trim() !== "",
+      );
 
   try {
     const openai =
@@ -2508,6 +2540,58 @@ export async function POST(req: NextRequest) {
       isElderCare,
       extracted,
     });
+
+    const carePlanGoalWarnings: string[] = [];
+
+    if (isElderCare) {
+      const hasLongTermGoal =
+        headerDraft.care_plan_goals.some(
+          (goal) =>
+            goal.long_term_goal.trim() !== "",
+        );
+
+      const hasShortTermGoal =
+        headerDraft.care_plan_goals.some(
+          (goal) =>
+            goal.short_term_goal.trim() !== "",
+        );
+
+      if (
+        !hasLongTermGoal &&
+        !hasShortTermGoal
+      ) {
+        carePlanGoalWarnings.push(
+          "ケアプランから長期目標・短期目標を自動抽出できませんでした。目標欄を空欄のままプラン生成を続行しました。生成後に内容をご確認ください。",
+        );
+
+        /*
+         * ケアプラン自体を取得できている場合、
+         * 目標抽出だけを理由に生成を止めない。
+         *
+         * DBの目標欄はnull/空文字を許容しているため、
+         * 空欄の1組を保存し、編集・確認できる状態にする。
+         */
+        headerDraft.care_plan_goals = [
+          {
+            long_term_goal: "",
+            long_term_goal_start_date: null,
+            long_term_goal_end_date: null,
+            short_term_goal: "",
+            short_term_goal_start_date: null,
+            short_term_goal_end_date: null,
+            source_text: "",
+          },
+        ];
+      } else if (!hasLongTermGoal) {
+        carePlanGoalWarnings.push(
+          "ケアプランから長期目標を自動抽出できませんでした。長期目標欄を空欄のままプラン生成を続行しました。生成後に内容をご確認ください。",
+        );
+      } else if (!hasShortTermGoal) {
+        carePlanGoalWarnings.push(
+          "ケアプランから短期目標を自動抽出できませんでした。短期目標欄を空欄のままプラン生成を続行しました。生成後に内容をご確認ください。",
+        );
+      }
+    }
     console.info(
       "[plans/generate] care plan goals extracted",
       {
@@ -2611,29 +2695,6 @@ export async function POST(req: NextRequest) {
         },
       },
     );
-
-    /*
-     * 介護保険プランでは、
-     * ケアプラン由来の長期・短期目標が
-     * 必ず1組以上必要。
-     */
-    if (
-      isElderCare &&
-      headerDraft.care_plan_goals.length === 0
-    ) {
-      return json(
-        {
-          ok: false,
-          error:
-            "選択したケアプランから、訪問介護に関連する長期目標・短期目標を抽出できませんでした。ケアプランの内容を確認してください。",
-          error_code:
-            "CARE_PLAN_GOALS_NOT_FOUND",
-          base_care_plan_cs_doc_id:
-            selectedCarePlan?.id ?? null,
-        },
-        422,
-      );
-    }
 
     const results: unknown[] = [];
 
@@ -3128,8 +3189,10 @@ export async function POST(req: NextRequest) {
             source:
               "plan_generation_source_view",
 
-            warnings:
-              buildWarnings(targetRows),
+            warnings: [
+              ...buildWarnings(targetRows),
+              ...carePlanGoalWarnings,
+            ],
 
             weekly_shift_context: {
               count:
@@ -3788,7 +3851,10 @@ export async function POST(req: NextRequest) {
       ok: true,
       assessment_id: a.assessment_id,
       plans: results,
-      warnings: buildWarnings(rows),
+      warnings: [
+        ...buildWarnings(rows),
+        ...carePlanGoalWarnings,
+      ],
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

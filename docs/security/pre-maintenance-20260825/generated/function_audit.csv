@@ -1,0 +1,316 @@
+function,arguments,owner,security_definer,public_execute,anon_execute,authenticated_execute,service_role_execute,referenced_tables,risk
+Update email to users,,postgres,false,true,true,true,true,form_entries|msg_lw_log|users,High
+add_meeting_shifts_eom,"p_kaipoke_cs_id text, p_minutes integer",postgres,false,true,true,true,true,shift|users,High
+add_meeting_shifts_for_month_eom_same_time,"p_target_ym text, p_kaipoke_cs_id text",postgres,false,true,true,true,true,shift|users,High
+add_office_to_fax,"p_fax_received_id bigint, p_office_id bigint, p_assigned_by character varying, p_is_primary boolean, p_register_fax_proxy boolean",postgres,false,true,true,true,true,cm_fax_received|cm_fax_received_offices|cm_kaipoke_other_office|fax,High
+add_offices_to_fax_bulk,"p_fax_received_id bigint, p_office_ids bigint[], p_assigned_by character varying",postgres,false,true,true,true,true,cm_fax_received|cm_fax_received_offices|cm_kaipoke_other_office|fax,High
+add_pages_to_document,"p_document_id bigint, p_page_ids bigint[]",postgres,false,true,true,true,true,cm_fax_document_pages|fax,High
+assign_user_to_shift,"p_shift_id bigint, p_user_id text, p_role_code text, p_accompany boolean",postgres,false,true,true,true,true,shift|shift_assign_log,High
+assign_user_to_shift_v2,"p_shift_id bigint, p_user_id text, p_role_code text, p_accompany boolean",postgres,false,true,true,true,true,shift|shift_assign_log,High
+audit_diff_cols,"old_row jsonb, new_row jsonb",postgres,false,true,true,true,true,,High
+batch_reassign_departed_staff_shifts,"p_actor_auth_id uuid, p_start_at timestamp without time zone, p_from_user_id text, p_to_user_id text",postgres,true,false,false,false,true,shift|shift_weekly_template|users,Review
+build_cs_document_json_from_cs_docs,"p_id uuid, p_url text, p_doc_name text, p_doc_date_raw timestamp with time zone, p_source text, p_summary text, p_doc_type_id uuid, p_classification_confidence integer, p_created_at timestamp with time zone, p_updated_at timestamp with time zone, p_meta jsonb",postgres,false,true,true,true,true,cs_docs,High
+cash_dist,"money, money",supabase_admin,false,true,true,true,true,,High
+classify_cs_doc_label,"p_text text, p_current_label text",postgres,false,true,true,true,true,user_doc_master,High
+cm_contract_update_updated_at,,postgres,false,true,true,true,true,,High
+cm_get_alert_stats,,postgres,true,true,true,true,true,cm_alerts,Critical
+cm_resolve_alert_by_reference,"p_kaipoke_cs_id text, p_category text, p_reference_id text, p_resolution_note text",postgres,true,false,true,true,true,cm_alerts,Critical
+cm_resolve_alerts_by_termination,"p_category text, p_resolution_note text",postgres,true,false,true,true,true,cm_alerts|cm_kaipoke_info,Critical
+cron_alert_dedupe_and_recalc,,postgres,false,true,true,true,true,alert_log,High
+cron_sync_cs_documents,,postgres,true,true,true,true,true,cs_docs|cs_kaipoke_info|user_doc_master,Critical
+dashboard_service_time_qualification_staff_rows,,postgres,true,true,true,true,true,form_entries|shift|shift_service_code|user_doc_master,Critical
+date_dist,"date, date",supabase_admin,false,true,true,true,true,,High
+deploy_weekly_template,"p_month text, p_cs_id text, p_policy text",postgres,false,true,true,true,true,shift|shift_weekly_template,High
+deploy_weekly_template_bulk,"p_month text, p_policy text",postgres,false,true,true,true,true,shift|shift_weekly_template,High
+deploy_weekly_template_bulk_test,"p_month text, p_policy text",postgres,false,true,true,true,true,shift|shift_weekly_template,High
+deploy_weekly_template_fixed_nth_only,p_month text,postgres,false,true,true,true,true,shift|shift_weekly_template,High
+deploy_weekly_template_regular_only,p_month text,postgres,false,true,true,true,true,shift|shift_weekly_template,High
+exec_sql,sql_text text,postgres,true,true,true,true,true,,Critical
+extract_doc_date_raw,p_text text,postgres,false,true,true,true,true,fax,High
+extract_drive_file_id,p_url text,postgres,false,true,true,true,true,,High
+extract_user_name_raw,p_text text,postgres,false,true,true,true,true,,High
+float4_dist,"real, real",supabase_admin,false,true,true,true,true,,High
+float8_dist,"double precision, double precision",supabase_admin,false,true,true,true,true,,High
+fn_touch_system_updated_at,,postgres,false,true,true,true,true,,High
+gbt_bit_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_bit_consistent,"internal, bit, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bit_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bit_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bit_same,"gbtreekey_var, gbtreekey_var, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bit_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bool_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_bool_consistent,"internal, boolean, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bool_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_bool_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bool_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bool_same,"gbtreekey2, gbtreekey2, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bool_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bpchar_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_bpchar_consistent,"internal, character, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bytea_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_bytea_consistent,"internal, bytea, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bytea_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bytea_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bytea_same,"gbtreekey_var, gbtreekey_var, internal",supabase_admin,false,true,true,true,true,,High
+gbt_bytea_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_cash_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_cash_consistent,"internal, money, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_cash_distance,"internal, money, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_cash_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_cash_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_cash_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_cash_same,"gbtreekey16, gbtreekey16, internal",supabase_admin,false,true,true,true,true,,High
+gbt_cash_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_date_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_date_consistent,"internal, date, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_date_distance,"internal, date, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_date_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_date_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_date_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_date_same,"gbtreekey8, gbtreekey8, internal",supabase_admin,false,true,true,true,true,,High
+gbt_date_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_decompress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_enum_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_enum_consistent,"internal, anyenum, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_enum_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_enum_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_enum_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_enum_same,"gbtreekey8, gbtreekey8, internal",supabase_admin,false,true,true,true,true,,High
+gbt_enum_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_float4_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_float4_consistent,"internal, real, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_float4_distance,"internal, real, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_float4_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_float4_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_float4_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_float4_same,"gbtreekey8, gbtreekey8, internal",supabase_admin,false,true,true,true,true,,High
+gbt_float4_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_float8_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_float8_consistent,"internal, double precision, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_float8_distance,"internal, double precision, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_float8_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_float8_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_float8_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_float8_same,"gbtreekey16, gbtreekey16, internal",supabase_admin,false,true,true,true,true,,High
+gbt_float8_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_inet_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_inet_consistent,"internal, inet, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_inet_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_inet_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_inet_same,"gbtreekey16, gbtreekey16, internal",supabase_admin,false,true,true,true,true,,High
+gbt_inet_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int2_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_int2_consistent,"internal, smallint, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int2_distance,"internal, smallint, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int2_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_int2_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int2_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int2_same,"gbtreekey4, gbtreekey4, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int2_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int4_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_int4_consistent,"internal, integer, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int4_distance,"internal, integer, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int4_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_int4_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int4_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int4_same,"gbtreekey8, gbtreekey8, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int4_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int8_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_int8_consistent,"internal, bigint, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int8_distance,"internal, bigint, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int8_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_int8_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int8_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int8_same,"gbtreekey16, gbtreekey16, internal",supabase_admin,false,true,true,true,true,,High
+gbt_int8_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_intv_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_intv_consistent,"internal, interval, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_intv_decompress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_intv_distance,"internal, interval, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_intv_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_intv_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_intv_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_intv_same,"gbtreekey32, gbtreekey32, internal",supabase_admin,false,true,true,true,true,,High
+gbt_intv_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_macad8_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_macad8_consistent,"internal, macaddr8, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_macad8_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_macad8_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_macad8_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_macad8_same,"gbtreekey16, gbtreekey16, internal",supabase_admin,false,true,true,true,true,,High
+gbt_macad8_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_macad_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_macad_consistent,"internal, macaddr, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_macad_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_macad_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_macad_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_macad_same,"gbtreekey16, gbtreekey16, internal",supabase_admin,false,true,true,true,true,,High
+gbt_macad_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_numeric_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_numeric_consistent,"internal, numeric, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_numeric_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_numeric_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_numeric_same,"gbtreekey_var, gbtreekey_var, internal",supabase_admin,false,true,true,true,true,,High
+gbt_numeric_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_oid_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_oid_consistent,"internal, oid, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_oid_distance,"internal, oid, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_oid_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_oid_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_oid_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_oid_same,"gbtreekey8, gbtreekey8, internal",supabase_admin,false,true,true,true,true,,High
+gbt_oid_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_text_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_text_consistent,"internal, text, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_text_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_text_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_text_same,"gbtreekey_var, gbtreekey_var, internal",supabase_admin,false,true,true,true,true,,High
+gbt_text_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_time_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_time_consistent,"internal, time without time zone, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_time_distance,"internal, time without time zone, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_time_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_time_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_time_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_time_same,"gbtreekey16, gbtreekey16, internal",supabase_admin,false,true,true,true,true,,High
+gbt_time_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_timetz_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_timetz_consistent,"internal, time with time zone, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_ts_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_ts_consistent,"internal, timestamp without time zone, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_ts_distance,"internal, timestamp without time zone, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_ts_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_ts_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_ts_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_ts_same,"gbtreekey16, gbtreekey16, internal",supabase_admin,false,true,true,true,true,,High
+gbt_ts_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_tstz_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_tstz_consistent,"internal, timestamp with time zone, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_tstz_distance,"internal, timestamp with time zone, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_uuid_compress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_uuid_consistent,"internal, uuid, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gbt_uuid_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbt_uuid_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_uuid_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_uuid_same,"gbtreekey32, gbtreekey32, internal",supabase_admin,false,true,true,true,true,,High
+gbt_uuid_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gbt_var_decompress,internal,supabase_admin,false,true,true,true,true,,High
+gbt_var_fetch,internal,supabase_admin,false,true,true,true,true,,High
+gbtreekey16_in,cstring,supabase_admin,false,true,true,true,true,,High
+gbtreekey16_out,gbtreekey16,supabase_admin,false,true,true,true,true,,High
+gbtreekey2_in,cstring,supabase_admin,false,true,true,true,true,,High
+gbtreekey2_out,gbtreekey2,supabase_admin,false,true,true,true,true,,High
+gbtreekey32_in,cstring,supabase_admin,false,true,true,true,true,,High
+gbtreekey32_out,gbtreekey32,supabase_admin,false,true,true,true,true,,High
+gbtreekey4_in,cstring,supabase_admin,false,true,true,true,true,,High
+gbtreekey4_out,gbtreekey4,supabase_admin,false,true,true,true,true,,High
+gbtreekey8_in,cstring,supabase_admin,false,true,true,true,true,,High
+gbtreekey8_out,gbtreekey8,supabase_admin,false,true,true,true,true,,High
+gbtreekey_var_in,cstring,supabase_admin,false,true,true,true,true,,High
+gbtreekey_var_out,gbtreekey_var,supabase_admin,false,true,true,true,true,,High
+generate_shifts_from_templates,"p_cs_id text, p_start_date date, p_end_date date",postgres,false,true,true,true,true,shift|shift_weekly_template,High
+get_candidate_clients_multi,p_office_ids bigint[],postgres,true,true,true,true,true,cm_kaipoke_info|cm_kaipoke_other_office|cm_kaipoke_service_usage,Critical
+get_client_documents,"p_kaipoke_cs_id character varying, p_limit integer, p_offset integer",postgres,false,true,true,true,true,cm_document_types|cm_fax_document_clients|cm_fax_document_pages|cm_fax_documents|cm_fax_pages|cm_fax_received|cm_kaipoke_other_office|fax,High
+get_clients_by_office,p_office_number character varying,postgres,false,true,true,true,true,cm_kaipoke_info|cm_kaipoke_service_usage,High
+get_fax_documents,p_fax_received_id bigint,postgres,false,true,true,true,true,cm_document_types|cm_fax_document_clients|cm_fax_document_pages|cm_fax_documents|cm_fax_pages|cm_kaipoke_other_office|fax,High
+get_fax_offices,p_fax_received_id bigint,postgres,false,true,true,true,true,cm_fax_received|cm_fax_received_offices|cm_kaipoke_other_office|fax,High
+get_fax_processing_status,p_fax_received_id bigint,postgres,false,true,true,true,true,cm_fax_document_pages|cm_fax_documents|cm_fax_received|fax,High
+get_foreign_keys,"target_schema text, target_table text",postgres,true,true,true,true,true,,Critical
+get_job_progress,p_job_id bigint,postgres,false,true,true,true,true,cm_job_items,High
+get_lw_channel_id,p_group_account text,postgres,true,true,true,true,true,,Critical
+get_next_job,p_queue text,postgres,false,true,true,true,true,cm_jobs,High
+get_primary_keys,"target_schema text, target_table text",postgres,true,true,true,true,true,,Critical
+get_schema_list,,postgres,true,true,true,true,true,,Critical
+get_schema_tables,target_schema text,postgres,true,true,true,true,true,,Critical
+get_sender_pattern_suggestion,"p_office_id bigint, p_fax_number character varying",postgres,false,true,true,true,true,cm_fax_sender_patterns|fax,High
+get_table_columns,"target_schema text, target_table text",postgres,true,true,true,true,true,,Critical
+gin_extract_query_trgm,"text, internal, smallint, internal, internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gin_extract_value_trgm,"text, internal",supabase_admin,false,true,true,true,true,,High
+gin_trgm_consistent,"internal, smallint, text, integer, internal, internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gin_trgm_triconsistent,"internal, smallint, text, integer, internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gtrgm_compress,internal,supabase_admin,false,true,true,true,true,,High
+gtrgm_consistent,"internal, text, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gtrgm_decompress,internal,supabase_admin,false,true,true,true,true,,High
+gtrgm_distance,"internal, text, smallint, oid, internal",supabase_admin,false,true,true,true,true,,High
+gtrgm_in,cstring,supabase_admin,false,true,true,true,true,,High
+gtrgm_options,internal,supabase_admin,false,true,true,true,true,,High
+gtrgm_out,gtrgm,supabase_admin,false,true,true,true,true,,High
+gtrgm_penalty,"internal, internal, internal",supabase_admin,false,true,true,true,true,,High
+gtrgm_picksplit,"internal, internal",supabase_admin,false,true,true,true,true,,High
+gtrgm_same,"gtrgm, gtrgm, internal",supabase_admin,false,true,true,true,true,,High
+gtrgm_union,"internal, internal",supabase_admin,false,true,true,true,true,,High
+increment_office_pattern,"p_office_id bigint, p_page_position character varying, p_doc_type_id bigint, p_is_ad boolean",postgres,false,true,true,true,true,fax,High
+int2_dist,"smallint, smallint",supabase_admin,false,true,true,true,true,,High
+int4_dist,"integer, integer",supabase_admin,false,true,true,true,true,,High
+int8_dist,"bigint, bigint",supabase_admin,false,true,true,true,true,,High
+interval_dist,"interval, interval",supabase_admin,false,true,true,true,true,,High
+lookup_office_by_fax,p_fax_number character varying,postgres,false,true,true,true,true,cm_kaipoke_other_office|fax,High
+lookup_offices_by_fax,p_fax_number character varying,postgres,false,true,true,true,true,cm_kaipoke_other_office|fax,High
+monitoring_set_updated_at,,postgres,false,true,true,true,true,,High
+normalize_jp_text,p_text text,postgres,false,true,true,true,true,,High
+normalize_shift_before_payroll,,postgres,false,true,true,true,true,shift|shift_record_items|shift_records,High
+normalize_shift_before_payroll_summary,,postgres,false,true,true,true,true,shift|shift_record_items|shift_records,High
+oid_dist,"oid, oid",supabase_admin,false,true,true,true,true,,High
+pick_best_kaipoke_cs_id,"p_name text, p_text text, p_doc_date_raw text",postgres,false,true,true,true,true,cs_kaipoke_info|end_at,High
+preview_shift_weekly_template_month,"p_month text, p_kaipoke_cs_id text, p_use_recurrence boolean",postgres,false,true,true,true,true,shift|shift_weekly_template,High
+prune_biweekly_nthweeks,"p_month text, p_cs_id text",postgres,false,true,true,true,true,shift|shift_weekly_template,High
+read_secret,secret_name text,postgres,true,false,false,false,true,,Review
+rebuild_staff_monthly_stats,"p_from date, p_to date",postgres,true,false,true,true,true,form_entries|shift|staff_monthly_stats|users,Critical
+refresh_disability_check_jisseki_staff,_base_date date,postgres,false,true,true,true,true,cs_kaipoke_info|disability_check,High
+roster_patch_shift_with_context,"p_shift_id bigint, p_date date, p_start time without time zone, p_end time without time zone, p_update_at timestamp without time zone, p_target_col text, p_staff_id text, p_actor_user_id text, p_request_path text",postgres,true,true,true,true,true,shift,Critical
+save_fax_document,"p_fax_received_id bigint, p_page_ids bigint[], p_document_type_id bigint, p_client_ids character varying[], p_client_names character varying[], p_office_id bigint, p_is_advertisement boolean, p_is_cover_sheet boolean, p_requires_response boolean, p_response_deadline date, p_assigned_by character varying, p_suggested_document_type_id bigint, p_suggested_confidence numeric",postgres,false,true,true,true,true,cm_fax_document_clients|cm_fax_document_pages|cm_fax_documents|fax,High
+save_page_order_and_rotation,"p_fax_received_id bigint, p_page_orders jsonb, p_assigned_by character varying",postgres,false,true,true,true,true,cm_fax_pages|fax,High
+search_clients,"p_query character varying, p_office_ids bigint[], p_limit integer",postgres,false,true,true,true,true,cm_kaipoke_info|cm_kaipoke_other_office|cm_kaipoke_service_usage,High
+set_audit_context,"p_user_id text, p_action text, p_trace_id text",postgres,true,true,true,true,true,,Critical
+set_dialogflow_pending_shift_requests_updated_at,,postgres,false,true,true,true,true,dialogflow_pending_shift_requests|shift,High
+set_google_calendar_updated_at,,postgres,false,true,true,true,true,,High
+set_limit,real,supabase_admin,false,true,true,true,true,,High
+set_recording_transcripts_updated_at,,postgres,false,true,true,true,true,recording_transcripts,High
+set_updated_at,,postgres,false,true,true,true,true,,High
+shift_delete_with_context,"p_shift_id bigint, p_actor_user_id text, p_request_path text",postgres,true,true,true,true,true,shift,Critical
+shift_direct_reassign,"p_shift_id bigint, p_from_user_id text, p_to_user_id text, p_actor_auth_id text, p_reason text",postgres,true,true,true,true,true,shift,Critical
+shift_direct_reassign,"p_shift_id bigint, p_from_user_id text, p_to_user_id text, p_actor_auth_id text, p_reason text, p_event_type text, p_penalty_level text",postgres,true,true,true,true,true,shift,Critical
+shift_direct_reassign,"p_shift_id bigint, p_from_user_id text, p_to_user_id text, p_reason text, p_actor_user_id uuid, p_request_path text, p_event_type text, p_penalty_level text",postgres,true,true,true,true,true,shift,Critical
+shift_direct_reassign_uuid,"p_shift_id uuid, p_from_user_id text, p_to_user_id text, p_actor_auth_id uuid, p_reason text",postgres,true,true,true,true,true,shift,Critical
+shift_fix_for_mfcloud,,postgres,false,true,true,true,true,shift|shift_record_items|shift_records,High
+shift_insert_with_context,"p_row jsonb, p_actor_user_id text, p_request_path text",postgres,true,true,true,true,true,shift,Critical
+shift_update_with_context,"p_shift_id bigint, p_patch jsonb, p_actor_user_id text, p_request_path text",postgres,true,true,true,true,true,shift,Critical
+shifts_delete_with_context,"p_shift_ids bigint[], p_actor_user_id text, p_request_path text",postgres,true,true,true,true,true,shift,Critical
+shifts_update_with_context,"p_actor_user_id text, p_patch jsonb, p_request_path text, p_shift_id bigint",postgres,true,true,true,true,true,shift,Critical
+show_limit,,supabase_admin,false,true,true,true,true,,High
+show_trgm,text,supabase_admin,false,true,true,true,true,,High
+similarity,"text, text",supabase_admin,false,true,true,true,true,,High
+similarity_dist,"text, text",supabase_admin,false,true,true,true,true,,High
+similarity_op,"text, text",supabase_admin,false,true,true,true,true,,High
+snapshot_biz_stats_defect_sum,p_year_month text,postgres,false,true,true,true,true,alert_log|biz_stats_defect_sum|orgs,High
+snapshot_biz_stats_shift_sum,p_year_month text,postgres,true,true,true,true,true,biz_stats_shift_sum|orgs|shift,Critical
+staff_retirement_review_rows,,postgres,true,false,true,true,true,form_entries|shift|users,Critical
+strict_word_similarity,"text, text",supabase_admin,false,true,true,true,true,,High
+strict_word_similarity_commutator_op,"text, text",supabase_admin,false,true,true,true,true,,High
+strict_word_similarity_dist_commutator_op,"text, text",supabase_admin,false,true,true,true,true,,High
+strict_word_similarity_dist_op,"text, text",supabase_admin,false,true,true,true,true,,High
+strict_word_similarity_op,"text, text",supabase_admin,false,true,true,true,true,,High
+submit_entry_application,"p_submission_id uuid, p_payload jsonb",postgres,true,false,true,true,true,entry_attachments|form_entries|phone,Critical
+sync_cs_docs_to_kaipoke_documents,,postgres,true,true,true,true,true,cs_docs|cs_kaipoke_info,Critical
+time_dist,"time without time zone, time without time zone",supabase_admin,false,true,true,true,true,,High
+trg_audit_shift_min,,postgres,true,true,true,true,true,audit_error_log|audit_log|shift,Critical
+ts_dist,"timestamp without time zone, timestamp without time zone",supabase_admin,false,true,true,true,true,,High
+tstz_dist,"timestamp with time zone, timestamp with time zone",supabase_admin,false,true,true,true,true,,High
+update_cm_contract_templates_updated_at,,postgres,false,true,true,true,true,cm_contract_templates,High
+update_cm_jobs_updated_at,,postgres,false,true,true,true,true,cm_jobs,High
+update_cm_prompt_templates_updated_at,,postgres,false,true,true,true,true,cm_prompt_templates,High
+update_local_fax_phonebook_updated_at,,postgres,false,true,true,true,true,fax|phone,High
+update_other_office_fax_normalized,,postgres,false,true,true,true,true,fax,High
+update_plaud_sum_processing_updated_at,,postgres,false,true,true,true,true,,High
+update_sender_pattern,"p_office_id bigint, p_fax_number character varying, p_sender_name character varying, p_page_count integer, p_is_reversed boolean, p_rotation_data jsonb",postgres,false,true,true,true,true,cm_fax_sender_patterns|fax,High
+update_updated_at_column,,postgres,false,true,true,true,true,,High
+update_users_from_lw_temp,,postgres,false,true,true,true,true,users|users_lw_temp,High
+upsert_text_pattern,"p_pattern_text character varying, p_pattern_type character varying, p_kaipoke_cs_id character varying, p_client_name character varying",postgres,false,true,true,true,true,fax,High
+wf_is_admin,,postgres,true,false,true,true,true,,Critical
+wf_is_approver,,postgres,true,false,true,true,true,,Critical
+wf_my_user_id,,postgres,true,false,true,true,true,users,Critical
+word_similarity,"text, text",supabase_admin,false,true,true,true,true,,High
+word_similarity_commutator_op,"text, text",supabase_admin,false,true,true,true,true,,High
+word_similarity_dist_commutator_op,"text, text",supabase_admin,false,true,true,true,true,,High
+word_similarity_dist_op,"text, text",supabase_admin,false,true,true,true,true,,High
+word_similarity_op,"text, text",supabase_admin,false,true,true,true,true,,High

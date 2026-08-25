@@ -1,17 +1,19 @@
 //api/cron/refreshAccessToken
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { assertCronAuth } from '@/lib/cron/auth';
 import { refreshAccessToken } from '@/lib/lineworks/refreshAccessToken'; // ← 修正ここ
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const accessToken = await refreshAccessToken();
-    console.log('[✅アクセストークン]', accessToken);
-    return NextResponse.json({ access_token: accessToken });
+    assertCronAuth(req);
+    await refreshAccessToken();
+    return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('❌ 手動トークン更新失敗:', err);
+    const unauthorized = err instanceof Error && err.message === 'Unauthorized';
     return NextResponse.json(
-      { error: 'アクセストークン更新失敗', detail: String(err) },
-      { status: 500 }
+      { error: unauthorized ? 'unauthorized_cron' : 'アクセストークン更新失敗' },
+      { status: unauthorized ? 401 : 500 }
     );
   }
 }
