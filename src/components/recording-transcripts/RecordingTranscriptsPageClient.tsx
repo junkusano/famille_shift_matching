@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 import {
   type RecordingTranscriptDetail,
   type RecordingTranscriptFilters,
@@ -13,8 +14,10 @@ import {
 
 type Props = {
   basePath: string;
-  data: RecordingTranscriptsPageData;
+  data: RecordingTranscriptsPageData | null;
   filters: RecordingTranscriptFilters;
+  page: number;
+  perPage: number;
   portal: RecordingTranscriptPortal;
 };
 
@@ -214,25 +217,118 @@ function DetailModal({
   );
 }
 
-export default function RecordingTranscriptsPageClient({ basePath, data, filters, portal }: Props) {
+export default function RecordingTranscriptsPageClient({ basePath, data, filters, page, perPage, portal }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<RecordingTranscriptDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [loadedData, setLoadedData] = useState<RecordingTranscriptsPageData | null>(data);
+  const [listLoading, setListLoading] = useState(data === null);
+  const [listError, setListError] = useState<string | null>(null);
 
-  const totalPages = Math.max(1, Math.ceil(data.totalCount / data.perPage));
-  const rangeStart = data.totalCount === 0 ? 0 : (data.page - 1) * data.perPage + 1;
-  const rangeEnd = Math.min(data.page * data.perPage, data.totalCount);
-  const pageLabel = `全 ${data.totalCount.toLocaleString()} 件中 ${rangeStart.toLocaleString()}-${rangeEnd.toLocaleString()} 件`;
+  useEffect(() => {
+    if (data) {
+      setLoadedData(data);
+      setListError(null);
+      setListLoading(false);
+      return;
+    }
+
+    let active = true;
+    const load = async () => {
+      setListLoading(true);
+      setListError(null);
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) {
+          window.location.assign("/login");
+          return;
+        }
+
+        const url = new URL("/api/recording-transcripts", window.location.origin);
+        url.searchParams.set("portal", portal);
+        url.searchParams.set("page", String(page));
+        url.searchParams.set("perPage", String(perPage));
+        const filterEntries: Array<[string, string | null | undefined]> = [
+          ["date_from", filters.dateFrom],
+          ["date_to", filters.dateTo],
+          ["recorder_user_id", filters.recorderUserId],
+          ["client_name", filters.clientName],
+          ["client_id", filters.clientId],
+          ["context_name", filters.contextName],
+          ["status", filters.status],
+          ["keyword", filters.keyword],
+        ];
+        for (const [key, value] of filterEntries) if (value) url.searchParams.set(key, value);
+
+        const response = await fetch(url, {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.status === 401) {
+          window.location.assign("/login");
+          return;
+        }
+        if (response.status === 403) {
+          window.location.assign("/unauthorized");
+          return;
+        }
+        const payload = (await response.json().catch(() => null)) as
+          | { ok: true; data: RecordingTranscriptsPageData }
+          | { ok: false; error: string }
+          | null;
+        if (!response.ok || !payload || payload.ok !== true) {
+          throw new Error(payload && "error" in payload ? payload.error : "一覧を取得できませんでした");
+        }
+        if (active) setLoadedData(payload.data);
+      } catch (error) {
+        if (active) setListError(error instanceof Error ? error.message : "一覧を取得できませんでした");
+      } finally {
+        if (active) setListLoading(false);
+      }
+    };
+
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [
+    data,
+    filters.clientId,
+    filters.clientName,
+    filters.contextName,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.keyword,
+    filters.recorderUserId,
+    filters.status,
+    page,
+    perPage,
+    portal,
+  ]);
+
+  const viewData: RecordingTranscriptsPageData = loadedData ?? {
+    rows: [],
+    recorderOptions: [],
+    totalCount: 0,
+    page,
+    perPage,
+  };
+
+  const totalPages = Math.max(1, Math.ceil(viewData.totalCount / viewData.perPage));
+  const rangeStart = viewData.totalCount === 0 ? 0 : (viewData.page - 1) * viewData.perPage + 1;
+  const rangeEnd = Math.min(viewData.page * viewData.perPage, viewData.totalCount);
+  const pageLabel = `全 ${viewData.totalCount.toLocaleString()} 件中 ${rangeStart.toLocaleString()}-${rangeEnd.toLocaleString()} 件`;
   const title = portal === "caremanager" ? "famille Voice 文字起こし管理" : "famille Voice 文字起こし";
 
   const recorderOptions = useMemo(
     () =>
-      data.recorderOptions.map((option) => ({
+      viewData.recorderOptions.map((option) => ({
         ...option,
         display: option.email ? `${option.label}（${option.email}）` : option.label,
       })),
-    [data.recorderOptions],
+    [viewData.recorderOptions],
   );
 
   const openDetail = async (row: RecordingTranscriptListRow) => {
@@ -241,10 +337,27 @@ export default function RecordingTranscriptsPageClient({ basePath, data, filters
     setDetailError(null);
     setDetailLoading(true);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        window.location.assign("/login");
+        return;
+      }
       const response = await fetch(
         `/api/recording-transcripts/${encodeURIComponent(row.id)}?portal=${portal}`,
-        { cache: "no-store" },
+        {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
+      if (response.status === 401) {
+        window.location.assign("/login");
+        return;
+      }
+      if (response.status === 403) {
+        window.location.assign("/unauthorized");
+        return;
+      }
       const payload = (await response.json().catch(() => null)) as
         | { ok: true; detail: RecordingTranscriptDetail }
         | { ok: false; error: string }
@@ -267,9 +380,12 @@ export default function RecordingTranscriptsPageClient({ basePath, data, filters
         <p className="mt-1 text-sm text-slate-600">所属サービスの職員が録音した文字起こしを確認できます。</p>
       </div>
 
+      {listError && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{listError}</p>}
+      {listLoading && !loadedData && <p className="rounded-lg border bg-white p-6 text-center text-sm text-slate-500">文字起こし一覧を読み込んでいます...</p>}
+
       <form action={basePath} className="space-y-3 rounded-xl border bg-white p-4 shadow-sm" method="get">
         <input name="page" type="hidden" value="1" />
-        <input name="perPage" type="hidden" value={data.perPage} />
+        <input name="perPage" type="hidden" value={viewData.perPage} />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="text-sm"><span className="mb-1 block text-xs font-medium text-slate-600">フリーワード</span><input className="w-full rounded-md border px-3 py-2" defaultValue={filters.keyword ?? ""} name="keyword" placeholder="利用者・コンテキスト・本文など" /></label>
           <label className="text-sm"><span className="mb-1 block text-xs font-medium text-slate-600">録音者</span><select className="w-full rounded-md border bg-white px-3 py-2" defaultValue={filters.recorderUserId ?? ""} name="recorder_user_id"><option value="">すべて</option>{recorderOptions.map((option) => <option key={option.value} value={option.value}>{option.display}</option>)}</select></label>
@@ -287,12 +403,12 @@ export default function RecordingTranscriptsPageClient({ basePath, data, filters
       </form>
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-        <span className="text-slate-600">{pageLabel} / {data.page}ページ（全{totalPages}ページ）</span>
+        <span className="text-slate-600">{pageLabel} / {viewData.page}ページ（全{totalPages}ページ）</span>
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500">表示件数</span>
-          {[20, 50, 100].map((size) => <Link className={`rounded border px-2 py-1 text-xs ${data.perPage === size ? "bg-slate-800 text-white" : "bg-white hover:bg-slate-50"}`} href={buildPageHref(basePath, filters, 1, size)} key={size}>{size}</Link>)}
-          <Link aria-disabled={data.page <= 1} className={`rounded border px-3 py-1.5 ${data.page <= 1 ? "pointer-events-none opacity-40" : "bg-white hover:bg-slate-50"}`} href={buildPageHref(basePath, filters, data.page - 1, data.perPage)}>前へ</Link>
-          <Link aria-disabled={data.page >= totalPages} className={`rounded border px-3 py-1.5 ${data.page >= totalPages ? "pointer-events-none opacity-40" : "bg-white hover:bg-slate-50"}`} href={buildPageHref(basePath, filters, data.page + 1, data.perPage)}>次へ</Link>
+          {[20, 50, 100].map((size) => <Link className={`rounded border px-2 py-1 text-xs ${viewData.perPage === size ? "bg-slate-800 text-white" : "bg-white hover:bg-slate-50"}`} href={buildPageHref(basePath, filters, 1, size)} key={size}>{size}</Link>)}
+          <Link aria-disabled={viewData.page <= 1} className={`rounded border px-3 py-1.5 ${viewData.page <= 1 ? "pointer-events-none opacity-40" : "bg-white hover:bg-slate-50"}`} href={buildPageHref(basePath, filters, viewData.page - 1, viewData.perPage)}>前へ</Link>
+          <Link aria-disabled={viewData.page >= totalPages} className={`rounded border px-3 py-1.5 ${viewData.page >= totalPages ? "pointer-events-none opacity-40" : "bg-white hover:bg-slate-50"}`} href={buildPageHref(basePath, filters, viewData.page + 1, viewData.perPage)}>次へ</Link>
         </div>
       </div>
 
@@ -300,14 +416,14 @@ export default function RecordingTranscriptsPageClient({ basePath, data, filters
         <table className="min-w-[1750px] w-full text-left text-xs">
           <thead className="bg-slate-100 text-slate-700"><tr><th className="px-3 py-3">録音日時</th><th className="px-3 py-3">録音者</th><th className="px-3 py-3">メール</th><th className="px-3 py-3">利用者</th><th className="px-3 py-3">利用者ID</th><th className="px-3 py-3">コンテキスト</th><th className="px-3 py-3">録音時間</th><th className="px-3 py-3">ファイル名</th><th className="px-3 py-3">サイズ</th><th className="px-3 py-3">状態</th><th className="px-3 py-3">参加者</th><th className="px-3 py-3">完了日時</th><th className="px-3 py-3">作成日時</th><th className="px-3 py-3">詳細</th></tr></thead>
           <tbody className="divide-y">
-            {data.rows.map((row) => (
+            {viewData.rows.map((row) => (
               <tr className="cursor-pointer hover:bg-sky-50" key={row.id} onClick={() => openDetail(row)}>
                 <td className="whitespace-nowrap px-3 py-3 font-medium">{formatDateTime(row.recorded_at)}</td><td className="whitespace-nowrap px-3 py-3">{row.recorder_name}</td><td className="max-w-64 break-all px-3 py-3">{row.recorder_email ?? "－"}</td><td className="px-3 py-3">{row.client_name ?? "－"}</td><td className="px-3 py-3">{row.client_id ?? "－"}</td><td className="px-3 py-3">{row.context_name ?? "－"}</td><td className="whitespace-nowrap px-3 py-3">{formatDuration(row.duration_millis)}</td><td className="max-w-64 break-all px-3 py-3">{row.file_name}</td><td className="whitespace-nowrap px-3 py-3">{formatFileSize(row.file_size_bytes)}</td><td className="px-3 py-3"><StatusBadge status={row.transcript_status} /></td><td className="max-w-64 px-3 py-3"><ParticipantsSummary value={row.participants} /></td><td className="whitespace-nowrap px-3 py-3">{formatDateTime(row.transcribed_at)}</td><td className="whitespace-nowrap px-3 py-3">{formatDateTime(row.created_at)}</td><td className="px-3 py-3"><button className="rounded border bg-white px-3 py-1.5 font-medium text-sky-700 hover:bg-sky-50" onClick={(event) => { event.stopPropagation(); openDetail(row); }} type="button">確認</button></td>
               </tr>
             ))}
           </tbody>
         </table>
-        {data.rows.length === 0 && <div className="p-12 text-center text-sm text-slate-500">条件に一致する文字起こしはありません。</div>}
+        {!listLoading && viewData.rows.length === 0 && <div className="p-12 text-center text-sm text-slate-500">条件に一致する文字起こしはありません。</div>}
       </div>
 
       {selectedId && <DetailModal detail={detail} error={detailError} loading={detailLoading} onClose={() => { setSelectedId(null); setDetail(null); setDetailError(null); }} />}

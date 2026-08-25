@@ -1,6 +1,7 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/service";
 import {
   getRecordingTranscriptDetail,
   isRecordingTranscriptPortal,
@@ -19,15 +20,18 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "Portalの指定が不正です" }, { status: 400 });
   }
 
-  const auth = createRouteHandlerClient({ cookies });
-  const { data, error } = await auth.auth.getUser();
-  if (error || !data.user) {
+  const authorization = request.headers.get("authorization") ?? "";
+  const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
+  const auth = token
+    ? await supabaseAdmin.auth.getUser(token)
+    : await createRouteHandlerClient({ cookies }).auth.getUser();
+  if (auth.error || !auth.data.user) {
     return NextResponse.json({ ok: false, error: "ログインしてください" }, { status: 401 });
   }
 
   try {
     const { id } = await params;
-    const detail = await getRecordingTranscriptDetail(data.user.id, portalParam, id);
+    const detail = await getRecordingTranscriptDetail(auth.data.user.id, portalParam, id);
     if (!detail) {
       // 他サービスのIDを指定した場合も存在を漏らさず404にする。
       return NextResponse.json({ ok: false, error: "文字起こしが見つかりません" }, { status: 404 });

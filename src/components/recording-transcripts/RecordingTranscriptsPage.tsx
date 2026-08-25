@@ -1,8 +1,4 @@
-import { redirect } from "next/navigation";
 import {
-  getCurrentAuthUserId,
-  getRecordingTranscriptsPageData,
-  RecordingTranscriptAccessError,
   type RecordingTranscriptFilters,
   type RecordingTranscriptPortal,
 } from "@/lib/recording-transcripts";
@@ -36,7 +32,7 @@ function positiveInteger(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
-export default async function RecordingTranscriptsPage({ portal, basePath, searchParams }: Props) {
+export default function RecordingTranscriptsPage({ portal, basePath, searchParams }: Props) {
   const filters: RecordingTranscriptFilters = {
     dateFrom: text(searchParams?.date_from) || null,
     dateTo: text(searchParams?.date_to) || null,
@@ -48,26 +44,17 @@ export default async function RecordingTranscriptsPage({ portal, basePath, searc
     keyword: text(searchParams?.keyword) || null,
   };
 
-  try {
-    const authUserId = await getCurrentAuthUserId();
-    const data = await getRecordingTranscriptsPageData(authUserId, portal, {
-      ...filters,
-      page: positiveInteger(searchParams?.page, 1),
-      perPage: positiveInteger(searchParams?.perPage, 50),
-    });
+  const page = positiveInteger(searchParams?.page, 1);
+  const perPage = positiveInteger(searchParams?.perPage, 50);
 
-    return (
-      <RecordingTranscriptsPageClient
-        basePath={basePath}
-        data={data}
-        filters={filters}
-        portal={portal}
-      />
-    );
-  } catch (error) {
-    if (error instanceof RecordingTranscriptAccessError) {
-      redirect(error.status === 401 ? "/login" : "/unauthorized");
-    }
-    throw error;
-  }
+  return (
+    <RecordingTranscriptsPageClient
+      basePath={basePath}
+      data={null}
+      filters={filters}
+      page={page}
+      perPage={perPage}
+      portal={portal}
+    />
+  );
 }
