@@ -112,14 +112,14 @@ const managerMenuGroups: MenuGroup[] = [
   ]},
   { label: "利用者管理", icon: "👤", items: [{ label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "利用者担当管理", href: "/portal/assign_matome" }, { label: "利用者書類一覧", href: "/portal/cs_docs" }, { label: "famille Voice 文字起こし", href: "/portal/recording-transcripts" }] },
   { label: "モニタリング", icon: "📝", items: [{ label: "モニタリング「事業所より」設定", href: "/portal/admin/monitoring-office-notice" }] },
-  { label: "シフト管理", icon: "📅", items: [{ label: "サービスコード管理", href: "/portal/shift-service-code" }, { label: "訪問記録定義", href: "/portal/shift-record-def" }, { label: "週間シフト", href: "/portal/roster/weekly" }, { label: "月間シフト", href: "/portal/roster/monthly" }, { label: "祝日シフト確認", href: "/portal/roster/holiday-shifts" }, { label: "シフト表", href: "/portal/roster/daily" }, { label: "シフトWish", href: "/portal/shift-wish" }, { label: "シフト・勤務一覧", href: "/portal/shift-view" }, { label: "シフト・訪問記録", href: "/portal/shift" }, { label: "実績記録チェック", href: "/portal/disability-check" }] },
+  { label: "シフト管理", icon: "📅", items: [{ label: "サービスコード管理", href: "/portal/shift-service-code" }, { label: "訪問記録定義", href: "/portal/shift-record-def" }, { label: "週間シフト", href: "/portal/roster/weekly" }, { label: "月間シフト", href: "/portal/roster/monthly" }, { label: "祝日シフト確認", href: "/portal/roster/holiday-shifts" }, { label: "シフト表", href: "/portal/roster/daily" }, { label: "シフトWish", href: "/portal/shift-wish" }, { label: "シフト・勤務一覧", href: "/portal/shift-view" }, { label: "シフト・訪問記録", href: "/portal/shift" }, { label: "実績記録チェック", href: "/portal/disability-check", secondary: { label: "β版", href: "/portal/disability-check-beta", beta: true } }] },
   { label: "応募者管理", icon: "👥", items: [{ label: "エントリー一覧", href: "/portal/entry-list" }, { label: "スポット募集管理", href: "/portal/spot-offer-template" }, { label: "Re-entry募集", href: "/portal/admin/re-entry-recruitment" }, { label: "タイミー応募者管理", href: "/portal/taimee-applicants" }, { label: "タイミーリスト", href: "/portal/taimee-emp" }, { label: "タイミー求人設定", href: "/portal/admin/taimee-job-settings" }, { label: "スキマバイト経費精算", href: "/portal/expense-claims" }] },
   { label: "FAX", icon: "📠", items: [{ label: "fax送信", href: "/portal/fax-sending" }, { label: "fax送信履歴", href: "/portal/fax-history" }, { label: "fax電話帳", href: "/portal/fax" }] },
 ];
 
 const commonMenuGroups = (currentYm: string): MenuGroup[] => [
   { label: "人事・労務", icon: "👔", items: [{ label: "ポータルHome", href: "/portal" }, { label: "給与明細", href: "/portal/user_salary_monthly" }, { label: "処遇決定通知書", href: "/portal/notification-determination" }, { label: "健康診断結果", href: "/portal/health-check-results" }, { label: "月例会議参加チェック", href: `/portal/monthly-meeting-check?ym=${currentYm}` }, { label: "お弁当アンケート", href: "/portal/bento" }, { label: "駐車許可証申請", href: "/portal/parking_cs_places" }, { label: "目標・研修・評価", href: "/portal/training-goals" }, { label: "清算・申請", href: "/portal/wf-seisan-shinsei" }, { label: "日払い申請フォーム", href: "/portal/user_advance_payment_applications" }, { label: "職員証", href: "/portal/badge" }] },
-  { label: "シフト", icon: "🕒", items: [{ label: "シフト・勤務一覧", href: "/portal/shift-view" }, { label: "シフト・訪問記録", href: "/portal/shift", secondary: { label: "β版", href: "/portal/shift-reject-performance-test", beta: true } }, { label: "シフトセルフコーディネート（シフ子）", href: "/portal/shift-coordinate", secondary: { label: "β版", href: "/portal/shift-coordinate-performance-test", beta: true } }, { label: "実績記録チェック", href: "/portal/disability-check" }, { label: "実績記録票", href: "/portal/disability-check", secondary: { label: "β版", href: "/portal/disability-check-beta", beta: true } }] },
+  { label: "シフト", icon: "🕒", items: [{ label: "シフト・勤務一覧", href: "/portal/shift-view" }, { label: "シフト・訪問記録", href: "/portal/shift", secondary: { label: "β版", href: "/portal/shift-reject-performance-test", beta: true } }, { label: "シフトセルフコーディネート（シフ子）", href: "/portal/shift-coordinate", secondary: { label: "β版", href: "/portal/shift-coordinate-performance-test", beta: true } }, { label: "実績記録チェック", href: "/portal/disability-check", secondary: { label: "β版", href: "/portal/disability-check-beta", beta: true } }] },
 ];
 
 function isActiveLink(href: string, pathname: string, searchParams: ReturnType<typeof useSearchParams>) {
@@ -242,10 +242,10 @@ function LegacyMenu({ role }: { role: string | null }) {
           目標・研修・評価
         </Link>
       </li>
-      <li><Link href="/portal/disability-check" className="text-blue-300 hover:underline">実績記録チェック</Link></li>
-      <li>
+      <li className="flex items-center gap-2">
+        <Link href="/portal/disability-check" className="text-blue-300 hover:underline">実績記録チェック</Link>
         <Link href="/portal/disability-check-beta" className="inline-flex items-center gap-2 text-blue-200 hover:underline">
-          <span>実績記録票 β版</span>
+          <span>β版</span>
           <span className="rounded-full bg-amber-300/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-200">BETA</span>
         </Link>
       </li>
@@ -318,7 +318,7 @@ function TreeMenu({ role, onUseLegacy }: { role: string | null; onUseLegacy: () 
   const isManagerOrAdmin = ["manager", "admin"].includes((role ?? "").trim().toLowerCase());
   const currentYm = getCurrentYmJst();
   const managerFrequentItems: MenuItem[] = [{ label: "ダッシュボード", href: "/portal/dashboard" }, { label: "エントリー一覧", href: "/portal/entry-list" }, { label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "シフト表", href: "/portal/roster/daily" }, { label: "月間シフト", href: "/portal/roster/monthly" }];
-  const commonFrequentItems: MenuItem[] = [{ label: "ポータルHome", href: "/portal" }, { label: "シフト・訪問記録", href: "/portal/shift", secondary: { label: "β版", href: "/portal/shift-reject-performance-test", beta: true } }, { label: "シフ子", href: "/portal/shift-coordinate", secondary: { label: "β版", href: "/portal/shift-coordinate-performance-test", beta: true } }, { label: "実績記録票", href: "/portal/disability-check", secondary: { label: "β版", href: "/portal/disability-check-beta", beta: true } }, { label: "職員証", href: "/portal/badge" }];
+  const commonFrequentItems: MenuItem[] = [{ label: "ポータルHome", href: "/portal" }, { label: "シフト・訪問記録", href: "/portal/shift", secondary: { label: "β版", href: "/portal/shift-reject-performance-test", beta: true } }, { label: "シフ子", href: "/portal/shift-coordinate", secondary: { label: "β版", href: "/portal/shift-coordinate-performance-test", beta: true } }, { label: "実績記録チェック", href: "/portal/disability-check", secondary: { label: "β版", href: "/portal/disability-check-beta", beta: true } }, { label: "職員証", href: "/portal/badge" }];
   return <nav className="mt-5 space-y-4" aria-label="ポータルメニュー">
     <div className="rounded-lg border border-sky-300/25 bg-sky-950/25 p-2">
       <h3 className="px-2 pb-1 text-xs font-bold tracking-wide text-sky-200">よく使うメニュー</h3>

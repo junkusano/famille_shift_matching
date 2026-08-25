@@ -286,7 +286,7 @@ export default function BulkPrintPage() {
         return () => window.clearTimeout(t);
     }, [loading, error, datas.length, didAutoPrint]);
 
-    if (loading) return <div>読み込み中...</div>;
+    if (loading) return <div>PDFを生成しています...</div>;
 
     if (error) {
         return (
@@ -298,7 +298,7 @@ export default function BulkPrintPage() {
 
     return (
         <div className="beta-jisseki-print-page print-root">
-            {/* bulk でも /print と同じ見た目・余白に寄せる */}
+            {/* 単票と同じ印刷CSSを使い、帳票本体も同じコンポーネントで描画する。 */}
             <JissekiPrintGlobalStyles mode="single" />
 
             <div className="no-print p-3 border-b flex items-center gap-2 bg-white">
@@ -310,10 +310,10 @@ export default function BulkPrintPage() {
 
             {/* 印刷対象 */}
             <div className="print-only">
-                {datas.map((d, i) => {
+                {datas.map((d) => {
                     const key = `${d.client.kaipoke_cs_id}-${d.month}`;
                     return (
-                        <div key={key} className={i === 0 ? "" : "page-break"}>
+                        <div key={key} className="beta-print-client">
                             {/* ★重要：print-only を二重にしない */}
                             <JissekiPrintBody data={d} wrapPrintOnly={false} />
                         </div>

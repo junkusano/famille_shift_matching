@@ -127,6 +127,9 @@ const DisabilityCheckPage: React.FC = () => {
   // ★追加：未チェック絞り込み
   const [checkFilter, setCheckFilter] = useState<string>("");
   const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
+  const [selectedClientIds, setSelectedClientIds] = useState<Set<string>>(new Set());
+  const [bulkPrintMessage, setBulkPrintMessage] = useState<string>("");
+  const [isOpeningBulkPrint, setIsOpeningBulkPrint] = useState(false);
 
   // ★追加：member 判定（manager/admin 以外はすべて member）
   const isMember = !(isManager || isAdmin);
@@ -439,15 +442,26 @@ const DisabilityCheckPage: React.FC = () => {
     return out;
   }, [sortedRecords]);
 
-  // ★追加：一括印刷対象（表示中の利用者を重複なしで集める）
-  const bulkClientIds = useMemo(() => {
-    const set = new Set<string>();
-    filteredRecords.forEach((r) => {
-      const id = normCsId(r.kaipoke_cs_id);
-      if (id) set.add(id);
+  const visibleClientIds = useMemo(
+    () => uniqueFilteredRecords.map((r) => normCsId(r.kaipoke_cs_id)).filter(Boolean),
+    [uniqueFilteredRecords]
+  );
+  const visibleClientIdSet = useMemo(() => new Set(visibleClientIds), [visibleClientIds]);
+  const selectedVisibleClientIds = useMemo(
+    () => visibleClientIds.filter((id) => selectedClientIds.has(id)),
+    [visibleClientIds, selectedClientIds]
+  );
+  const allVisibleSelected =
+    visibleClientIds.length > 0 && selectedVisibleClientIds.length === visibleClientIds.length;
+
+  // フィルターや月を変えた際、画面に見えない利用者を印刷対象へ残さない。
+  useEffect(() => {
+    setSelectedClientIds((previous) => {
+      const next = new Set(Array.from(previous).filter((id) => visibleClientIdSet.has(id)));
+      if (next.size === previous.size) return previous;
+      return next;
     });
-    return Array.from(set);
-  }, [filteredRecords]);
+  }, [visibleClientIdSet]);
 
   // ★件数・表示中は「実際に表示している行（=1人1行）」に揃える
   const totalCount = uniqueFilteredRecords.length;     // 件数
@@ -824,11 +838,34 @@ const DisabilityCheckPage: React.FC = () => {
     }
   };
 
-  // ★追加：表示中（=担当分）の利用者をまとめて一括印刷
+  const handleSelectAllVisible = (checked: boolean) => {
+    setBulkPrintMessage("");
+    setSelectedClientIds(checked ? new Set(visibleClientIds) : new Set());
+  };
+
+  const handleClientPrintSelection = (clientId: string, checked: boolean) => {
+    setBulkPrintMessage("");
+    setSelectedClientIds((previous) => {
+      const next = new Set(previous);
+      if (checked) next.add(clientId);
+      else next.delete(clientId);
+      return next;
+    });
+  };
+
+  // β版専用：画面上で明示的に選択された利用者だけをまとめて印刷する。
   const handleBulkPrint = () => {
+    if (selectedVisibleClientIds.length === 0) {
+      setBulkPrintMessage("印刷する利用者を選択してください。");
+      return;
+    }
+    if (isOpeningBulkPrint) return;
+
+    setBulkPrintMessage("");
+    setIsOpeningBulkPrint(true);
     const payload = {
       month: yearMonth,
-      clientIds: bulkClientIds,
+      clientIds: selectedVisibleClientIds,
     };
 
     localStorage.setItem("jisseki_beta_bulk_print", JSON.stringify(payload));
@@ -838,6 +875,8 @@ const DisabilityCheckPage: React.FC = () => {
       "_blank",
       "noopener,noreferrer"
     );
+
+    window.setTimeout(() => setIsOpeningBulkPrint(false), 1000);
   };
 
   // ★追加：検索条件をデフォルトに戻す
@@ -1089,28 +1128,33 @@ const DisabilityCheckPage: React.FC = () => {
         <span>回収済：{checkedCount}</span>
       </div>
 
-      {/* ★追加：admin, manager, member 向け 一括印刷ボタン */}
-      {(isAdmin || isManager || !(isManager || isAdmin)) && (
-        <div style={{ marginBottom: 12 }}>
+      {/* β版専用：チェックされた利用者だけを一括印刷 */}
+      <div style={{ marginBottom: 12 }}>
           <button
             type="button"
             onClick={handleBulkPrint}
-            disabled={bulkClientIds.length === 0}
+            disabled={isOpeningBulkPrint}
             style={{
               padding: "8px 12px",
               border: "1px solid #999",
               borderRadius: 6,
-              background: bulkClientIds.length ? "#fff" : "#f5f5f5",
-              cursor: bulkClientIds.length ? "pointer" : "not-allowed",
+              background: isOpeningBulkPrint ? "#f5f5f5" : "#fff",
+              cursor: isOpeningBulkPrint ? "wait" : "pointer",
             }}
           >
-            担当分を一括印刷（{bulkClientIds.length}名）
+            {isOpeningBulkPrint
+              ? "印刷画面を開いています..."
+              : `選択した利用者を一括印刷（${selectedVisibleClientIds.length}名）`}
           </button>
           <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-            表示中の担当利用者をまとめて印刷します（別タブで印刷画面が開きます）
+            チェックした利用者だけを、表示中の年月で印刷します（別タブで印刷画面が開きます）
           </div>
-        </div>
-      )}
+          {bulkPrintMessage && (
+            <div role="alert" style={{ fontSize: 13, color: "#b91c1c", marginTop: 4 }}>
+              {bulkPrintMessage}
+            </div>
+          )}
+      </div>
 
       {/* 名前検索（一覧取得済みデータをフロント側で部分一致絞り込み） */}
       <div style={{ marginBottom: 10 }}>
@@ -1301,6 +1345,18 @@ const DisabilityCheckPage: React.FC = () => {
         <table className={styles.recordsTable}>
           <thead>
             <tr>
+              <th className={styles.checkColumn}>
+                <label className={styles.checkControl}>
+                  <span className={styles.srOnly}>表示中の利用者を全選択</span>
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    disabled={visibleClientIds.length === 0}
+                    onChange={(e) => handleSelectAllVisible(e.target.checked)}
+                  />
+                </label>
+                <span style={{ display: "block", fontSize: 11 }}>全選択</span>
+              </th>
               <th
                 className={styles.checkColumn}
                 onClick={() => toggleSort("is_submitted")}
@@ -1396,7 +1452,7 @@ const DisabilityCheckPage: React.FC = () => {
           <tbody>
           {uniqueFilteredRecords.length === 0 ? (
             <tr>
-              <td colSpan={9} style={{ padding: 24, textAlign: "center", color: "#666" }}>
+              <td colSpan={10} style={{ padding: 24, textAlign: "center", color: "#666" }}>
                 条件に一致する利用者はいません。検索条件を確認するか、「クリア」を押してください。
               </td>
             </tr>
@@ -1408,6 +1464,16 @@ const DisabilityCheckPage: React.FC = () => {
                 className="group hover:bg-yellow-50"
                 style={{ verticalAlign: "middle" }}
               >
+                <td className={styles.checkColumn}>
+                  <label className={styles.checkControl}>
+                    <span className={styles.srOnly}>印刷対象（{r.client_name}）</span>
+                    <input
+                      type="checkbox"
+                      checked={selectedClientIds.has(key)}
+                      onChange={(e) => handleClientPrintSelection(key, e.target.checked)}
+                    />
+                  </label>
+                </td>
                 {/* 提出・回収はスマホで最初に操作できるよう先頭に配置 */}
                 <td className={styles.checkColumn}>
                   <label className={styles.checkControl}>

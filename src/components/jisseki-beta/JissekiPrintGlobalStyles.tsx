@@ -222,10 +222,13 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
           page-break-after: auto;
           page-break-inside: avoid;
         }
-        body.beta-jisseki-print-active .print-page + .print-page,
-        body.beta-jisseki-print-active .print-only > .page-break {
+        body.beta-jisseki-print-active .print-page + .print-page {
           break-before: page;
           page-break-before: always;
+        }
+        body.beta-jisseki-print-active .beta-print-client:not(:last-child) {
+          break-after: page;
+          page-break-after: always;
         }
 
         body.beta-jisseki-print-active .print-scale {
