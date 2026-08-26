@@ -10125,6 +10125,9 @@ export type Database = {
           orgunitname: string
           previous_month_service_hours: number
           rank_no: number | null
+          renewal_incomplete_count: number
+          renewal_incomplete_details: Json
+          renewal_score: number
           service_hours: number
           service_hours_base_score: number
           service_hours_current: number
@@ -10140,6 +10143,8 @@ export type Database = {
           visit_record_deadline_miss_count: number
           visit_record_deadline_miss_details: Json
           visit_record_incomplete_details: Json
+          visit_record_past_incomplete_count: number
+          visit_record_past_incomplete_details: Json
           visit_record_same_day_count: number
           visit_record_score: number
           visit_record_submission_rate: number
@@ -10167,6 +10172,9 @@ export type Database = {
           previous_month_service_hours?: number
           rank_no?: number | null
           service_hours?: number
+          renewal_incomplete_count?: number
+          renewal_incomplete_details?: Json
+          renewal_score?: number
           service_hours_base_score?: number
           service_hours_current?: number
           service_hours_growth?: number
@@ -10182,6 +10190,8 @@ export type Database = {
           visit_record_deadline_miss_details?: Json
           visit_record_incomplete_details?: Json
           visit_record_same_day_count?: number
+          visit_record_past_incomplete_count?: number
+          visit_record_past_incomplete_details?: Json
           visit_record_score?: number
           visit_record_submission_rate?: number
           visit_record_target_count?: number
@@ -10209,6 +10219,9 @@ export type Database = {
           rank_no?: number | null
           service_hours?: number
           service_hours_base_score?: number
+          renewal_incomplete_count?: number
+          renewal_incomplete_details?: Json
+          renewal_score?: number
           service_hours_current?: number
           service_hours_growth?: number
           service_hours_growth_score?: number
@@ -10224,6 +10237,8 @@ export type Database = {
           visit_record_incomplete_details?: Json
           visit_record_same_day_count?: number
           visit_record_score?: number
+          visit_record_past_incomplete_count?: number
+          visit_record_past_incomplete_details?: Json
           visit_record_submission_rate?: number
           visit_record_target_count?: number
           visit_record_total_count?: number

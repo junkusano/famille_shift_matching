@@ -5,6 +5,59 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
 const ENTRY_DRIVE_FOLDER_ID = "1N1EIT1escqpNREOfwc70YgBC8JVu78j2";
+
+function legacyType(slot: string) {
+  if (slot === "license_front") return "免許証表";
+  if (slot === "license_back") return "免許証裏";
+  if (slot === "residence_card") return "住民票";
+  if (slot.startsWith("certificate_")) return "資格証明書";
+  return "その他";
+}
+
+async function syncEntryDisplayFields(entryId: string) {
+  const { data: files, error: filesError } = await supabaseAdmin
+    .from("entry_attachments")
+    .select("id,slot,original_filename,drive_file_id,mime_type,created_at")
+    .eq("entry_id", entryId)
+    .eq("status", "linked")
+    .not("drive_file_id", "is", null);
+  if (filesError) throw filesError;
+  if (!files?.length) return 0;
+
+  const { data: entry, error: entryError } = await supabaseAdmin
+    .from("form_entries")
+    .select("attachments,photo_url,license_front_url,license_back_url,residence_card_url,certifications")
+    .eq("id", entryId)
+    .single();
+  if (entryError) throw entryError;
+
+  const existing = Array.isArray(entry.attachments) ? entry.attachments : [];
+  const urls = new Set(existing.map((item: { url?: string }) => item?.url).filter(Boolean));
+  const additions = files
+    .map((file) => ({
+      url: `https://drive.google.com/uc?export=view&id=${file.drive_file_id}`,
+      type: legacyType(file.slot),
+      label: file.original_filename,
+      mimeType: file.mime_type,
+      uploaded_at: file.created_at,
+    }))
+    .filter((item) => !urls.has(item.url));
+  const bySlot = new Map(files.map((file) => [file.slot, `https://drive.google.com/uc?export=view&id=${file.drive_file_id}`]));
+  const certificates = Array.isArray(entry.certifications) ? entry.certifications : [];
+  const certificateUrls = files.filter((file) => file.slot.startsWith("certificate_")).map((file) => `https://drive.google.com/uc?export=view&id=${file.drive_file_id}`);
+  const update = {
+    attachments: [...existing, ...additions],
+    photo_url: entry.photo_url ?? bySlot.get("photo") ?? null,
+    license_front_url: entry.license_front_url ?? bySlot.get("license_front") ?? null,
+    license_back_url: entry.license_back_url ?? bySlot.get("license_back") ?? null,
+    residence_card_url: entry.residence_card_url ?? bySlot.get("residence_card") ?? null,
+    certifications: [...certificates, ...certificateUrls.filter((url) => !certificates.includes(url))],
+  };
+  const { error: updateError } = await supabaseAdmin.from("form_entries").update(update).eq("id", entryId);
+  if (updateError) throw updateError;
+  return additions.length;
+}
+
 export async function GET(req: NextRequest) {
   try {
     assertCronAuth(req);
@@ -38,7 +91,21 @@ export async function GET(req: NextRequest) {
       recreated += 1;
       console.info("[entry.attachment.reconcile] recreated", { entryId: entry.id, driveFileId: file.id });
     }
-    return NextResponse.json({ ok: true, scanned: attachments?.length ?? 0, linked, recreated });
+    // The staff detail page still reads the legacy URL/attachments columns.
+    // Mirror linked records into those fields so both new and existing UI paths
+    // show the recovered files without losing the canonical attachment record.
+    const { data: linkedRows, error: linkedRowsError } = await supabaseAdmin
+      .from("entry_attachments")
+      .select("entry_id")
+      .eq("status", "linked")
+      .not("entry_id", "is", null)
+      .limit(1000);
+    if (linkedRowsError) throw linkedRowsError;
+    const entryIds = [...new Set((linkedRows ?? []).map((row) => row.entry_id).filter((id): id is string => Boolean(id)))];
+    let mirrored = 0;
+    for (const entryId of entryIds) mirrored += await syncEntryDisplayFields(entryId);
+    console.info("[entry.attachment.reconcile] display fields mirrored", { entryCount: entryIds.length, attachmentCount: mirrored });
+    return NextResponse.json({ ok: true, scanned: attachments?.length ?? 0, linked, recreated, mirrored });
   } catch (e) {
     console.error("[entry.attachment.reconcile] failed", { message: e instanceof Error ? e.message : String(e) });
     return NextResponse.json({ ok: false, error: "reconcile_failed" }, { status: 500 });

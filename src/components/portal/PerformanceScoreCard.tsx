@@ -56,7 +56,14 @@ type TeamRankingRow = {
     jissekiScore: number;
     meetingScore: number;
     serviceHoursGrowth: number;
+    serviceHoursCurrent: number;
+    serviceHoursPrevious: number;
+    visitRecordPastIncompleteCount: number;
+    renewalIncompleteCount: number;
+    renewalScore: number;
     visitRecordDeadlineMissCount: number;
+    visitRecordPastIncompleteDetails: TeamScoreDetail[];
+    renewalIncompleteDetails: TeamScoreDetail[];
     jissekiIncompleteCount: number;
     meetingIncompleteCount: number;
     jissekiIncompleteDetails: TeamScoreDetail[];
@@ -112,6 +119,39 @@ function TeamPenaltyDetails({
         </details>
     );
 }
+function TeamMetricExplanation({
+    title,
+    score,
+    basis,
+    formula,
+    importance,
+    improvement,
+}: {
+    title: string;
+    score: number;
+    basis: string[];
+    formula: string;
+    importance: string;
+    improvement: string;
+}) {
+    return (
+        <details className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <summary className="cursor-pointer text-sm font-bold text-slate-800">
+                {title}：{score >= 0 ? "+" : ""}{score}点　<span className="text-xs font-medium text-blue-700">計算根拠を見る</span>
+            </summary>
+            <div className="mt-3 space-y-2 text-xs leading-5 text-slate-700">
+                <div>
+                    <div className="font-bold text-slate-900">計算根拠</div>
+                    {basis.map((line) => <div key={line}>・{line}</div>)}
+                </div>
+                <div><span className="font-bold text-slate-900">計算式：</span>{formula}</div>
+                <div><span className="font-bold text-slate-900">なぜ重要か：</span>{importance}</div>
+                <div><span className="font-bold text-slate-900">改善方法：</span>{improvement}</div>
+            </div>
+        </details>
+    );
+}
+
 
 type ScoreHistoryPoint = {
     month: string;
@@ -641,7 +681,8 @@ function PerformanceScorePanelContent({
                                 {score.newSchemeOfficial ? "チームランキング" : "新制度参考・チームランキング"}
                             </div>
                             <div className="mb-3 text-xs text-slate-500">
-                                サービス・訪問記録・実績記録・会議参加を合算した、新制度のチーム成績です。
+                                サービス・訪問記録・実績記録・会議参加・障害福祉の受給者証／プラン更新を合算したチーム成績です。
+                                介護保険はカイポケ連携を含む判定ロジックを準備中のため、現在は加点・減点しません。
                             </div>
 
                             {score.teamRanking.length === 0 ? (
@@ -678,9 +719,11 @@ function PerformanceScorePanelContent({
                                                             </div>
                                                             <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-slate-500">
                                                                 <span>前月比 {team.serviceHoursGrowth >= 0 ? "+" : ""}{team.serviceHoursGrowth}時間</span>
-                                                                <span>訪問不備 {team.visitRecordDeadlineMissCount}件</span>
+                                                                <span>当月訪問未入力 {team.visitRecordDeadlineMissCount}件</span>
+                                                                <span>過去訪問未入力 {team.visitRecordPastIncompleteCount}件</span>
                                                                 <span>実績不備 {team.jissekiIncompleteCount}件</span>
                                                                 <span>会議不参加 {team.meetingIncompleteCount}名</span>
+                                                                <span>証書・プラン未対応 {team.renewalIncompleteCount}件</span>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -691,21 +734,74 @@ function PerformanceScorePanelContent({
                                                     </div>
                                                 </div>
 
-                                                <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold sm:grid-cols-4">
-                                                    <span className="rounded-lg bg-blue-50 px-2 py-1.5 text-blue-800">サービス +{team.serviceHoursScore}点</span>
+                                                <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold sm:grid-cols-5">
+                                                    <span className={`rounded-lg px-2 py-1.5 ${team.serviceHoursScore < 0 ? "bg-rose-50 text-rose-700" : "bg-blue-50 text-blue-800"}`}>サービス {team.serviceHoursScore >= 0 ? "+" : ""}{team.serviceHoursScore}点</span>
                                                     <span className={`rounded-lg px-2 py-1.5 ${team.visitRecordScore < 0 ? "bg-rose-50 text-rose-700" : "bg-teal-50 text-teal-800"}`}>訪問記録 {team.visitRecordScore >= 0 ? "+" : ""}{team.visitRecordScore}点</span>
                                                     <span className={`rounded-lg px-2 py-1.5 ${team.jissekiScore < 0 ? "bg-rose-50 text-rose-700" : "bg-violet-50 text-violet-800"}`}>実績記録 {team.jissekiScore >= 0 ? "+" : ""}{team.jissekiScore}点</span>
                                                     <span className={`rounded-lg px-2 py-1.5 ${team.meetingScore < 0 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-800"}`}>会議 {team.meetingScore >= 0 ? "+" : ""}{team.meetingScore}点</span>
+                                                    <span className={`rounded-lg px-2 py-1.5 ${team.renewalScore < 0 ? "bg-rose-50 text-rose-700" : "bg-slate-50 text-slate-700"}`}>証書・プラン {team.renewalScore >= 0 ? "+" : ""}{team.renewalScore}点</span>
                                                 </div>
 
                                                 <div className="mt-3 space-y-2">
+                                                    <TeamMetricExplanation
+                                                        title="サービス時間"
+                                                        score={team.serviceHoursScore}
+                                                        basis={[
+                                                            `基準（前月）：${team.serviceHoursPrevious}時間`,
+                                                            `実績（当月）：${team.serviceHoursCurrent}時間`,
+                                                            `差分：${team.serviceHoursGrowth >= 0 ? "+" : ""}${team.serviceHoursGrowth}時間`,
+                                                        ]}
+                                                        formula={`${team.serviceHoursGrowth}時間 ÷ 10時間 × 1点 = ${team.serviceHoursScore}点（プラスは最大20点、マイナスは下限なし）`}
+                                                        importance="サービス時間を延ばし、継続的にファミーユが成長していくことが、昇給の原資になります。"
+                                                        improvement="できるだけサービスに入り、新しく入ったスタッフへの声かけや、サービスに入りやすいようなサポートも行いましょう。"
+                                                    />
+                                                    <TeamMetricExplanation
+                                                        title="訪問記録"
+                                                        score={team.visitRecordScore}
+                                                        basis={[
+                                                            `当月23:43確認時点の未入力：${team.visitRecordDeadlineMissCount}件`,
+                                                            `前月以前から残る未入力：${team.visitRecordPastIncompleteCount}件`,
+                                                        ]}
+                                                        formula={`20点 - 当月${team.visitRecordDeadlineMissCount}件 × 1点 - 過去${team.visitRecordPastIncompleteCount}件 × 5点 = ${team.visitRecordScore}点（下限なし）`}
+                                                        importance="訪問記録はサービス提供を証明する重要書類です。記録がなければ、行政から返戻（報酬の返還）を求められる可能性があります。"
+                                                        improvement="サービス終了後に必ず正確に入力してください。毎日23:43の確認処理時点で当日分が未入力の場合は減点対象です。"
+                                                    />
+                                                    <TeamMetricExplanation
+                                                        title="実績記録"
+                                                        score={team.jissekiScore}
+                                                        basis={[`未提出・不備：${team.jissekiIncompleteCount}件`]}
+                                                        formula={`20点 - ${team.jissekiIncompleteCount}件 × 1点 = ${team.jissekiScore}点（下限なし）`}
+                                                        importance="実績記録は請求内容の正確性とサービス提供実績を確認するための重要な記録です。"
+                                                        improvement="未提出一覧を確認し、担当者同士で声をかけて早めに回収・確認を完了してください。"
+                                                    />
+                                                    <TeamMetricExplanation
+                                                        title="会議参加"
+                                                        score={team.meetingScore}
+                                                        basis={[`未参加・未確認：${team.meetingIncompleteCount}名`]}
+                                                        formula={`10点 - ${team.meetingIncompleteCount}名 × 1点 = ${team.meetingScore}点（下限なし）`}
+                                                        importance="会議では、事業所の新しい動き、苦情案件、スキル指導、重要事項などを共有するため、参加必須です。"
+                                                        improvement="過去の会議に参加できていない場合は、マネジャーへ伝えて追加開催を依頼してください。"
+                                                    />
+                                                    <TeamMetricExplanation
+                                                        title="前月受給者証入力・プラン更新"
+                                                        score={team.renewalScore}
+                                                        basis={[`猶予月末を過ぎても未対応：${team.renewalIncompleteCount}件`]}
+                                                        formula={`${team.renewalIncompleteCount}件 × -5点 = ${team.renewalScore}点（対応完了まで毎月対象）`}
+                                                        importance="障害福祉の受給者証期限、プラン期限、短期目標期限を確認します。主にマネジャー業務ですが、LINE WORKSのアラートをチームでもフォローすることが重要です。"
+                                                        improvement="利用者・ご家族へ新しい受給者証の取得状況を確認し、プランや短期目標を更新してください。介護保険はカイポケ連携を含む判定ロジックを準備中で、現在は加点・減点しません。"
+                                                    />
+
                                                     <TeamPenaltyDetails
-                                                        label="訪問記録の未完了一覧"
-                                                        details={team.visitRecordIncompleteDetails}
+                                                        label="当月の訪問記録未入力一覧"
+                                                        details={team.visitRecordDeadlineMissDetails}
                                                     />
                                                     <TeamPenaltyDetails
-                                                        label="訪問記録の締切未完了一覧"
-                                                        details={team.visitRecordDeadlineMissDetails}
+                                                        label="前月以前の訪問記録未入力一覧"
+                                                        details={team.visitRecordPastIncompleteDetails}
+                                                    />
+                                                    <TeamPenaltyDetails
+                                                        label="現在も未完了の訪問記録一覧"
+                                                        details={team.visitRecordIncompleteDetails}
                                                     />
                                                     <TeamPenaltyDetails
                                                         label="実績記録未提出一覧"
@@ -714,6 +810,10 @@ function PerformanceScorePanelContent({
                                                     <TeamPenaltyDetails
                                                         label="会議未参加一覧"
                                                         details={team.meetingIncompleteDetails}
+                                                    />
+                                                    <TeamPenaltyDetails
+                                                        label="受給者証・プラン更新未対応一覧"
+                                                        details={team.renewalIncompleteDetails}
                                                     />
                                                 </div>
                                             </div>

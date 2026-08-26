@@ -13,6 +13,7 @@ import {
     isLegacyHealthCheckBackfill,
     isHealthCheckForFiscalYear,
 } from "@/lib/healthCheck";
+import { findTeamRenewalIssues } from "@/lib/performance/teamRenewalIssues";
 
 const EXCLUDED_PERFORMANCE_SCORE_USER_IDS = [
     "satominishio",
@@ -356,7 +357,8 @@ function addServiceHours(
 function calcVisitRecordScore(row: SummaryRow) {
     const deadlineMissCount = Number(row.visit_record_deadline_miss_count ?? 0);
     const pastIncomplete = Number(row.visit_record_past_incomplete_count ?? 0);
-    return Math.max(0, 20 - deadlineMissCount * 5 - pastIncomplete * 5);
+    const score = 20 - deadlineMissCount * 5 - pastIncomplete * 5;
+    return isNewPerformanceSchemeOfficial(row.target_month) ? score : Math.max(0, score);
 }
 
 function getJstDateTime(now = new Date()) {
@@ -481,6 +483,7 @@ export async function GET(req: NextRequest) {
         //const targetMonth = "2026-05-01";
         //当月のみ更新変更箇所４
         const targetMonth = getTargetMonth(req);
+        const useOctoberTeamScoreRules = targetMonth >= "2026-10-01";
 
         const { data: initialRows, error } = await supabaseAdmin
             .from("staff_monthly_score_summaries")
@@ -1030,6 +1033,8 @@ export async function GET(req: NextRequest) {
         const teamPreviousServiceHoursMap = new Map<string, number>();
         const teamVisitShiftIdsMap = new Map<string, Set<string>>();
         const teamDeadlineMissShiftIdsMap = new Map<string, Set<string>>();
+        const teamPastIncompleteShiftIdsMap = new Map<string, Set<string>>();
+        const teamVisitPastIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
         const teamJissekiTotalMap = new Map<string, number>();
         const teamJissekiIncompleteMap = new Map<string, number>();
         const teamJissekiIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
@@ -1346,14 +1351,65 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                 const isDone = isVisitRecordComplete(shift.record_status);
 
                 if (!isDone) {
-                    for (const userId of getParticipatingUserIds(shift)) {
+                    const participatingUserIds = getParticipatingUserIds(shift);
+                    for (const userId of participatingUserIds) {
                         addIncompleteCount(incompleteCountMap, userId, "past");
+                    }
+
+                    if (shift.shift_id != null) {
+                        const userIdsByTeam = new Map<string, string[]>();
+                        for (const userId of participatingUserIds) {
+                            const teamId = userTeamMap.get(userId);
+                            if (!teamId) continue;
+                            userIdsByTeam.set(teamId, [...(userIdsByTeam.get(teamId) ?? []), userId]);
+                        }
+                        for (const [teamId, teamUserIds] of userIdsByTeam) {
+                            const shiftIds = teamPastIncompleteShiftIdsMap.get(teamId) ?? new Set<string>();
+                            const shiftId = String(shift.shift_id);
+                            if (shiftIds.has(shiftId)) continue;
+                            shiftIds.add(shiftId);
+                            teamPastIncompleteShiftIdsMap.set(teamId, shiftIds);
+                            const details = teamVisitPastIncompleteDetailsMap.get(teamId) ?? [];
+                            details.push({
+                                id: `visit-past-incomplete:${shiftId}`,
+                                clientId: shift.kaipoke_cs_id,
+                                clientName: shift.client_name,
+                                targetDate: shift.shift_start_date ?? "",
+                                staffUserIds: teamUserIds,
+                                staffNames: teamUserIds.map((userId) => staffNameMap.get(userId) ?? userId),
+                                reason: "前月以前から訪問記録が未入力",
+                            });
+                            teamVisitPastIncompleteDetailsMap.set(teamId, details);
+                        }
                     }
                 }
             }
         }
 
         const teamScoreById = new Map<string, number>();
+        const renewalIssues = useOctoberTeamScoreRules
+            ? await findTeamRenewalIssues({
+                targetMonth,
+                nextMonthStart,
+                // 例: 8月期限切れは9月末まで猶予、10月スコアから対象。
+                graceCutoff: previousMonthStart,
+            })
+            : [];
+        const teamRenewalDetailsMap = new Map<string, TeamScoreDetail[]>();
+        for (const issue of renewalIssues) {
+            const details = teamRenewalDetailsMap.get(issue.teamId) ?? [];
+            details.push({
+                id: issue.id,
+                clientId: issue.kaipokeCsId,
+                clientName: issue.clientName,
+                targetDate: issue.targetDate,
+                staffUserIds: [],
+                staffNames: [],
+                reason: issue.reasons.join(" / "),
+            });
+            teamRenewalDetailsMap.set(issue.teamId, details);
+        }
+
         const scoredTeamIds = teamIds.filter((teamId) => {
             // 当月に訪問シフトへ入った人がいるチームだけをランキング対象にする。
             return (teamVisitShiftIdsMap.get(teamId)?.size ?? 0) > 0;
@@ -1366,13 +1422,25 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                 const serviceHours = teamServiceHoursMap.get(teamId) ?? 0;
                 const previousServiceHours = teamPreviousServiceHoursMap.get(teamId) ?? 0;
                 const serviceHoursGrowth = Math.round((serviceHours - previousServiceHours) * 10) / 10;
-                const serviceHoursScore = Math.min(20, Math.max(0, Math.floor(serviceHoursGrowth / 10)));
+                const legacyServiceHoursScore = Math.min(20, Math.max(0, Math.floor(serviceHoursGrowth / 10)));
+                // 10月以降は10時間単位を正負対称にする。プラス側だけ20点上限、マイナス側は下限なし。
+                const serviceHoursScore = useOctoberTeamScoreRules
+                    ? Math.min(20, Math.trunc(serviceHoursGrowth / 10))
+                    : legacyServiceHoursScore;
                 const jissekiTotalCount = teamJissekiTotalMap.get(teamId) ?? 0;
                 const jissekiIncompleteCount = teamJissekiIncompleteMap.get(teamId) ?? 0;
                 const jissekiScore = 20 - jissekiIncompleteCount;
                 const visitRecordTotalCount = teamVisitShiftIdsMap.get(teamId)?.size ?? 0;
                 const visitRecordDeadlineMissCount = teamDeadlineMissShiftIdsMap.get(teamId)?.size ?? 0;
-                const visitRecordScore = Math.max(0, 20 - visitRecordDeadlineMissCount);
+                const visitRecordPastIncompleteCount = teamPastIncompleteShiftIdsMap.get(teamId)?.size ?? 0;
+                const visitRecordCurrentMonthScore = 20 - visitRecordDeadlineMissCount;
+                const visitRecordPastPenaltyScore = visitRecordPastIncompleteCount * -5;
+                const visitRecordScore = useOctoberTeamScoreRules
+                    ? visitRecordCurrentMonthScore + visitRecordPastPenaltyScore
+                    : Math.max(0, visitRecordCurrentMonthScore);
+                const renewalIncompleteDetails = teamRenewalDetailsMap.get(teamId) ?? [];
+                const renewalIncompleteCount = renewalIncompleteDetails.length;
+                const renewalScore = useOctoberTeamScoreRules ? renewalIncompleteCount * -5 : 0;
                 // 前月に勤務実績があるメンバーだけを会議参加の採点対象にする。
                 const meetingMemberUserIds = memberUserIds.filter((userId) =>
                     meetingEligibleUserIds.has(userId)
@@ -1395,7 +1463,12 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                     }));
                 // チーム会議点: 全員参加で10点。不参加・未確認1名につき1点減点。
                 const meetingScore = 10 - meetingIncompleteCount;
-                const teamScore = serviceHoursScore + jissekiScore + visitRecordScore + meetingScore;
+                const teamScore =
+                    serviceHoursScore +
+                    jissekiScore +
+                    visitRecordScore +
+                    meetingScore +
+                    renewalScore;
                 teamScoreById.set(teamId, teamScore);
 
                 const jissekiSubmittedCount = Math.max(0, jissekiTotalCount - jissekiIncompleteCount);
@@ -1429,6 +1502,8 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                     visit_record_total_count: visitRecordTotalCount,
                     visit_record_deadline_miss_count: visitRecordDeadlineMissCount,
                     visit_record_deadline_miss_details: teamVisitDeadlineMissDetailsMap.get(teamId) ?? [],
+                    visit_record_past_incomplete_count: visitRecordPastIncompleteCount,
+                    visit_record_past_incomplete_details: teamVisitPastIncompleteDetailsMap.get(teamId) ?? [],
                     visit_record_incomplete_details: teamVisitIncompleteDetailsMap.get(teamId) ?? [],
                     visit_record_target_count: visitRecordTotalCount,
                     visit_record_same_day_count: visitRecordSameDayCount,
@@ -1436,6 +1511,9 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                         visitRecordTotalCount > 0 ? (visitRecordSameDayCount / visitRecordTotalCount) * 100 : 100,
                     visit_record_score: visitRecordScore,
                     meeting_incomplete_details: meetingIncompleteDetails,
+                    renewal_incomplete_count: renewalIncompleteCount,
+                    renewal_incomplete_details: renewalIncompleteDetails,
+                    renewal_score: renewalScore,
                     team_score: teamScore,
                     total_score: teamScore,
                     updated_at: new Date().toISOString(),

@@ -22,14 +22,14 @@ const TARGET_SERVICE_CODES = [
  * シフトの service_code は請求区分ごとに短縮表記されることがある
  * （例: 家事 / 通院(伴う) / 同行(初任者等)）。移動支援は含めない。
  */
-function isTargetDisabilityServiceCode(value: string | null): boolean {
+export function isTargetDisabilityServiceCode(value: string | null): boolean {
   const serviceCode = String(value ?? "").trim();
   if (!serviceCode || serviceCode.startsWith("移：")) return false;
   if ((TARGET_SERVICE_CODES as readonly string[]).includes(serviceCode)) return true;
   return /家事|居宅.*身体|^身体|重度|重訪|通院|同行|行動援護/.test(serviceCode);
 }
 
-type ClientRow = {
+export type ShogaiJukyushaRenewalClient = {
   id: string;
   kaipoke_cs_id: string;
   name: string | null;
@@ -39,6 +39,66 @@ type ClientRow = {
 };
 
 type ShiftRow = { kaipoke_cs_id: string | null; service_code: string | null };
+export type ShogaiJukyushaRenewalTarget = ShogaiJukyushaRenewalClient & {
+  serviceCodes: string[];
+};
+
+export type FindShogaiJukyushaRenewalTargetsArgs = {
+  expiryFrom?: string;
+  expiryBefore: string;
+  serviceMonthStart: string;
+  serviceMonthEnd: string;
+  targetKaipokeCsId?: string;
+};
+
+/**
+ * 受給者証更新アラートとチーム成績で共用する対象判定。
+ * 有効な障害福祉利用者のうち、指定期間に受給者証が切れ、判定月にも
+ * 対象の障害福祉サービスを利用している人だけを返す。
+ */
+export async function findShogaiJukyushaRenewalTargets(
+  args: FindShogaiJukyushaRenewalTargetsArgs,
+): Promise<{ scannedClients: number; targets: ShogaiJukyushaRenewalTarget[] }> {
+  let clientQuery = supabaseAdmin
+    .from("cs_kaipoke_info")
+    .select("id,kaipoke_cs_id,name,shogai_end_at,asigned_jisseki_staff,asigned_org")
+    .eq("is_active", true)
+    .lt("shogai_end_at", args.expiryBefore)
+    .eq("shogai_jukyusha_penalty_exempt", false);
+  if (args.expiryFrom) clientQuery = clientQuery.gte("shogai_end_at", args.expiryFrom);
+  if (args.targetKaipokeCsId) clientQuery = clientQuery.eq("kaipoke_cs_id", args.targetKaipokeCsId);
+
+  const { data: clientData, error: clientError } = await clientQuery;
+  if (clientError) throw new Error(`recipient certificate lookup failed: ${clientError.message}`);
+  const expiredClients = (clientData ?? []) as ShogaiJukyushaRenewalClient[];
+  if (!expiredClients.length) return { scannedClients: 0, targets: [] };
+
+  const { data: shiftData, error: shiftError } = await supabaseAdmin
+    .from("shift")
+    .select("kaipoke_cs_id,service_code")
+    .in("kaipoke_cs_id", expiredClients.map((client) => client.kaipoke_cs_id))
+    .gte("shift_start_date", args.serviceMonthStart)
+    .lt("shift_start_date", args.serviceMonthEnd);
+  if (shiftError) throw new Error(`disability service shift lookup failed: ${shiftError.message}`);
+
+  const serviceCodesByClient = new Map<string, Set<string>>();
+  for (const shift of (shiftData ?? []) as ShiftRow[]) {
+    const clientId = String(shift.kaipoke_cs_id ?? "").trim();
+    const serviceCode = String(shift.service_code ?? "").trim();
+    if (!clientId || !isTargetDisabilityServiceCode(serviceCode)) continue;
+    const services = serviceCodesByClient.get(clientId) ?? new Set<string>();
+    services.add(serviceCode);
+    serviceCodesByClient.set(clientId, services);
+  }
+
+  return {
+    scannedClients: expiredClients.length,
+    targets: expiredClients.flatMap((client) => {
+      const serviceCodes = Array.from(serviceCodesByClient.get(client.kaipoke_cs_id) ?? []);
+      return serviceCodes.length > 0 ? [{ ...client, serviceCodes }] : [];
+    }),
+  };
+}
 type GroupRow = { group_id: string; group_name: string };
 type StaffRow = {
   user_id: string | null;
@@ -158,39 +218,15 @@ export async function runShogaiJukyushaRenewalAlerts(
 
   if (day < 15 && !args.forceDay15Rule) return empty(true);
 
-  let clientQuery = supabaseAdmin
-    .from("cs_kaipoke_info")
-    .select("id,kaipoke_cs_id,name,shogai_end_at,asigned_jisseki_staff,asigned_org")
-    .eq("is_active", true)
-    .gte("shogai_end_at", previousMonthStart)
-    .lt("shogai_end_at", currentMonthStart)
-    .eq("shogai_jukyusha_penalty_exempt", false);
-  if (args.targetKaipokeCsId) clientQuery = clientQuery.eq("kaipoke_cs_id", args.targetKaipokeCsId);
-
-  const { data: clientData, error: clientError } = await clientQuery;
-  if (clientError) throw new Error(`recipient certificate lookup failed: ${clientError.message}`);
-  const expiredClients = (clientData ?? []) as ClientRow[];
-  if (!expiredClients.length) return empty(false);
-
-  const { data: shiftData, error: shiftError } = await supabaseAdmin
-    .from("shift")
-    .select("kaipoke_cs_id,service_code")
-    .in("kaipoke_cs_id", expiredClients.map((client) => client.kaipoke_cs_id))
-    .gte("shift_start_date", currentMonthStart)
-    .lt("shift_start_date", nextMonthStart);
-  if (shiftError) throw new Error(`disability service shift lookup failed: ${shiftError.message}`);
-
-  const serviceCodesByClient = new Map<string, Set<string>>();
-  for (const shift of (shiftData ?? []) as ShiftRow[]) {
-    const clientId = String(shift.kaipoke_cs_id ?? "").trim();
-    const serviceCode = String(shift.service_code ?? "").trim();
-    if (!clientId || !isTargetDisabilityServiceCode(serviceCode)) continue;
-    const services = serviceCodesByClient.get(clientId) ?? new Set<string>();
-    services.add(serviceCode);
-    serviceCodesByClient.set(clientId, services);
-  }
-  const targets = expiredClients.filter((client) => serviceCodesByClient.has(client.kaipoke_cs_id));
-  if (!targets.length) return { ...empty(false), scannedClients: expiredClients.length };
+  const renewalScan = await findShogaiJukyushaRenewalTargets({
+    expiryFrom: previousMonthStart,
+    expiryBefore: currentMonthStart,
+    serviceMonthStart: currentMonthStart,
+    serviceMonthEnd: nextMonthStart,
+    targetKaipokeCsId: args.targetKaipokeCsId,
+  });
+  const targets = renewalScan.targets;
+  if (!targets.length) return { ...empty(false), scannedClients: renewalScan.scannedClients };
 
   const targetOrgIds = Array.from(new Set(targets.map((client) => client.asigned_org).filter((id): id is string => Boolean(id))));
   const [{ data: groups, error: groupsError }, { data: orgRows, error: orgError }, { data: exceptionRows, error: exceptionError }] = await Promise.all([
@@ -279,7 +315,7 @@ export async function runShogaiJukyushaRenewalAlerts(
         })
         .filter((mention): mention is MentionTarget => mention !== null);
       const mention = mentions.map((item) => `<m userId="${item.userId}">さん`).join("\n");
-      const services = Array.from(serviceCodesByClient.get(client.kaipoke_cs_id) ?? []).join("・");
+      const services = client.serviceCodes.join("・");
       const detailUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://myfamille.shi-on.net"}/portal/kaipoke-info-detail/${client.id}`;
       const message =
         `${mention ? `${mention}\n` : ""}【障害サービス受給者証の更新確認】\n` +
@@ -311,7 +347,7 @@ export async function runShogaiJukyushaRenewalAlerts(
 
   return {
     ...empty(false),
-    scannedClients: expiredClients.length,
+    scannedClients: renewalScan.scannedClients,
     targetClients: targets.length,
     sentRooms,
     sentClients,

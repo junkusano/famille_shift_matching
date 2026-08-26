@@ -84,13 +84,20 @@ type TeamRankingRow = {
     jissekiScore: number;
     meetingScore: number;
     serviceHoursGrowth: number;
+    serviceHoursCurrent: number;
+    serviceHoursPrevious: number;
     visitRecordDeadlineMissCount: number;
     jissekiIncompleteCount: number;
+    visitRecordPastIncompleteCount: number;
     meetingIncompleteCount: number;
     jissekiIncompleteDetails: TeamScoreDetail[];
+    renewalIncompleteCount: number;
+    renewalScore: number;
     visitRecordDeadlineMissDetails: TeamScoreDetail[];
     visitRecordIncompleteDetails: TeamScoreDetail[];
+    visitRecordPastIncompleteDetails: TeamScoreDetail[];
     meetingIncompleteDetails: TeamScoreDetail[];
+    renewalIncompleteDetails: TeamScoreDetail[];
 };
 
 type TeamScoreDetail = {
@@ -286,6 +293,7 @@ function calcMinutes(
 }*/
 
 type ScoreRow = {
+    target_month: string;
     service_hours: number | string | null;
     visit_record_total_count: number | null;
     houmon_same_day_done_count: number | null;
@@ -322,7 +330,9 @@ function calcDisplayTotalScore(row: ScoreRow) {
 
     const visitRecordDeadlineMissCount = Number(row.visit_record_deadline_miss_count ?? 0);
     const visitRecordPastIncompleteCount = Number(row.visit_record_past_incomplete_count ?? 0);
-    const visitRecordScore = Math.max(0, 20 - visitRecordDeadlineMissCount * 5 - visitRecordPastIncompleteCount * 5);
+    const rawVisitRecordScore = 20 - visitRecordDeadlineMissCount * 5 - visitRecordPastIncompleteCount * 5;
+    const visitRecordScore = isNewPerformanceSchemeOfficial(row.target_month)
+        ? rawVisitRecordScore : Math.max(0, rawVisitRecordScore);
 
     const meetingScore =
         row.meeting_previous_month_attended === true ||
@@ -573,10 +583,17 @@ export async function GET(req: NextRequest) {
             visitRecordDeadlineMissCount: Number(team.visit_record_deadline_miss_count ?? 0),
             jissekiIncompleteCount: Number(team.jisseki_incomplete_count ?? 0),
             meetingIncompleteCount: Number(team.meeting_incomplete_count ?? 0),
+            serviceHoursCurrent: Number(team.service_hours_current ?? team.service_hours ?? 0),
+            serviceHoursPrevious: Number(team.service_hours_previous ?? team.previous_month_service_hours ?? 0),
             jissekiIncompleteDetails: parseTeamScoreDetails(team.jisseki_incomplete_details),
             visitRecordDeadlineMissDetails: parseTeamScoreDetails(team.visit_record_deadline_miss_details),
+            visitRecordPastIncompleteCount: Number(team.visit_record_past_incomplete_count ?? 0),
             visitRecordIncompleteDetails: parseTeamScoreDetails(team.visit_record_incomplete_details),
             meetingIncompleteDetails: parseTeamScoreDetails(team.meeting_incomplete_details),
+            renewalIncompleteCount: Number(team.renewal_incomplete_count ?? 0),
+            renewalScore: Number(team.renewal_score ?? 0),
+            visitRecordPastIncompleteDetails: parseTeamScoreDetails(team.visit_record_past_incomplete_details),
+            renewalIncompleteDetails: parseTeamScoreDetails(team.renewal_incomplete_details),
         }));
 
     const { data: rankingSourceRows } = await supabaseAdmin
@@ -677,7 +694,9 @@ shift_decline_penalty_score,
     const visitRecordPastIncompleteCount = Number(
         summary.visit_record_past_incomplete_count ?? 0
     );
-    const visitRecordScore = Math.max(0, 20 - visitRecordDeadlineMissCount * 5 - visitRecordPastIncompleteCount * 5);
+    const rawVisitRecordScore = 20 - visitRecordDeadlineMissCount * 5 - visitRecordPastIncompleteCount * 5;
+    const visitRecordScore = isNewPerformanceSchemeOfficial(targetMonthDate)
+        ? rawVisitRecordScore : Math.max(0, rawVisitRecordScore);
     const meetingScore =
         summary.meeting_previous_month_attended === true ||
             summary.meeting_past_attended === true
