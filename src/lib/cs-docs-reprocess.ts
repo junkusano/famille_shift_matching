@@ -138,12 +138,90 @@ async function getCsDoc(id: string) {
   return data;
 }
 
+function errorStatus(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+  const value = error as {
+    code?: unknown;
+    response?: { status?: unknown };
+  };
+  const status = Number(value.response?.status ?? value.code);
+  return Number.isFinite(status) ? status : null;
+}
+
+async function downloadCsDocPdf(fileId: string): Promise<Buffer> {
+  try {
+    return await downloadGoogleDriveFile(fileId);
+  } catch (driveError) {
+    console.warn("[cs-docs][reprocess] service-account Drive download failed", {
+      file_id: fileId,
+      status: errorStatus(driveError),
+      message: driveError instanceof Error ? driveError.message : String(driveError),
+    });
+    /*
+     * GAS は作成者権限でDriveを読める一方、Vercelはサービスアカウントで
+     * 読むため、リンク共有済みファイルは公開URLからも取得を試す。
+     */
+    const publicUrl = new URL("https://drive.google.com/uc");
+    publicUrl.searchParams.set("export", "download");
+    publicUrl.searchParams.set("id", fileId);
+
+    try {
+      const response = await fetch(publicUrl, {
+        cache: "no-store",
+        redirect: "follow",
+      });
+      if (response.ok) {
+        const pdf = Buffer.from(await response.arrayBuffer());
+        if (pdf.subarray(0, 4).toString("utf8") === "%PDF") {
+          console.info("[cs-docs][reprocess] public Drive download succeeded", {
+            file_id: fileId,
+          });
+          return pdf;
+        }
+        console.warn("[cs-docs][reprocess] public Drive response was not a PDF", {
+          file_id: fileId,
+          content_type: response.headers.get("content-type"),
+        });
+      } else {
+        console.warn("[cs-docs][reprocess] public Drive download failed", {
+          file_id: fileId,
+          status: response.status,
+        });
+      }
+    } catch (publicDownloadError) {
+      console.warn("[cs-docs][reprocess] public Drive download failed", {
+        file_id: fileId,
+        message:
+          publicDownloadError instanceof Error
+            ? publicDownloadError.message
+            : String(publicDownloadError),
+      });
+    }
+
+    const status = errorStatus(driveError);
+    if (status === 403) {
+      throw new Error(
+        "Google Driveの共有設定によりPDFを取得できません。対象ファイルをVercelのGoogleサービスアカウントへ共有するか、リンクを閲覧可能にしてください。",
+      );
+    }
+    if (status === 404) {
+      throw new Error("Google Drive上に対象PDFが見つかりません。URLまたはファイルの共有状態を確認してください。");
+    }
+    throw new Error(
+      "Google DriveからPDFを取得できませんでした。対象ファイルの共有設定を確認してください。",
+    );
+  }
+}
 export async function rerunCsDocOcr(id: string): Promise<string> {
   const doc = await getCsDoc(id);
   const fileId = extractDriveFileId(doc.url);
   if (!fileId) throw new Error("Google DriveファイルIDをURLから取得できません");
 
-  const ocrText = await extractTextWithAbbyy(await downloadGoogleDriveFile(fileId));
+  console.info("[cs-docs][reprocess] OCR started", {
+    cs_doc_id: id,
+    drive_file_id: fileId,
+  });
+  const ocrText = await extractTextWithAbbyy(await downloadCsDocPdf(fileId));
   if (!ocrText) throw new Error("ABBYY OCRの結果が空です");
 
   const { error } = await supabaseAdmin.from("cs_docs").update({ ocr_text: ocrText }).eq("id", id);
