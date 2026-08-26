@@ -15,6 +15,15 @@ type AbbyyTask = {
   error: string | null;
 };
 
+export class CsDocDriveFileUnavailableError extends Error {
+  readonly code = "DRIVE_FILE_UNAVAILABLE";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "CsDocDriveFileUnavailableError";
+  }
+}
+
 function extractDriveFileId(url: string): string | null {
   const queryMatch = url.match(/[?&]id=([^&]+)/);
   if (queryMatch?.[1]) return decodeURIComponent(queryMatch[1]);
@@ -202,18 +211,29 @@ async function downloadCsDocPdf(fileId: string): Promise<Buffer> {
 
     const status = errorStatus(driveError);
     if (status === 403) {
-      throw new Error(
+      throw new CsDocDriveFileUnavailableError(
         "Google Driveの共有設定によりPDFを取得できません。対象ファイルをVercelのGoogleサービスアカウントへ共有するか、リンクを閲覧可能にしてください。",
       );
     }
     if (status === 404) {
-      throw new Error("Google Drive上に対象PDFが見つかりません。URLまたはファイルの共有状態を確認してください。");
+      throw new CsDocDriveFileUnavailableError(
+        "Google Drive上に対象PDFが見つかりません。URLまたはファイルの共有状態を確認してください。",
+      );
     }
-    throw new Error(
+    throw new CsDocDriveFileUnavailableError(
       "Google DriveからPDFを取得できませんでした。対象ファイルの共有設定を確認してください。",
     );
   }
 }
+async function saveOcrResult(id: string, pdf: Buffer): Promise<string> {
+  const ocrText = await extractTextWithAbbyy(pdf);
+  if (!ocrText) throw new Error("ABBYY OCRの結果が空です");
+
+  const { error } = await supabaseAdmin.from("cs_docs").update({ ocr_text: ocrText }).eq("id", id);
+  if (error) throw error;
+  return ocrText;
+}
+
 export async function rerunCsDocOcr(id: string): Promise<string> {
   const doc = await getCsDoc(id);
   const fileId = extractDriveFileId(doc.url);
@@ -223,12 +243,16 @@ export async function rerunCsDocOcr(id: string): Promise<string> {
     cs_doc_id: id,
     drive_file_id: fileId,
   });
-  const ocrText = await extractTextWithAbbyy(await downloadCsDocPdf(fileId));
-  if (!ocrText) throw new Error("ABBYY OCRの結果が空です");
+  return saveOcrResult(id, await downloadCsDocPdf(fileId));
+}
 
-  const { error } = await supabaseAdmin.from("cs_docs").update({ ocr_text: ocrText }).eq("id", id);
-  if (error) throw error;
-  return ocrText;
+export async function rerunCsDocOcrFromPdf(id: string, pdf: Buffer): Promise<string> {
+  await getCsDoc(id);
+  console.info("[cs-docs][reprocess] OCR started from uploaded PDF", {
+    cs_doc_id: id,
+    bytes: pdf.length,
+  });
+  return saveOcrResult(id, pdf);
 }
 
 export async function rerunCsDocSummary(id: string, draftOcrText?: string): Promise<string> {
