@@ -1017,14 +1017,18 @@ export async function GET(req: NextRequest) {
             if (row.team_orgunitid) userTeamMap.set(row.user_id, row.team_orgunitid);
         }
         const teamIds = Array.from(new Set(userTeamMap.values()));
+        const scoreEligibleTeamIds = new Set<string>();
         if (teamIds.length > 0) {
             const { data: orgRows, error: orgRowsError } = await supabaseAdmin
                 .from("orgs")
-                .select("orgunitid, orgunitname")
+                .select("orgunitid, orgunitname, displaylevel")
                 .in("orgunitid", teamIds);
             if (orgRowsError) throw orgRowsError;
             for (const org of orgRows ?? []) {
                 teamNameMap.set(org.orgunitid, org.orgunitname);
+                if (Number(org.displaylevel) === 3) {
+                    scoreEligibleTeamIds.add(org.orgunitid);
+                }
             }
         }
 
@@ -1411,8 +1415,10 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
         }
 
         const scoredTeamIds = teamIds.filter((teamId) => {
-            // 当月に訪問シフトへ入った人がいるチームだけをランキング対象にする。
-            return (teamVisitShiftIdsMap.get(teamId)?.size ?? 0) > 0;
+            // チーム成績は組織階層レベル3のみ。代表・本社機能などの上位組織は除外する。
+            // あわせて、当月に訪問シフトへ入った人がいるチームだけを対象にする。
+            return scoreEligibleTeamIds.has(teamId) &&
+                (teamVisitShiftIdsMap.get(teamId)?.size ?? 0) > 0;
         });
         const teamSummaryRows = scoredTeamIds
             .map((teamId) => {

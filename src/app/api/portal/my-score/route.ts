@@ -78,6 +78,7 @@ type TeamRankingRow = {
     rank: number;
     teamId: string;
     teamName: string;
+    scoreEligible: boolean;
     score: number;
     serviceHoursScore: number;
     visitRecordScore: number;
@@ -567,6 +568,29 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: teamRankingError.message }, { status: 500 });
     }
 
+    const { data: scoreEligibleOrgRows, error: scoreEligibleOrgError } = await supabaseAdmin
+        .from("orgs")
+        .select("orgunitid")
+        .eq("displaylevel", 3);
+    if (scoreEligibleOrgError) {
+        return NextResponse.json({ error: scoreEligibleOrgError.message }, { status: 500 });
+    }
+    const scoreEligibleOrgIds = new Set(
+        (scoreEligibleOrgRows ?? []).map((org) => String(org.orgunitid)),
+    );
+
+    const { data: activeTeamRows, error: activeTeamRowsError } = await supabaseAdmin
+        .from("staff_monthly_score_summaries")
+        .select("team_orgunitid, visit_record_total_count")
+        .eq("target_month", targetMonthDate)
+        .gt("visit_record_total_count", 0);
+    if (activeTeamRowsError) {
+        return NextResponse.json({ error: activeTeamRowsError.message }, { status: 500 });
+    }
+    const activeTeamIds = new Set(
+        (activeTeamRows ?? []).map((row) => String(row.team_orgunitid ?? "")),
+    );
+
     const teamRanking: TeamRankingRow[] = [...(teamRankingSourceRows ?? [])]
         .filter((team) => Number(team.visit_record_total_count ?? 0) > 0)
         .sort((a, b) => Number(b.team_score ?? b.total_score ?? 0) - Number(a.team_score ?? a.total_score ?? 0))
@@ -574,6 +598,7 @@ export async function GET(req: NextRequest) {
             rank: index + 1,
             teamId: String(team.orgunitid),
             teamName: String(team.team_name ?? team.orgunitname ?? team.orgunitid),
+            scoreEligible: scoreEligibleOrgIds.has(String(team.orgunitid)) && activeTeamIds.has(String(team.orgunitid)),
             score: Number(team.team_score ?? team.total_score ?? 0),
             serviceHoursScore: Number(team.service_hours_score ?? 0),
             visitRecordScore: Number(team.visit_record_score ?? 0),

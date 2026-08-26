@@ -50,6 +50,7 @@ type TeamRankingRow = {
     rank: number;
     teamId: string;
     teamName: string;
+    scoreEligible: boolean;
     score: number;
     serviceHoursScore: number;
     visitRecordScore: number;
@@ -274,6 +275,9 @@ function PerformanceScorePanelContent({
     }, [selectedMonth, selectedUserId, router, syncUrl]);
 
     const showingNewScheme = displayScheme === "new";
+    const visibleTeamRanking = (score?.teamRanking ?? [])
+        .filter((team) => team.scoreEligible)
+        .map((team, index) => ({ ...team, rank: index + 1 }));
     const displayedTotalScore = score
         ? showingNewScheme ? score.projectedTotalScore : score.officialTotalScore
         : 0;
@@ -685,13 +689,13 @@ function PerformanceScorePanelContent({
                                 介護保険はカイポケ連携を含む判定ロジックを準備中のため、現在は加点・減点しません。
                             </div>
 
-                            {score.teamRanking.length === 0 ? (
+                            {visibleTeamRanking.length === 0 ? (
                                 <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
                                     チーム成績がまだありません。月次成績Cronの再集計後に表示されます。
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    {score.teamRanking.map((team) => {
+                                    {visibleTeamRanking.map((team) => {
                                         const isTop3 = team.rank <= 3;
 
                                         return (
