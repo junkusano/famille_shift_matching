@@ -14,6 +14,11 @@ import {
     isHealthCheckForFiscalYear,
 } from "@/lib/healthCheck";
 import { findTeamRenewalIssues } from "@/lib/performance/teamRenewalIssues";
+import {
+    calculateTeamRenewalScore,
+    calculateTeamServiceHoursScore,
+    calculateTeamVisitRecordScore,
+} from "@/lib/performance/teamScoreRules";
 
 const EXCLUDED_PERFORMANCE_SCORE_USER_IDS = [
     "satominishio",
@@ -1431,7 +1436,7 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                 const legacyServiceHoursScore = Math.min(20, Math.max(0, Math.floor(serviceHoursGrowth / 10)));
                 // 10月以降は10時間単位を正負対称にする。プラス側だけ20点上限、マイナス側は下限なし。
                 const serviceHoursScore = useOctoberTeamScoreRules
-                    ? Math.min(20, Math.trunc(serviceHoursGrowth / 10))
+                    ? calculateTeamServiceHoursScore(serviceHoursGrowth)
                     : legacyServiceHoursScore;
                 const jissekiTotalCount = teamJissekiTotalMap.get(teamId) ?? 0;
                 const jissekiIncompleteCount = teamJissekiIncompleteMap.get(teamId) ?? 0;
@@ -1439,14 +1444,17 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                 const visitRecordTotalCount = teamVisitShiftIdsMap.get(teamId)?.size ?? 0;
                 const visitRecordDeadlineMissCount = teamDeadlineMissShiftIdsMap.get(teamId)?.size ?? 0;
                 const visitRecordPastIncompleteCount = teamPastIncompleteShiftIdsMap.get(teamId)?.size ?? 0;
-                const visitRecordCurrentMonthScore = 20 - visitRecordDeadlineMissCount;
-                const visitRecordPastPenaltyScore = visitRecordPastIncompleteCount * -5;
                 const visitRecordScore = useOctoberTeamScoreRules
-                    ? visitRecordCurrentMonthScore + visitRecordPastPenaltyScore
-                    : Math.max(0, visitRecordCurrentMonthScore);
+                    ? calculateTeamVisitRecordScore(
+                        visitRecordDeadlineMissCount,
+                        visitRecordPastIncompleteCount,
+                    )
+                    : Math.max(0, 20 - visitRecordDeadlineMissCount);
                 const renewalIncompleteDetails = teamRenewalDetailsMap.get(teamId) ?? [];
                 const renewalIncompleteCount = renewalIncompleteDetails.length;
-                const renewalScore = useOctoberTeamScoreRules ? renewalIncompleteCount * -5 : 0;
+                const renewalScore = useOctoberTeamScoreRules
+                    ? calculateTeamRenewalScore(renewalIncompleteCount)
+                    : 0;
                 // 前月に勤務実績があるメンバーだけを会議参加の採点対象にする。
                 const meetingMemberUserIds = memberUserIds.filter((userId) =>
                     meetingEligibleUserIds.has(userId)

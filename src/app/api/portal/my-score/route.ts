@@ -5,6 +5,11 @@ import {
     getPerformanceBadge,
     isNewPerformanceSchemeOfficial,
 } from "@/lib/performanceScoreBadge";
+import {
+    calculateTeamRenewalScore,
+    calculateTeamServiceHoursScore,
+    calculateTeamVisitRecordScore,
+} from "@/lib/performance/teamScoreRules";
 
 const EXCLUDED_PERFORMANCE_SCORE_USER_IDS = [
     "satominishio",
@@ -593,15 +598,25 @@ export async function GET(req: NextRequest) {
 
     const teamRanking: TeamRankingRow[] = [...(teamRankingSourceRows ?? [])]
         .filter((team) => Number(team.visit_record_total_count ?? 0) > 0)
-        .sort((a, b) => Number(b.team_score ?? b.total_score ?? 0) - Number(a.team_score ?? a.total_score ?? 0))
         .map((team, index) => ({
             rank: index + 1,
             teamId: String(team.orgunitid),
             teamName: String(team.team_name ?? team.orgunitname ?? team.orgunitid),
             scoreEligible: scoreEligibleOrgIds.has(String(team.orgunitid)) && activeTeamIds.has(String(team.orgunitid)),
-            score: Number(team.team_score ?? team.total_score ?? 0),
-            serviceHoursScore: Number(team.service_hours_score ?? 0),
-            visitRecordScore: Number(team.visit_record_score ?? 0),
+            score:
+                calculateTeamServiceHoursScore(Number(team.service_hours_growth ?? 0))
+                + calculateTeamVisitRecordScore(
+                    Number(team.visit_record_deadline_miss_count ?? 0),
+                    Number(team.visit_record_past_incomplete_count ?? 0),
+                )
+                + Number(team.jisseki_score ?? 0)
+                + Number(team.meeting_score ?? 0)
+                + calculateTeamRenewalScore(Number(team.renewal_incomplete_count ?? 0)),
+            serviceHoursScore: calculateTeamServiceHoursScore(Number(team.service_hours_growth ?? 0)),
+            visitRecordScore: calculateTeamVisitRecordScore(
+                Number(team.visit_record_deadline_miss_count ?? 0),
+                Number(team.visit_record_past_incomplete_count ?? 0),
+            ),
             jissekiScore: Number(team.jisseki_score ?? 0),
             meetingScore: Number(team.meeting_score ?? 0),
             serviceHoursGrowth: Number(team.service_hours_growth ?? 0),
@@ -616,10 +631,12 @@ export async function GET(req: NextRequest) {
             visitRecordIncompleteDetails: parseTeamScoreDetails(team.visit_record_incomplete_details),
             meetingIncompleteDetails: parseTeamScoreDetails(team.meeting_incomplete_details),
             renewalIncompleteCount: Number(team.renewal_incomplete_count ?? 0),
-            renewalScore: Number(team.renewal_score ?? 0),
+            renewalScore: calculateTeamRenewalScore(Number(team.renewal_incomplete_count ?? 0)),
             visitRecordPastIncompleteDetails: parseTeamScoreDetails(team.visit_record_past_incomplete_details),
             renewalIncompleteDetails: parseTeamScoreDetails(team.renewal_incomplete_details),
-        }));
+        }))
+        .sort((a, b) => b.score - a.score)
+        .map((team, index) => ({ ...team, rank: index + 1 }));
 
     const { data: rankingSourceRows } = await supabaseAdmin
         .from("staff_monthly_score_summaries")
@@ -639,6 +656,10 @@ export async function GET(req: NextRequest) {
         }
     }
 
+    const projectedTeamScoreById = new Map(
+        teamRanking.filter((team) => team.scoreEligible).map((team) => [team.teamId, team.score]),
+    );
+
     const baseRankingRows = (rankingSourceRows ?? [])
         .filter((row) => !EXCLUDED_PERFORMANCE_SCORE_USER_IDS.includes(row.user_id))
         .filter((row) => Number(row.visit_record_total_count ?? 0) > 0)
@@ -647,7 +668,10 @@ export async function GET(req: NextRequest) {
             staff_name: row.staff_name,
             team_name: teamNameByUserId.get(row.user_id) ?? null,
             officialScore: Number(row.official_total_score ?? row.total_score ?? 0),
-            projectedScore: Number(row.projected_total_score ?? row.total_score ?? 0),
+            projectedScore: Number(row.individual_score ?? row.total_score ?? 0)
+                + (row.team_orgunitid
+                    ? projectedTeamScoreById.get(String(row.team_orgunitid)) ?? 0
+                    : 0),
         }));
 
     const buildRanking = (mode: "official" | "projected") =>
@@ -771,19 +795,20 @@ shift_decline_penalty_score,
     );
 
     const individualScore = Number(summary.individual_score ?? summary.total_score ?? 0);
-    const teamScore = Number(summary.team_score ?? 0);
+    const projectedTeamSummary = teamRanking.find((team) => team.scoreEligible && team.teamId === String(summary.team_orgunitid ?? ""));
+    const teamScore = projectedTeamSummary?.score ?? 0;
     const officialTotalScore = Number(summary.official_total_score ?? summary.total_score ?? individualScore);
-    const projectedTotalScore = Number(summary.projected_total_score ?? individualScore + teamScore);
+    const projectedTotalScore = individualScore + teamScore;
     const newSchemeOfficial = isNewPerformanceSchemeOfficial(targetMonthDate);
     const officialBadge = getPerformanceBadge(
         officialTotalScore,
         newSchemeOfficial ? "new" : "current"
     );
     const projectedBadge = getPerformanceBadge(projectedTotalScore, "new");
-    const teamServiceHoursScore = Number(teamSummary?.service_hours_score ?? 0);
-    const teamJissekiScore = Number(teamSummary?.jisseki_score ?? 0);
-    const teamVisitRecordScore = Number(teamSummary?.visit_record_score ?? 0);
-    const teamMeetingScore = Number(teamSummary?.meeting_score ?? 0);
+    const teamServiceHoursScore = projectedTeamSummary?.serviceHoursScore ?? 0;
+    const teamJissekiScore = projectedTeamSummary?.jissekiScore ?? 0;
+    const teamVisitRecordScore = projectedTeamSummary?.visitRecordScore ?? 0;
+    const teamMeetingScore = projectedTeamSummary?.meetingScore ?? 0;
 
     return NextResponse.json({
         month: ym,
@@ -813,8 +838,8 @@ shift_decline_penalty_score,
         debugTargetMonth: summary.target_month,
         debugUserId: summary.user_id,
 
-        // 現行の個人評価最大140点＋新制度のチーム成績最大70点
-        totalMaxScore: 210,
+        // 現行の個人評価最大140点＋新制度のチーム成績最大50点
+        totalMaxScore: 190,
 
         badge: officialBadge.name,
         metrics: [

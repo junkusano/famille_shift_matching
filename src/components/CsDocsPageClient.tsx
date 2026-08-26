@@ -7,6 +7,7 @@ import { isCsDocUserUnset } from "@/lib/cs-docs-user-unset";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
+import { supabase } from "@/lib/supabaseClient";
 
 type DocOption = { value: string; label: string };
 
@@ -233,6 +234,9 @@ export default function CsDocsPageClient({
     };
 
     const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+    const [reprocessing, setReprocessing] = useState<
+        Record<string, "ocr" | "summary" | undefined>
+    >({});
 
     // ✅ ページ/検索条件が変わったら Server から来た docs を state に反映
     // （useState初期値は初回マウント時しか使われないため）
@@ -351,6 +355,72 @@ export default function CsDocsPageClient({
         alert("保存しました");
     };
 
+    const handleReprocess = async (row: CsDocRow, mode: "ocr" | "summary") => {
+        const label = mode === "ocr" ? "OCR" : "サマリー";
+        const message =
+            mode === "ocr"
+                ? "現在のOCR本文をABBYYの再OCR結果で上書きしますか？"
+                : "現在のサマリーを再生成結果で上書きしますか？";
+        if (!confirm(message)) return;
+
+        setReprocessing((prev) => ({ ...prev, [row.id]: mode }));
+        try {
+            const { data, error } = await supabase.auth.getSession();
+            if (error) throw error;
+            const token = data.session?.access_token;
+            if (!token) throw new Error("ログイン情報を取得できませんでした");
+
+            const draft = getDraft(row);
+            const response = await fetch("/api/cs-docs/reprocess", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    id: row.id,
+                    mode,
+                    ...(mode === "summary" ? { ocr_text: draft.ocr_text } : {}),
+                }),
+            });
+            const result = (await response.json().catch(() => null)) as
+                | { ok: true; ocr_text?: string; summary?: string }
+                | { ok: false; error?: string }
+                | null;
+            if (!response.ok || !result || result.ok !== true) {
+                const errorMessage = result && "error" in result ? result.error : null;
+                throw new Error(errorMessage || `${label}の再処理に失敗しました`);
+            }
+
+            const value = mode === "ocr" ? result.ocr_text : result.summary;
+            if (!value) throw new Error(`${label}の再処理結果が空です`);
+
+            const field = mode === "ocr" ? "ocr_text" : "summary";
+            setDocs((prev) =>
+                prev.map((item) =>
+                    item.id === row.id ? { ...item, [field]: value } : item,
+                ),
+            );
+            setDrafts((prev) => ({
+                ...prev,
+                [row.id]: {
+                    ...(prev[row.id] ?? draft),
+                    [field]: value,
+                },
+            }));
+
+            alert(
+                mode === "ocr"
+                    ? "再OCRが完了しました。必要に応じて「再サマリー」も実行してください。"
+                    : "サマリーの再生成が完了しました。",
+            );
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            alert(`${label}の再処理に失敗しました\n${message}`);
+        } finally {
+            setReprocessing((prev) => ({ ...prev, [row.id]: undefined }));
+        }
+    };
     const handleDelete = async (id: string) => {
         if (!confirm("削除しますか？")) return;
 
@@ -674,15 +744,37 @@ export default function CsDocsPageClient({
                                             <button
                                                 type="button"
                                                 onClick={() => handleSave(row)}
-                                                className="bg-blue-600 text-white px-2 py-1 text-xs"
+                                                disabled={Boolean(reprocessing[row.id])}
+                                                className="bg-blue-600 text-white px-2 py-1 text-xs disabled:bg-gray-300"
                                             >
                                                 保存
                                             </button>
 
                                             <button
                                                 type="button"
+                                                onClick={() => handleReprocess(row, "ocr")}
+                                                disabled={Boolean(reprocessing[row.id]) || !row.url}
+                                                className="bg-emerald-600 text-white px-2 py-1 text-xs disabled:bg-gray-300"
+                                            >
+                                                {reprocessing[row.id] === "ocr" ? "再OCR中..." : "再OCR"}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleReprocess(row, "summary")}
+                                                disabled={Boolean(reprocessing[row.id]) || isMissing(d.ocr_text)}
+                                                className="bg-violet-600 text-white px-2 py-1 text-xs disabled:bg-gray-300"
+                                            >
+                                                {reprocessing[row.id] === "summary"
+                                                    ? "再生成中..."
+                                                    : "再サマリー"}
+                                            </button>
+
+                                            <button
+                                                type="button"
                                                 onClick={() => handleDelete(row.id)}
-                                                className="bg-red-600 text-white px-2 py-1 text-xs"
+                                                disabled={Boolean(reprocessing[row.id])}
+                                                className="bg-red-600 text-white px-2 py-1 text-xs disabled:bg-gray-300"
                                             >
                                                 削除
                                             </button>

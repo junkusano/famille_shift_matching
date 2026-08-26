@@ -7342,6 +7342,53 @@ export type Database = {
         }
         Relationships: []
       }
+      recording_transcript_segments: {
+        Row: {
+          created_at: string
+          duration_millis: number
+          id: string
+          recording_transcript_id: string
+          segment_index: number
+          start_millis: number
+          transcribed_at: string | null
+          transcript_raw: string | null
+          transcript_status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          duration_millis: number
+          id?: string
+          recording_transcript_id: string
+          segment_index: number
+          start_millis: number
+          transcribed_at?: string | null
+          transcript_raw?: string | null
+          transcript_status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          duration_millis?: number
+          id?: string
+          recording_transcript_id?: string
+          segment_index?: number
+          start_millis?: number
+          transcribed_at?: string | null
+          transcript_raw?: string | null
+          transcript_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recording_transcript_segments_recording_transcript_id_fkey"
+            columns: ["recording_transcript_id"]
+            isOneToOne: false
+            referencedRelation: "recording_transcripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recording_transcripts: {
         Row: {
           client_id: string | null
@@ -7359,7 +7406,9 @@ export type Database = {
           recorder_email: string | null
           recorder_user_id: string
           transcribed_at: string | null
+          transcript_completed_segment_count: number | null
           transcript_raw: string | null
+          transcript_segment_count: number | null
           transcript_status: string
           updated_at: string
         }
@@ -7379,7 +7428,9 @@ export type Database = {
           recorder_email?: string | null
           recorder_user_id: string
           transcribed_at?: string | null
+          transcript_completed_segment_count?: number | null
           transcript_raw?: string | null
+          transcript_segment_count?: number | null
           transcript_status?: string
           updated_at?: string
         }
@@ -7399,7 +7450,9 @@ export type Database = {
           recorder_email?: string | null
           recorder_user_id?: string
           transcribed_at?: string | null
+          transcript_completed_segment_count?: number | null
           transcript_raw?: string | null
+          transcript_segment_count?: number | null
           transcript_status?: string
           updated_at?: string
         }
@@ -10171,10 +10224,10 @@ export type Database = {
           orgunitname: string
           previous_month_service_hours?: number
           rank_no?: number | null
-          service_hours?: number
           renewal_incomplete_count?: number
           renewal_incomplete_details?: Json
           renewal_score?: number
+          service_hours?: number
           service_hours_base_score?: number
           service_hours_current?: number
           service_hours_growth?: number
@@ -10189,9 +10242,9 @@ export type Database = {
           visit_record_deadline_miss_count?: number
           visit_record_deadline_miss_details?: Json
           visit_record_incomplete_details?: Json
-          visit_record_same_day_count?: number
           visit_record_past_incomplete_count?: number
           visit_record_past_incomplete_details?: Json
+          visit_record_same_day_count?: number
           visit_record_score?: number
           visit_record_submission_rate?: number
           visit_record_target_count?: number
@@ -10217,11 +10270,11 @@ export type Database = {
           orgunitname?: string
           previous_month_service_hours?: number
           rank_no?: number | null
-          service_hours?: number
-          service_hours_base_score?: number
           renewal_incomplete_count?: number
           renewal_incomplete_details?: Json
           renewal_score?: number
+          service_hours?: number
+          service_hours_base_score?: number
           service_hours_current?: number
           service_hours_growth?: number
           service_hours_growth_score?: number
@@ -10235,10 +10288,10 @@ export type Database = {
           visit_record_deadline_miss_count?: number
           visit_record_deadline_miss_details?: Json
           visit_record_incomplete_details?: Json
-          visit_record_same_day_count?: number
-          visit_record_score?: number
           visit_record_past_incomplete_count?: number
           visit_record_past_incomplete_details?: Json
+          visit_record_same_day_count?: number
+          visit_record_score?: number
           visit_record_submission_rate?: number
           visit_record_target_count?: number
           visit_record_total_count?: number

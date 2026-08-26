@@ -1,7 +1,7 @@
 //"C:\Users\サービスサポート\famille_shift_matching\src\components\portal\PerformanceScoreCard.tsx"
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
@@ -127,6 +127,7 @@ function TeamMetricExplanation({
     formula,
     importance,
     improvement,
+    children,
 }: {
     title: string;
     score: number;
@@ -134,22 +135,51 @@ function TeamMetricExplanation({
     formula: string;
     importance: string;
     improvement: string;
+    children?: ReactNode;
 }) {
+    const scoreClass = score < 0
+        ? "border-rose-200 bg-rose-50 text-rose-700"
+        : "border-blue-200 bg-blue-50 text-blue-800";
+
     return (
-        <details className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-            <summary className="cursor-pointer text-sm font-bold text-slate-800">
-                {title}：{score >= 0 ? "+" : ""}{score}点　<span className="text-xs font-medium text-blue-700">計算根拠を見る</span>
-            </summary>
-            <div className="mt-3 space-y-2 text-xs leading-5 text-slate-700">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
                 <div>
-                    <div className="font-bold text-slate-900">計算根拠</div>
-                    {basis.map((line) => <div key={line}>・{line}</div>)}
+                    <div className="text-[11px] font-bold text-slate-500">① 評価項目・現在の点数</div>
+                    <div className="mt-1 text-base font-black text-slate-900">{title}</div>
                 </div>
-                <div><span className="font-bold text-slate-900">計算式：</span>{formula}</div>
-                <div><span className="font-bold text-slate-900">なぜ重要か：</span>{importance}</div>
-                <div><span className="font-bold text-slate-900">改善方法：</span>{improvement}</div>
+                <div className={`rounded-xl border px-3 py-1.5 text-xl font-black ${scoreClass}`}>
+                    {score >= 0 ? "+" : ""}{score}点
+                </div>
             </div>
-        </details>
+
+            <div className="border-b border-slate-200 px-4 py-3">
+                <div className="text-xs font-black text-blue-900">② 計算根拠・計算式</div>
+                <div className="mt-2 grid gap-3 text-xs leading-5 text-slate-700 md:grid-cols-2">
+                    <div className="rounded-xl bg-blue-50 px-3 py-2">
+                        {basis.map((line) => <div key={line}>・{line}</div>)}
+                    </div>
+                    <div className="rounded-xl bg-slate-100 px-3 py-2">
+                        <span className="font-bold text-slate-900">計算：</span>{formula}
+                    </div>
+                </div>
+            </div>
+
+            <div className="px-4 py-3">
+                <div className="text-xs font-black text-emerald-900">③ なぜ重要か・どう改善するか</div>
+                <div className="mt-2 grid gap-3 text-xs leading-5 md:grid-cols-2">
+                    <div className="rounded-xl bg-emerald-50 px-3 py-2 text-emerald-950">
+                        <div className="font-bold">なぜ重要か</div>
+                        <div className="mt-1">{importance}</div>
+                    </div>
+                    <div className="rounded-xl bg-amber-50 px-3 py-2 text-amber-950">
+                        <div className="font-bold">どう改善するか</div>
+                        <div className="mt-1">{improvement}</div>
+                    </div>
+                </div>
+                {children && <div className="mt-3 space-y-2">{children}</div>}
+            </div>
+        </section>
     );
 }
 
@@ -727,7 +757,7 @@ function PerformanceScorePanelContent({
                                                                 <span>過去訪問未入力 {team.visitRecordPastIncompleteCount}件</span>
                                                                 <span>実績不備 {team.jissekiIncompleteCount}件</span>
                                                                 <span>会議不参加 {team.meetingIncompleteCount}名</span>
-                                                                <span>証書・プラン未対応 {team.renewalIncompleteCount}件</span>
+                                                                <span>前月受給者証入力・プラン更新 未対応 {team.renewalIncompleteCount}件</span>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -743,7 +773,7 @@ function PerformanceScorePanelContent({
                                                     <span className={`rounded-lg px-2 py-1.5 ${team.visitRecordScore < 0 ? "bg-rose-50 text-rose-700" : "bg-teal-50 text-teal-800"}`}>訪問記録 {team.visitRecordScore >= 0 ? "+" : ""}{team.visitRecordScore}点</span>
                                                     <span className={`rounded-lg px-2 py-1.5 ${team.jissekiScore < 0 ? "bg-rose-50 text-rose-700" : "bg-violet-50 text-violet-800"}`}>実績記録 {team.jissekiScore >= 0 ? "+" : ""}{team.jissekiScore}点</span>
                                                     <span className={`rounded-lg px-2 py-1.5 ${team.meetingScore < 0 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-800"}`}>会議 {team.meetingScore >= 0 ? "+" : ""}{team.meetingScore}点</span>
-                                                    <span className={`rounded-lg px-2 py-1.5 ${team.renewalScore < 0 ? "bg-rose-50 text-rose-700" : "bg-slate-50 text-slate-700"}`}>証書・プラン {team.renewalScore >= 0 ? "+" : ""}{team.renewalScore}点</span>
+                                                    <span className={`rounded-lg px-2 py-1.5 ${team.renewalScore < 0 ? "bg-rose-50 text-rose-700" : "bg-slate-50 text-slate-700"}`}>前月受給者証入力・プラン更新 {team.renewalScore >= 0 ? "+" : ""}{team.renewalScore}点</span>
                                                 </div>
 
                                                 <div className="mt-3 space-y-2">
@@ -764,11 +794,13 @@ function PerformanceScorePanelContent({
                                                         score={team.visitRecordScore}
                                                         basis={[
                                                             `当月23:43確認時点の未入力：${team.visitRecordDeadlineMissCount}件`,
+                                                            `当月分：${team.visitRecordDeadlineMissCount}件 × -1点 = -${team.visitRecordDeadlineMissCount}点`,
                                                             `前月以前から残る未入力：${team.visitRecordPastIncompleteCount}件`,
+                                                            `過去分：${team.visitRecordPastIncompleteCount}件 × -5点 = -${team.visitRecordPastIncompleteCount * 5}点`,
                                                         ]}
-                                                        formula={`20点 - 当月${team.visitRecordDeadlineMissCount}件 × 1点 - 過去${team.visitRecordPastIncompleteCount}件 × 5点 = ${team.visitRecordScore}点（下限なし）`}
-                                                        importance="訪問記録はサービス提供を証明する重要書類です。記録がなければ、行政から返戻（報酬の返還）を求められる可能性があります。"
-                                                        improvement="サービス終了後に必ず正確に入力してください。毎日23:43の確認処理時点で当日分が未入力の場合は減点対象です。"
+                                                        formula={`当月 -${team.visitRecordDeadlineMissCount}点 + 過去 -${team.visitRecordPastIncompleteCount * 5}点 = ${team.visitRecordScore}点（下限なし）`}
+                                                        importance="訪問記録は、実際にサービスへ入ったことを証明する重要な書類です。サービスを提供していても記録がなければ、行政から返戻（報酬の返還）を求められる可能性があります。"
+                                                        improvement="サービス終了後は必ず正確に入力してください。毎日23:43の確認処理時点で当日分が未入力の場合は減点対象となり、前月以前の未入力は完了するまで毎月残ります。"
                                                     />
                                                     <TeamMetricExplanation
                                                         title="実績記録"
@@ -789,10 +821,14 @@ function PerformanceScorePanelContent({
                                                     <TeamMetricExplanation
                                                         title="前月受給者証入力・プラン更新"
                                                         score={team.renewalScore}
-                                                        basis={[`猶予月末を過ぎても未対応：${team.renewalIncompleteCount}件`]}
+                                                        basis={[
+                                                            `障害福祉の未対応：${team.renewalIncompleteCount}件`,
+                                                            "対象：受給者証期限・プラン期限・短期目標期限",
+                                                            "期限切れ翌月の月末までは対応猶予",
+                                                        ]}
                                                         formula={`${team.renewalIncompleteCount}件 × -5点 = ${team.renewalScore}点（対応完了まで毎月対象）`}
-                                                        importance="障害福祉の受給者証期限、プラン期限、短期目標期限を確認します。主にマネジャー業務ですが、LINE WORKSのアラートをチームでもフォローすることが重要です。"
-                                                        improvement="利用者・ご家族へ新しい受給者証の取得状況を確認し、プランや短期目標を更新してください。介護保険はカイポケ連携を含む判定ロジックを準備中で、現在は加点・減点しません。"
+                                                        importance="前月に受給者証の期限が切れている、またはプラン更新が必要な利用者の未対応件数です。主にマネジャー業務ですが、LINE WORKSグループのアラートをチームでもフォローすることが重要です。"
+                                                        improvement="利用者・ご家族へ受給者証や保険証の取得状況を確認し、プランや短期目標を更新してください。スタッフの皆さんも取得確認などのフォローをお願いします。介護保険は現在ロジック準備中で、加点・減点しません。"
                                                     />
 
                                                     <TeamPenaltyDetails
