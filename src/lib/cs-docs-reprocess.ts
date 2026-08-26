@@ -142,10 +142,12 @@ function errorStatus(error: unknown): number | null {
   if (!error || typeof error !== "object") return null;
   const value = error as {
     code?: unknown;
+    cause?: unknown;
     response?: { status?: unknown };
   };
   const status = Number(value.response?.status ?? value.code);
-  return Number.isFinite(status) ? status : null;
+  if (Number.isFinite(status)) return status;
+  return errorStatus(value.cause);
 }
 
 async function downloadCsDocPdf(fileId: string): Promise<Buffer> {

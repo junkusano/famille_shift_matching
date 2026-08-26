@@ -4,6 +4,8 @@ import Link from "next/link";
 import { CircleHelp } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { resolveCurrentClientBeta } from "@/lib/client-menu-beta/context";
 import { buildClientMenuBetaLinks } from "@/lib/client-menu-beta/navigation";
 import { ClientSelectorBeta } from "./ClientSelectorBeta";
 import { useClientMenuBetaClients } from "./useClientMenuBetaClients";
@@ -11,6 +13,8 @@ import styles from "./ClientMenuBeta.module.css";
 
 export function ClientMenuAlertControlsBeta() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const searchParamsKey = searchParams.toString();
   const { clients, loadError } = useClientMenuBetaClients();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -21,7 +25,17 @@ export function ClientMenuAlertControlsBeta() {
   );
   const links = selectedClient ? buildClientMenuBetaLinks(selectedClient) : [];
 
-  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  useEffect(() => {
+    setMenuOpen(false);
+
+    const currentClient = resolveCurrentClientBeta(
+      pathname ?? "",
+      new URLSearchParams(searchParamsKey),
+    );
+    if (!currentClient.clientInfoId && !currentClient.kaipokeCsId) {
+      setSelectedId(null);
+    }
+  }, [pathname, searchParamsKey]);
   useEffect(() => {
     if (!menuOpen) return;
     const closeOnOutsidePointer = (event: PointerEvent) => {
