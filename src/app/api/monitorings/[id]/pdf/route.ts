@@ -13,6 +13,7 @@ import {
 import { effectiveOfficeNotice } from "@/lib/monitoring/core";
 import {
   deleteGoogleDriveFile,
+  downloadGoogleDriveFile,
   GoogleDriveFileError,
   uploadBufferToGoogleDrive,
 } from "@/lib/google-drive/upload";
@@ -38,11 +39,9 @@ export async function POST(request: NextRequest, { params }: Context) {
     | "load"
     | "render"
     | "drive"
-    | "storage"
     | "history"
     | "monitoring" = "auth";
   let driveFileId: string | null = null;
-  let storagePath: string | null = null;
   let snapshotId: string | null = null;
 
   try {
@@ -110,13 +109,6 @@ export async function POST(request: NextRequest, { params }: Context) {
     });
     driveFileId = driveFile.fileId;
 
-    pipelineStage = "storage";
-    storagePath = `${monitoring.client_info_id}/${monitoring.id}/${crypto.randomUUID()}-${filename}`;
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from("monitoring-pdfs")
-      .upload(storagePath, pdf, { contentType: "application/pdf", upsert: false });
-    if (uploadError) throw uploadError;
-
     pipelineStage = "history";
     const contentHash = createHash("sha256").update(pdf).digest("hex");
     const { data: snapshotRow, error: snapshotError } = await supabaseAdmin
@@ -124,8 +116,6 @@ export async function POST(request: NextRequest, { params }: Context) {
       .insert({
         monitoring_id: id,
         version_no: version,
-        storage_bucket: "monitoring-pdfs",
-        storage_path: storagePath,
         filename,
         content_hash: contentHash,
         content_snapshot: snapshot,
@@ -183,19 +173,6 @@ export async function POST(request: NextRequest, { params }: Context) {
           }
         });
     }
-    if (storagePath) {
-      await supabaseAdmin.storage
-        .from("monitoring-pdfs")
-        .remove([storagePath])
-        .then(({ error: cleanupError }) => {
-          if (cleanupError) {
-            console.error("[monitoring:pdf] storage cleanup failed", {
-              storagePath,
-              message: cleanupError.message,
-            });
-          }
-        });
-    }
     if (driveFileId) {
       await deleteGoogleDriveFile(driveFileId).catch((cleanupError) => {
         console.error("[monitoring:pdf] Drive cleanup failed", {
@@ -219,11 +196,9 @@ export async function POST(request: NextRequest, { params }: Context) {
             : error.stage === "folder"
               ? "PDF生成には成功しましたが、Google Driveの保存先フォルダが見つからないか、アクセス権がありません"
               : "PDF生成には成功しましたが、Google Driveへの保存に失敗しました"
-          : pipelineStage === "storage"
-            ? "PDF生成とGoogle Drive保存には成功しましたが、システム内保存に失敗しました"
-            : pipelineStage === "history" || pipelineStage === "monitoring"
-              ? "PDFは生成・保存されましたが、PDF履歴の保存に失敗しました"
-              : "PDF作成処理に失敗しました";
+          : pipelineStage === "history" || pipelineStage === "monitoring"
+            ? "PDFは生成・保存されましたが、PDF履歴の保存に失敗しました"
+            : "PDF作成処理に失敗しました";
 
     console.error("[monitoring:pdf] pipeline failed", {
       stage: pipelineStage,
@@ -251,7 +226,7 @@ export async function GET(request: NextRequest, { params }: Context) {
     }
     const { data: snapshot, error } = await supabaseAdmin
       .from("client_monitoring_pdf_snapshots")
-      .select("id,storage_bucket,storage_path,filename")
+      .select("id,drive_file_id,filename")
       .eq("id", snapshotId)
       .eq("monitoring_id", id)
       .maybeSingle();
@@ -259,13 +234,17 @@ export async function GET(request: NextRequest, { params }: Context) {
     if (!snapshot) {
       return NextResponse.json({ ok: false, error: "PDF履歴が見つかりません" }, { status: 404 });
     }
-    const { data: blob, error: downloadError } = await supabaseAdmin.storage
-      .from(snapshot.storage_bucket)
-      .download(snapshot.storage_path);
-    if (downloadError) throw downloadError;
+    if (!snapshot.drive_file_id) {
+      return NextResponse.json(
+        { ok: false, error: "Google DriveのPDF情報が登録されていません" },
+        { status: 404 },
+      );
+    }
+    const pdf = await downloadGoogleDriveFile(snapshot.drive_file_id);
+    const responseBody = Uint8Array.from(pdf).buffer;
     const disposition = request.nextUrl.searchParams.get("download") === "1" ? "attachment" : "inline";
     const asciiName = `monitoring-${id}.pdf`;
-    return new NextResponse(await blob.arrayBuffer(), {
+    return new NextResponse(responseBody, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `${disposition}; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(

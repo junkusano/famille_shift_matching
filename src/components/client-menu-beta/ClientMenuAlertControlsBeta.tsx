@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CircleHelp } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { buildClientMenuBetaLinks } from "@/lib/client-menu-beta/navigation";
@@ -30,7 +31,12 @@ export function ClientMenuAlertControlsBeta() {
     return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
   }, [menuOpen]);
 
-  return <>
+  const guide = "利用者を選択すると、利用者関連ページへ移動できます";
+
+  return <div className={styles.alertControls}>
+    <span className={styles.alertGuide} title={guide} aria-label={guide}>
+      <CircleHelp size={18} aria-hidden />
+    </span>
     <div className={styles.alertSelector} title={loadError || undefined}>
       <ClientSelectorBeta clients={clients} value={selectedId} onChange={(nextId) => { setSelectedId(nextId); setMenuOpen(false); }} />
     </div>
@@ -42,5 +48,5 @@ export function ClientMenuAlertControlsBeta() {
         {links.map((link) => <Link key={link.label} href={link.href} onClick={() => setMenuOpen(false)}>{link.label}</Link>)}
       </nav>}
     </div>
-  </>;
+  </div>;
 }

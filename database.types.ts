@@ -659,8 +659,8 @@ export type Database = {
           filename: string
           id: string
           monitoring_id: string
-          storage_bucket: string
-          storage_path: string
+          storage_bucket: string | null
+          storage_path: string | null
           version_no: number
         }
         Insert: {
@@ -675,8 +675,8 @@ export type Database = {
           filename: string
           id?: string
           monitoring_id: string
-          storage_bucket?: string
-          storage_path: string
+          storage_bucket?: string | null
+          storage_path?: string | null
           version_no: number
         }
         Update: {
@@ -691,8 +691,8 @@ export type Database = {
           filename?: string
           id?: string
           monitoring_id?: string
-          storage_bucket?: string
-          storage_path?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
           version_no?: number
         }
         Relationships: [

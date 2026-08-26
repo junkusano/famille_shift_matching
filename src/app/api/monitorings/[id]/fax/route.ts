@@ -5,6 +5,7 @@ import { requireMonitoringActor, monitoringAuthErrorResponse } from "@/lib/monit
 import { recordMonitoringEvent } from "@/lib/monitoring/audit";
 import { loadMonitoringContext } from "@/lib/monitoring/context";
 import { getMonitoringRecord } from "@/lib/monitoring/repository";
+import { downloadGoogleDriveFile } from "@/lib/google-drive/upload";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -54,12 +55,13 @@ export async function POST(request: NextRequest, { params }: Context) {
 
     const { data: snapshot, error: snapshotError } = await supabaseAdmin
       .from("client_monitoring_pdf_snapshots")
-      .select("id,storage_bucket,storage_path,filename")
+      .select("id,drive_file_id,filename")
       .eq("id", monitoring.current_pdf_snapshot_id)
       .eq("monitoring_id", id)
       .maybeSingle();
     if (snapshotError) throw snapshotError;
     if (!snapshot) throw new Error("FAX送信用PDFが見つかりません");
+    if (!snapshot.drive_file_id) throw new Error("FAX送信用PDFのGoogle Drive情報がありません");
 
     const { count: previousAccepted, error: countError } = await supabaseAdmin
       .from("monitoring_fax_history")
@@ -112,14 +114,11 @@ export async function POST(request: NextRequest, { params }: Context) {
     faxLogBatchId = batchId;
     faxLogProcessKey = sendProcessKey;
 
-    const { data: blob, error: downloadError } = await supabaseAdmin.storage
-      .from(snapshot.storage_bucket)
-      .download(snapshot.storage_path);
-    if (downloadError) throw downloadError;
+    const pdf = await downloadGoogleDriveFile(snapshot.drive_file_id);
 
     const result = await sendFaximoFax({
       faxNumbers: [target.fax_number],
-      attachments: [{ filename: snapshot.filename, data: Buffer.from(await blob.arrayBuffer()) }],
+      attachments: [{ filename: snapshot.filename, data: pdf }],
       subject,
       headerInfo: (context.office_name || "ファミーユ").slice(0, 80),
       retryCount: 1,

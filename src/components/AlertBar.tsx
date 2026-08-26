@@ -270,14 +270,20 @@ export default function AlertBar() {
     <div className="flex-1">
       {/* ヘッダ＋テーブル部分 */}
       <div className="w-full border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3 lg:flex-row lg:items-center">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <span className="text-lg font-semibold">
-              優先対応が必要なもの（放置したら不備計上）
+              不備件数 {openCount}件
             </span>
-            <span className="text-sm rounded-full px-2 py-0.5 border">
-              未処理 {openCount} 件
-            </span>
+            <button
+              type="button"
+              className="shrink-0 rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
+              aria-expanded={!collapsed}
+              aria-controls="alert-detail-list"
+              onClick={() => setCollapsed((v) => !v)}
+            >
+              {collapsed ? "一覧を表示" : "一覧を隠す"}
+            </button>
             {loading && (
               <span className="text-xs text-gray-400">読込中...</span>
             )}
@@ -285,19 +291,13 @@ export default function AlertBar() {
               <span className="text-xs text-red-500">{error}</span>
             )}
           </div>
-          <div className="flex w-full flex-wrap items-center justify-end gap-2 lg:w-auto lg:flex-nowrap">
+          <div className="flex w-full min-w-0 items-center lg:ml-auto lg:w-auto">
             <ClientMenuAlertControlsBeta />
-            <button
-              className="shrink-0 rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
-              onClick={() => setCollapsed((v) => !v)}
-            >
-              {collapsed ? "一覧を表示▼" : "一覧を畳む▲"}
-            </button>
           </div>
         </div>
 
         {!collapsed && (
-          <div className="mx-auto max-w-6xl px-4 pb-3">
+          <div id="alert-detail-list" className="mx-auto max-w-6xl px-4 pb-3">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>

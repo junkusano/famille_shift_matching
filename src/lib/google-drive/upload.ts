@@ -4,10 +4,10 @@ import { google } from "googleapis";
 import { Readable } from "node:stream";
 
 export class GoogleDriveFileError extends Error {
-  readonly stage: "auth" | "folder" | "upload";
+  readonly stage: "auth" | "folder" | "upload" | "download";
   readonly cause?: unknown;
 
-  constructor(stage: "auth" | "folder" | "upload", message: string, cause?: unknown) {
+  constructor(stage: "auth" | "folder" | "upload" | "download", message: string, cause?: unknown) {
     super(message);
     this.name = "GoogleDriveFileError";
     this.stage = stage;
@@ -106,4 +106,32 @@ export async function uploadBufferToGoogleDrive(params: {
 export async function deleteGoogleDriveFile(fileId: string): Promise<void> {
   const drive = createDriveClient();
   await drive.files.delete({ fileId, supportsAllDrives: true });
+}
+
+export async function downloadGoogleDriveFile(fileId: string): Promise<Buffer> {
+  let drive: ReturnType<typeof google.drive>;
+  try {
+    drive = createDriveClient();
+  } catch (cause) {
+    if (cause instanceof GoogleDriveFileError) throw cause;
+    throw new GoogleDriveFileError("auth", "Google Drive認証に失敗しました", cause);
+  }
+
+  try {
+    const response = await drive.files.get(
+      {
+        fileId,
+        alt: "media",
+        supportsAllDrives: true,
+      },
+      { responseType: "arraybuffer" },
+    );
+    return Buffer.from(response.data as ArrayBuffer);
+  } catch (cause) {
+    throw new GoogleDriveFileError(
+      "download",
+      "Google DriveからPDFを取得できませんでした",
+      cause,
+    );
+  }
 }

@@ -1,7 +1,5 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/service";
+import { getRecordingTranscriptAuthUserId } from "@/lib/recording-transcript-auth";
 import {
   getRecordingTranscriptsPageData,
   isRecordingTranscriptPortal,
@@ -10,15 +8,6 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-async function getAuthUserId(request: NextRequest): Promise<string | null> {
-  const authorization = request.headers.get("authorization") ?? "";
-  const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
-  const auth = token
-    ? await supabaseAdmin.auth.getUser(token)
-    : await createRouteHandlerClient({ cookies }).auth.getUser();
-  return auth.data.user?.id ?? null;
-}
 
 function positiveInteger(value: string | null, fallback: number): number {
   const parsed = Number(value);
@@ -31,7 +20,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Portalの指定が不正です" }, { status: 400 });
   }
 
-  const authUserId = await getAuthUserId(request);
+  const authUserId = await getRecordingTranscriptAuthUserId(request);
   if (!authUserId) {
     return NextResponse.json({ ok: false, error: "ログインしてください" }, { status: 401 });
   }
