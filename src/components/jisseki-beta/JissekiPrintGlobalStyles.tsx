@@ -181,6 +181,15 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
           display: none !important;
         }
 
+        /*
+         * 新スマホUIの固定ヘッダー／ボトムナビを通常フローへ残さない。
+         * visibility:hidden だけでは高さが残り、A4帳票の前後に空白ページができるため、
+         * β版印刷時だけ portal-container 直下の main 以外を完全に除外する。
+         */
+        body.beta-jisseki-print-active .portal-container > :not(main) {
+          display: none !important;
+        }
+
         body.beta-jisseki-print-active .portal-container,
         body.beta-jisseki-print-active main,
         body.beta-jisseki-print-active main > .flex-1,
