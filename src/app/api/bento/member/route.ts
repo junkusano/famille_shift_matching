@@ -167,9 +167,10 @@ async function checkEligibility(
         throw meetingError;
     }
 
+    // 事務職の taigamisu はヘルパー用シフトに載らないため、会議参加対象として扱う。
     const isMeetingMember =
-        meetingRow !== null &&
-        meetingRow.required !== false;
+        (meetingRow !== null && meetingRow.required !== false) ||
+        loginUser.userId === "taigamisu";
 
     /*
      * 2. 配布月がエントリー月か確認

@@ -62,7 +62,7 @@ type ShiftStaffRow = {
     staff_03_user_id: string | null;
 };
 
-const FORCE_MONTHLY_MEETING_USER_IDS = ["shinomasuda", "satominishio"];
+const FORCE_MONTHLY_MEETING_USER_IDS = ["shinomasuda", "satominishio", "taigamisu"];
 
 export async function POST(req: NextRequest) {
     try {

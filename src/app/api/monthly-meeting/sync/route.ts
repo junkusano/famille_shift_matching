@@ -57,6 +57,8 @@ type ShiftStaffRow = {
     staff_03_user_id: string | null;
 };
 
+const FORCE_MONTHLY_MEETING_USER_IDS = ["taigamisu"];
+
 export async function POST(req: NextRequest) {
     try {
         await requireFullRole(req);
@@ -91,7 +93,9 @@ export async function POST(req: NextRequest) {
             if (r.staff_03_user_id) set.add(r.staff_03_user_id);
         }
 
-        const staffIds = Array.from(set);
+        const staffIds = Array.from(
+            new Set([...set, ...FORCE_MONTHLY_MEETING_USER_IDS]),
+        );
 
         // 2) monthly_meeting_attendance へ upsert（required=true）
         const upserts = staffIds.map((user_id) => ({

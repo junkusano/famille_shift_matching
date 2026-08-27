@@ -83,7 +83,7 @@ type StaffRow = {
     roster_sort: string | null;
 };
 
-const FORCE_MONTHLY_MEETING_USER_IDS = ["shinomasuda", "satominishio"];
+const FORCE_MONTHLY_MEETING_USER_IDS = ["shinomasuda", "satominishio", "taigamisu"];
 
 export async function GET(req: NextRequest) {
     try {
