@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHmac, randomBytes } from "crypto";
 import OpenAI from "openai";
 import { downloadGoogleDriveFile } from "@/lib/google-drive/upload";
 import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
@@ -7,6 +8,7 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 
 const MAX_ABBYY_POLLS = 30;
 const ABBYY_POLL_INTERVAL_MS = 3_000;
+const MAX_GATEWAY_PDF_BYTES = 10 * 1024 * 1024;
 
 type AbbyyTask = {
   id: string;
@@ -159,6 +161,53 @@ function errorStatus(error: unknown): number | null {
   return errorStatus(value.cause);
 }
 
+type GasDriveGatewayResponse = {
+  ok?: boolean;
+  code?: string;
+  fileId?: string;
+  size?: number;
+  base64?: string;
+};
+
+async function downloadCsDocPdfViaGas(fileId: string): Promise<Buffer | null> {
+  const url = process.env.CS_DOCS_GAS_GATEWAY_URL?.trim() ?? "";
+  const secret = process.env.CS_DOCS_GAS_GATEWAY_SECRET?.trim() ?? "";
+  if (!url || !secret) return null;
+
+  const timestamp = Date.now();
+  const nonce = randomBytes(16).toString("hex");
+  const message = `${timestamp}.${nonce}.${fileId}`;
+  const signature = createHmac("sha256", secret).update(message, "utf8").digest("hex");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "downloadPdf", fileId, timestamp, nonce, signature }),
+    cache: "no-store",
+    redirect: "follow",
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) throw new Error(`GAS gateway HTTP ${response.status}`);
+
+  const result = (await response.json()) as GasDriveGatewayResponse;
+  if (result.ok !== true) throw new Error(`GAS gateway ${result.code || "UNKNOWN_ERROR"}`);
+  if (result.fileId !== fileId || typeof result.base64 !== "string") {
+    throw new Error("GAS gateway response is invalid");
+  }
+  if (result.base64.length > Math.ceil(MAX_GATEWAY_PDF_BYTES / 3) * 4 + 4) {
+    throw new Error("GAS gateway PDF is too large");
+  }
+
+  const pdf = Buffer.from(result.base64, "base64");
+  if (
+    pdf.length === 0 ||
+    pdf.length > MAX_GATEWAY_PDF_BYTES ||
+    result.size !== pdf.length ||
+    pdf.subarray(0, 4).toString("utf8") !== "%PDF"
+  ) {
+    throw new Error("GAS gateway did not return a valid PDF");
+  }
+  return pdf;
+}
 async function downloadCsDocPdf(fileId: string): Promise<Buffer> {
   try {
     return await downloadGoogleDriveFile(fileId);
@@ -168,6 +217,21 @@ async function downloadCsDocPdf(fileId: string): Promise<Buffer> {
       status: errorStatus(driveError),
       message: driveError instanceof Error ? driveError.message : String(driveError),
     });
+
+    try {
+      const gatewayPdf = await downloadCsDocPdfViaGas(fileId);
+      if (gatewayPdf) {
+        console.info("[cs-docs][reprocess] GAS Drive gateway download succeeded", {
+          file_id: fileId,
+        });
+        return gatewayPdf;
+      }
+    } catch (gatewayError) {
+      console.warn("[cs-docs][reprocess] GAS Drive gateway download failed", {
+        file_id: fileId,
+        message: gatewayError instanceof Error ? gatewayError.message : String(gatewayError),
+      });
+    }
     /*
      * GAS は作成者権限でDriveを読める一方、Vercelはサービスアカウントで
      * 読むため、リンク共有済みファイルは公開URLからも取得を試す。
