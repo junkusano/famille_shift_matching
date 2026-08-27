@@ -79,6 +79,16 @@ type GenerationSourceDocument = {
 };
 
 
+type RecordingTranscriptOption = {
+    id: string;
+    client_id: string | null;
+    context_name: string | null;
+    file_name: string;
+    recorder_name: string;
+    recorded_at: string;
+    transcript_status: string;
+};
+
 type PlanDetail = PlanDetailForEditor;
 
 async function getBearer() {
@@ -130,6 +140,13 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
     const [planGenerating, setPlanGenerating] = useState(false);
     const [sourcePreparing, setSourcePreparing] = useState(false);
     const [sourcePreparationMessage, setSourcePreparationMessage] = useState("");
+    const [recordingTranscripts, setRecordingTranscripts] =
+        useState<RecordingTranscriptOption[]>([]);
+    const [recordingTranscriptsLoading, setRecordingTranscriptsLoading] =
+        useState(false);
+    const [recordingTranscriptsError, setRecordingTranscriptsError] = useState("");
+    const [selectedTranscriptIds, setSelectedTranscriptIds] = useState<string[]>([]);
+    const [meetingMinutesGenerating, setMeetingMinutesGenerating] = useState(false);
 
     const [carePlanCandidates, setCarePlanCandidates] =
         useState<CarePlanCandidate[]>([]);
@@ -236,6 +253,65 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
         detail?.assessment_id,
         detail?.service_kind,
     ]);
+
+    useEffect(() => {
+        let cancelled = false;
+        setSelectedTranscriptIds([]);
+        setRecordingTranscriptsError("");
+
+        if (!detail?.kaipoke_cs_id) {
+            setRecordingTranscripts([]);
+            setRecordingTranscriptsLoading(false);
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        setRecordingTranscriptsLoading(true);
+        void (async () => {
+            try {
+                const bearer = await getBearer();
+                const params = new URLSearchParams({
+                    portal: "helper",
+                    client_id: String(detail.kaipoke_cs_id),
+                    status: "completed",
+                    page: "1",
+                    perPage: "100",
+                });
+                const response = await fetch(`/api/recording-transcripts?${params.toString()}`, {
+                    headers: bearer ? { Authorization: bearer } : {},
+                });
+                const result = await response.json();
+                if (!response.ok || !result?.ok) {
+                    throw new Error(result?.error ?? "文字起こし一覧を取得できませんでした");
+                }
+                if (!cancelled) {
+                    setRecordingTranscripts(
+                        Array.isArray(result.data?.rows)
+                            ? result.data.rows.filter(
+                                (transcript: RecordingTranscriptOption) =>
+                                    transcript.client_id ===
+                                    String(detail.kaipoke_cs_id),
+                            )
+                            : [],
+                    );
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    setRecordingTranscripts([]);
+                    setRecordingTranscriptsError(
+                        error instanceof Error ? error.message : String(error),
+                    );
+                }
+            } finally {
+                if (!cancelled) setRecordingTranscriptsLoading(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [detail?.kaipoke_cs_id]);
 
     // URL→state同期
     useEffect(() => {
@@ -602,6 +678,83 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
         }
     }
 
+
+    function toggleTranscriptSelection(transcriptId: string) {
+        setSelectedTranscriptIds((previous) => {
+            if (previous.includes(transcriptId)) {
+                return previous.filter((id) => id !== transcriptId);
+            }
+            if (previous.length >= 10) {
+                window.alert("文字起こしは10件まで選択できます。");
+                return previous;
+            }
+            return [...previous, transcriptId];
+        });
+    }
+
+    async function generateMeetingMinutesFromTranscripts() {
+        if (!detail?.assessment_id || selectedTranscriptIds.length === 0) {
+            window.alert("議事録に使用する文字起こしを選択してください。");
+            return;
+        }
+        if (
+            detail.meeting_minutes?.trim() &&
+            !window.confirm(
+                "現在の担当者会議議事録を、選択した文字起こしから作成した内容で置き換えますか？",
+            )
+        ) {
+            return;
+        }
+
+        setMeetingMinutesGenerating(true);
+        try {
+            const bearer = await getBearer();
+            const response = await fetch("/api/assessment/meeting-minutes-summary", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(bearer ? { Authorization: bearer } : {}),
+                },
+                body: JSON.stringify({
+                    assessment_id: detail.assessment_id,
+                    transcript_ids: selectedTranscriptIds,
+                }),
+            });
+            const result = (await response.json().catch(() => null)) as
+                | { ok: true; meeting_minutes?: string }
+                | { ok: false; error?: string }
+                | null;
+            if (
+                !response.ok ||
+                !result ||
+                result.ok !== true ||
+                !result.meeting_minutes
+            ) {
+                const error =
+                    result && "error" in result
+                        ? result.error
+                        : "担当者会議議事録を生成できませんでした";
+                throw new Error(error || "担当者会議議事録を生成できませんでした");
+            }
+
+            setDetail((current) =>
+                current && current.assessment_id === detail.assessment_id
+                    ? { ...current, meeting_minutes: result.meeting_minutes ?? "" }
+                    : current,
+            );
+            window.alert(
+                "選択した文字起こしから議事録を作成し、担当者会議議事録欄へ反映しました。内容を確認して保存してください。",
+            );
+        } catch (error) {
+            window.alert(
+                `議事録の生成に失敗しました。\n${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            );
+        } finally {
+            setMeetingMinutesGenerating(false);
+        }
+    }
 
     async function save() {
         if (!detail) return;
@@ -1083,6 +1236,116 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                                         onChange={(e) => setDetail({ ...detail, author_name: e.target.value })}
                                     />
                                 </div>
+                            </div>
+
+                            <div className="rounded border border-sky-200 bg-sky-50 p-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <div className="font-semibold text-sky-950">
+                                            famille Voice文字起こしから議事録を作成
+                                        </div>
+                                        <div className="text-xs text-sky-800">
+                                            この利用者の完了済み文字起こしを複数選択できます（最大10件）。
+                                        </div>
+                                    </div>
+                                    <Link
+                                        href="/portal/recording-transcripts"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-sm text-blue-700 underline"
+                                    >
+                                        文字起こし管理を開く
+                                    </Link>
+                                </div>
+
+                                {recordingTranscriptsLoading ? (
+                                    <div className="mt-3 text-sm text-gray-600">
+                                        文字起こしを取得中...
+                                    </div>
+                                ) : recordingTranscriptsError ? (
+                                    <div className="mt-3 text-sm text-red-700">
+                                        {recordingTranscriptsError}
+                                    </div>
+                                ) : recordingTranscripts.length === 0 ? (
+                                    <div className="mt-3 text-sm text-gray-600">
+                                        この利用者の完了済み文字起こしはありません。
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                                            <button
+                                                type="button"
+                                                className="rounded border bg-white px-2 py-1 text-xs"
+                                                onClick={() =>
+                                                    setSelectedTranscriptIds(
+                                                        recordingTranscripts
+                                                            .slice(0, 10)
+                                                            .map((transcript) => transcript.id),
+                                                    )
+                                                }
+                                            >
+                                                先頭10件を選択
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="rounded border bg-white px-2 py-1 text-xs"
+                                                onClick={() => setSelectedTranscriptIds([])}
+                                            >
+                                                選択解除
+                                            </button>
+                                            <span className="text-xs text-gray-700">
+                                                {selectedTranscriptIds.length}件選択中
+                                            </span>
+                                        </div>
+
+                                        <div className="mt-2 max-h-64 space-y-2 overflow-y-auto rounded border bg-white p-2">
+                                            {recordingTranscripts.map((transcript) => (
+                                                <label
+                                                    key={transcript.id}
+                                                    className="flex cursor-pointer items-start gap-2 rounded border border-transparent p-2 hover:border-sky-200 hover:bg-sky-50"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        className="mt-1"
+                                                        checked={selectedTranscriptIds.includes(
+                                                            transcript.id,
+                                                        )}
+                                                        onChange={() =>
+                                                            toggleTranscriptSelection(transcript.id)
+                                                        }
+                                                    />
+                                                    <span className="min-w-0 text-sm">
+                                                        <span className="block font-medium text-gray-900">
+                                                            {transcript.context_name?.trim() ||
+                                                                transcript.file_name}
+                                                        </span>
+                                                        <span className="block text-xs text-gray-600">
+                                                            {new Date(
+                                                                transcript.recorded_at,
+                                                            ).toLocaleString("ja-JP")}
+                                                            {" / 録音者: "}
+                                                            {transcript.recorder_name}
+                                                        </span>
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            className="mt-3 rounded bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:bg-gray-300"
+                                            disabled={
+                                                selectedTranscriptIds.length === 0 ||
+                                                meetingMinutesGenerating
+                                            }
+                                            onClick={generateMeetingMinutesFromTranscripts}
+                                        >
+                                            {meetingMinutesGenerating
+                                                ? "議事録を生成中..."
+                                                : "選択した文字起こしから議事録を作成"}
+                                        </button>
+                                    </>
+                                )}
                             </div>
 
                             <div className="w-full">

@@ -228,7 +228,7 @@ export default function PlanEditor({ detail, onReload }: Props) {
             detail.goal_groups ?? [],
         );
     }, [
-        detail.plan.plan_id,
+        detail.plan,
         detail.services,
         detail.goal_groups,
     ]);
@@ -440,6 +440,52 @@ export default function PlanEditor({ detail, onReload }: Props) {
         );
     }
 
+    function fillEmptyGoalDatesFromPeriod(
+        sourceStartDate: string | null,
+        sourceEndDate: string | null,
+    ) {
+        if (!isElderCarePlan) return;
+        if (!sourceStartDate?.trim() || !sourceEndDate?.trim()) {
+            window.alert(
+                "この目標の開始日と終了日の両方を入力してから実行してください。",
+            );
+            return;
+        }
+
+        const allGoals = goalGroupDrafts.flatMap((group) => [
+            group.long_term_goal,
+            ...group.short_term_goals,
+        ]);
+        const targetCount = allGoals.filter(
+            (goal) => !goal.goal_start_date?.trim() || !goal.goal_end_date?.trim(),
+        ).length;
+        if (targetCount === 0) {
+            window.alert("開始日・終了日が空欄の目標はありません。");
+            return;
+        }
+
+        setGoalGroupDrafts((previous) =>
+            previous.map((group) => ({
+                ...group,
+                long_term_goal: {
+                    ...group.long_term_goal,
+                    goal_start_date:
+                        group.long_term_goal.goal_start_date || sourceStartDate,
+                    goal_end_date:
+                        group.long_term_goal.goal_end_date || sourceEndDate,
+                },
+                short_term_goals: group.short_term_goals.map((goal) => ({
+                    ...goal,
+                    goal_start_date: goal.goal_start_date || sourceStartDate,
+                    goal_end_date: goal.goal_end_date || sourceEndDate,
+                })),
+            })),
+        );
+
+        window.alert(
+            `この目標の期間（${sourceStartDate} ～ ${sourceEndDate}）を、日付が空欄の目標 ${targetCount}件へ画面上で反映しました。保存ボタンを押すまでデータベースには保存されません。`,
+        );
+    }
     return (
         <div className="space-y-4">
             <div className="border rounded p-3 bg-white space-y-3">
@@ -730,17 +776,20 @@ export default function PlanEditor({ detail, onReload }: Props) {
 
             {/* 長期目標・短期目標 */}
             <div className="border rounded p-3 bg-white space-y-4">
-                <div>
-                    <div className="font-bold text-lg">
-                        利用目標編集
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <div className="font-bold text-lg">
+                            利用目標編集
+                        </div>
+
+                        <div className="text-sm text-gray-500">
+                            ケアプランから抽出した目標と期間です。
+                            原文と照合し、必要な場合のみ修正してください。
+                        </div>
                     </div>
 
-                    <div className="text-sm text-gray-500">
-                        ケアプランから抽出した目標と期間です。
-                        原文と照合し、必要な場合のみ修正してください。
-                    </div>
+
                 </div>
-
                 {goalGroupDrafts.length === 0 ? (
                     <div className="rounded border border-dashed p-4 text-sm text-gray-500">
                         長期目標・短期目標が登録されていません。
@@ -827,6 +876,24 @@ export default function PlanEditor({ detail, onReload }: Props) {
                                                 </Field>
                                             </div>
 
+                                            {isElderCarePlan ? (
+                                                <button
+                                                    type="button"
+                                                    className="rounded border border-blue-600 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800 disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-400"
+                                                    disabled={
+                                                        !longGoal.goal_start_date ||
+                                                        !longGoal.goal_end_date
+                                                    }
+                                                    onClick={() =>
+                                                        fillEmptyGoalDatesFromPeriod(
+                                                            longGoal.goal_start_date,
+                                                            longGoal.goal_end_date,
+                                                        )
+                                                    }
+                                                >
+                                                    この期間を空欄の目標へ反映
+                                                </button>
+                                            ) : null}
                                             <Field label="目標内容">
                                                 <textarea
                                                     className="border rounded px-2 py-1 w-full min-h-[90px]"
@@ -980,6 +1047,24 @@ export default function PlanEditor({ detail, onReload }: Props) {
                                                                 </Field>
                                                             </div>
 
+                                                            {isElderCarePlan ? (
+                                                                <button
+                                                                    type="button"
+                                                                    className="rounded border border-blue-600 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800 disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-400"
+                                                                    disabled={
+                                                                        !shortGoal.goal_start_date ||
+                                                                        !shortGoal.goal_end_date
+                                                                    }
+                                                                    onClick={() =>
+                                                                        fillEmptyGoalDatesFromPeriod(
+                                                                            shortGoal.goal_start_date,
+                                                                            shortGoal.goal_end_date,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    この期間を空欄の目標へ反映
+                                                                </button>
+                                                            ) : null}
                                                             <Field label="目標内容">
                                                                 <textarea
                                                                     className="border rounded px-2 py-1 w-full min-h-[90px]"
