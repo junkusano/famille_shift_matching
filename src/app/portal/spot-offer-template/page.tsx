@@ -48,6 +48,12 @@ type RpaRequestRow = {
   } | null;
 };
 
+type SukimaEnvVariable = {
+  group_key: "sukima";
+  key_name: string;
+  value: string;
+};
+
 function toArrayFromTextarea(value: string): string[] {
   return value
     .split("\n")
@@ -185,6 +191,9 @@ export default function SpotOfferTemplatePage() {
   const [sendingRpa, setSendingRpa] = useState(false);
   const [rpaError, setRpaError] = useState<string | null>(null);
   const [rpaFieldErrors, setRpaFieldErrors] = useState<Record<string, string>>({});
+  const [sukimaEnvVariables, setSukimaEnvVariables] = useState<SukimaEnvVariable[]>([]);
+  const [loadingSukimaEnv, setLoadingSukimaEnv] = useState(false);
+  const [savingSukimaEnv, setSavingSukimaEnv] = useState(false);
 
   const [fTimeeOfferId, setFTimeeOfferId] = useState("");
   const [fUcareOfferId, setFUcareOfferId] = useState("");
@@ -770,6 +779,24 @@ const copyTemplate = (row: SpotOfferTemplateUnified) => {
 
      setRpaError(null);
      setRpaFieldErrors({});
+     setLoadingSukimaEnv(true);
+     try {
+       const { data: sessionData } = await supabase.auth.getSession();
+       const accessToken = sessionData.session?.access_token;
+       if (!accessToken) throw new Error("ログインユーザー未取得");
+       const response = await fetch("/api/spot-offer/sukima-env", {
+         headers: { Authorization: `Bearer ${accessToken}` },
+         cache: "no-store",
+       });
+       const result = await response.json() as { ok?: boolean; error?: string; variables?: SukimaEnvVariable[] };
+       if (!response.ok || !result.ok) throw new Error(result.error ?? "sukima設定の取得に失敗しました");
+       setSukimaEnvVariables(result.variables ?? []);
+     } catch (e) {
+       setSukimaEnvVariables([]);
+       setRpaError(e instanceof Error ? e.message : String(e));
+     } finally {
+       setLoadingSukimaEnv(false);
+     }
   
      setOpenRpa(true);
   };
@@ -878,6 +905,24 @@ try {
 
   try {
     setSendingRpa(true);  
+
+      const { data: envSessionData } = await supabase.auth.getSession();
+      const envAccessToken = envSessionData.session?.access_token;
+      if (!envAccessToken) throw new Error("ログインユーザー未取得");
+      setSavingSukimaEnv(true);
+      const envResponse = await fetch("/api/spot-offer/sukima-env", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${envAccessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          variables: sukimaEnvVariables.map(({ key_name, value }) => ({ key_name, value })),
+        }),
+      });
+      const envResult = await envResponse.json() as { ok?: boolean; error?: string };
+      if (!envResponse.ok || !envResult.ok) throw new Error(envResult.error ?? "sukima設定の保存に失敗しました");
+      setSavingSukimaEnv(false);
 
       const session = await supabase.auth.getSession();
       const authUserId = session.data?.session?.user?.id;
@@ -1092,6 +1137,7 @@ await fetchList();
 } catch (e) {
   setRpaError(e instanceof Error ? e.message : String(e));
 } finally {
+  setSavingSukimaEnv(false);
   setSendingRpa(false);
 }
 };
@@ -1771,6 +1817,34 @@ await fetchList();
               </div>
             </div>
 
+            <div className="rounded border p-3 space-y-2">
+              <div>
+                <div className="text-sm font-medium">env_variables（group_key: sukima）</div>
+                <div className="text-[11px] text-muted-foreground">sukima の設定値のみ表示しています。値を編集するとRPA送信時に保存されます。</div>
+              </div>
+              {loadingSukimaEnv ? (
+                <div className="text-sm text-muted-foreground">読み込み中...</div>
+              ) : sukimaEnvVariables.length === 0 ? (
+                <div className="text-sm text-muted-foreground">sukima の設定はありません。</div>
+              ) : (
+                <div className="space-y-2">
+                  {sukimaEnvVariables.map((variable, index) => (
+                    <div key={`${variable.key_name}-${index}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-2 items-center">
+                      <div className="text-xs break-all">{variable.key_name}</div>
+                      <Input
+                        value={variable.value}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setSukimaEnvVariables((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, value } : item));
+                        }}
+                        disabled={savingSukimaEnv || sendingRpa}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="text-[11px] text-muted-foreground">
               ※ このページは RPAテンプレートID: {RPA_TEMPLATE_ID} に対して request_details を作成します。
             </div>
@@ -1780,7 +1854,7 @@ await fetchList();
             <Button variant="secondary" onClick={() => setOpenRpa(false)} disabled={sendingRpa}>
               閉じる
             </Button>
-            <Button onClick={sendRpaRequest} disabled={sendingRpa}>
+            <Button onClick={sendRpaRequest} disabled={sendingRpa || loadingSukimaEnv}>
               {sendingRpa ? "送信中..." : "RPAリクエスト送信"}
             </Button>
           </DialogFooter>
