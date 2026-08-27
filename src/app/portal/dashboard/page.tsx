@@ -30,6 +30,37 @@ export default function DashboardPage() {
       {/* ===== 個別ウィジェット ===== */}
       <ShiftSumBizStats />
       <DefectSum />
+      <TableViewer
+        title="スタッフ個人別サービス時間（月次）"
+        description={
+          <>
+            スタッフごとの月間サービス時間を表示しています。同行として登録されたサービス、および給与計算上加算される移動時間は含まれていません。
+          </>
+        }
+        tableName="dashboard_staff_monthly_service_hours_view"
+        columns={[
+          { key: "year_month", label: "月", filterMode: "exact" },
+          { key: "staff_name", label: "スタッフ" },
+          {
+            key: "manager_category",
+            label: "区分",
+            filterMode: "exact",
+            filterOptions: [
+              { label: "マネジャー", value: "マネジャー" },
+              { label: "その他", value: "その他" },
+            ],
+          },
+          {
+            key: "total_service_hours",
+            label: "サービス時間",
+            format: (value) => `${formatHours2(value)}h`,
+          },
+        ]}
+        defaultSort={{ column: "total_service_hours", ascending: false }}
+        initialColumnFilters={{ year_month: getNextYearMonth() }}
+        pageSize={500}
+        exactCount={false}
+      />
       <EntrySumBizStats />
       <StaffRetirementReview />
         <TableViewer

@@ -20,6 +20,10 @@ export type TableColumnConfig = {
   sortable?: boolean;
   filterable?: boolean;
   filterMode?: "partial" | "exact";
+  filterOptions?: Array<{
+    label: string;
+    value: string;
+  }>;
   format?: (value: unknown, row: TableRow) => React.ReactNode;
 };
 
@@ -27,6 +31,7 @@ export type TableViewerProps = {
   tableName: string;
   columns: TableColumnConfig[];
   title?: string;
+  description?: React.ReactNode;
   defaultSort?: {
     column: string;
     ascending?: boolean;
@@ -73,6 +78,7 @@ export default function TableViewer({
   tableName,
   columns,
   title,
+  description,
   defaultSort,
   pageSize = 50,
   emptyMessage = "データがありません",
@@ -116,7 +122,8 @@ export default function TableViewer({
 
       filters.push({
         column: col.key,
-        operator: col.filterMode === "exact" ? "eq" : "ilike",
+        operator:
+          col.filterMode === "exact" || col.filterOptions ? "eq" : "ilike",
         value,
       });
     }
@@ -211,6 +218,11 @@ export default function TableViewer({
           <p className="text-sm text-slate-500">
             読み取り専用 / 並べ替え・フィルターのみ可能 / {totalCount}件表示
           </p>
+          {description ? (
+            <div className="mt-1 text-sm leading-relaxed text-slate-500">
+              {description}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -265,7 +277,26 @@ export default function TableViewer({
                         )}
                       </button>
 
-                      {col.filterable === false ? null : (
+                      {col.filterable === false ? null : col.filterOptions ? (
+                        <select
+                          aria-label={`${col.label ?? col.key}で絞り込み`}
+                          value={columnFilters[col.key] ?? ""}
+                          onChange={(e) =>
+                            setColumnFilters((prev) => ({
+                              ...prev,
+                              [col.key]: e.target.value,
+                            }))
+                          }
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-slate-400"
+                        >
+                          <option value="">すべて</option>
+                          {col.filterOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
                         <input
                           value={columnFilters[col.key] ?? ""}
                           onChange={(e) =>
