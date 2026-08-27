@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     const { data: assessment, error: assessmentError } = await supabaseAdmin
       .from("assessments_records")
-      .select("assessment_id,kaipoke_cs_id")
+      .select("assessment_id,client_info_id,kaipoke_cs_id")
       .eq("assessment_id", assessmentId)
       .eq("is_deleted", false)
       .maybeSingle();
@@ -78,13 +78,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const allowedClientIds = [
+      clean(assessment.client_info_id),
+      clean(assessment.kaipoke_cs_id),
+    ].filter(Boolean);
+
     const { data, error } = await supabaseAdmin
       .from("recording_transcripts")
       .select(
         "id,client_id,context_name,file_name,recorder_email,recorded_at,transcript_status,transcript_raw,participants",
       )
       .in("id", transcriptIds)
-      .eq("client_id", assessment.kaipoke_cs_id)
+      .in("client_id", allowedClientIds)
       .eq("transcript_status", "completed");
     if (error) throw error;
 

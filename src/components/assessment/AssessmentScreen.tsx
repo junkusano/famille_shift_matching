@@ -259,7 +259,10 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
         setSelectedTranscriptIds([]);
         setRecordingTranscriptsError("");
 
-        if (!detail?.kaipoke_cs_id) {
+        const recordingClientId = String(
+            detail?.client_info_id || detail?.kaipoke_cs_id || "",
+        );
+        if (!recordingClientId) {
             setRecordingTranscripts([]);
             setRecordingTranscriptsLoading(false);
             return () => {
@@ -273,7 +276,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                 const bearer = await getBearer();
                 const params = new URLSearchParams({
                     portal: "helper",
-                    client_id: String(detail.kaipoke_cs_id),
+                    client_id: recordingClientId,
                     status: "completed",
                     page: "1",
                     perPage: "100",
@@ -291,7 +294,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                             ? result.data.rows.filter(
                                 (transcript: RecordingTranscriptOption) =>
                                     transcript.client_id ===
-                                    String(detail.kaipoke_cs_id),
+                                    recordingClientId,
                             )
                             : [],
                     );
@@ -311,7 +314,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
         return () => {
             cancelled = true;
         };
-    }, [detail?.kaipoke_cs_id]);
+    }, [detail?.client_info_id, detail?.kaipoke_cs_id]);
 
     // URL→state同期
     useEffect(() => {
