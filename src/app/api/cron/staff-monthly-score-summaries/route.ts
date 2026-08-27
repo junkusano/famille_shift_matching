@@ -1031,7 +1031,8 @@ export async function GET(req: NextRequest) {
             if (orgRowsError) throw orgRowsError;
             for (const org of orgRows ?? []) {
                 teamNameMap.set(org.orgunitid, org.orgunitname);
-                if (Number(org.displaylevel) === 3) {
+                // 管理者直属チームも採点する。代表・本社機能だけはチーム成績から除外する。
+                if (org.orgunitname !== "代表・本社機能") {
                     scoreEligibleTeamIds.add(org.orgunitid);
                 }
             }
@@ -1420,7 +1421,7 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
         }
 
         const scoredTeamIds = teamIds.filter((teamId) => {
-            // チーム成績は組織階層レベル3のみ。代表・本社機能などの上位組織は除外する。
+            // 代表・本社機能だけを除外し、管理者直属チームを含む実チームを採点する。
             // あわせて、当月に訪問シフトへ入った人がいるチームだけを対象にする。
             return scoreEligibleTeamIds.has(teamId) &&
                 (teamVisitShiftIdsMap.get(teamId)?.size ?? 0) > 0;

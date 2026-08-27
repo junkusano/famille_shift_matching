@@ -575,13 +575,14 @@ export async function GET(req: NextRequest) {
 
     const { data: scoreEligibleOrgRows, error: scoreEligibleOrgError } = await supabaseAdmin
         .from("orgs")
-        .select("orgunitid")
-        .eq("displaylevel", 3);
+        .select("orgunitid, orgunitname");
     if (scoreEligibleOrgError) {
         return NextResponse.json({ error: scoreEligibleOrgError.message }, { status: 500 });
     }
     const scoreEligibleOrgIds = new Set(
-        (scoreEligibleOrgRows ?? []).map((org) => String(org.orgunitid)),
+        (scoreEligibleOrgRows ?? [])
+            .filter((org) => org.orgunitname !== "代表・本社機能")
+            .map((org) => String(org.orgunitid)),
     );
 
     const { data: activeTeamRows, error: activeTeamRowsError } = await supabaseAdmin
@@ -820,6 +821,7 @@ shift_decline_penalty_score,
 
         totalScore: officialTotalScore,
         individualScore,
+        teamBreakdown: projectedTeamSummary ?? null,
         teamScore,
         officialTotalScore,
         projectedTotalScore,
@@ -838,8 +840,8 @@ shift_decline_penalty_score,
         debugTargetMonth: summary.target_month,
         debugUserId: summary.user_id,
 
-        // 現行の個人評価最大140点＋新制度のチーム成績最大50点
-        totalMaxScore: 190,
+        // 現行の個人評価最大140点＋新制度のチーム成績最大70点
+        totalMaxScore: 210,
 
         badge: officialBadge.name,
         metrics: [
