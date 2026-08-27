@@ -794,14 +794,25 @@ export async function POST(req: NextRequest, { params }: Ctx) {
             );
         });
         const hasMeetingMinutes = !!meetingMinutes;
+        const unprocessedDocs = ((docs ?? []) as CsDocRow[]).filter(
+            (doc) => !trimOrEmpty(doc.ocr_text) && !trimOrEmpty(doc.summary),
+        );
 
         // 基本情報・サービス等利用計画がなくても、議事録があれば生成OK
         if (!hasCoreDoc && !hasMeetingMinutes) {
             return json(
                 {
                     ok: false,
-                    error:
-                        "基本情報、サービス等利用計画、ケアプラン、サービス担当者会議資料のいずれも無いため、アセスメントを自動生成できません。",
+                    error: unprocessedDocs.length
+                        ? "生成に使う資料は登録されていますが、OCR本文とサマリーが空です。対象資料の再OCR・再サマリーを実行してください。"
+                        : "基本情報、サービス等利用計画、ケアプラン、サービス担当者会議資料のいずれも見つからないため、アセスメントを自動生成できません。",
+                    error_code: unprocessedDocs.length
+                        ? "SOURCE_DOCUMENTS_NEED_REPROCESSING"
+                        : "SOURCE_DOCUMENTS_NOT_FOUND",
+                    unprocessed_documents: unprocessedDocs.map((doc) => ({
+                        id: doc.id,
+                        doc_name: doc.doc_name,
+                    })),
                     source_labels: selectedDocs.map((d) => d.doc_name),
                     core_doc_names: CORE_DOC_NAMES,
                     optional_doc_names: OPTIONAL_DOC_NAMES,

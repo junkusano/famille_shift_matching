@@ -66,6 +66,19 @@ type CarePlanCandidate = {
     summary_preview: string;
 };
 
+type GenerationSourceDocument = {
+    id: string;
+    doc_name: string;
+    category: string;
+    document_date: string | null;
+    has_url: boolean;
+    has_ocr: boolean;
+    has_summary: boolean;
+    needs_ocr: boolean;
+    needs_summary: boolean;
+};
+
+
 type PlanDetail = PlanDetailForEditor;
 
 async function getBearer() {
@@ -115,6 +128,8 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
     const [generating, setGenerating] = useState(false);
 
     const [planGenerating, setPlanGenerating] = useState(false);
+    const [sourcePreparing, setSourcePreparing] = useState(false);
+    const [sourcePreparationMessage, setSourcePreparationMessage] = useState("");
 
     const [carePlanCandidates, setCarePlanCandidates] =
         useState<CarePlanCandidate[]>([]);
@@ -252,12 +267,177 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
         }
     }
 
+    async function prepareGenerationSourceDocuments(
+        bearer: string,
+        baseCarePlanId?: string,
+    ): Promise<boolean> {
+        if (!clientId) return true;
+
+        setSourcePreparing(true);
+        setSourcePreparationMessage("生成に使う関連資料のOCR・サマリー状況を確認しています...");
+
+        try {
+            const params = new URLSearchParams({ kaipoke_cs_id: clientId });
+            if (baseCarePlanId) {
+                params.set("base_care_plan_cs_doc_id", baseCarePlanId);
+            }
+
+            const checkResponse = await fetch(
+                `/api/assessment/source-documents?${params.toString()}`,
+                { headers: bearer ? { Authorization: bearer } : {} },
+            );
+            const checkResult = (await checkResponse.json().catch(() => null)) as
+                | {
+                    ok: true;
+                    needs_processing?: GenerationSourceDocument[];
+                }
+                | { ok: false; error?: string }
+                | null;
+
+            if (!checkResponse.ok || !checkResult || checkResult.ok !== true) {
+                const error =
+                    checkResult && "error" in checkResult
+                        ? checkResult.error
+                        : "関連資料を確認できませんでした";
+                throw new Error(error || "関連資料を確認できませんでした");
+            }
+
+            const pending = Array.isArray(checkResult.needs_processing)
+                ? checkResult.needs_processing
+                : [];
+
+            const ocrCount = pending.filter((document) => document.needs_ocr).length;
+            const summaryCount = pending.filter((document) => document.needs_summary).length;
+
+            if (pending.length === 0) {
+                setSourcePreparationMessage(
+                    "生成に使う関連資料のOCR・サマリーは準備済みです。",
+                );
+                return true;
+            }
+
+            window.alert(
+                [
+                    `生成に使う関連資料 ${pending.length}件に、OCR本文またはサマリーの不足があります。`,
+                    `先に不足分を処理します（再OCR ${ocrCount}件・再サマリー ${summaryCount}件）。完了後に生成を続けます。`,
+                    "",
+                    ...pending.map(
+                        (document) =>
+                            `・${document.doc_name}（${document.category}）`,
+                    ),
+                ].join("\n"),
+            );
+
+            for (let index = 0; index < pending.length; index += 1) {
+                const document = pending[index];
+                let latestOcrText: string | undefined;
+
+                if (document.needs_ocr) {
+                    if (!document.has_url) {
+                        throw new Error(
+                            `「${document.doc_name}」には元PDFのURLがありません`,
+                        );
+                    }
+
+                    setSourcePreparationMessage(
+                        `関連資料を準備中 ${index + 1}/${pending.length}：${document.doc_name} を再OCRしています...`,
+                    );
+
+                    const ocrResponse = await fetch("/api/cs-docs/reprocess", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            ...(bearer ? { Authorization: bearer } : {}),
+                        },
+                        body: JSON.stringify({ id: document.id, mode: "ocr" }),
+                    });
+                    const ocrResult = (await ocrResponse.json().catch(() => null)) as
+                        | { ok: true; ocr_text?: string }
+                        | { ok: false; error?: string }
+                        | null;
+                    if (!ocrResponse.ok || !ocrResult || ocrResult.ok !== true || !ocrResult.ocr_text) {
+                        const error =
+                            ocrResult && "error" in ocrResult
+                                ? ocrResult.error
+                                : "再OCRに失敗しました";
+                        throw new Error(`「${document.doc_name}」: ${error}`);
+                    }
+                    latestOcrText = ocrResult.ocr_text;
+                }
+
+                if (document.needs_summary) {
+                    setSourcePreparationMessage(
+                        `関連資料を準備中 ${index + 1}/${pending.length}：${document.doc_name} を再サマリーしています...`,
+                    );
+
+                    const summaryResponse = await fetch("/api/cs-docs/reprocess", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            ...(bearer ? { Authorization: bearer } : {}),
+                        },
+                        body: JSON.stringify({
+                            id: document.id,
+                            mode: "summary",
+                            ...(latestOcrText ? { ocr_text: latestOcrText } : {}),
+                        }),
+                    });
+                    const summaryResult = (await summaryResponse.json().catch(() => null)) as
+                        | { ok: true; summary?: string }
+                        | { ok: false; error?: string }
+                        | null;
+                    if (
+                        !summaryResponse.ok ||
+                        !summaryResult ||
+                        summaryResult.ok !== true ||
+                        !summaryResult.summary
+                    ) {
+                        const error =
+                            summaryResult && "error" in summaryResult
+                                ? summaryResult.error
+                                : "再サマリーに失敗しました";
+                        throw new Error(`「${document.doc_name}」: ${error}`);
+                    }
+                }
+            }
+
+            setSourcePreparationMessage(
+                `関連資料の準備が完了しました（再OCR ${ocrCount}件・再サマリー ${summaryCount}件）。`,
+            );
+            window.alert(
+                `関連資料の準備が完了しました（再OCR ${ocrCount}件・再サマリー ${summaryCount}件）。続けて生成します。`,
+            );
+
+            return true;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setSourcePreparationMessage(
+                "関連資料の自動準備に失敗しました。再OCR・再サマリーが必要です。",
+            );
+            window.alert(
+                [
+                    "生成に使う資料の再OCR・再サマリーが完了しなかったため、生成を中止しました。",
+                    message,
+                    "元資料(cs_docs)で対象資料を確認してください。",
+                ].join("\n"),
+            );
+            return false;
+        } finally {
+            setSourcePreparing(false);
+        }
+    }
+
     async function autoGenerate() {
         if (!clientId) return;
 
         setGenerating(true);
         try {
             const bearer = await getBearer();
+            const sourcesReady = await prepareGenerationSourceDocuments(
+                bearer,
+                selectedCarePlanId || undefined,
+            );
+            if (!sourcesReady) return;
 
             // 既存アセスメントを開いている場合は、従来どおり「その1件」を再生成する。
             // by-client API は「利用者単位で未作成の種類を作る」ため、既存1件の再生成には使わない。
@@ -559,6 +739,11 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
         setPlanGenerating(true);
         try {
             const bearer = await getBearer();
+            const sourcesReady = await prepareGenerationSourceDocuments(
+                bearer,
+                selectedCarePlanId || undefined,
+            );
+            if (!sourcesReady) return;
 
             // 1) まず最新内容を保存
             const saveRes = await fetch(`/api/assessment/${detail.assessment_id}`, {
@@ -789,11 +974,15 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
 
                 <button
                     className="border rounded px-3 py-1 bg-blue-600 text-white disabled:opacity-40"
-                    disabled={!clientId || generating}
+                    disabled={!clientId || generating || sourcePreparing}
                     onClick={autoGenerate}
                     title="週間シフトから必要なアセスメント種別を判定し、障害・移動支援・要介護・要支援を必要分だけ自動作成します"
                 >
-                    {generating ? "自動生成中..." : "アセスメント自動生成（週間シフト判定）"}
+                    {sourcePreparing
+                        ? "関連資料を準備中..."
+                        : generating
+                            ? "自動生成中..."
+                            : "アセスメント自動生成（週間シフト判定）"}
                 </button>
 
                 {detail?.kaipoke_cs_id ? (
@@ -819,6 +1008,16 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                     </Link>
                 ) : null}
             </div>
+
+            {sourcePreparationMessage ? (
+                <div
+                    className="rounded border border-blue-300 bg-blue-50 px-3 py-2 text-sm text-blue-900"
+                    role="status"
+                    aria-live="polite"
+                >
+                    {sourcePreparationMessage}
+                </div>
+            ) : null}
 
             <div
                 className={[
@@ -866,7 +1065,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                         <div className="text-sm text-gray-600">左の履歴から選択するか「新規作成」を押してください</div>
                     ) : (
                         <div className="space-y-3">
-                            <div className="flex flex-wrap gap-3">
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_minmax(280px,1fr)]">
                                 <div>
                                     <div className="text-sm mb-1">作成年月日</div>
                                     <input
@@ -876,21 +1075,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                                         onChange={(e) => setDetail({ ...detail, assessed_on: e.target.value })}
                                     />
                                 </div>
-                                <div>
-                                    <div className="text-sm mb-1">担当者会議議事録</div>
-                                    <textarea
-                                        className="border rounded px-2 py-2 w-full min-h-[160px]"
-                                        value={detail.meeting_minutes ?? ""}
-                                        onChange={(e) =>
-                                            setDetail({
-                                                ...detail,
-                                                meeting_minutes: e.target.value,
-                                            })
-                                        }
-                                        placeholder="担当者会議の内容を入力"
-                                    />
-                                </div>
-                                <div className="flex-1 min-w-[240px]">
+                                <div className="min-w-0">
                                     <div className="text-sm mb-1">アセスメント作成者氏名（初期値：ログインユーザー）</div>
                                     <input
                                         className="border rounded px-2 py-1 w-full"
@@ -898,6 +1083,21 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                                         onChange={(e) => setDetail({ ...detail, author_name: e.target.value })}
                                     />
                                 </div>
+                            </div>
+
+                            <div className="w-full">
+                                <div className="text-sm mb-1">担当者会議議事録</div>
+                                <textarea
+                                    className="min-h-[280px] w-full rounded border px-3 py-2"
+                                    value={detail.meeting_minutes ?? ""}
+                                    onChange={(e) =>
+                                        setDetail({
+                                            ...detail,
+                                            meeting_minutes: e.target.value,
+                                        })
+                                    }
+                                    placeholder="担当者会議の内容を入力"
+                                />
                             </div>
 
                             <div className="flex gap-2">
@@ -991,6 +1191,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                                     className="border rounded px-3 py-1 bg-green-600 text-white disabled:opacity-40"
                                     disabled={
                                         planGenerating ||
+                                        sourcePreparing ||
                                         saving ||
                                         !detail ||
                                         (
@@ -1004,7 +1205,11 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                                     }
                                     onClick={generatePlans}
                                 >
-                                    {planGenerating ? "プラン生成中..." : "プラン生成"}
+                                    {sourcePreparing
+                                        ? "関連資料を準備中..."
+                                        : planGenerating
+                                            ? "プラン生成中..."
+                                            : "プラン生成"}
                                 </button>
 
                                 <button

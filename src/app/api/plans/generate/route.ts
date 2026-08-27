@@ -2246,7 +2246,7 @@ export async function POST(req: NextRequest) {
           {
             ok: false,
             error:
-              "選択されたケアプランにサマリーまたはOCR本文がありません。",
+              "選択されたケアプランのOCR本文とサマリーが空です。再OCR・再サマリーを実行してから、もう一度プランを生成してください。",
             error_code:
               "BASE_CARE_PLAN_CONTENT_EMPTY",
           },
