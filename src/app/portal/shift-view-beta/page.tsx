@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addMonths, format, startOfMonth } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -37,6 +37,7 @@ type ShiftRow = {
 const weekDays = ["日", "月", "火", "水", "木", "金", "土"];
 const toIso = (date: Date) => format(date, "yyyy-MM-dd");
 const toTime = (value: string | null | undefined) => (value ?? "").slice(0, 5);
+const sanitizeFileNamePart = (value: string) => value.replace(/[\\/:*?"<>|]/g, "_").trim();
 
 function createMonthCells(ym: string) {
   const first = new Date(`${ym}-01T00:00:00`);
@@ -92,12 +93,13 @@ export default function ShiftViewBetaPage() {
   const [loading, setLoading] = useState(true);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const initialUserApplied = useRef(false);
 
-  const setQuery = (updates: Record<string, string | undefined>) => {
+  const setQuery = useCallback((updates: Record<string, string | undefined>) => {
     const next = new URLSearchParams(queryString);
     Object.entries(updates).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key));
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
-  };
+  }, [pathname, queryString, router]);
 
   useEffect(() => {
     let active = true;
@@ -113,11 +115,10 @@ export default function ShiftViewBetaPage() {
   }, [pathname, queryString, router]);
 
   useEffect(() => {
-    if (!authChecked || queryUserId || !myUserId) return;
+    if (!authChecked || initialUserApplied.current || queryUserId || !myUserId) return;
+    initialUserApplied.current = true;
     setQuery({ user_id: myUserId, date: queryDate || monthStart, per: String(perPage), page: "1" });
-  // Initial query injection is intentionally limited to the beta route.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, myUserId]);
+  }, [authChecked, monthStart, myUserId, perPage, queryDate, queryUserId, setQuery]);
 
   useEffect(() => {
     if (!authChecked) return;
@@ -199,6 +200,34 @@ export default function ShiftViewBetaPage() {
   }, [calendarShifts]);
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
   const cells = useMemo(() => createMonthCells(selectedYm), [selectedYm]);
+  const selectedStaffName = staffOptions.find((option) => option.value === queryUserId)?.label ?? "";
+  const selectedClientName = clientOptions.find((option) => option.value === queryClient)?.label ?? "";
+  const monthForFileName = selectedYm.replace("-", "");
+  const conditionTitle = selectedStaffName && selectedClientName
+    ? `担当者：${selectedStaffName} ／ 利用者：${selectedClientName}様`
+    : selectedStaffName
+      ? `担当者：${selectedStaffName}`
+      : selectedClientName
+        ? `利用者：${selectedClientName}様`
+        : "";
+  const printButtonLabel = selectedStaffName && selectedClientName
+    ? `【${selectedStaffName}】担当【${selectedClientName}様】カレンダー印刷・PDF保存`
+    : selectedStaffName
+      ? `【${selectedStaffName}】担当者カレンダー印刷・PDF保存`
+      : selectedClientName
+        ? `【${selectedClientName}様】利用者カレンダー印刷・PDF保存`
+        : "全体カレンダー印刷・PDF保存";
+  const pdfFileName = ["シフト・勤務一覧", selectedStaffName, selectedClientName, monthForFileName]
+    .filter(Boolean)
+    .map(sanitizeFileNamePart)
+    .join("_");
+  const handlePrint = () => {
+    const originalTitle = document.title;
+    const restoreTitle = () => { document.title = originalTitle; };
+    document.title = pdfFileName;
+    window.addEventListener("afterprint", restoreTitle, { once: true });
+    window.print();
+  };
 
   if (!authChecked) return <div className="p-4 text-sm text-gray-500">ログイン状態を確認しています...</div>;
   const Pager = () => <div className="my-3 flex items-center justify-between print:hidden"><div className="text-xs text-gray-500">{totalCount.toLocaleString()} 件中 {totalCount ? (page - 1) * perPage + 1 : 0}–{Math.min(totalCount, page * perPage)} を表示（{perPage}/ページ）</div><div className="flex items-center gap-2"><Button variant="outline" disabled={page <= 1} onClick={() => setQuery({ page: String(page - 1) })}>前へ</Button><span className="text-sm">{page} / {totalPages}</span><Button variant="outline" disabled={page >= totalPages} onClick={() => setQuery({ page: String(page + 1) })}>次へ</Button></div></div>;
@@ -208,10 +237,10 @@ export default function ShiftViewBetaPage() {
       <h2 className="text-xl font-bold">シフト・勤務一覧 <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">β版</span></h2>
       <p className="mb-3 text-sm text-gray-600">既存のシフト情報を、一覧または月間カレンダーで確認できます。</p>
       <DepartedStaffShiftBatchCard onCompleted={() => setReloadKey((value) => value + 1)} />
-      <div className="mb-2 flex flex-wrap justify-end gap-2"><Button asChild variant="outline"><Link href="/portal/shift-view-beta">フィルターをクリア</Link></Button>{queryClient && <><Button asChild><Link href={`/portal/roster/monthly/print-view?kaipoke_cs_id=${encodeURIComponent(queryClient)}&month=${encodeURIComponent(selectedYm)}`}>印刷ビュー</Link></Button><Button asChild variant="secondary"><Link href={`/portal/roster/monthly/shift-record-view?kaipoke_cs_id=${encodeURIComponent(queryClient)}&month=${encodeURIComponent(selectedYm)}`}>訪問記録印刷</Link></Button></>}<Button variant={displayMode === "list" ? "default" : "outline"} onClick={() => setQuery({ view: undefined, page: "1" })}>一覧</Button><Button variant={displayMode === "calendar" ? "default" : "outline"} onClick={() => setQuery({ view: "calendar", ym: selectedYm, page: "1" })}>月間カレンダー</Button>{displayMode === "calendar" && <Button onClick={() => window.print()}>印刷・PDF保存</Button>}</div>
+      <div className="mb-2 flex flex-wrap justify-end gap-2"><Button asChild variant="outline"><Link href="/portal/shift-view-beta">フィルターをクリア</Link></Button>{queryClient && <><Button asChild><Link href={`/portal/roster/monthly/print-view?kaipoke_cs_id=${encodeURIComponent(queryClient)}&month=${encodeURIComponent(selectedYm)}`}>印刷ビュー</Link></Button><Button asChild variant="secondary"><Link href={`/portal/roster/monthly/shift-record-view?kaipoke_cs_id=${encodeURIComponent(queryClient)}&month=${encodeURIComponent(selectedYm)}`}>訪問記録印刷</Link></Button></>}<Button variant={displayMode === "list" ? "default" : "outline"} onClick={() => setQuery({ view: undefined, page: "1" })}>一覧</Button><Button variant={displayMode === "calendar" ? "default" : "outline"} onClick={() => setQuery({ view: "calendar", ym: selectedYm, page: "1" })}>月間カレンダー</Button>{displayMode === "calendar" && <Button onClick={handlePrint}>{printButtonLabel}</Button>}</div>
       <div className="mb-3 grid grid-cols-1 items-end gap-3 md:grid-cols-3"><div><label className="text-xs">担当者（氏名表示 / 値は user_id）</label><SearchableSelect options={staffOptions} value={queryUserId} onChange={(value) => setQuery({ user_id: value || undefined, page: "1" })} placeholder="指定なし" searchPlaceholder="担当者名・IDで検索" /></div><div><label className="text-xs">対象月</label><input type="month" className="w-full rounded border p-2" value={selectedYm} onChange={(event) => setQuery({ ym: event.target.value || undefined, date: event.target.value ? `${event.target.value}-01` : undefined, page: "1" })} /></div><div><label className="text-xs">利用者（kaipoke_cs_id）</label><SearchableSelect options={clientOptions} value={queryClient} onChange={(value) => setQuery({ client: value || undefined, page: "1" })} placeholder="指定なし" searchPlaceholder="利用者名・カナ・IDで検索" /></div></div>
     </div>
-    {displayMode === "list" ? <><Pager />{loading ? <div className="text-sm text-gray-500">読み込み中...</div> : shifts.length === 0 ? <div className="text-sm text-gray-500">該当するシフトがありません</div> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">{shifts.map((shift) => <ShiftCard key={shift.shift_id} shift={shift} mode="view" onReject={(reason) => { fetch("/api/shift-reassign", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shiftId: shift.shift_id, fromUserId: myUserId, toUserId: "manager:auto", reason }) }).then(() => router.refresh()); }} />)}</div>}<Pager /></> : <section className="shift-view-beta-print mx-auto max-w-[1120px]" aria-label={`${selectedYm}の月間シフトカレンダー`}><h3 className="mb-3 text-center text-xl font-bold">{selectedYm.replace("-", "年")}月 シフト・勤務一覧</h3>{calendarLoading ? <div className="text-sm text-gray-500">カレンダーを読み込み中...</div> : <div className="overflow-hidden border border-slate-500"><div className="grid grid-cols-7 border-b border-slate-500 text-center text-sm font-bold">{weekDays.map((day) => <div key={day} className="border-r border-slate-500 py-1.5 last:border-r-0">{day}</div>)}</div><div className="grid grid-cols-7">{cells.map((cell, index) => { const dayShifts = shiftsByDate.get(cell.date) ?? []; return <div key={cell.date} className={`min-h-[125px] border-b border-r border-slate-400 p-1.5 ${(index + 1) % 7 === 0 ? "border-r-0" : ""} ${cell.inMonth ? "bg-white" : "bg-slate-50 text-slate-400"}`}><div className="mb-1 text-xs font-bold">{cell.inMonth ? cell.day : ""}</div>{cell.inMonth && dayShifts.map((shift) => <div key={shift.shift_id} className="mb-1 border-t border-slate-200 pt-1 text-[11px] leading-tight"><div className="font-semibold">{toTime(shift.shift_start_time)}–{toTime(shift.shift_end_time)}</div><div className="truncate">{shift.client_name || "利用者名なし"}</div><div className="truncate">{shift.district || "エリアなし"}</div><div className="truncate">{shift.service_code || "サービス内容なし"}</div></div>)}</div>; })}</div></div>}</section>}
-    <style jsx global>{`@media print { @page { size: A4 landscape; margin: 8mm; } body > * { visibility: hidden !important; } .shift-view-beta-print, .shift-view-beta-print * { visibility: visible !important; } .shift-view-beta-print { position: absolute; left: 0; top: 0; width: 100%; max-width: none !important; } .shift-view-beta-print h3 { margin: 0 0 3mm; font-size: 16pt; } .shift-view-beta-print [class*="min-h-"] { min-height: 0 !important; height: 28mm; } .shift-view-beta-print .truncate { overflow: hidden; text-overflow: clip; white-space: nowrap; } }`}</style>
+    {displayMode === "list" ? <><Pager />{loading ? <div className="text-sm text-gray-500">読み込み中...</div> : shifts.length === 0 ? <div className="text-sm text-gray-500">該当するシフトがありません</div> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">{shifts.map((shift) => <ShiftCard key={shift.shift_id} shift={shift} mode="view" onReject={(reason) => { fetch("/api/shift-reassign", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shiftId: shift.shift_id, fromUserId: myUserId, toUserId: "manager:auto", reason }) }).then(() => router.refresh()); }} />)}</div>}<Pager /></> : <section className="shift-view-beta-print mx-auto max-w-[1120px]" aria-label={`${selectedYm}の月間シフトカレンダー`}><h3 className="mb-3 text-center text-xl font-bold">{selectedYm.replace("-", "年")}月 シフト・勤務一覧</h3>{conditionTitle && <p className="mb-2 text-center text-sm font-medium">{conditionTitle}</p>}{calendarLoading ? <div className="text-sm text-gray-500">カレンダーを読み込み中...</div> : <div className="border border-slate-500"><div className="grid grid-cols-7 border-b border-slate-500 text-center text-sm font-bold">{weekDays.map((day) => <div key={day} className="border-r border-slate-500 py-1.5 last:border-r-0">{day}</div>)}</div><div className="grid grid-cols-7">{cells.map((cell, index) => { const dayShifts = shiftsByDate.get(cell.date) ?? []; return <div key={cell.date} className={`shift-view-beta-day min-h-[125px] border-b border-r border-slate-400 p-1.5 ${(index + 1) % 7 === 0 ? "border-r-0" : ""} ${cell.inMonth ? "bg-white" : "bg-slate-50 text-slate-400"}`}><div className="mb-1 text-xs font-bold">{cell.inMonth ? cell.day : ""}</div>{cell.inMonth && dayShifts.map((shift) => <div key={shift.shift_id} className="shift-view-beta-event mb-1 border-t border-slate-200 pt-1 text-[11px] leading-tight"><div className="shift-view-beta-event-primary font-semibold">{toTime(shift.shift_start_time)}–{toTime(shift.shift_end_time)} <span>{shift.client_name || "利用者名なし"}</span></div><div className="shift-view-beta-event-secondary">{shift.district || "エリアなし"}<span className="px-0.5">｜</span>{shift.service_code || "サービス内容なし"}</div></div>)}</div>; })}</div></div>}</section>}
+    <style jsx global>{`@media print { @page { size: A4 landscape; margin: 8mm; } body > * { visibility: hidden !important; } .shift-view-beta-print, .shift-view-beta-print * { visibility: visible !important; } .shift-view-beta-print { position: absolute; left: 0; top: 0; width: 100%; max-width: none !important; } .shift-view-beta-print h3 { margin: 0 0 1mm; font-size: 14pt; } .shift-view-beta-print p { margin: 0 0 2mm; font-size: 8pt; } .shift-view-beta-day { min-height: 19mm !important; height: auto !important; padding: 0.8mm !important; overflow: visible !important; } .shift-view-beta-event { margin: 0.35mm 0 0 !important; padding-top: 0.35mm !important; font-size: 7.2pt; line-height: 1.08; break-inside: avoid; } .shift-view-beta-event-primary, .shift-view-beta-event-secondary { overflow-wrap: anywhere; word-break: break-word; } .shift-view-beta-event-secondary span { padding: 0 0.5mm; } }`}</style>
   </div>;
 }
