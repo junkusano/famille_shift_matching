@@ -47,7 +47,7 @@ export default function DashboardPage() {
             filterMode: "exact",
             filterOptions: [
               { label: "マネジャー", value: "マネジャー" },
-              { label: "その他", value: "その他" },
+              { label: "スタッフ", value: "スタッフ" },
             ],
           },
           {

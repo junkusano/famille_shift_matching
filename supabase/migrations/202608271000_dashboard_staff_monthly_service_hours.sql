@@ -19,8 +19,9 @@ select
   staff_hours.staff_user_id,
   concat_ws('', staff.last_name_kanji, staff.first_name_kanji) as staff_name,
   case
-    when users.role in ('admin', 'manager') then 'マネジャー'
-    else 'その他'
+    when coalesce(nullif(users.role, ''), users.system_role) in ('admin', 'manager')
+      then 'マネジャー'
+    else 'スタッフ'
   end as manager_category,
   round(staff_hours.total_service_hours, 2) as total_service_hours
 from staff_hours
@@ -33,4 +34,4 @@ alter view public.dashboard_staff_monthly_service_hours_view
   set (security_invoker = false);
 
 comment on view public.dashboard_staff_monthly_service_hours_view is
-  '既存サービス時間母データをスタッフID・月単位で集約し、users.roleからマネジャー区分を表示する。';
+  '既存サービス時間母データをスタッフID・月単位で集約し、users.roleを優先して未設定時はusers.system_roleからマネジャー・スタッフ区分を表示する。';
