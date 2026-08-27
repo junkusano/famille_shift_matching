@@ -946,7 +946,9 @@ try {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          variables: sukimaEnvVariables.map(({ key_name, value }) => ({ key_name, value })),
+          variables: sukimaEnvVariables
+            .filter(({ key_name }) => key_name !== "sukima_automsg")
+            .map(({ key_name, value }) => ({ key_name, value })),
         }),
       });
       const envResult = await envResponse.json() as { ok?: boolean; error?: string };
@@ -1852,7 +1854,7 @@ await fetchList();
             <div className="rounded border p-3 space-y-2">
               <div>
                 <div className="text-sm font-medium">タイミーテンプレート編集</div>
-                <div className="text-[11px] text-muted-foreground">sukima の設定値のみ表示しています。値を編集するとRPA送信時に保存されます。</div>
+                <div className="text-[11px] text-muted-foreground">sukima の設定値のみ表示しています。自動メッセージ以外の値はRPA送信時に保存されます。</div>
               </div>
               {loadingSukimaEnv ? (
                 <div className="text-sm text-muted-foreground">読み込み中...</div>
