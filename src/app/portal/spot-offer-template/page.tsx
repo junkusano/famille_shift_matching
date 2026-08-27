@@ -121,6 +121,28 @@ function toNullableNumber(v: string): number | null {
   return n;
 }
 
+function getWorkDurationWarning(startText: string, endText: string): string | null {
+  if (!startText.trim() || !endText.trim()) return null;
+
+  try {
+    const start = toNullableTime(startText);
+    const end = toNullableTime(endText);
+    if (!start || !end) return null;
+
+    const toMinutes = (time: string) => {
+      const [hours, minutes] = time.split(":").map(Number);
+      return hours * 60 + minutes;
+    };
+
+    let workMinutes = toMinutes(end) - toMinutes(start);
+    if (workMinutes < 0) workMinutes += 24 * 60;
+
+    return workMinutes < 60 ? "勤務時間は1時間以上にしてください" : null;
+  } catch {
+    return null;
+  }
+}
+
 function boolLabel(v: NullableBoolean): string {
   if (v === true) return "true";
   if (v === false) return "false";
@@ -1763,9 +1785,6 @@ await fetchList();
                     </div>
                 )}
 
-                <div className="mt-1 text-xs text-red-600">
-                勤務時間は1時間以上にしてください
-                </div>
               </div>
 
               <div>
@@ -1791,6 +1810,12 @@ await fetchList();
                   <div className="mt-1 text-xs text-red-600">
                     {rpaFieldErrors.shiftEndTime}
                     </div>
+                )}
+
+                {getWorkDurationWarning(shiftStartTime, shiftEndTime) && (
+                  <div className="mt-1 text-xs text-red-600">
+                    {getWorkDurationWarning(shiftStartTime, shiftEndTime)}
+                  </div>
                 )}
               </div>
 
