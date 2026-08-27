@@ -455,8 +455,11 @@ export default function EntryDetailPage() {
 
     const saveOtherDocs = async () => {
         if (!entry) return;
-        // 免許証/住民票などは現状維持
-        const fixed = (attachmentsArray as Attachment[]).filter(a => isFixedId(a));
+        // その他書類以外（資格証明書・免許証・住民票など）は現状維持
+        // 資格証明書を除外すると、その他書類の保存だけで資格情報が消えるため、
+        // 「その他」カテゴリだけを差し替える。
+        const preserved = (attachmentsArray as Attachment[])
+            .filter(a => !isInCategory(a, 'その他'));
         // DocUploader で編集したその他を Attachment へ戻す（type は「その他」に統一）
         const others: Attachment[] = otherDocsState.map(d => ({
             id: d.id,
@@ -467,7 +470,7 @@ export default function EntryDetailPage() {
             uploaded_at: d.uploaded_at,
             acquired_at: d.acquired_at,
         }));
-        const merged = [...fixed, ...others];
+        const merged = [...preserved, ...others];
 
         const { error } = await supabase
             .from('form_entries')
