@@ -54,6 +54,13 @@ type SukimaEnvVariable = {
   value: string;
 };
 
+const SUKIMA_ENV_LABELS: Record<string, string> = {
+  sukima_automsg: "自動メッセージ",
+  sukima_caution: "注意事項",
+  sukima_detail: "詳細説明",
+  sukima_koudou: "行動援護の場合",
+};
+
 function toArrayFromTextarea(value: string): string[] {
   return value
     .split("\n")
@@ -1819,7 +1826,7 @@ await fetchList();
 
             <div className="rounded border p-3 space-y-2">
               <div>
-                <div className="text-sm font-medium">env_variables（group_key: sukima）</div>
+                <div className="text-sm font-medium">タイミーテンプレート編集</div>
                 <div className="text-[11px] text-muted-foreground">sukima の設定値のみ表示しています。値を編集するとRPA送信時に保存されます。</div>
               </div>
               {loadingSukimaEnv ? (
@@ -1830,15 +1837,27 @@ await fetchList();
                 <div className="space-y-2">
                   {sukimaEnvVariables.map((variable, index) => (
                     <div key={`${variable.key_name}-${index}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-2 items-center">
-                      <div className="text-xs break-all">{variable.key_name}</div>
-                      <Input
-                        value={variable.value}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setSukimaEnvVariables((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, value } : item));
-                        }}
-                        disabled={savingSukimaEnv || sendingRpa}
-                      />
+                      <div className="text-xs break-all">{SUKIMA_ENV_LABELS[variable.key_name] ?? variable.key_name}</div>
+                      {variable.key_name === "sukima_automsg" ? (
+                        <Textarea
+                          value={variable.value}
+                          rows={4}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setSukimaEnvVariables((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, value } : item));
+                          }}
+                          disabled={savingSukimaEnv || sendingRpa}
+                        />
+                      ) : (
+                        <Input
+                          value={variable.value}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setSukimaEnvVariables((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, value } : item));
+                          }}
+                          disabled={savingSukimaEnv || sendingRpa}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
