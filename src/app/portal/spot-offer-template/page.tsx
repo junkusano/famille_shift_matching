@@ -1863,7 +1863,7 @@ await fetchList();
                   {sukimaEnvVariables.map((variable, index) => (
                     <div key={`${variable.key_name}-${index}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-2 items-center">
                       <div className="text-xs break-all">{SUKIMA_ENV_LABELS[variable.key_name] ?? variable.key_name}</div>
-                      {variable.key_name === "sukima_automsg" ? (
+                      {["sukima_automsg", "sukima_caution", "sukima_detail", "sukima_koudou"].includes(variable.key_name) ? (
                         <Textarea
                           value={variable.value}
                           rows={4}
