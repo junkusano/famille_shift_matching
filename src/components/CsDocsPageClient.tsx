@@ -385,16 +385,10 @@ export default function CsDocsPageClient({
             });
             const result = (await response.json().catch(() => null)) as
                 | { ok: true; ocr_text?: string; summary?: string }
-                | { ok: false; code?: string; error?: string }
+                | { ok: false; error?: string }
                 | null;
             if (!response.ok || !result || result.ok !== true) {
                 const errorMessage = result && "error" in result ? result.error : null;
-                const errorCode = result && "code" in result ? result.code : null;
-                if (mode === "ocr" && errorCode === "DRIVE_FILE_UNAVAILABLE") {
-                    throw new Error(
-                        `${errorMessage || "Google DriveからPDFを取得できませんでした"}\n下の「PDF選択で再OCR」から同じPDFを選択してください。`,
-                    );
-                }
                 throw new Error(errorMessage || `${label}の再処理に失敗しました`);
             }
 
@@ -423,57 +417,6 @@ export default function CsDocsPageClient({
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             alert(`${label}の再処理に失敗しました\n${message}`);
-        } finally {
-            setReprocessing((prev) => ({ ...prev, [row.id]: undefined }));
-        }
-    };
-    const handleReprocessFromPdf = async (row: CsDocRow, file: File) => {
-        if (!confirm("選択したPDFで現在のOCR本文を上書きしますか？")) return;
-
-        setReprocessing((prev) => ({ ...prev, [row.id]: "ocr" }));
-        try {
-            const { data, error } = await supabase.auth.getSession();
-            if (error) throw error;
-            const token = data.session?.access_token;
-            if (!token) throw new Error("ログイン情報を取得できませんでした");
-
-            const form = new FormData();
-            form.set("id", row.id);
-            form.set("mode", "ocr");
-            form.set("file", file);
-
-            const response = await fetch("/api/cs-docs/reprocess", {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
-                body: form,
-            });
-            const result = (await response.json().catch(() => null)) as
-                | { ok: true; ocr_text?: string }
-                | { ok: false; error?: string }
-                | null;
-            if (!response.ok || !result || result.ok !== true) {
-                const errorMessage = result && "error" in result ? result.error : null;
-                throw new Error(errorMessage || "PDFからの再OCRに失敗しました");
-            }
-            if (!result.ocr_text) throw new Error("OCRの再処理結果が空です");
-
-            const draft = getDraft(row);
-            setDocs((prev) =>
-                prev.map((item) =>
-                    item.id === row.id ? { ...item, ocr_text: result.ocr_text ?? null } : item,
-                ),
-            );
-            setDrafts((prev) => ({
-                ...prev,
-                [row.id]: {
-                    ...(prev[row.id] ?? draft),
-                    ocr_text: result.ocr_text ?? "",
-                },
-            }));
-            alert("再OCRが完了しました。必要に応じて「再サマリー」も実行してください。");
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            alert(`PDFからの再OCRに失敗しました\n${message}`);
         } finally {
             setReprocessing((prev) => ({ ...prev, [row.id]: undefined }));
         }
@@ -816,25 +759,6 @@ export default function CsDocsPageClient({
                                                 {reprocessing[row.id] === "ocr" ? "再OCR中..." : "再OCR"}
                                             </button>
 
-                                            <label
-                                                className={[
-                                                    "bg-teal-700 text-white px-2 py-1 text-xs text-center cursor-pointer",
-                                                    reprocessing[row.id] ? "bg-gray-300 pointer-events-none" : "",
-                                                ].join(" ")}
-                                            >
-                                                PDF選択で再OCR
-                                                <input
-                                                    type="file"
-                                                    accept="application/pdf,.pdf"
-                                                    className="hidden"
-                                                    disabled={Boolean(reprocessing[row.id])}
-                                                    onChange={(event) => {
-                                                        const file = event.currentTarget.files?.[0];
-                                                        event.currentTarget.value = "";
-                                                        if (file) void handleReprocessFromPdf(row, file);
-                                                    }}
-                                                />
-                                            </label>
 
                                             <button
                                                 type="button"

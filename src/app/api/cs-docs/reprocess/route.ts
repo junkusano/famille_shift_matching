@@ -3,7 +3,6 @@ import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
 import {
   CsDocDriveFileUnavailableError,
   rerunCsDocOcr,
-  rerunCsDocOcrFromPdf,
   rerunCsDocSummary,
 } from "@/lib/cs-docs-reprocess";
 import { supabaseAdmin } from "@/lib/supabase/service";
@@ -30,44 +29,12 @@ async function canReprocess(authUserId: string): Promise<boolean> {
 
 export async function POST(req: NextRequest) {
   try {
-    const { user } = await getUserFromBearer(req);
-    if (!user) {
+    const { user, token } = await getUserFromBearer(req);
+    if (!user || !token) {
       return NextResponse.json({ ok: false, error: "認証が必要です" }, { status: 401 });
     }
     if (!(await canReprocess(user.id))) {
       return NextResponse.json({ ok: false, error: "再処理の権限がありません" }, { status: 403 });
-    }
-
-    const contentType = req.headers.get("content-type") ?? "";
-    if (contentType.includes("multipart/form-data")) {
-      const form = await req.formData();
-      const id = String(form.get("id") ?? "").trim();
-      const mode = String(form.get("mode") ?? "");
-      const file = form.get("file");
-
-      if (!id) {
-        return NextResponse.json({ ok: false, error: "id がありません" }, { status: 400 });
-      }
-      if (mode !== "ocr" || !(file instanceof File)) {
-        return NextResponse.json(
-          { ok: false, error: "再OCRするPDFファイルを指定してください" },
-          { status: 400 },
-        );
-      }
-
-      const pdf = Buffer.from(await file.arrayBuffer());
-      if (pdf.length === 0 || pdf.subarray(0, 4).toString("utf8") !== "%PDF") {
-        return NextResponse.json(
-          { ok: false, error: "PDF形式のファイルを選択してください" },
-          { status: 400 },
-        );
-      }
-
-      return NextResponse.json({
-        ok: true,
-        mode: "ocr",
-        ocr_text: await rerunCsDocOcrFromPdf(id, pdf),
-      });
     }
 
     const body = (await req.json()) as Body;
@@ -75,7 +42,11 @@ export async function POST(req: NextRequest) {
     if (!id) return NextResponse.json({ ok: false, error: "id がありません" }, { status: 400 });
 
     if (body.mode === "ocr") {
-      return NextResponse.json({ ok: true, mode: "ocr", ocr_text: await rerunCsDocOcr(id) });
+      return NextResponse.json({
+        ok: true,
+        mode: "ocr",
+        ocr_text: await rerunCsDocOcr(id, token),
+      });
     }
     if (body.mode === "summary") {
       return NextResponse.json({

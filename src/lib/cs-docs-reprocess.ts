@@ -1,6 +1,5 @@
 import "server-only";
 
-import { createHmac, randomBytes } from "crypto";
 import OpenAI from "openai";
 import { downloadGoogleDriveFile } from "@/lib/google-drive/upload";
 import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
@@ -169,19 +168,17 @@ type GasDriveGatewayResponse = {
   base64?: string;
 };
 
-async function downloadCsDocPdfViaGas(fileId: string): Promise<Buffer | null> {
+async function downloadCsDocPdfViaGas(
+  fileId: string,
+  accessToken: string,
+): Promise<Buffer | null> {
   const url = process.env.CS_DOCS_GAS_GATEWAY_URL?.trim() ?? "";
-  const secret = process.env.CS_DOCS_GAS_GATEWAY_SECRET?.trim() ?? "";
-  if (!url || !secret) return null;
+  if (!url) return null;
 
-  const timestamp = Date.now();
-  const nonce = randomBytes(16).toString("hex");
-  const message = `${timestamp}.${nonce}.${fileId}`;
-  const signature = createHmac("sha256", secret).update(message, "utf8").digest("hex");
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "downloadPdf", fileId, timestamp, nonce, signature }),
+    body: JSON.stringify({ action: "downloadPdf", fileId, accessToken }),
     cache: "no-store",
     redirect: "follow",
     signal: AbortSignal.timeout(30_000),
@@ -208,7 +205,7 @@ async function downloadCsDocPdfViaGas(fileId: string): Promise<Buffer | null> {
   }
   return pdf;
 }
-async function downloadCsDocPdf(fileId: string): Promise<Buffer> {
+async function downloadCsDocPdf(fileId: string, accessToken: string): Promise<Buffer> {
   try {
     return await downloadGoogleDriveFile(fileId);
   } catch (driveError) {
@@ -219,7 +216,7 @@ async function downloadCsDocPdf(fileId: string): Promise<Buffer> {
     });
 
     try {
-      const gatewayPdf = await downloadCsDocPdfViaGas(fileId);
+      const gatewayPdf = await downloadCsDocPdfViaGas(fileId, accessToken);
       if (gatewayPdf) {
         console.info("[cs-docs][reprocess] GAS Drive gateway download succeeded", {
           file_id: fileId,
@@ -298,7 +295,7 @@ async function saveOcrResult(id: string, pdf: Buffer): Promise<string> {
   return ocrText;
 }
 
-export async function rerunCsDocOcr(id: string): Promise<string> {
+export async function rerunCsDocOcr(id: string, accessToken: string): Promise<string> {
   const doc = await getCsDoc(id);
   const fileId = extractDriveFileId(doc.url);
   if (!fileId) throw new Error("Google DriveファイルIDをURLから取得できません");
@@ -307,16 +304,7 @@ export async function rerunCsDocOcr(id: string): Promise<string> {
     cs_doc_id: id,
     drive_file_id: fileId,
   });
-  return saveOcrResult(id, await downloadCsDocPdf(fileId));
-}
-
-export async function rerunCsDocOcrFromPdf(id: string, pdf: Buffer): Promise<string> {
-  await getCsDoc(id);
-  console.info("[cs-docs][reprocess] OCR started from uploaded PDF", {
-    cs_doc_id: id,
-    bytes: pdf.length,
-  });
-  return saveOcrResult(id, pdf);
+  return saveOcrResult(id, await downloadCsDocPdf(fileId, accessToken));
 }
 
 export async function rerunCsDocSummary(id: string, draftOcrText?: string): Promise<string> {
