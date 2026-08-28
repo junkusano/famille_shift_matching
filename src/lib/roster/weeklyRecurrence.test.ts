@@ -20,6 +20,17 @@ test('biweekly template keeps a 14-day cadence across a month boundary', () => {
   assert.equal(shouldDeployTemplateOnDate(recurring, '2026-08-17', '2026-07-20').include, true)
 })
 
+test('biweekly template reaches the fifth week when the cadence lands there', () => {
+  const recurring = template({ is_biweekly: true })
+  assert.equal(shouldDeployTemplateOnDate(recurring, '2026-08-31', '2026-08-03').include, true)
+})
+
+test('nth week 5 includes dates 29 through 31', () => {
+  const fifthWeek = template({ nth_weeks: [5] })
+  assert.equal(shouldDeployTemplateOnDate(fifthWeek, '2026-08-28', null).include, false)
+  assert.equal(shouldDeployTemplateOnDate(fifthWeek, '2026-08-31', null).include, true)
+})
+
 test('nth_weeks takes precedence over biweekly', () => {
   const constrained = template({ is_biweekly: true, nth_weeks: [1, 3] })
   assert.equal(shouldDeployTemplateOnDate(constrained, '2026-08-03', '2026-07-20').include, true)

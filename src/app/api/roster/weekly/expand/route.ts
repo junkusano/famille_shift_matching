@@ -1,7 +1,8 @@
 //src/app/api/roster/weekly/expand/route.ts
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/service'
-import type { ShiftWeeklyTemplate, ShiftRow } from '@/types/shift-weekly-template'
+import { buildCandidates, loadDeploymentInput, shiftRowFromCandidate } from '@/lib/roster/weeklyDeployment'
+import type { ShiftRow } from '@/types/shift-weekly-template'
 
 type ConflictPolicy = 'SKIP' | 'FILL_EMPTY' | 'OVERWRITE'
 
@@ -9,28 +10,6 @@ interface ExpandBody {
   cs: string
   month: string // 'YYYY-MM'
   policy?: ConflictPolicy
-}
-
-// 'YYYY-MM' を厳密に数値へ
-function parseMonth(month: string): { y: number; m: number } {
-  const [ys, ms] = month.split('-')
-  const y = Number.parseInt(ys, 10)
-  const m = Number.parseInt(ms, 10)
-  if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) {
-    throw new Error('invalid month format')
-  }
-  return { y, m }
-}
-
-function dateRangeDays(month: string): string[] {
-  const { y, m } = parseMonth(month)
-  const start = new Date(y, m - 1, 1)
-  const end = new Date(y, m, 0) // 当月末日
-  const days: string[] = []
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    days.push(d.toISOString().slice(0, 10))
-  }
-  return days
 }
 
 function timeToMinutes(hms: string): number {
@@ -56,26 +35,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'cs and month are required' }, { status: 400 })
   }
 
-  // テンプレート読み込み
-  const { data: templates, error } = await supabaseAdmin
-    .from('shift_weekly_template')
-    .select('*')
-    .eq('kaipoke_cs_id', cs)
-    .eq('active', true)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  const days = dateRangeDays(month)
-
-  // 既存シフト（重なりチェック用）
-  const { data: existing, error: e2 } = await supabaseAdmin
-    .from('shift')
-    .select('shift_start_date,shift_start_time,shift_end_time')
-    .eq('kaipoke_cs_id', cs)
-    .gte('shift_start_date', days[0])
-    .lte('shift_start_date', days[days.length - 1])
-
-  if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
+  const { templates, existing, previousDates } = await loadDeploymentInput(cs, month)
 
   // 既存→日付マップ
   const existingByDate = new Map<string, { start: string; end: string }[]>()
@@ -89,36 +49,9 @@ export async function POST(req: Request) {
     existingByDate.set(k, arr)
   }
 
-  // 候補生成（隔週/Nth週は簡易対応。詳細ルールは後で拡張可）
-  const cands: ShiftRow[] = []
-  for (const d of days) {
-    const dow = new Date(d + 'T00:00:00').getDay()
-    for (const t of (templates as ShiftWeeklyTemplate[])) {
-      if (t.weekday !== dow) continue
-      if (t.nth_weeks && t.nth_weeks.length > 0) {
-        const nth = Math.floor((Number(d.slice(8, 10)) - 1) / 7) + 1
-        if (!t.nth_weeks.includes(nth)) continue
-      }
-      cands.push({
-        kaipoke_cs_id: t.kaipoke_cs_id,
-        shift_start_date: d,
-        shift_start_time: t.start_time,
-        shift_end_time: t.end_time,
-        service_code: t.service_code,
-        required_staff_count: t.required_staff_count,
-        two_person_work_flg: t.two_person_work_flg,
-        judo_ido: t.judo_ido,
-        staff_01_user_id: t.staff_01_user_id,
-        staff_02_user_id: t.staff_02_user_id,
-        staff_03_user_id: t.staff_03_user_id,
-        staff_02_attend_flg: t.staff_02_attend_flg,
-        staff_03_attend_flg: t.staff_03_attend_flg,
-        staff_01_role_code: t.staff_01_role_code,
-        staff_02_role_code: t.staff_02_role_code,
-        staff_03_role_code: t.staff_03_role_code,
-      })
-    }
-  }
+  // 個別展開・一斉展開と同じ隔週／第n週判定を使用する。
+  const { candidates: candidateRows, warnings } = buildCandidates(month, templates, previousDates)
+  const cands: ShiftRow[] = candidateRows.map(shiftRowFromCandidate)
 
   let inserts: ShiftRow[] = []
 
@@ -144,10 +77,10 @@ export async function POST(req: Request) {
     })
   }
 
-  if (inserts.length === 0) return NextResponse.json({ inserted: 0 })
+  if (inserts.length === 0) return NextResponse.json({ inserted: 0, warnings })
 
   const { error: insErr } = await supabaseAdmin.from('shift').insert(inserts)
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
 
-  return NextResponse.json({ inserted: inserts.length })
+  return NextResponse.json({ inserted: inserts.length, warnings })
 }

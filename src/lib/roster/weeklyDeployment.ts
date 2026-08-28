@@ -49,7 +49,12 @@ async function previousServiceDates(templates: ShiftWeeklyTemplate[], before: st
     const query = supabaseAdmin.from('shift').select('shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count')
       .eq('kaipoke_cs_id', template.kaipoke_cs_id).lt('shift_start_date', before)
       .eq('shift_start_time', template.start_time).eq('shift_end_time', template.end_time)
-      .eq('service_code', template.service_code).eq('required_staff_count', template.required_staff_count)
+      .eq('required_staff_count', template.required_staff_count)
+    // Supabase の eq(column, null) は SQL の NULL と一致しないため、
+    // サービスコード未設定のテンプレートは is(..., null) で検索する。
+    if (template.service_code === null) query.is('service_code', null)
+    else query.eq('service_code', template.service_code)
+    query
       .order('shift_start_date', { ascending: false }).limit(1)
     const { data, error } = await query
     if (error) throw new Error(`過去の隔週サービス日の取得に失敗しました: ${error.message}`)
