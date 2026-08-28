@@ -11,7 +11,22 @@ export async function GET(request: NextRequest) {
       .select("core_id,template_title,internal_label,work_description,matching_place_name,meeting_yuubinn,meeting_place,meeting_place_banchi,required_licenses,matching_msg,kaipoke_cs_id,status,start_at,end_at,updated_at")
       .order("updated_at", { ascending: false }).limit(500);
     if (error) throw error;
-    return NextResponse.json({ cases: data ?? [] });
+
+    const csIds = Array.from(new Set((data ?? []).map((row) => row.kaipoke_cs_id).filter(Boolean)));
+    const { data: clients, error: clientError } = csIds.length
+      ? await supabaseAdmin.from("cs_kaipoke_info").select("kaipoke_cs_id,name").in("kaipoke_cs_id", csIds)
+      : { data: [], error: null };
+    if (clientError) throw clientError;
+    const clientNames = new Map((clients ?? []).map((client) => [String(client.kaipoke_cs_id), client.name ?? "-"]));
+    const cases = [...(data ?? [])].sort((a, b) => {
+      const aActive = a.status === "active" ? 0 : 1;
+      const bActive = b.status === "active" ? 0 : 1;
+      if (aActive !== bActive) return aActive - bActive;
+      return (clientNames.get(String(a.kaipoke_cs_id ?? "")) ?? "-").localeCompare(
+        clientNames.get(String(b.kaipoke_cs_id ?? "")) ?? "-", "ja",
+      );
+    });
+    return NextResponse.json({ cases });
   } catch (error) {
     if (isRpaTaimeeError(error)) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[rpa/sharefull/cases] failed", error);
