@@ -12,7 +12,7 @@ type ShiftRow = {
   staff_02_user_id: string | null;
   staff_03_user_id: string | null;
 };
-type UserRow = { user_id: string; entry_id: string | null; auth_user_id: string | null };
+type UserRow = { user_id: string; entry_id: string | null; auth_user_id: string | null; system_role: string | null };
 type ClientRow = { kaipoke_cs_id: string; address: string | null };
 type EntryRow = { id: string; auth_uid: string | null; address: string | null };
 
@@ -123,13 +123,20 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
     const staffIds = [...new Set(shiftRows.flatMap((s: ShiftRow) => [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id]).filter((v): v is string => Boolean(v && v !== "-")))];
     const clientIds = [...new Set(shiftRows.map((s: ShiftRow) => s.kaipoke_cs_id).filter((v): v is string => Boolean(v)))];
     const [{ data: users, error: usersError }, { data: clients, error: clientsError }] = await Promise.all([
-      supabaseAdmin.from("users").select("user_id, entry_id, auth_user_id").in("user_id", staffIds),
+      supabaseAdmin.from("users").select("user_id, entry_id, auth_user_id, system_role").in("user_id", staffIds),
       supabaseAdmin.from("cs_kaipoke_info").select("kaipoke_cs_id, address").in("kaipoke_cs_id", clientIds),
     ]);
     if (usersError) throw new Error(usersError.message);
     if (clientsError) throw new Error(clientsError.message);
     const userRows = (users ?? []) as UserRow[];
     const clientRows = (clients ?? []) as ClientRow[];
+    const managerStaffIds = new Set(
+      userRows
+        .filter((user) => ["manager", "admin", "system_admin", "super_admin"].includes(
+          String(user.system_role ?? "").toLowerCase()
+        ))
+        .map((user) => user.user_id)
+    );
     const entryIds = userRows.map((u: UserRow) => u.entry_id).filter((v): v is string => Boolean(v));
     const authUserIds = userRows.map((u: UserRow) => u.auth_user_id).filter((v): v is string => Boolean(v));
     const [{ data: entriesById, error: entriesByIdError }, { data: entriesByAuth, error: entriesByAuthError }] = await Promise.all([
@@ -149,6 +156,7 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
     const addressByClient = new Map<string, string>(clientRows.map((c: ClientRow) => [c.kaipoke_cs_id, clean(c.address)]));
     const targets = shiftRows.flatMap((shift: ShiftRow) => [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
       .filter((staffId): staffId is string => Boolean(staffId && staffId !== "-"))
+      .filter((staffId) => managerStaffIds.has(staffId))
       .map((staffId) => ({ shift, staffId, origin: addressByStaff.get(staffId) ?? "", destination: addressByClient.get(shift.kaipoke_cs_id) ?? "" }))
       .filter((t) => Boolean(t.shift.shift_start_date && t.origin && t.destination && t.origin !== t.destination))) as Array<{ shift: ShiftRow; staffId: string; origin: string; destination: string }>;
 
