@@ -18,13 +18,14 @@ export async function GET(request: NextRequest) {
       : { data: [], error: null };
     if (clientError) throw clientError;
     const clientNames = new Map((clients ?? []).map((client) => [String(client.kaipoke_cs_id), client.name ?? "-"]));
-    const cases = [...(data ?? [])].sort((a, b) => {
+    const cases = [...(data ?? [])].map((row) => ({
+      ...row,
+      client_name: clientNames.get(String(row.kaipoke_cs_id ?? "")) ?? "-",
+    })).sort((a, b) => {
       const aActive = a.status === "active" ? 0 : 1;
       const bActive = b.status === "active" ? 0 : 1;
       if (aActive !== bActive) return aActive - bActive;
-      return (clientNames.get(String(a.kaipoke_cs_id ?? "")) ?? "-").localeCompare(
-        clientNames.get(String(b.kaipoke_cs_id ?? "")) ?? "-", "ja",
-      );
+      return a.client_name.localeCompare(b.client_name, "ja");
     });
     return NextResponse.json({ cases });
   } catch (error) {
