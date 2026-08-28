@@ -14,7 +14,13 @@ type ShiftRow = {
 };
 type UserRow = { user_id: string; entry_id: string | null; auth_user_id: string | null; system_role: string | null };
 type ClientRow = { kaipoke_cs_id: string; address: string | null };
-type EntryRow = { id: string; auth_uid: string | null; address: string | null };
+type EntryRow = {
+  id: string;
+  auth_uid: string | null;
+  address: string | null;
+  last_name_kanji: string | null;
+  first_name_kanji: string | null;
+};
 
 export type DistanceRunResult = {
   runId: string;
@@ -35,6 +41,11 @@ const MAX_CONCURRENCY = Math.max(1, Math.min(8, Number(process.env.GOOGLE_MAPS_C
 // Vercelの関数タイムアウト前に結果を保存して終了するための安全時間。
 const MAX_RUNTIME_MS = Math.max(15_000, Number(process.env.GOOGLE_MAPS_MAX_RUNTIME_MS ?? 45_000));
 const RETRY_MINUTES = Math.max(5, Number(process.env.GOOGLE_MAPS_RETRY_MINUTES ?? 60));
+const EXCLUDED_STAFF_NAMES = new Set([
+  "濵川 千咲", "サービス サポート", "益田 名実", "塩澤 里美", "高橋 りか",
+  "松岡 佑太", "増田 志乃", "太田 明子", "大津 美羽", "池本 梨夏",
+  "長谷川 愛", "渡久地 泰子", "白井 伶佳", "小針 京子",
+]);
 
 function addressHash(address: string) {
   return createHash("sha256").update(address.trim().replace(/\s+/g, " ")).digest("hex");
@@ -130,22 +141,27 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
     if (clientsError) throw new Error(clientsError.message);
     const userRows = (users ?? []) as UserRow[];
     const clientRows = (clients ?? []) as ClientRow[];
+    const entryIds = userRows.map((u: UserRow) => u.entry_id).filter((v): v is string => Boolean(v));
+    const authUserIds = userRows.map((u: UserRow) => u.auth_user_id).filter((v): v is string => Boolean(v));
+    const [{ data: entriesById, error: entriesByIdError }, { data: entriesByAuth, error: entriesByAuthError }] = await Promise.all([
+      supabaseAdmin.from("form_entries").select("id, auth_uid, address, last_name_kanji, first_name_kanji").in("id", entryIds.length ? entryIds : ["__no_entry__"]),
+      supabaseAdmin.from("form_entries").select("id, auth_uid, address, last_name_kanji, first_name_kanji").in("auth_uid", authUserIds.length ? authUserIds : ["__no_auth_user__"]),
+    ]);
+    if (entriesByIdError) throw new Error(entriesByIdError.message);
+    if (entriesByAuthError) throw new Error(entriesByAuthError.message);
+    const entries = [...(entriesById ?? []), ...(entriesByAuth ?? [])] as EntryRow[];
     const managerStaffIds = new Set(
       userRows
         .filter((user) => ["manager", "admin", "system_admin", "super_admin"].includes(
           String(user.system_role ?? "").toLowerCase()
         ))
+        .filter((user) => {
+          const entry = entries.find((item) => item.id === user.entry_id || item.auth_uid === user.auth_user_id);
+          const name = clean(`${entry?.last_name_kanji ?? ""} ${entry?.first_name_kanji ?? ""}`);
+          return !EXCLUDED_STAFF_NAMES.has(name);
+        })
         .map((user) => user.user_id)
     );
-    const entryIds = userRows.map((u: UserRow) => u.entry_id).filter((v): v is string => Boolean(v));
-    const authUserIds = userRows.map((u: UserRow) => u.auth_user_id).filter((v): v is string => Boolean(v));
-    const [{ data: entriesById, error: entriesByIdError }, { data: entriesByAuth, error: entriesByAuthError }] = await Promise.all([
-      supabaseAdmin.from("form_entries").select("id, auth_uid, address").in("id", entryIds.length ? entryIds : ["__no_entry__"]),
-      supabaseAdmin.from("form_entries").select("id, auth_uid, address").in("auth_uid", authUserIds.length ? authUserIds : ["__no_auth_user__"]),
-    ]);
-    if (entriesByIdError) throw new Error(entriesByIdError.message);
-    if (entriesByAuthError) throw new Error(entriesByAuthError.message);
-    const entries = [...(entriesById ?? []), ...(entriesByAuth ?? [])] as EntryRow[];
     const addressByStaff = new Map<string, string>();
     for (const user of users ?? []) {
       const address = clean(entries.find((e: EntryRow) =>

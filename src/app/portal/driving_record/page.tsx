@@ -17,6 +17,7 @@ type ManagerSummary = {
   userId: string;
   staffName: string;
   monthlyValues: Record<string, number>;
+  monthlySegmentCounts: Record<string, number>;
   total: number;
 };
 
@@ -194,6 +195,7 @@ export default function ManagerDistanceIndexPage() {
             row.staff_name?.trim() ||
             row.user_id,
           monthlyValues: {},
+          monthlySegmentCounts: {},
           total: 0,
         };
 
@@ -204,6 +206,7 @@ export default function ManagerDistanceIndexPage() {
       current.monthlyValues[monthKey] =
         (current.monthlyValues[monthKey] ?? 0) +
         value;
+      current.monthlySegmentCounts[monthKey] = row.movement_segment_count ?? 0;
 
       current.total += value;
 
@@ -371,13 +374,16 @@ export default function ManagerDistanceIndexPage() {
                         manager.monthlyValues[
                           monthKey
                         ] ?? 0;
+                      const segmentCount = manager.monthlySegmentCounts[monthKey] ?? 0;
 
                       return (
                         <td
                           key={monthKey}
                           className="px-4 py-3 text-right tabular-nums"
                         >
-                          {value.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
+                          {segmentCount === 0
+                            ? "未計算"
+                            : `${value.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`}
                         </td>
                       );
                     })}
