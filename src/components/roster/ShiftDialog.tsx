@@ -845,15 +845,18 @@ const saveShiftOnly = async () => {
                             <div className="mb-2 font-semibold text-red-800">要確認・不備</div>
                             <div className="space-y-2 text-sm">
                                 {shift.roster_error_visit_record ? (
-                                    <Link
-                                        href={monthlyHref}
-                                        className="block rounded border border-red-100 bg-white p-2 text-red-800 hover:bg-red-100"
-                                    >
+                                    <div className="rounded border border-red-100 bg-white p-2 text-red-800">
                                         <span className="font-medium">⚠ 訪問記録が未入力です</span>
                                         <span className="mt-1 block text-xs text-red-700">
-                                            サービス終了時刻を過ぎています。月間シフトを確認
+                                            サービス終了時刻を過ぎています。
+                                            <Link
+                                                href={monthlyHref}
+                                                className="ml-1 font-medium text-blue-700 underline hover:text-blue-900"
+                                            >
+                                                月間シフトを確認
+                                            </Link>
                                         </span>
-                                    </Link>
+                                    </div>
                                 ) : null}
 
                                 {shift.roster_error_actual_record ? (

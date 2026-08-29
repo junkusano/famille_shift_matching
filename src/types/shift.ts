@@ -80,4 +80,11 @@ export interface ShiftData {
   document_summary?: string | null;
   sms_phone_number?: string | null;
   sms_reply_phone_numbers?: string[];
+  has_roster_error?: boolean;
+  roster_error_visit_record?: boolean;
+  roster_error_actual_record?: boolean;
+  roster_error_actual_record_months?: string[];
+  roster_error_care_consultant?: boolean;
+  roster_error_transport_info?: boolean;
+  roster_error_kodoengo_plan?: boolean;
 }

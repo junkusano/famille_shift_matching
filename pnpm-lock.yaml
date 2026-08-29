@@ -143,6 +143,9 @@ importers:
       twilio:
         specifier: ^5.13.1
         version: 5.13.1(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
+      undici:
+        specifier: ^7.29.0
+        version: 7.29.0
       zod:
         specifier: ^3.25.76
         version: 3.25.76

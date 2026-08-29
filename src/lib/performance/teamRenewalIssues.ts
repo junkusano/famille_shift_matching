@@ -121,7 +121,9 @@ export async function findTeamRenewalIssues(args: {
         asigned_org: target.asigned_org,
       },
       target.shogai_end_at ?? "",
-      `障害福祉受給者証の期限切れ（${target.shogai_end_at ?? "期限不明"}）`,
+      target.certificateIssue === "missing"
+        ? "障害福祉受給者証の情報未登録"
+        : `障害福祉受給者証の期限切れ（${target.shogai_end_at ?? "期限不明"}）`,
     );
   }
 

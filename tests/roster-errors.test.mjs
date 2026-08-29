@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildDisabilityCheckHref,
+  buildVisitRecordHref,
   formatRosterErrorYearMonth,
   hasRosterIssues,
 } from "../src/lib/roster/rosterErrors.ts";
@@ -38,9 +39,21 @@ test("未提出月リンクは年月・利用者・未提出フィルターを�
   const href = buildDisabilityCheckHref("2026-07", "12345");
   const url = new URL(href, "https://myfamille.shi-on.net");
 
-  assert.equal(url.pathname, "/portal/disability-check");
+  assert.equal(url.pathname, "/portal/disability-check-beta");
   assert.equal(url.searchParams.get("ym"), "2026-07");
   assert.equal(url.searchParams.get("kaipoke_cs_id"), "12345");
   assert.equal(url.searchParams.get("check"), "unsubmitted");
   assert.equal(formatRosterErrorYearMonth("2026-07"), "2026年7月");
+});
+
+test("訪問記録リンクは利用者・日付・担当者フィルターを保持する", () => {
+  const href = buildVisitRecordHref("2026-08-28", "12345", "junkusano");
+  const url = new URL(href, "https://myfamille.shi-on.net");
+
+  assert.equal(url.pathname, "/portal/shift-view-beta");
+  assert.equal(url.searchParams.get("user_id"), "junkusano");
+  assert.equal(url.searchParams.get("client"), "12345");
+  assert.equal(url.searchParams.get("date"), "2026-08-28");
+  assert.equal(url.searchParams.get("per"), "50");
+  assert.equal(url.searchParams.get("page"), "1");
 });

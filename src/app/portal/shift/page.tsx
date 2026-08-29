@@ -76,6 +76,17 @@ type ShiftViewRow = {
     applicant_control_url: string | null;    // ★追加
 };
 
+type ShiftRosterErrorRow = {
+    shift_id: string | number;
+    has_roster_error: boolean | null;
+    roster_error_visit_record: boolean | null;
+    roster_error_actual_record: boolean | null;
+    roster_error_actual_record_months: string[] | null;
+    roster_error_care_consultant: boolean | null;
+    roster_error_transport_info: boolean | null;
+    roster_error_kodoengo_plan: boolean | null;
+};
+
 type PostalDistrictRow = {
     postal_code_3: string;
     district: string;
@@ -902,8 +913,38 @@ export default function ShiftPage() {
                 return d1.localeCompare(d2);
             });
 
+            const rosterErrorsByShift = new Map<string, ShiftRosterErrorRow>();
+            const selectedShiftIds = sorted.map((s) => s.shift_id).filter(Boolean);
+
+            if (selectedShiftIds.length > 0) {
+                const { data: rosterErrorRows, error: rosterError } = await supabase
+                    .from("shift_daily_dialog_view")
+                    .select([
+                        "shift_id",
+                        "has_roster_error",
+                        "roster_error_visit_record",
+                        "roster_error_actual_record",
+                        "roster_error_actual_record_months",
+                        "roster_error_care_consultant",
+                        "roster_error_transport_info",
+                        "roster_error_kodoengo_plan",
+                    ].join(","))
+                    .in("shift_id", selectedShiftIds);
+
+                if (rosterError) {
+                    console.error("fetch roster errors for reject cards error", rosterError);
+                } else {
+                    (rosterErrorRows ?? []).forEach((row) => {
+                        const item = row as unknown as ShiftRosterErrorRow;
+                        rosterErrorsByShift.set(String(item.shift_id), item);
+                    });
+                }
+            }
+
             setShifts(
-                sorted.map((s) => ({
+                sorted.map((s) => {
+                    const rosterIssue = rosterErrorsByShift.get(String(s.shift_id));
+                    return {
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
                     shift_start_time: s.shift_start_time,
@@ -929,7 +970,15 @@ export default function ShiftPage() {
                     applicant_name: s.applicant_name ?? null,
                     applicant_sex: s.applicant_sex ?? null,
                     applicant_control_url: s.applicant_control_url ?? null,
-                }))
+                    has_roster_error: Boolean(rosterIssue?.has_roster_error),
+                    roster_error_visit_record: Boolean(rosterIssue?.roster_error_visit_record),
+                    roster_error_actual_record: Boolean(rosterIssue?.roster_error_actual_record),
+                    roster_error_actual_record_months: rosterIssue?.roster_error_actual_record_months ?? [],
+                    roster_error_care_consultant: Boolean(rosterIssue?.roster_error_care_consultant),
+                    roster_error_transport_info: Boolean(rosterIssue?.roster_error_transport_info),
+                    roster_error_kodoengo_plan: Boolean(rosterIssue?.roster_error_kodoengo_plan),
+                    };
+                })
             );
         };
 

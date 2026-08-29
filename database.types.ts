@@ -2971,6 +2971,13 @@ export type Database = {
             foreignKeyName: "cm_kaipoke_support_office_care_manager_id_fkey"
             columns: ["care_manager_id"]
             isOneToOne: false
+            referencedRelation: "manager_monthly_google_maps_distance_view"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "cm_kaipoke_support_office_care_manager_id_fkey"
+            columns: ["care_manager_id"]
+            isOneToOne: false
             referencedRelation: "reentry_recruitment_candidates"
             referencedColumns: ["user_id"]
           },
@@ -6198,6 +6205,13 @@ export type Database = {
             foreignKeyName: "monthly_meeting_attendance_manager_checked_by_fkey"
             columns: ["manager_checked_by"]
             isOneToOne: false
+            referencedRelation: "manager_monthly_google_maps_distance_view"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "monthly_meeting_attendance_manager_checked_by_fkey"
+            columns: ["manager_checked_by"]
+            isOneToOne: false
             referencedRelation: "reentry_recruitment_candidates"
             referencedColumns: ["user_id"]
           },
@@ -6263,6 +6277,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "audit_log_display_view"
             referencedColumns: ["actor_user_id_text"]
+          },
+          {
+            foreignKeyName: "monthly_meeting_attendance_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "manager_monthly_google_maps_distance_view"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "monthly_meeting_attendance_user_id_fkey"
@@ -9102,6 +9123,7 @@ export type Database = {
           requires_license: boolean | null
           salary: string | null
           send_msg_flg: boolean | null
+          sharefull_template_id: string | null
           shift_id: Json | null
           smoking_area_work: boolean | null
           smoking_policy: string | null
@@ -9142,6 +9164,7 @@ export type Database = {
           requires_license?: boolean | null
           salary?: string | null
           send_msg_flg?: boolean | null
+          sharefull_template_id?: string | null
           shift_id?: Json | null
           smoking_area_work?: boolean | null
           smoking_policy?: string | null
@@ -9182,6 +9205,7 @@ export type Database = {
           requires_license?: boolean | null
           salary?: string | null
           send_msg_flg?: boolean | null
+          sharefull_template_id?: string | null
           shift_id?: Json | null
           smoking_area_work?: boolean | null
           smoking_policy?: string | null
@@ -11921,6 +11945,16 @@ export type Database = {
           qualified_ratio: number | null
           qualified_service_hours: number | null
           service_category: string | null
+          staff_name: string | null
+          staff_user_id: string | null
+          total_service_hours: number | null
+          year_month: string | null
+        }
+        Relationships: []
+      }
+      dashboard_staff_monthly_service_hours_view: {
+        Row: {
+          manager_category: string | null
           staff_name: string | null
           staff_user_id: string | null
           total_service_hours: number | null
