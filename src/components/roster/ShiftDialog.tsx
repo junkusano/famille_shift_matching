@@ -18,6 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
 import { createRpaRequestDetails } from "@/lib/spot_offer/createRpaRequestDetails";
+import {
+    buildDisabilityCheckHref,
+    formatRosterErrorYearMonth,
+    hasRosterIssues,
+} from "@/lib/roster/rosterErrors";
 import { useRouter } from "next/navigation";
 
 type ServiceOption = {
@@ -469,6 +474,11 @@ export default function ShiftDialog({
 
     if (!open || !shift) return null;
 
+    const actualRecordMonths = Array.from(
+        new Set(shift.roster_error_actual_record_months ?? [])
+    ).sort();
+    const showRosterIssues = hasRosterIssues(shift);
+
     const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
         setForm((prev) => ({ ...prev, [key]: value }));
     };
@@ -829,6 +839,80 @@ const saveShiftOnly = async () => {
                             閉じる
                         </button>
                     </div>
+
+                    {showRosterIssues ? (
+                        <section className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
+                            <div className="mb-2 font-semibold text-red-800">要確認・不備</div>
+                            <div className="space-y-2 text-sm">
+                                {shift.roster_error_visit_record ? (
+                                    <Link
+                                        href={monthlyHref}
+                                        className="block rounded border border-red-100 bg-white p-2 text-red-800 hover:bg-red-100"
+                                    >
+                                        <span className="font-medium">⚠ 訪問記録が未入力です</span>
+                                        <span className="mt-1 block text-xs text-red-700">
+                                            サービス終了時刻を過ぎています。月間シフトを確認
+                                        </span>
+                                    </Link>
+                                ) : null}
+
+                                {shift.roster_error_actual_record ? (
+                                    <div className="rounded border border-red-100 bg-white p-2 text-red-800">
+                                        <div className="font-medium">⚠ 実績記録の未提出があります</div>
+                                        {actualRecordMonths.length > 0 ? (
+                                            <div className="mt-1 flex flex-wrap gap-2">
+                                                {actualRecordMonths.map((month) => (
+                                                    <Link
+                                                        key={month}
+                                                        href={buildDisabilityCheckHref(month, shift.kaipoke_cs_id)}
+                                                        className="text-xs font-medium text-blue-700 underline"
+                                                    >
+                                                        {formatRosterErrorYearMonth(month)}を確認
+                                                    </Link>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="mt-1 text-xs text-red-700">実績記録チェックを確認</div>
+                                        )}
+                                    </div>
+                                ) : null}
+
+                                {shift.roster_error_care_consultant ? (
+                                    <a
+                                        href={clientDetailHref}
+                                        className="block rounded border border-red-100 bg-white p-2 text-red-800 hover:bg-red-100"
+                                    >
+                                        <span className="font-medium">⚠ ケアマネ・相談員情報が未設定です</span>
+                                        <span className="mt-1 block text-xs text-red-700">利用者情報を確認</span>
+                                    </a>
+                                ) : null}
+
+                                {shift.roster_error_transport_info ? (
+                                    <a
+                                        href={clientDetailHref}
+                                        className="block rounded border border-red-100 bg-white p-2 text-red-800 hover:bg-red-100"
+                                    >
+                                        <span className="font-medium">
+                                            ⚠ 移動を伴うサービスですが、経路・手段・目的に未入力があります
+                                        </span>
+                                        <span className="mt-1 block text-xs text-red-700">利用者情報を確認</span>
+                                    </a>
+                                ) : null}
+
+                                {shift.roster_error_kodoengo_plan ? (
+                                    <a
+                                        href={clientDetailHref}
+                                        className="block rounded border border-red-100 bg-white p-2 text-red-800 hover:bg-red-100"
+                                    >
+                                        <span className="font-medium">
+                                            ⚠ 行動援護ですが、サービス計画書兼記録のリンクが未登録です
+                                        </span>
+                                        <span className="mt-1 block text-xs text-red-700">利用者情報を確認</span>
+                                    </a>
+                                ) : null}
+                            </div>
+                        </section>
+                    ) : null}
 
                     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <section className="space-y-3 rounded-lg border p-3">

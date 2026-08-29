@@ -13015,12 +13015,19 @@ export type Database = {
           female_flg: boolean | null
           gender_request: string | null
           gender_request_name: string | null
+          has_roster_error: boolean | null
           judo_ido: string | null
           kaipoke_cs_id: string | null
           male_flg: boolean | null
           map_url: string | null
           postal_code: string | null
           required_staff_count: number | null
+          roster_error_actual_record: boolean | null
+          roster_error_actual_record_months: string[] | null
+          roster_error_care_consultant: boolean | null
+          roster_error_kodoengo_plan: boolean | null
+          roster_error_transport_info: boolean | null
+          roster_error_visit_record: boolean | null
           service_code: string | null
           service_name: string | null
           shift_date: string | null

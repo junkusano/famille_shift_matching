@@ -10,7 +10,6 @@ import {
   type PlanGenerationSourceAvailability,
 } from "@/lib/plans/generation-source-policy";
 import {
-  buildWeeklyShiftScheduleFallback,
   buildWeeklyShiftServiceContext,
   type WeeklyShiftServiceContextRow,
 } from "@/lib/plans/weekly-shift-service-context";
@@ -1296,27 +1295,17 @@ async function buildServiceDraftsByCategory(params: {
 }): Promise<Record<string, ServiceTextDraft>> {
   const { sourceText, targetRows } = params;
 
-  const rowsByKey = new Map<string, SourceRow[]>();
-  for (const row of targetRows) {
-    const key = buildServiceDraftKey(row);
-    const existingRows = rowsByKey.get(key) ?? [];
-    existingRows.push(row);
-    rowsByKey.set(key, existingRows);
-  }
-
-  const keys = [...rowsByKey.keys()];
+  const keys = [
+    ...new Set(
+      targetRows.map(
+        buildServiceDraftKey,
+      ),
+    ),
+  ];
 
   const fallback: Record<string, ServiceTextDraft> = {};
-  for (const [key, rows] of rowsByKey) {
-    fallback[key] = {
-      ...fallbackServiceDraft(),
-      service_detail:
-        buildWeeklyShiftScheduleFallback(
-          rows.map(
-            toWeeklyShiftServiceContextRow,
-          ),
-        ),
-    };
+  for (const key of keys) {
+    fallback[key] = fallbackServiceDraft();
   }
 
   if (!process.env.OPENAI_API_KEY || !sourceText.trim()) {
@@ -1337,14 +1326,15 @@ async function buildServiceDraftsByCategory(params: {
 - 資料に書かれている事実・意向・会議内容だけを使ってください。
 - 推測、創作、一般論による補完は禁止です。
 - 利用者本人の氏名、家族氏名、職員名は本文に入れないでください。
+- 曜日、開始・終了時刻、頻度、回数、サービス区分名は計画予定表で管理するため、service_detail / procedure_notes / family_action の本文には入れないでください。
 - service_detail は50〜150文字程度。
 - procedure_notes は50〜150文字程度。
 - family_action は、必要な場合のみ50〜100文字程度。
 
 【サービスの内容 service_detail】
-- ケアプラン、アセスメント、担当者会議、訪問記録、週間シフトから、実際に訪問介護員が行う支援内容を作成してください。
-- 「週間シフト（実際の登録内容）」は、実施曜日・時間・頻度・サービス区分の一次情報です。記載された曜日・時間・サービス区分を必ず反映してください。
-- 週間シフトに具体的な援助内容がなく、他資料にも根拠がない場合は、曜日・時間・サービス区分の事実だけを記載し、身体介護や生活援助の内容を推測して追加してはいけません。
+- ケアプラン、アセスメント、担当者会議、訪問記録から、実際に訪問介護員が行う支援そのものを作成してください。
+- 週間シフトは対象サービスを判断する補助情報としてだけ使い、曜日・時間・頻度・回数・サービス区分は本文へ転記しないでください。
+- 具体的な援助内容の根拠が他資料にない場合、予定情報で埋めずに空文字にしてください。
 - 入浴、更衣、排泄、移動、食事、服薬確認、掃除、洗濯、調理、買い物等、資料に根拠のある具体的な支援を記載してください。
 - 単に「身体介護」「生活援助」とだけ書かず、実施する動作が分かる内容にしてください。
 - 資料から読み取れない内容は追加しないでください。

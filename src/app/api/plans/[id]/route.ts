@@ -662,6 +662,44 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     }
 }
 
+export async function DELETE(req: NextRequest, { params }: Ctx) {
+    try {
+        await getUserFromBearer(req);
+
+        const { id } = await params;
+        const { data, error } = await supabaseAdmin
+            .from("plans")
+            .update({
+                is_deleted: true,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("plan_id", id)
+            .eq("is_deleted", false)
+            .select("plan_id")
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) {
+            return json(
+                {
+                    ok: false,
+                    error: "plan not found",
+                },
+                404,
+            );
+        }
+
+        return json({
+            ok: true,
+            data,
+        });
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[api/plans/[id]][DELETE] error", msg);
+        return json({ ok: false, error: msg }, 500);
+    }
+}
+
 function nullableString(v: unknown): string | null {
     if (typeof v !== "string") return null;
     const s = v.trim();

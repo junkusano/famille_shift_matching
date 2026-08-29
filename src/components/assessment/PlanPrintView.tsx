@@ -1342,6 +1342,6 @@ function formatDate(v: string | null | undefined) {
 }
 
 function getAuthorDisplayName(author: AuthorRow, fallback: string | null | undefined) {
-    if (author?.display_name?.trim()) return author.display_name.trim();
-    return fallback ?? "";
+    if (fallback?.trim()) return fallback.trim();
+    return author?.display_name?.trim() ?? "";
 }

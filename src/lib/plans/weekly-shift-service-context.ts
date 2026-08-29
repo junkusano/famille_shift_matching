@@ -90,22 +90,3 @@ export function buildWeeklyShiftServiceContext(
     ).length,
   };
 }
-
-/**
- * AIが具体的な援助内容を返せない場合の最小限のサービス内容。
- * 曜日・時間・サービス区分という週間シフト上の事実のみを保存する。
- */
-export function buildWeeklyShiftScheduleFallback(
-  rows: WeeklyShiftServiceContextRow[],
-): string {
-  const entries = [...new Map(
-    rows.map((row) => {
-      const entry = `${formatWeekday(row)} ${formatTime(row.startTime) || "時刻未設定"}〜${formatTime(row.endTime) || "時刻未設定"}：${weeklyShiftServiceLabel(row)}（${formatFrequency(row)}）`;
-      return [entry, entry] as const;
-    }),
-  ).values()];
-
-  return entries.length
-    ? `週間シフトの登録内容に基づき、${entries.join("／")}を実施する。`
-    : "";
-}
