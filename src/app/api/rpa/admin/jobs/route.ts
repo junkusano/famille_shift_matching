@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { isRunnerId } from '@/lib/rpa-runner/auth';
-import { isRecord, positiveInteger, text } from '@/lib/rpa-runner/validation';
+import { isRecord, positiveInteger } from '@/lib/rpa-runner/validation';
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from '@/lib/rpa/taimee';
 
 const JOB_TYPE = /^[a-z][a-z0-9._-]{0,100}$/;
