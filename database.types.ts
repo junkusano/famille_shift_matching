@@ -4671,6 +4671,7 @@ export type Database = {
           due_rule_type: string
           id: string
           is_active: boolean
+          shift_alert: boolean
           overview: string | null
           template_name: string
           updated_at: string
@@ -4682,6 +4683,7 @@ export type Database = {
           due_rule_type?: string
           id?: string
           is_active?: boolean
+          shift_alert?: boolean
           overview?: string | null
           template_name: string
           updated_at?: string
@@ -4693,6 +4695,7 @@ export type Database = {
           due_rule_type?: string
           id?: string
           is_active?: boolean
+          shift_alert?: boolean
           overview?: string | null
           template_name?: string
           updated_at?: string
@@ -13065,6 +13068,7 @@ export type Database = {
           roster_error_kodoengo_plan: boolean | null
           roster_error_transport_info: boolean | null
           roster_error_visit_record: boolean | null
+          shift_event_alerts: Json | null
           service_code: string | null
           service_name: string | null
           shift_date: string | null

@@ -20,6 +20,7 @@ export type EventTemplateRow = {
   due_offset_days: number;
   due_rule_json: unknown; // jsonb
   is_active: boolean;
+  shift_alert: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -51,6 +52,7 @@ export type UpsertEventTemplatePayload = {
   due_offset_days?: number;
   due_rule_json?: unknown;
   is_active?: boolean;
+  shift_alert?: boolean;
 
   required_docs: Array<{
     doc_type_id: string;

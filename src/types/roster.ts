@@ -1,5 +1,7 @@
 // src/types/roster.ts
 
+import type { ShiftEventAlert } from "@/lib/shiftEventAlerts";
+
 export type RosterStaff = {
   id: string;
   name: string;
@@ -52,6 +54,7 @@ export type RosterShiftDialogData = {
   roster_error_care_consultant?: boolean;
   roster_error_transport_info?: boolean;
   roster_error_kodoengo_plan?: boolean;
+  shift_event_alerts?: ShiftEventAlert[];
 };
 
 export type RosterShiftCard = {

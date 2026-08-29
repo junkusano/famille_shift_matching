@@ -11,6 +11,7 @@ import type {
   RejectPerformanceStaffRow,
   RejectRecordStatus,
 } from "@/types/shiftRejectPerformanceTest";
+import { normalizeShiftEventAlerts } from "@/lib/shiftEventAlerts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -160,6 +161,7 @@ type RosterErrorRow = {
   roster_error_visit_record: boolean | null;
   roster_error_actual_record: boolean | null;
   roster_error_actual_record_months: string[] | null;
+  shift_event_alerts: unknown;
 };
 
 type MealExpenseRow = {
@@ -194,10 +196,22 @@ function getSupabaseAnonKey() {
   return value;
 }
 
+function getSupabaseServiceRoleKey() {
+  const value = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!value) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
+  return value;
+}
+
 function createUserClient(token: string) {
   return createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+}
+
+function createServiceClient() {
+  return createClient(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
@@ -520,6 +534,9 @@ async function hydrateShifts(
   includeSmsPhone: boolean,
   includeRosterErrors: boolean,
 ) {
+  // shift_daily_dialog_view は既存の1回だけ取得する。一般スタッフへは、このAPIで
+  // 本人に割り当て済みのshift_idへ絞った結果だけを返す。
+  const rosterViewClient = includeRosterErrors ? createServiceClient() : sb;
   const kaipokeCsIds = Array.from(
     new Set(rawShifts.map((shift) => String(shift.kaipoke_cs_id ?? "").trim()).filter(Boolean)),
   );
@@ -592,7 +609,7 @@ async function hydrateShifts(
           orders: [{ column: "updated_at", ascending: false, nullsFirst: false }],
         }),
         includeRosterErrors
-          ? fetchRowsByColumn<RosterErrorRow>(sb, timings, counter, {
+          ? fetchRowsByColumn<RosterErrorRow>(rosterViewClient, timings, counter, {
               stage: "supabase.shift_daily_dialog_view.roster_errors",
               table: "shift_daily_dialog_view",
               select: [
@@ -600,6 +617,7 @@ async function hydrateShifts(
                 "roster_error_visit_record",
                 "roster_error_actual_record",
                 "roster_error_actual_record_months",
+                "shift_event_alerts",
               ].join(","),
               column: "shift_id",
               values: shiftIds,
@@ -755,6 +773,7 @@ async function hydrateShifts(
         roster_error_visit_record: Boolean(rosterError?.roster_error_visit_record),
         roster_error_actual_record: Boolean(rosterError?.roster_error_actual_record),
         roster_error_actual_record_months: rosterError?.roster_error_actual_record_months ?? [],
+        shift_event_alerts: normalizeShiftEventAlerts(rosterError?.shift_event_alerts),
       };
     })
     .sort((left, right) => {

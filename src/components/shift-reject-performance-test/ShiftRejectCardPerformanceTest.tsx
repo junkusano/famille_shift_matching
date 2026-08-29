@@ -35,6 +35,7 @@ import {
   buildVisitRecordHref,
   formatRosterErrorYearMonth,
 } from "@/lib/roster/rosterErrors";
+import ShiftEventAlertItems from "@/components/shift-alerts/ShiftEventAlertItems";
 import type {
   RejectPerformanceShift,
   RejectPerformanceStaffRow,
@@ -276,8 +277,9 @@ function ShiftRejectCardPerformanceTest({
   const rosterIssueMonths = Array.from(
     new Set(shift.roster_error_actual_record_months ?? []),
   ).sort();
+  const eventAlerts = shift.shift_event_alerts ?? [];
   const hasRosterIssues = Boolean(
-    shift.roster_error_visit_record || shift.roster_error_actual_record,
+    shift.roster_error_visit_record || shift.roster_error_actual_record || eventAlerts.length,
   );
   const visitRecordHref = buildVisitRecordHref(
     shift.shift_start_date,
@@ -609,6 +611,8 @@ function ShiftRejectCardPerformanceTest({
                   )}
                 </div>
               )}
+
+              <ShiftEventAlertItems alerts={eventAlerts} />
             </div>
           </section>
         )}

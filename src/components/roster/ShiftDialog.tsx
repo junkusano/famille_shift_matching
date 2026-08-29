@@ -24,6 +24,8 @@ import {
     hasRosterIssues,
 } from "@/lib/roster/rosterErrors";
 import { useRouter } from "next/navigation";
+import { useRoleContext } from "@/context/RoleContext";
+import ShiftEventAlertItems from "@/components/shift-alerts/ShiftEventAlertItems";
 
 type ServiceOption = {
     value: string;
@@ -311,6 +313,7 @@ export default function ShiftDialog({
     serviceOptions,
     onSaved,
 }: Props) {
+    const { role } = useRoleContext();
     const [form, setForm] = useState<FormState>(emptyForm);
     const [saving, setSaving] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
@@ -913,6 +916,11 @@ const saveShiftOnly = async () => {
                                         <span className="mt-1 block text-xs text-red-700">利用者情報を確認</span>
                                     </a>
                                 ) : null}
+
+                                <ShiftEventAlertItems
+                                    alerts={shift.shift_event_alerts ?? []}
+                                    showEventTasksLink={role === "admin" || role === "manager"}
+                                />
                             </div>
                         </section>
                     ) : null}

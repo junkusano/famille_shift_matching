@@ -1,4 +1,6 @@
 //types/shift
+import type { ShiftEventAlert } from "@/lib/shiftEventAlerts";
+
 export interface SupabaseShiftRaw {
   id?: string;
   shift_id: string;
@@ -87,4 +89,5 @@ export interface ShiftData {
   roster_error_care_consultant?: boolean;
   roster_error_transport_info?: boolean;
   roster_error_kodoengo_plan?: boolean;
+  shift_event_alerts?: ShiftEventAlert[];
 }
