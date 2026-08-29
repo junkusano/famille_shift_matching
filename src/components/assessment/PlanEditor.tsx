@@ -215,6 +215,9 @@ export default function PlanEditor({ detail, onReload }: Props) {
     const [savingServiceId, setSavingServiceId] =
         useState<string | null>(null);
 
+    const [addingService, setAddingService] =
+        useState(false);
+
     useEffect(() => {
         setPlanDraft(
             toPlanDraft(detail.plan),
@@ -339,6 +342,9 @@ export default function PlanEditor({ detail, onReload }: Props) {
                     ...(bearer ? { Authorization: bearer } : {}),
                 },
                 body: JSON.stringify({
+                    weekday: service.weekday,
+                    start_time: service.start_time,
+                    end_time: service.end_time,
                     service_title: service.service_title ?? "",
                     service_detail: service.service_detail ?? "",
                     procedure_notes: service.procedure_notes ?? "",
@@ -367,6 +373,38 @@ export default function PlanEditor({ detail, onReload }: Props) {
             );
         } finally {
             setSavingServiceId(null);
+        }
+    }
+
+    async function addService() {
+        setAddingService(true);
+        try {
+            const bearer = await getBearer();
+            const res = await fetch("/api/plan-services", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(bearer ? { Authorization: bearer } : {}),
+                },
+                body: JSON.stringify({ plan_id: detail.plan.plan_id }),
+            });
+            const result = await res.json();
+            if (!res.ok || !result?.ok) {
+                window.alert(`サービス追加に失敗: ${result?.error ?? "unknown error"}`);
+                return;
+            }
+            setServiceDrafts((previous) => [
+                ...previous,
+                result.data as PlanServiceForEditor,
+            ]);
+        } catch (error) {
+            window.alert(
+                `サービス追加に失敗: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            );
+        } finally {
+            setAddingService(false);
         }
     }
 
@@ -489,6 +527,59 @@ export default function PlanEditor({ detail, onReload }: Props) {
 
         window.alert(
             `この目標の期間（${sourceStartDate} ～ ${sourceEndDate}）を、日付が空欄の目標 ${targetCount}件へ画面上で反映しました。保存ボタンを押すまでデータベースには保存されません。`,
+        );
+    }
+
+    function addLongTermGoal() {
+        const now = new Date().toISOString();
+        const planLongTermGoalId = `draft-long-${crypto.randomUUID()}`;
+        setGoalGroupDrafts((previous) => [
+            ...previous,
+            {
+                long_term_goal: {
+                    plan_long_term_goal_id: planLongTermGoalId,
+                    plan_id: detail.plan.plan_id,
+                    display_order: previous.length + 1,
+                    goal_start_date: null,
+                    goal_end_date: null,
+                    goal_text: "",
+                    achievement_level: null,
+                    effectiveness_satisfaction: null,
+                    active: true,
+                    created_at: now,
+                    updated_at: now,
+                },
+                short_term_goals: [],
+            },
+        ]);
+    }
+
+    function addShortTermGoal(planLongTermGoalId: string) {
+        const now = new Date().toISOString();
+        setGoalGroupDrafts((previous) =>
+            previous.map((group) =>
+                group.long_term_goal.plan_long_term_goal_id === planLongTermGoalId
+                    ? {
+                        ...group,
+                        short_term_goals: [
+                            ...group.short_term_goals,
+                            {
+                                plan_short_term_goal_id: `draft-short-${crypto.randomUUID()}`,
+                                plan_long_term_goal_id: planLongTermGoalId,
+                                display_order: group.short_term_goals.length + 1,
+                                goal_start_date: null,
+                                goal_end_date: null,
+                                goal_text: "",
+                                achievement_level: null,
+                                effectiveness_satisfaction: null,
+                                active: true,
+                                created_at: now,
+                                updated_at: now,
+                            },
+                        ],
+                    }
+                    : group,
+            ),
         );
     }
     return (
@@ -776,8 +867,13 @@ export default function PlanEditor({ detail, onReload }: Props) {
                             原文と照合し、必要な場合のみ修正してください。
                         </div>
                     </div>
-
-
+                    <button
+                        type="button"
+                        className="rounded border border-blue-700 bg-blue-700 px-3 py-2 text-sm font-semibold text-white"
+                        onClick={addLongTermGoal}
+                    >
+                        長期目標を追加
+                    </button>
                 </div>
                 {goalGroupDrafts.length === 0 ? (
                     <div className="rounded border border-dashed p-4 text-sm text-gray-500">
@@ -949,6 +1045,20 @@ export default function PlanEditor({ detail, onReload }: Props) {
 
                                         {/* 短期目標 */}
                                         <div className="space-y-3">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <div className="font-semibold">短期目標</div>
+                                                <button
+                                                    type="button"
+                                                    className="rounded border border-blue-600 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-800"
+                                                    onClick={() =>
+                                                        addShortTermGoal(
+                                                            longGoal.plan_long_term_goal_id,
+                                                        )
+                                                    }
+                                                >
+                                                    短期目標を追加
+                                                </button>
+                                            </div>
                                             {group.short_term_goals
                                                 .length ===
                                                 0 ? (
@@ -1137,8 +1247,21 @@ export default function PlanEditor({ detail, onReload }: Props) {
             </div>
 
             <div className="border rounded p-3 bg-white space-y-3">
-                <div className="font-bold text-lg">
-                    サービス詳細編集
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <div className="font-bold text-lg">サービス詳細編集</div>
+                        <div className="text-sm text-gray-500">
+                            曜日・時間を含め、生成後にサービスを手動追加できます。
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        className="rounded border border-blue-700 bg-blue-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        disabled={addingService}
+                        onClick={() => void addService()}
+                    >
+                        {addingService ? "追加中..." : "サービスを追加"}
+                    </button>
                 </div>
 
                 {serviceDrafts.length === 0 ? (
@@ -1174,6 +1297,59 @@ export default function PlanEditor({ detail, onReload }: Props) {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <Field label="曜日">
+                                        <select
+                                            className="border rounded px-2 py-1 w-full"
+                                            value={s.weekday ?? ""}
+                                            onChange={(e) =>
+                                                updateService(s.plan_service_id, {
+                                                    weekday: e.target.value === "" ? null : Number(e.target.value),
+                                                    weekday_jp:
+                                                        e.target.value === ""
+                                                            ? null
+                                                            : WEEKDAY_OPTIONS[Number(e.target.value)]?.label ?? null,
+                                                })
+                                            }
+                                        >
+                                            <option value="">未選択</option>
+                                            {WEEKDAY_OPTIONS.map((weekday) => (
+                                                <option key={weekday.value} value={weekday.value}>
+                                                    {weekday.label}曜日
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </Field>
+
+                                    <Field label="開始時刻">
+                                        <input
+                                            type="time"
+                                            className="border rounded px-2 py-1 w-full"
+                                            value={(s.start_time ?? "").slice(0, 5)}
+                                            onChange={(e) =>
+                                                updateService(s.plan_service_id, {
+                                                    start_time: e.target.value || null,
+                                                    monthly_minutes: null,
+                                                    monthly_hours: null,
+                                                })
+                                            }
+                                        />
+                                    </Field>
+
+                                    <Field label="終了時刻">
+                                        <input
+                                            type="time"
+                                            className="border rounded px-2 py-1 w-full"
+                                            value={(s.end_time ?? "").slice(0, 5)}
+                                            onChange={(e) =>
+                                                updateService(s.plan_service_id, {
+                                                    end_time: e.target.value || null,
+                                                    monthly_minutes: null,
+                                                    monthly_hours: null,
+                                                })
+                                            }
+                                        />
+                                    </Field>
+
                                     <Field label="サービス名">
                                         <input
                                             className="border rounded px-2 py-1 w-full"
@@ -1295,6 +1471,16 @@ export default function PlanEditor({ detail, onReload }: Props) {
         </div>
     );
 }
+
+const WEEKDAY_OPTIONS = [
+    { value: 0, label: "日" },
+    { value: 1, label: "月" },
+    { value: 2, label: "火" },
+    { value: 3, label: "水" },
+    { value: 4, label: "木" },
+    { value: 5, label: "金" },
+    { value: 6, label: "土" },
+];
 
 function PlanSaveButton({
     saving,

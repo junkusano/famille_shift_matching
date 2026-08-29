@@ -7421,6 +7421,7 @@ export type Database = {
           file_name: string
           file_size_bytes: number
           id: string
+          is_secret: boolean
           local_recording_id: string
           participants: Json
           recorded_at: string
@@ -7443,6 +7444,7 @@ export type Database = {
           file_name: string
           file_size_bytes: number
           id?: string
+          is_secret?: boolean
           local_recording_id: string
           participants?: Json
           recorded_at: string
@@ -7465,6 +7467,7 @@ export type Database = {
           file_name?: string
           file_size_bytes?: number
           id?: string
+          is_secret?: boolean
           local_recording_id?: string
           participants?: Json
           recorded_at?: string

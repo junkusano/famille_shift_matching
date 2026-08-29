@@ -5,6 +5,8 @@ import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
 
 export const dynamic = "force-dynamic";
 
+const PLAN_WRITE_ROLES = new Set(["manager", "admin", "system_admin", "super_admin"]);
+
 function json(body: unknown, status = 200) {
     return NextResponse.json(body, { status });
 }
@@ -335,10 +337,60 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 
 export async function PUT(req: NextRequest, { params }: Ctx) {
     try {
-        await getUserFromBearer(req);
+        const { user } = await getUserFromBearer(req);
 
         const { id } = await params;
         const body = await req.json();
+
+        const goalGroups =
+            Array.isArray(body.goal_groups)
+                ? body.goal_groups
+                : [];
+        const hasDraftGoals = goalGroups.some((group) =>
+            isDraftId(group?.long_term_goal?.plan_long_term_goal_id) ||
+            (Array.isArray(group?.short_term_goals) &&
+                group.short_term_goals.some((goal: unknown) =>
+                    isDraftId(
+                        goal && typeof goal === "object"
+                            ? (goal as { plan_short_term_goal_id?: unknown })
+                                .plan_short_term_goal_id
+                            : null,
+                    ),
+                )),
+        );
+
+        if (hasDraftGoals) {
+            const [operatorResult, planAccessResult] = await Promise.all([
+                supabaseAdmin
+                    .from("users")
+                    .select("user_id,system_role")
+                    .eq("auth_user_id", user.id)
+                    .maybeSingle(),
+                supabaseAdmin
+                    .from("plans")
+                    .select("author_user_id")
+                    .eq("plan_id", id)
+                    .eq("is_deleted", false)
+                    .maybeSingle(),
+            ]);
+            if (operatorResult.error) throw operatorResult.error;
+            if (planAccessResult.error) throw planAccessResult.error;
+            if (!planAccessResult.data) {
+                return json({ ok: false, error: "plan not found" }, 404);
+            }
+
+            const role = String(operatorResult.data?.system_role ?? "").toLowerCase();
+            const isAuthor =
+                Boolean(operatorResult.data?.user_id) &&
+                String(planAccessResult.data.author_user_id ?? "") ===
+                    String(operatorResult.data?.user_id);
+            if (!PLAN_WRITE_ROLES.has(role) && !isAuthor) {
+                return json(
+                    { ok: false, error: "このプランへ目標を追加する権限がありません" },
+                    403,
+                );
+            }
+        }
 
         /*
          * plans本体の更新内容
@@ -460,17 +512,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
          * 送っていない場合でも、
          * プラン本体だけ保存できる。
          */
-        const goalGroups =
-            Array.isArray(
-                body.goal_groups,
-            )
-                ? body.goal_groups
-                : [];
-
-        for (
-            const group
-            of goalGroups
-        ) {
+        for (const [groupIndex, group] of goalGroups.entries()) {
             const longTermGoal =
                 group &&
                     typeof group ===
@@ -478,6 +520,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
                     ? group.long_term_goal
                     : null;
 
+            let resolvedLongTermGoalId: string | null = null;
             if (
                 longTermGoal &&
                 typeof longTermGoal ===
@@ -486,73 +529,55 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
                     .plan_long_term_goal_id ===
                 "string"
             ) {
-                const {
-                    error:
-                    longTermGoalUpdateError,
-                } = await supabaseAdmin
-                    .from(
-                        "plan_long_term_goals",
-                    )
-                    .update({
-                        goal_start_date:
-                            normalizeDateOrNull(
-                                longTermGoal
-                                    .goal_start_date,
-                            ),
+                const longTermGoalPatch = {
+                    display_order: normalizeDisplayOrder(
+                        longTermGoal.display_order,
+                        groupIndex + 1,
+                    ),
+                    goal_start_date: normalizeDateOrNull(longTermGoal.goal_start_date),
+                    goal_end_date: normalizeDateOrNull(longTermGoal.goal_end_date),
+                    goal_text: String(longTermGoal.goal_text ?? "").trim(),
+                    achievement_level: nullableString(longTermGoal.achievement_level),
+                    effectiveness_satisfaction: nullableString(
+                        longTermGoal.effectiveness_satisfaction,
+                    ),
+                    updated_at: new Date().toISOString(),
+                };
 
-                        goal_end_date:
-                            normalizeDateOrNull(
-                                longTermGoal
-                                    .goal_end_date,
-                            ),
-
-                        goal_text:
-                            String(
-                                longTermGoal
-                                    .goal_text ??
-                                "",
-                            ).trim(),
-
-                        achievement_level:
-                            nullableString(
-                                longTermGoal
-                                    .achievement_level,
-                            ),
-
-                        effectiveness_satisfaction:
-                            nullableString(
-                                longTermGoal
-                                    .effectiveness_satisfaction,
-                            ),
-
-                        updated_at:
-                            new Date()
-                                .toISOString(),
-                    })
-                    .eq(
-                        "plan_long_term_goal_id",
-                        longTermGoal
-                            .plan_long_term_goal_id,
-                    )
-                    /*
-                     * 他プランの目標を
-                     * 誤って更新しないための条件
-                     */
-                    .eq(
-                        "plan_id",
-                        id,
-                    )
-                    .eq(
-                        "active",
-                        true,
-                    );
-
-                if (
-                    longTermGoalUpdateError
-                ) {
-                    throw longTermGoalUpdateError;
+                if (isDraftId(longTermGoal.plan_long_term_goal_id)) {
+                    const { data: insertedLongTermGoal, error } = await supabaseAdmin
+                        .from("plan_long_term_goals")
+                        .insert({
+                            ...longTermGoalPatch,
+                            plan_id: id,
+                            source_snapshot: { source: "manual" },
+                            generation_meta: { source: "manual" },
+                            active: true,
+                        })
+                        .select("plan_long_term_goal_id")
+                        .single();
+                    if (error) throw error;
+                    resolvedLongTermGoalId =
+                        insertedLongTermGoal.plan_long_term_goal_id;
+                } else {
+                    const { data: updatedLongTermGoal, error } = await supabaseAdmin
+                        .from("plan_long_term_goals")
+                        .update(longTermGoalPatch)
+                        .eq(
+                            "plan_long_term_goal_id",
+                            longTermGoal.plan_long_term_goal_id,
+                        )
+                        .eq("plan_id", id)
+                        .eq("active", true)
+                        .select("plan_long_term_goal_id")
+                        .maybeSingle();
+                    if (error) throw error;
+                    resolvedLongTermGoalId =
+                        updatedLongTermGoal?.plan_long_term_goal_id ?? null;
                 }
             }
+
+            if (!resolvedLongTermGoalId) continue;
 
             const shortTermGoals =
                 Array.isArray(
@@ -561,10 +586,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
                     ? group.short_term_goals
                     : [];
 
-            for (
-                const shortTermGoal
-                of shortTermGoals
-            ) {
+            for (const [shortIndex, shortTermGoal] of shortTermGoals.entries()) {
                 if (
                     !shortTermGoal ||
                     typeof shortTermGoal !==
@@ -576,63 +598,43 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
                     continue;
                 }
 
-                const {
-                    error:
-                    shortTermGoalUpdateError,
-                } = await supabaseAdmin
-                    .from(
-                        "plan_short_term_goals",
-                    )
-                    .update({
-                        goal_start_date:
-                            normalizeDateOrNull(
-                                shortTermGoal
-                                    .goal_start_date,
-                            ),
+                const shortTermGoalPatch = {
+                    display_order: normalizeDisplayOrder(
+                        shortTermGoal.display_order,
+                        shortIndex + 1,
+                    ),
+                    goal_start_date: normalizeDateOrNull(shortTermGoal.goal_start_date),
+                    goal_end_date: normalizeDateOrNull(shortTermGoal.goal_end_date),
+                    goal_text: String(shortTermGoal.goal_text ?? "").trim(),
+                    achievement_level: nullableString(shortTermGoal.achievement_level),
+                    effectiveness_satisfaction: nullableString(
+                        shortTermGoal.effectiveness_satisfaction,
+                    ),
+                    updated_at: new Date().toISOString(),
+                };
 
-                        goal_end_date:
-                            normalizeDateOrNull(
-                                shortTermGoal
-                                    .goal_end_date,
-                            ),
-
-                        goal_text:
-                            String(
-                                shortTermGoal
-                                    .goal_text ??
-                                "",
-                            ).trim(),
-
-                        achievement_level:
-                            nullableString(
-                                shortTermGoal
-                                    .achievement_level,
-                            ),
-
-                        effectiveness_satisfaction:
-                            nullableString(
-                                shortTermGoal
-                                    .effectiveness_satisfaction,
-                            ),
-
-                        updated_at:
-                            new Date()
-                                .toISOString(),
-                    })
-                    .eq(
-                        "plan_short_term_goal_id",
-                        shortTermGoal
-                            .plan_short_term_goal_id,
-                    )
-                    .eq(
-                        "active",
-                        true,
-                    );
-
-                if (
-                    shortTermGoalUpdateError
-                ) {
-                    throw shortTermGoalUpdateError;
+                if (isDraftId(shortTermGoal.plan_short_term_goal_id)) {
+                    const { error } = await supabaseAdmin
+                        .from("plan_short_term_goals")
+                        .insert({
+                            ...shortTermGoalPatch,
+                            plan_long_term_goal_id: resolvedLongTermGoalId,
+                            source_snapshot: { source: "manual" },
+                            generation_meta: { source: "manual" },
+                            active: true,
+                        });
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabaseAdmin
+                        .from("plan_short_term_goals")
+                        .update(shortTermGoalPatch)
+                        .eq(
+                            "plan_short_term_goal_id",
+                            shortTermGoal.plan_short_term_goal_id,
+                        )
+                        .eq("plan_long_term_goal_id", resolvedLongTermGoalId)
+                        .eq("active", true);
+                    if (error) throw error;
                 }
             }
         }
@@ -711,4 +713,13 @@ function normalizeDateOrNull(v: unknown): string | null {
     const s = v.trim();
     if (!s) return null;
     return s;
+}
+
+function isDraftId(value: unknown): value is string {
+    return typeof value === "string" && value.startsWith("draft-");
+}
+
+function normalizeDisplayOrder(value: unknown, fallback: number): number {
+    const order = Number(value);
+    return Number.isInteger(order) && order > 0 ? order : fallback;
 }

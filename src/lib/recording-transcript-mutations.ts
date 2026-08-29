@@ -62,6 +62,8 @@ export async function updateRecordingTranscript(
     })
     .eq("id", id)
     .in("recorder_user_id", recorderIds)
+    // 一覧に出ない他人のシークレット録音は、直接URL/APIでも編集・削除できない。
+    .or(`is_secret.eq.false,recorder_user_id.eq.${authUserId}`)
     .select("id")
     .maybeSingle();
 
@@ -86,6 +88,8 @@ export async function deleteRecordingTranscript(
     .delete()
     .eq("id", id)
     .in("recorder_user_id", recorderIds)
+    // 一覧に出ない他人のシークレット録音は、直接URL/APIでも編集・削除できない。
+    .or(`is_secret.eq.false,recorder_user_id.eq.${authUserId}`)
     .select("id")
     .maybeSingle();
 

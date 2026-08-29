@@ -78,6 +78,22 @@ type SourceRow = {
   plan_display_name: string | null;
 };
 
+type WeeklyTemplateRow = {
+  template_id: number;
+  kaipoke_cs_id: string;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  service_code: string;
+  required_staff_count: number;
+  two_person_work_flg: boolean;
+  active: boolean;
+  effective_from: string | null;
+  effective_to: string | null;
+  is_biweekly: boolean | null;
+  nth_weeks: number[] | null;
+};
+
 type CsDocRow = {
   id: string;
   doc_name: string | null;
@@ -217,6 +233,80 @@ function round2(v: number) {
   return Math.round(v * 100) / 100;
 }
 
+const WEEKDAY_JP = ["日", "月", "火", "水", "木", "金", "土"];
+
+function timeToMinutes(value: string | null): number | null {
+  const match = value?.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
+function mergeUnmappedWeeklyTemplates(params: {
+  mappedRows: SourceRow[];
+  weeklyRows: WeeklyTemplateRow[];
+  targetDocumentKinds: PlanDocumentKind[];
+}): SourceRow[] {
+  const { mappedRows, weeklyRows, targetDocumentKinds } = params;
+  const mappedTemplateIds = new Set(
+    mappedRows
+      .map((row) => row.template_id)
+      .filter((templateId): templateId is number => templateId !== null),
+  );
+  const mappedDocumentKinds = [
+    ...new Set(
+      mappedRows
+        .map((row) => row.plan_document_kind)
+        .filter((kind): kind is PlanDocumentKind => kind !== null),
+    ),
+  ];
+  const fallbackDocumentKind =
+    mappedDocumentKinds.length === 1 &&
+      targetDocumentKinds.includes(mappedDocumentKinds[0])
+      ? mappedDocumentKinds[0]
+      : targetDocumentKinds[0];
+
+  const recoveredRows = weeklyRows
+    .filter((row) => row.active && !mappedTemplateIds.has(row.template_id))
+    .map((row): SourceRow => {
+      const startMinutes = timeToMinutes(row.start_time);
+      const endMinutes = timeToMinutes(row.end_time);
+      const validTime =
+        startMinutes !== null && endMinutes !== null && endMinutes >= startMinutes;
+      const serviceCode = row.service_code?.trim() || null;
+
+      return {
+        template_id: row.template_id,
+        kaipoke_cs_id: row.kaipoke_cs_id,
+        weekday: row.weekday,
+        weekday_jp: WEEKDAY_JP[row.weekday] ?? null,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        duration_minutes: validTime ? endMinutes - startMinutes : null,
+        service_code: serviceCode,
+        required_staff_count: row.required_staff_count,
+        two_person_work_flg: row.two_person_work_flg,
+        active: row.active,
+        effective_from: row.effective_from,
+        effective_to: row.effective_to,
+        is_biweekly: row.is_biweekly,
+        nth_weeks: row.nth_weeks,
+        invalid_time: !validTime,
+        overlaps_same_weekday: false,
+        shift_service_code_id: null,
+        kaipoke_servicek: null,
+        kaipoke_servicecode: null,
+        plan_document_kind: fallbackDocumentKind,
+        plan_service_category: null,
+        plan_display_name: serviceCode || "サービス区分未設定",
+      };
+    });
+
+  return [...mappedRows, ...recoveredRows];
+}
+
 function calcMonthlySummary(rows: SourceRow[]) {
   const map = new Map<
     string,
@@ -284,6 +374,11 @@ function extractAssessmentTexts(content: Record<string, unknown>) {
 
 function buildWarnings(rows: SourceRow[]) {
   const warnings: string[] = [];
+  if (rows.some((r) => !r.service_code?.trim())) {
+    warnings.push(
+      "サービス区分が未設定の週間シフトを含みます。生成後にサービス名・内容を確認してください。",
+    );
+  }
   if (rows.some((r) => r.invalid_time)) warnings.push("時間不整合の可能性がある週間シフトを含みます。");
   if (rows.some((r) => r.overlaps_same_weekday)) warnings.push("同曜日重複の可能性がある週間シフトを含みます。");
   if (rows.some((r) => r.is_biweekly)) warnings.push("隔週シフトを含みます。月間総量は概算です。");
@@ -2273,8 +2368,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: sourceRows, error: sErr } =
-      await supabaseAdmin
+    const [sourceResult, weeklyTemplateResult] = await Promise.all([
+      supabaseAdmin
         .from("plan_generation_source_view")
         .select(`
         template_id,
@@ -2304,9 +2399,36 @@ export async function POST(req: NextRequest) {
         .eq("kaipoke_cs_id", a.kaipoke_cs_id)
         .order("plan_document_kind", { ascending: true })
         .order("weekday", { ascending: true })
-        .order("start_time", { ascending: true });
+        .order("start_time", { ascending: true }),
+      supabaseAdmin
+        .from("shift_weekly_template")
+        .select(`
+          template_id,
+          kaipoke_cs_id,
+          weekday,
+          start_time,
+          end_time,
+          service_code,
+          required_staff_count,
+          two_person_work_flg,
+          active,
+          effective_from,
+          effective_to,
+          is_biweekly,
+          nth_weeks
+        `)
+        .eq("kaipoke_cs_id", a.kaipoke_cs_id)
+        .eq("active", true)
+        .order("weekday", { ascending: true })
+        .order("start_time", { ascending: true }),
+    ]);
+
+    const { data: sourceRows, error: sErr } = sourceResult;
+    const { data: weeklyTemplateRows, error: weeklyTemplateError } =
+      weeklyTemplateResult;
 
     if (sErr) throw sErr;
+    if (weeklyTemplateError) throw weeklyTemplateError;
 
     /*
      * アセスメントのサービス種別に応じて、
@@ -2328,8 +2450,14 @@ export async function POST(req: NextRequest) {
           "移動支援サービス",
         ];
 
+    const mergedSourceRows = mergeUnmappedWeeklyTemplates({
+      mappedRows: (sourceRows ?? []) as SourceRow[],
+      weeklyRows: (weeklyTemplateRows ?? []) as WeeklyTemplateRow[],
+      targetDocumentKinds,
+    });
+
     const rows =
-      ((sourceRows ?? []) as SourceRow[]).filter(
+      mergedSourceRows.filter(
         (row) =>
           row.plan_document_kind !== null &&
           targetDocumentKinds.includes(
@@ -2399,7 +2527,13 @@ export async function POST(req: NextRequest) {
           targetDocumentKinds,
 
         source_row_count:
+          mergedSourceRows.length,
+
+        mapped_source_row_count:
           sourceRows?.length ?? 0,
+
+        recovered_unmapped_row_count:
+          mergedSourceRows.length - (sourceRows?.length ?? 0),
 
         matched_row_count:
           rows.length,

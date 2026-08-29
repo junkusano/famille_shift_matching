@@ -21,6 +21,7 @@ export type RecordingTranscriptParticipant = {
 
 export type RecordingTranscriptListRow = {
   id: string;
+  is_secret: boolean;
   recorder_user_id: string;
   recorder_email: string | null;
   recorder_name: string;
@@ -297,7 +298,7 @@ export async function getRecordingTranscriptsPageData(
   let query = supabaseAdmin
     .from("recording_transcripts")
     .select(
-      "id, recorder_user_id, recorder_email, client_id, client_name, context_id, context_name, recorded_at, duration_millis, file_name, file_size_bytes, transcript_status, transcribed_at, created_at, participants",
+      "id, is_secret, recorder_user_id, recorder_email, client_id, client_name, context_id, context_name, recorded_at, duration_millis, file_name, file_size_bytes, transcript_status, transcribed_at, created_at, participants",
       { count: "exact" },
     )
     .in("recorder_user_id", recorderIds);
@@ -320,7 +321,15 @@ export async function getRecordingTranscriptsPageData(
   if (clientId) query = query.ilike("client_id", `%${escapeLikePattern(clientId)}%`);
   if (contextName) query = query.ilike("context_name", `%${escapeLikePattern(contextName)}%`);
   if (VALID_STATUSES.has(status)) query = query.eq("transcript_status", status);
-  if (keyword) query = query.or(buildKeywordFilter(keyword));
+  if (keyword) {
+    // 検索語と公開範囲を一つの論理式にし、シークレット条件が検索時に外れないようにする。
+    const search = buildKeywordFilter(keyword);
+    query = query.or(
+      `and(is_secret.eq.false,or(${search})),and(recorder_user_id.eq.${authUserId},or(${search}))`,
+    );
+  } else {
+    query = query.or(`is_secret.eq.false,recorder_user_id.eq.${authUserId}`);
+  }
 
   const { data, error, count } = await query
     .order("recorded_at", { ascending: false })
@@ -357,10 +366,12 @@ export async function getRecordingTranscriptDetail(
   const { data, error } = await supabaseAdmin
     .from("recording_transcripts")
     .select(
-      "id, local_recording_id, recorder_user_id, recorder_email, client_id, client_name, context_id, context_name, recorded_at, duration_millis, file_name, file_size_bytes, transcript_status, transcript_raw, transcribed_at, created_at, updated_at, participants",
+      "id, local_recording_id, is_secret, recorder_user_id, recorder_email, client_id, client_name, context_id, context_name, recorded_at, duration_millis, file_name, file_size_bytes, transcript_status, transcript_raw, transcribed_at, created_at, updated_at, participants",
     )
     .eq("id", id)
     .in("recorder_user_id", recorderIds)
+    // IDを直接指定しても、他人のシークレット録音は取得させない。
+    .or(`is_secret.eq.false,recorder_user_id.eq.${authUserId}`)
     .maybeSingle();
 
   if (error) throw new Error(`文字起こし詳細を取得できません: ${error.message}`);
