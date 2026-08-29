@@ -4671,8 +4671,8 @@ export type Database = {
           due_rule_type: string
           id: string
           is_active: boolean
-          shift_alert: boolean
           overview: string | null
+          shift_alert: boolean
           template_name: string
           updated_at: string
         }
@@ -4683,8 +4683,8 @@ export type Database = {
           due_rule_type?: string
           id?: string
           is_active?: boolean
-          shift_alert?: boolean
           overview?: string | null
+          shift_alert?: boolean
           template_name: string
           updated_at?: string
         }
@@ -4695,8 +4695,8 @@ export type Database = {
           due_rule_type?: string
           id?: string
           is_active?: boolean
-          shift_alert?: boolean
           overview?: string | null
+          shift_alert?: boolean
           template_name?: string
           updated_at?: string
         }
@@ -8302,6 +8302,114 @@ export type Database = {
           purpose?: string | null
           scripts?: Json
           service?: string
+        }
+        Relationships: []
+      }
+      rpa_runner_jobs: {
+        Row: {
+          claimed_at: string | null
+          claimed_runner_id: string | null
+          completed_at: string | null
+          created_at: string
+          error_code: string | null
+          error_debug: Json | null
+          error_message: string | null
+          error_type: string | null
+          id: string
+          job_type: string
+          payload: Json
+          result: Json | null
+          status: string
+          target_runner_id: string | null
+          timeout_ms: number | null
+          updated_at: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          claimed_runner_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_debug?: Json | null
+          error_message?: string | null
+          error_type?: string | null
+          id?: string
+          job_type: string
+          payload?: Json
+          result?: Json | null
+          status?: string
+          target_runner_id?: string | null
+          timeout_ms?: number | null
+          updated_at?: string
+        }
+        Update: {
+          claimed_at?: string | null
+          claimed_runner_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_debug?: Json | null
+          error_message?: string | null
+          error_type?: string | null
+          id?: string
+          job_type?: string
+          payload?: Json
+          result?: Json | null
+          status?: string
+          target_runner_id?: string | null
+          timeout_ms?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rpa_runner_jobs_claimed_runner_id_fkey"
+            columns: ["claimed_runner_id"]
+            isOneToOne: false
+            referencedRelation: "rpa_runners"
+            referencedColumns: ["runner_id"]
+          },
+          {
+            foreignKeyName: "rpa_runner_jobs_target_runner_id_fkey"
+            columns: ["target_runner_id"]
+            isOneToOne: false
+            referencedRelation: "rpa_runners"
+            referencedColumns: ["runner_id"]
+          },
+        ]
+      }
+      rpa_runners: {
+        Row: {
+          created_at: string
+          current_job_id: string | null
+          is_active: boolean
+          last_heartbeat_at: string | null
+          last_status: string | null
+          runner_id: string
+          runner_name: string
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_job_id?: string | null
+          is_active?: boolean
+          last_heartbeat_at?: string | null
+          last_status?: string | null
+          runner_id: string
+          runner_name: string
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_job_id?: string | null
+          is_active?: boolean
+          last_heartbeat_at?: string | null
+          last_status?: string | null
+          runner_id?: string
+          runner_name?: string
+          token_hash?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -13068,10 +13176,10 @@ export type Database = {
           roster_error_kodoengo_plan: boolean | null
           roster_error_transport_info: boolean | null
           roster_error_visit_record: boolean | null
-          shift_event_alerts: Json | null
           service_code: string | null
           service_name: string | null
           shift_date: string | null
+          shift_event_alerts: Json | null
           shift_id: number | null
           staff_02_attend_flg: boolean | null
           staff_03_attend_flg: boolean | null
@@ -14400,6 +14508,15 @@ export type Database = {
           p_url: string
         }
         Returns: Json
+      }
+      claim_rpa_runner_job: {
+        Args: { p_runner_id: string }
+        Returns: {
+          id: string
+          job_type: string
+          payload: Json
+          timeout_ms: number
+        }[]
       }
       classify_cs_doc_label: {
         Args: { p_current_label?: string; p_text: string }

@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "mode": "dry-run",
+  "persistent_change": false,
+  "apply_verified": true,
+  "rollback_verified": true,
+  "function_count": 35,
+  "tested_at": "2026-08-29T16:30:03.309Z"
+}

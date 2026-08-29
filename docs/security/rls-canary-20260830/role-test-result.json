@@ -1,0 +1,79 @@
+{
+  "ok": true,
+  "mode": "role-tests",
+  "persistent_data_change": false,
+  "tests": [
+    {
+      "role": "anon",
+      "operation": "SELECT",
+      "allowed": false,
+      "row_count": null,
+      "sqlstate": "42501",
+      "message": "permission denied"
+    },
+    {
+      "role": "anon",
+      "operation": "INSERT",
+      "allowed": false,
+      "row_count": null,
+      "sqlstate": "42501",
+      "message": "permission denied"
+    },
+    {
+      "role": "anon",
+      "operation": "UPDATE",
+      "allowed": false,
+      "row_count": null,
+      "sqlstate": "42501",
+      "message": "permission denied"
+    },
+    {
+      "role": "anon",
+      "operation": "DELETE",
+      "allowed": false,
+      "row_count": null,
+      "sqlstate": "42501",
+      "message": "permission denied"
+    },
+    {
+      "role": "authenticated",
+      "operation": "SELECT",
+      "allowed": false,
+      "row_count": null,
+      "sqlstate": "42501",
+      "message": "permission denied"
+    },
+    {
+      "role": "authenticated",
+      "operation": "INSERT",
+      "allowed": false,
+      "row_count": null,
+      "sqlstate": "42501",
+      "message": "permission denied"
+    },
+    {
+      "role": "authenticated",
+      "operation": "UPDATE",
+      "allowed": false,
+      "row_count": null,
+      "sqlstate": "42501",
+      "message": "permission denied"
+    },
+    {
+      "role": "authenticated",
+      "operation": "DELETE",
+      "allowed": false,
+      "row_count": null,
+      "sqlstate": "42501",
+      "message": "permission denied"
+    },
+    {
+      "role": "service_role",
+      "operation": "SELECT",
+      "allowed": true,
+      "row_count": 1,
+      "sqlstate": null
+    }
+  ],
+  "tested_at": "2026-08-29T15:51:16.876Z"
+}

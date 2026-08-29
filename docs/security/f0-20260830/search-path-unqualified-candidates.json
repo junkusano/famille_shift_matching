@@ -1,0 +1,188 @@
+{
+  "generated_at": "2026-08-29T16:37:31.945Z",
+  "heuristic": true,
+  "search_path_unfixed": 26,
+  "with_unqualified_relation_candidates": 22,
+  "functions": [
+    {
+      "signature": "cm_get_alert_stats()",
+      "unqualified_relation_candidates": [
+        "cm_alerts"
+      ]
+    },
+    {
+      "signature": "cm_resolve_alert_by_reference(p_kaipoke_cs_id text, p_category text, p_reference_id text, p_resolution_note text)",
+      "unqualified_relation_candidates": [
+        "cm_alerts"
+      ]
+    },
+    {
+      "signature": "cm_resolve_alerts_by_termination(p_category text, p_resolution_note text)",
+      "unqualified_relation_candidates": [
+        "cm_kaipoke_info",
+        "cm_alerts",
+        "terminated_clients",
+        "updated"
+      ]
+    },
+    {
+      "signature": "cron_sync_cs_documents()",
+      "unqualified_relation_candidates": [
+        "public",
+        "candidates",
+        "c",
+        "src",
+        "matched",
+        "dates",
+        "parsed",
+        "lateral",
+        "expanded",
+        "rebuilt"
+      ]
+    },
+    {
+      "signature": "exec_sql(sql_text text)",
+      "unqualified_relation_candidates": []
+    },
+    {
+      "signature": "get_candidate_clients_multi(p_office_ids bigint[])",
+      "unqualified_relation_candidates": [
+        "cm_kaipoke_info",
+        "cm_kaipoke_service_usage",
+        "cm_kaipoke_other_office"
+      ]
+    },
+    {
+      "signature": "get_foreign_keys(target_schema text, target_table text)",
+      "unqualified_relation_candidates": [
+        "information_schema"
+      ]
+    },
+    {
+      "signature": "get_primary_keys(target_schema text, target_table text)",
+      "unqualified_relation_candidates": [
+        "information_schema"
+      ]
+    },
+    {
+      "signature": "get_schema_list()",
+      "unqualified_relation_candidates": [
+        "information_schema"
+      ]
+    },
+    {
+      "signature": "get_schema_tables(target_schema text)",
+      "unqualified_relation_candidates": [
+        "information_schema"
+      ]
+    },
+    {
+      "signature": "get_table_columns(target_schema text, target_table text)",
+      "unqualified_relation_candidates": [
+        "information_schema"
+      ]
+    },
+    {
+      "signature": "roster_patch_shift_with_context(p_shift_id bigint, p_date date, p_start time without time zone, p_end time without time zone, p_update_at timestamp without time zone, p_target_col text, p_staff_id text, p_actor_user_id text, p_request_path text)",
+      "unqualified_relation_candidates": [
+        "public"
+      ]
+    },
+    {
+      "signature": "set_audit_context(p_user_id text, p_action text, p_trace_id text)",
+      "unqualified_relation_candidates": []
+    },
+    {
+      "signature": "shift_delete_with_context(p_shift_id bigint, p_actor_user_id text, p_request_path text)",
+      "unqualified_relation_candidates": [
+        "public"
+      ]
+    },
+    {
+      "signature": "shift_direct_reassign(p_shift_id bigint, p_from_user_id text, p_to_user_id text, p_actor_auth_id text, p_reason text, p_event_type text, p_penalty_level text)",
+      "unqualified_relation_candidates": [
+        "public"
+      ]
+    },
+    {
+      "signature": "shift_direct_reassign(p_shift_id bigint, p_from_user_id text, p_to_user_id text, p_reason text, p_actor_user_id uuid, p_request_path text, p_event_type text, p_penalty_level text)",
+      "unqualified_relation_candidates": [
+        "public"
+      ]
+    },
+    {
+      "signature": "shift_direct_reassign_uuid(p_shift_id uuid, p_from_user_id text, p_to_user_id text, p_actor_auth_id uuid, p_reason text)",
+      "unqualified_relation_candidates": [
+        "shift",
+        "shift_assignment_logs"
+      ]
+    },
+    {
+      "signature": "shift_insert_with_context(p_row jsonb, p_actor_user_id text, p_request_path text)",
+      "unqualified_relation_candidates": [
+        "public"
+      ]
+    },
+    {
+      "signature": "shift_update_with_context(p_shift_id bigint, p_patch jsonb, p_actor_user_id text, p_request_path text)",
+      "unqualified_relation_candidates": [
+        "public"
+      ]
+    },
+    {
+      "signature": "shifts_update_with_context(p_actor_user_id text, p_patch jsonb, p_request_path text, p_shift_id bigint)",
+      "unqualified_relation_candidates": []
+    },
+    {
+      "signature": "snapshot_biz_stats_shift_sum(p_year_month text)",
+      "unqualified_relation_candidates": [
+        "public",
+        "upper",
+        "shift",
+        "base_shifts",
+        "user_entry_united_view_single",
+        "target_months",
+        "participants",
+        "monthly_lv3",
+        "orgs",
+        "monthly_lv3_named",
+        "orgs_sort",
+        "monthly_lv2",
+        "monthly_total",
+        "unioned",
+        "with_avg"
+      ]
+    },
+    {
+      "signature": "sync_cs_docs_to_kaipoke_documents()",
+      "unqualified_relation_candidates": [
+        "public",
+        "doc_rows",
+        "grouped",
+        "coalesce"
+      ]
+    },
+    {
+      "signature": "trg_audit_shift_min()",
+      "unqualified_relation_candidates": [
+        "public"
+      ]
+    },
+    {
+      "signature": "wf_is_admin()",
+      "unqualified_relation_candidates": []
+    },
+    {
+      "signature": "wf_is_approver()",
+      "unqualified_relation_candidates": [
+        "public"
+      ]
+    },
+    {
+      "signature": "wf_my_user_id()",
+      "unqualified_relation_candidates": [
+        "public"
+      ]
+    }
+  ]
+}
