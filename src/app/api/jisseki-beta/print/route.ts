@@ -1,6 +1,10 @@
 //api/jisseki/print/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import {
+  resolveJissekiMunicipality,
+  type JissekiMunicipalitySetting,
+} from "@/lib/jissekiMunicipality";
 
 type FormType = "TAKINO" | "KODO" | "DOKO" | "JYUHO" | "IDOU";
 
@@ -37,12 +41,6 @@ type ShiftRow = {
   staff_02_user_id: string | null;
   staff_03_user_id: string | null;
   judo_ido: string | null;
-};
-
-type MunicipalitySetting = {
-  municipality: string;
-  municipality_display_name: string;
-  sort_order: number;
 };
 
 const toFormType = (serviceCode: string): FormType => {
@@ -99,14 +97,6 @@ const ymToRange = (ym: string) => {
   return { start, endExclusive };
 };
 
-const findMunicipalitySetting = (address: string | null | undefined, settings: MunicipalitySetting[]) => {
-  const normalizedAddress = (address ?? "").replace(/[\s　]/g, "");
-  // 同名の短い地域名に先に一致しないよう、長い市町村名から照合する。
-  return [...settings]
-    .sort((a, b) => b.municipality.length - a.municipality.length)
-    .find((setting) => normalizedAddress.includes(setting.municipality));
-};
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const kaipoke_cs_id = searchParams.get("kaipoke_cs_id") ?? "";
@@ -128,11 +118,17 @@ export async function GET(req: NextRequest) {
   const { start, endExclusive } = ymToRange(month);
 
   // 利用者の正式な住所・既存のフル読みを取得する。読みは表示時に漢字から推測しない。
-  const { data: cs } = await supabaseAdmin
+  const { data: csRows, error: csError } = await supabaseAdmin
     .from("cs_kaipoke_info")
-    .select("kaipoke_cs_id,name,address,kana,ido_jukyusyasho,shogai_jukyusha_no")
+    .select("kaipoke_cs_id,name,address,kana,ido_jukyusyasho,shogai_jukyusha_no,is_active")
     .eq("kaipoke_cs_id", kaipoke_cs_id)
-    .maybeSingle();
+    .limit(10);
+  if (csError) {
+    return NextResponse.json({ error: csError.message }, { status: 500 });
+  }
+  const clientScore = (row: { is_active?: boolean | null; address?: string | null }) =>
+    (row.is_active === true ? 2 : 0) + (row.address?.trim() ? 1 : 0);
+  const cs = [...(csRows ?? [])].sort((a, b) => clientScore(b) - clientScore(a))[0] ?? null;
 
   const client_name = cs?.name ?? "";
   const ido_jukyusyasho = (cs as { ido_jukyusyasho?: string } | null)?.ido_jukyusyasho ?? "";
@@ -148,7 +144,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: municipalitySettingsError.message }, { status: 500 });
   }
 
-  const municipalitySetting = findMunicipalitySetting(address, (municipalitySettings ?? []) as MunicipalitySetting[]);
+  const municipalitySetting = resolveJissekiMunicipality(
+    address,
+    (municipalitySettings ?? []) as JissekiMunicipalitySetting[],
+  );
 
   // シフト取得（staff_01_user_id 追加）
   const { data: shifts, error } = await supabaseAdmin

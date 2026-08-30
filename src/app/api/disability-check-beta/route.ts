@@ -2,6 +2,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getKanaParts } from "@/lib/jissekiBetaRecordSort";
+import {
+  resolveJissekiMunicipality,
+  type JissekiMunicipalitySetting,
+} from "@/lib/jissekiMunicipality";
 
 type Body = {
   yearMonth: string;
@@ -35,19 +39,7 @@ type CsKaipokeInfoRow = {
   address: string | null;
   kana: string | null;
   shogai_jukyusha_no: string | null;
-};
-
-type MunicipalitySetting = {
-  municipality: string;
-  municipality_display_name: string;
-  sort_order: number;
-};
-
-const findMunicipalitySetting = (address: string | null | undefined, settings: MunicipalitySetting[]) => {
-  const normalizedAddress = (address ?? "").replace(/[\s　]/g, "");
-  return [...settings]
-    .sort((a, b) => b.municipality.length - a.municipality.length)
-    .find((setting) => normalizedAddress.includes(setting.municipality));
+  is_active: boolean | null;
 };
 
 // GET メソッドを追加
@@ -189,10 +181,9 @@ export async function POST(req: NextRequest) {
           "application_check",
         ].join(",")
       )
-      .eq("year_month", yearMonth)
-      // ★ 必ずこの中に入れる
       .in("kaipoke_servicek", ["障害", "移動支援"]);
 
+    if (yearMonth) query = query.eq("year_month", yearMonth);
     if (kaipokeServicek) query = query.eq("kaipoke_servicek", kaipokeServicek);
     if (districts.length > 0) query = query.in("district", districts);
 
@@ -230,6 +221,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json([], { status: 200 });
     }
 
+    if (yearMonth) {
     // 2) 対象月の範囲を作る（YYYY-MM-01 〜 次月1日未満）
     const monthStart = `${yearMonth}-01`;
     const [yStr, mStr] = yearMonth.split("-");
@@ -364,6 +356,15 @@ export async function POST(req: NextRequest) {
 
     // ★重要：ここを追加（visibleRows を最終結果に反映）
     rows = visibleRows;
+    } else {
+      // 全年月では view が保持している月別の割当をそのまま使う。
+      // 月をまたいだシフト集計で別月の担当者を誤補完しないようにする。
+      rows = rows.filter((r) =>
+        isMember
+          ? r.asigned_jisseki_staff_id === myUserId
+          : !staffIdReq || r.asigned_jisseki_staff_id === staffIdReq
+      );
+    }
 
     // ★重要：targetCsIds も rows 更新後に作り直す（かな取得対象がズレない）
     const targetCsIds = Array.from(new Set(rows.map((r) => r.kaipoke_cs_id))).filter(Boolean);
@@ -382,7 +383,7 @@ export async function POST(req: NextRequest) {
     if (targetCsIds.length > 0) {
       const { data: csRows, error: csErr } = await supabaseAdmin
         .from("cs_kaipoke_info")
-        .select("kaipoke_cs_id,address,kana,shogai_jukyusha_no")
+        .select("kaipoke_cs_id,address,kana,shogai_jukyusha_no,is_active")
         .in("kaipoke_cs_id", targetCsIds);
 
       if (csErr) throw csErr;
@@ -391,28 +392,39 @@ export async function POST(req: NextRequest) {
         const row = r as CsKaipokeInfoRow;
         if (!row.kaipoke_cs_id) return;
 
-        clientInfoMap.set(row.kaipoke_cs_id, row);
-        shogaiMap.set(row.kaipoke_cs_id, row.shogai_jukyusha_no);
+        const previous = clientInfoMap.get(row.kaipoke_cs_id);
+        const score = (value: CsKaipokeInfoRow) =>
+          (value.is_active === true ? 4 : 0) +
+          (value.address?.trim() ? 2 : 0) +
+          (value.kana?.trim() ? 1 : 0);
+        if (!previous || score(row) > score(previous)) {
+          clientInfoMap.set(row.kaipoke_cs_id, row);
+          shogaiMap.set(row.kaipoke_cs_id, row.shogai_jukyusha_no);
+        }
       });
     }
 
-    // ★追加：同一CS内で「どれかtrue」を集約（同じyearMonthで取ってるのでcs_idだけでOK）。
+    // 同じ利用者でも年月ごとに提出状態を集約する。
     const submittedAnyByCs = new Map<string, boolean>();
     for (const r of rows) {
       const csId = String(r.kaipoke_cs_id);
-      const cur = submittedAnyByCs.get(csId) ?? false;
+      const submittedKey = `${r.year_month}::${csId}`;
+      const cur = submittedAnyByCs.get(submittedKey) ?? false;
       const next = cur || r.application_check === true;
-      submittedAnyByCs.set(csId, next);
+      submittedAnyByCs.set(submittedKey, next);
     }
 
     const merged = rows.map((r: ViewRow) => {
       const csId = String(r.kaipoke_cs_id);
-      const isSubmitted = submittedAnyByCs.get(csId) ?? false;
+      const isSubmitted = submittedAnyByCs.get(`${r.year_month}::${csId}`) ?? false;
 
       const shogaiNo = (shogaiMap.get(csId) ?? "").trim();
       const idoNo = (r.ido_jukyusyasho ?? "").trim();
       const clientInfo = clientInfoMap.get(csId);
-      const municipalitySetting = findMunicipalitySetting(clientInfo?.address, (municipalitySettings ?? []) as MunicipalitySetting[]);
+      const municipalitySetting = resolveJissekiMunicipality(
+        clientInfo?.address,
+        (municipalitySettings ?? []) as JissekiMunicipalitySetting[],
+      );
       const kanaParts = getKanaParts({ kana: clientInfo?.kana ?? null });
 
       return {
@@ -431,6 +443,8 @@ export async function POST(req: NextRequest) {
 
     const kanaCollator = new Intl.Collator("ja", { sensitivity: "base" });
     merged.sort((a, b) => {
+      const yearMonthOrder = String(b.year_month).localeCompare(String(a.year_month));
+      if (yearMonthOrder !== 0) return yearMonthOrder;
       const service = (a.kaipoke_servicek === "移動支援" ? 1 : 0) - (b.kaipoke_servicek === "移動支援" ? 1 : 0);
       if (service !== 0) return service;
       const municipality = (a.municipality_sort_order ?? Number.MAX_SAFE_INTEGER) - (b.municipality_sort_order ?? Number.MAX_SAFE_INTEGER);

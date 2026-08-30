@@ -4,6 +4,52 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.bulkPrintButton {
+  min-height: 42px;
+  padding: 9px 18px;
+  border: 1px solid #1d4ed8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow:
+    0 3px 0 #1e40af,
+    0 6px 14px rgb(37 99 235 / 24%);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    filter 120ms ease;
+}
+
+.bulkPrintButton:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 0 #1e40af,
+    0 8px 18px rgb(37 99 235 / 28%);
+}
+
+.bulkPrintButton:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow:
+    0 1px 0 #1e40af,
+    0 3px 8px rgb(37 99 235 / 22%);
+}
+
+.bulkPrintButton:focus-visible {
+  outline: 3px solid rgb(147 197 253 / 75%);
+  outline-offset: 3px;
+}
+
+.bulkPrintButton:disabled {
+  border-color: #94a3b8;
+  background: #cbd5e1;
+  box-shadow: 0 2px 0 #94a3b8;
+  color: #475569;
+  cursor: wait;
+}
+
 .recordsTable {
   width: 100%;
   min-width: 980px;

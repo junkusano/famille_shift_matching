@@ -215,11 +215,14 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
           zoom: 1 !important;
         }
 
-        /* @pageの3mm余白を除いた204x291mmを、全ページ共通の基準領域にする。 */
+        /*
+         * 印刷可能高291mmぴったりは、Chromiumのmm→px丸めで末尾が数px
+         * はみ出し、完全な空白ページを追加することがある。1mmの安全余白を残す。
+         */
         body.beta-jisseki-print-active .print-page {
           display: flex !important;
           width: 204mm !important;
-          height: 291mm !important;
+          height: 290mm !important;
           box-sizing: border-box !important;
           align-items: flex-start !important;
           justify-content: center !important;
@@ -238,6 +241,11 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         body.beta-jisseki-print-active .beta-print-client:not(:last-child) {
           break-after: page;
           page-break-after: always;
+        }
+        body.beta-jisseki-print-active .print-page:last-child,
+        body.beta-jisseki-print-active .beta-print-client:last-child {
+          break-after: auto !important;
+          page-break-after: auto !important;
         }
 
         body.beta-jisseki-print-active .print-scale {
