@@ -8203,6 +8203,48 @@ export type Database = {
           },
         ]
       }
+      rpa_job_definitions: {
+        Row: {
+          created_at: string
+          execution_mode: string
+          id: string
+          is_enabled: boolean
+          job_type: string
+          last_generated_at: string | null
+          name: string
+          payload: Json
+          schedule: Json
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          execution_mode?: string
+          id?: string
+          is_enabled?: boolean
+          job_type: string
+          last_generated_at?: string | null
+          name: string
+          payload?: Json
+          schedule?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          execution_mode?: string
+          id?: string
+          is_enabled?: boolean
+          job_type?: string
+          last_generated_at?: string | null
+          name?: string
+          payload?: Json
+          schedule?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rpa_job_presets: {
         Row: {
           created_at: string
@@ -8316,9 +8358,11 @@ export type Database = {
           error_message: string | null
           error_type: string | null
           id: string
+          job_definition_id: string | null
           job_type: string
           payload: Json
           result: Json | null
+          scheduled_for: string | null
           status: string
           target_runner_id: string | null
           timeout_ms: number | null
@@ -8334,9 +8378,11 @@ export type Database = {
           error_message?: string | null
           error_type?: string | null
           id?: string
+          job_definition_id?: string | null
           job_type: string
           payload?: Json
           result?: Json | null
+          scheduled_for?: string | null
           status?: string
           target_runner_id?: string | null
           timeout_ms?: number | null
@@ -8352,9 +8398,11 @@ export type Database = {
           error_message?: string | null
           error_type?: string | null
           id?: string
+          job_definition_id?: string | null
           job_type?: string
           payload?: Json
           result?: Json | null
+          scheduled_for?: string | null
           status?: string
           target_runner_id?: string | null
           timeout_ms?: number | null
@@ -8367,6 +8415,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rpa_runners"
             referencedColumns: ["runner_id"]
+          },
+          {
+            foreignKeyName: "rpa_runner_jobs_job_definition_id_fkey"
+            columns: ["job_definition_id"]
+            isOneToOne: false
+            referencedRelation: "rpa_job_definitions"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "rpa_runner_jobs_target_runner_id_fkey"

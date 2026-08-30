@@ -20,7 +20,9 @@ import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/S
 import { createRpaRequestDetails } from "@/lib/spot_offer/createRpaRequestDetails";
 import {
     buildDisabilityCheckHref,
+    buildDisabilityRecordHref,
     formatRosterErrorYearMonth,
+    formatRosterRecordMonthLabel,
     hasRosterIssues,
 } from "@/lib/roster/rosterErrors";
 import { useRouter } from "next/navigation";
@@ -477,6 +479,11 @@ export default function ShiftDialog({
 
     if (!open || !shift) return null;
 
+    const recordYearMonth = String(shift.shift_date).slice(0, 7);
+    const disabilityRecordHref = buildDisabilityRecordHref(
+        recordYearMonth,
+        shift.kaipoke_cs_id,
+    );
     const actualRecordMonths = Array.from(
         new Set(shift.roster_error_actual_record_months ?? [])
     ).sort();
@@ -931,7 +938,15 @@ const saveShiftOnly = async () => {
 
                             <div>
                                 <div className="text-xs text-gray-500">利用者名</div>
-                                <div>{shift.client_name}</div>
+                                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                                    <span>{shift.client_name}</span>
+                                    <Link
+                                        href={disabilityRecordHref}
+                                        className="text-sm font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
+                                    >
+                                        {formatRosterRecordMonthLabel(recordYearMonth)}
+                                    </Link>
+                                </div>
                             </div>
 
                             <div>
