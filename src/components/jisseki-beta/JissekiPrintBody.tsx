@@ -165,6 +165,19 @@ export default function JissekiPrintBody({
             scaleWrapper.style.removeProperty("height");
             sheet.style.setProperty("transform", "none", "important");
 
+            // 分類記号は、タイトル行の幅ではなく帳票表の実際の右罫線へ合わせる。
+            // Preview/印刷時は表の最終セルとタイトル行で右端が異なるため、DOM実寸で補正する。
+            const recordSortSlot = sheet.querySelector<HTMLElement>(".record-sort-slot");
+            const firstGridRow = sheet.querySelector<HTMLElement>(".grid tr");
+            const lastGridCell = firstGridRow?.querySelector<HTMLElement>("th:last-child, td:last-child");
+            if (recordSortSlot && lastGridCell) {
+                recordSortSlot.style.removeProperty("right");
+                const slotRight = recordSortSlot.getBoundingClientRect().right;
+                const gridRight = lastGridCell.getBoundingClientRect().right;
+                const rightGap = Math.max(0, slotRight - gridRight);
+                recordSortSlot.style.setProperty("right", `${rightGap}px`);
+            }
+
             const sourceWidth = sheet.offsetWidth;
             const sourceHeight = sheet.offsetHeight;
             if (!sourceWidth || !sourceHeight) return;

@@ -60,6 +60,7 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         text-align: center;
       }
       .record-sort-slot {
+        position: relative;
         min-width: 0;
         box-sizing: border-box;
         padding-right: 0.5mm;
@@ -67,8 +68,6 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         white-space: nowrap;
         font-size: 9px;
         line-height: 1.2;
-        /* 帳票本体の右枠に合わせ、右へ余っていた1列分を左へ戻す。 */
-        transform: translateX(-100%);
       }
       .record-sort-label {
         display: inline-block;
