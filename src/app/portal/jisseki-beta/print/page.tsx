@@ -51,7 +51,7 @@ type FormProps = {
 };
 
 function RecordSortLabel({ data, service }: { data: PrintPayload; service: JissekiServiceCategory }) {
-    return <span className="font-semibold" style={{ fontSize: "12px", whiteSpace: "nowrap" }}>
+    return <span className="record-sort-label font-semibold">
         {createJissekiRecordSortLabel(service, data.client)}
     </span>;
 }
@@ -392,7 +392,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                     居宅介護サービス提供実績記録票（様式１）
                 </div>
 
-                <div className="small right" style={{ flex: "1 1 0%" }}>
+                <div className="small right record-sort-slot" style={{ flex: "1 1 0%" }}>
                     <RecordSortLabel data={data} service="disability" />
                 </div>
             </div>
@@ -938,7 +938,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                 <div className="title" style={{ flex: "2 1 0%" }}>
                     行動援護サービス提供実績記録票
                 </div>
-                <div className="small right" style={{ flex: "1 1 0%" }}>
+                <div className="small right record-sort-slot" style={{ flex: "1 1 0%" }}>
                     <RecordSortLabel data={data} service="disability" /> （様式２）
                 </div>
             </div>
@@ -1228,7 +1228,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                     同行援護サービス提供実績記録票（様式19）
                 </div>
 
-                <div className="small right" style={{ flex: "1 1 0%" }}>
+                <div className="small right record-sort-slot" style={{ flex: "1 1 0%" }}>
                     <RecordSortLabel data={data} service="disability" />
                 </div>
             </div>
@@ -1611,7 +1611,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                 <div className="title" style={{ flex: "2 1 0%" }}>
                     重度訪問介護サービス提供実績記録票
                 </div>
-                <div className="small right" style={{ flex: "1 1 0%" }}>
+                <div className="small right record-sort-slot" style={{ flex: "1 1 0%" }}>
                     <RecordSortLabel data={data} service="disability" /> （様式３－１）
                 </div>
             </div>
@@ -2059,7 +2059,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                     移動支援サービス提供実績記録票（様式３）
                 </div>
 
-                <div className="small right" style={{ flex: "1 1 0%" }}>
+                <div className="small right record-sort-slot" style={{ flex: "1 1 0%" }}>
                     <RecordSortLabel data={data} service="mobility" />
                 </div>
             </div>
@@ -2403,4 +2403,3 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
         </div>
     );
 }
-

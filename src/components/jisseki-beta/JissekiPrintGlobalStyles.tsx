@@ -59,6 +59,22 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         font-weight: 700;
         text-align: center;
       }
+      .record-sort-slot {
+        min-width: 0;
+        box-sizing: border-box;
+        padding-right: 3mm;
+        overflow: hidden;
+        white-space: nowrap;
+        font-size: 9px;
+        line-height: 1.2;
+      }
+      .record-sort-label {
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        white-space: nowrap;
+        vertical-align: bottom;
+      }
 
       .digits10 {
         display: grid;
