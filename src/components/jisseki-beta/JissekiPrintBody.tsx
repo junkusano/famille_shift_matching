@@ -3,17 +3,13 @@
 import React, { useEffect, useMemo, useRef, type RefObject } from "react";
 
 import {
-    TAKINO_JUKYUSHA_NO,
     TAKINO_OFFICE_NO,
     TAKINO_OFFICE_NAME,
-    KODO_JUKYUSHA_NO,
     KODO_OFFICE_NO,
     KODO_OFFICE_NAME,
-    DOKO_JUKYUSHA_NO,
     DOKO_OFFICE_NO,
     DOKO_CONTRACT,
     DOKO_OFFICE_NAME,
-    JYUHO_JUKYUSHA_NO,
     JYUHO_OFFICE_NO,
     JYUHO_OFFICE_NAME,
     OFFICE_NO,
@@ -27,6 +23,7 @@ export type PrintPayload = {
         kaipoke_cs_id: string;
         client_name: string;
         ido_jukyusyasho?: string | null;
+        shogai_jukyusha_no?: string | null;
         municipality_display_name?: string | null;
         municipality_sort_order?: number | null;
         last_name_kana?: string | null;
@@ -363,7 +360,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "0px 3px" }}>
-                                            <DigitBoxes10 value={TAKINO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 
@@ -899,7 +896,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "1px 3px" }}>
-                                            <DigitBoxes10 value={KODO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 
@@ -1200,7 +1197,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "1px 3px" }}>
-                                            <DigitBoxes10 value={DOKO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 
@@ -1593,7 +1590,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "1px 3px" }}>
-                                            <DigitBoxes10 value={(data.client.ido_jukyusyasho ?? "").trim() || JYUHO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 
