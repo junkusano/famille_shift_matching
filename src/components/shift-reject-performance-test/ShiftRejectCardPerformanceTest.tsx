@@ -32,8 +32,10 @@ import { buildSmsMessage, getClientSmsBusinessName, getClientSmsMainPhone } from
 import type { ServiceKey } from "@/lib/certificateJudge";
 import {
   buildDisabilityCheckHref,
+  buildDisabilityRecordHref,
   buildVisitRecordHref,
   formatRosterErrorYearMonth,
+  formatRosterRecordMonthLabel,
 } from "@/lib/roster/rosterErrors";
 import ShiftEventAlertItems from "@/components/shift-alerts/ShiftEventAlertItems";
 import type {
@@ -274,6 +276,7 @@ function ShiftRejectCardPerformanceTest({
   const monthlyHref = `/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(
     shift.kaipoke_cs_id,
   )}&month=${encodeURIComponent(yearMonth)}`;
+  const disabilityRecordHref = buildDisabilityRecordHref(yearMonth, shift.kaipoke_cs_id);
   const rosterIssueMonths = Array.from(
     new Set(shift.roster_error_actual_record_months ?? []),
   ).sort();
@@ -516,6 +519,12 @@ function ShiftRejectCardPerformanceTest({
                 {shift.client_name || "—"}
               </span>{" "}
               様
+              <Link
+                href={disabilityRecordHref}
+                className="ml-2 inline-block text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
+              >
+                {formatRosterRecordMonthLabel(yearMonth)}
+              </Link>
             </div>
           </div>
 

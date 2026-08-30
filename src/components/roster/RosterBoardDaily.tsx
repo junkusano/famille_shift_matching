@@ -3,6 +3,7 @@
 
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type {
     RosterDailyView,
     RosterShiftCard,
@@ -13,6 +14,10 @@ import ShiftDialog from "@/components/roster/ShiftDialog";
 import { useRouter, useSearchParams } from "next/navigation";
 //import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  buildDisabilityRecordHref,
+  formatRosterRecordMonthLabel,
+} from "@/lib/roster/rosterErrors";
 
 
 declare global {
@@ -1014,6 +1019,11 @@ const topPx =
  {/* MyFamilleのシフトカード */}
 {cards.map((c) => {
   const rowIdx = rowIndexByStaff.get(c.staff_id);
+  const recordYearMonth = (c.dialog?.shift_date ?? date).slice(0, 7);
+  const disabilityRecordHref = buildDisabilityRecordHref(
+    recordYearMonth,
+    c.kaipoke_cs_id,
+  );
 
   if (rowIdx == null) {
     return null;
@@ -1033,23 +1043,33 @@ const topPx =
         {dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}
       </div>
 
-      <button
-        type="button"
-        onMouseDown={(e) => {
-          e.stopPropagation();
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          openShiftDialog(c);
-        }}
-        className={`text-[17px] truncate hover:underline text-left ${
-          c.has_roster_error
-            ? "font-semibold text-red-600 hover:text-red-700"
-            : "text-blue-700"
-        }`}
-      >
-        {c.client_name}：{c.service_code ?? ""}
-      </button>
+      <div className="flex min-w-0 items-baseline gap-1">
+        <button
+          type="button"
+          onMouseDown={(e) => {
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            openShiftDialog(c);
+          }}
+          className={`min-w-0 flex-1 truncate text-left text-[17px] hover:underline ${
+            c.has_roster_error
+              ? "font-semibold text-red-600 hover:text-red-700"
+              : "text-blue-700"
+          }`}
+        >
+          {c.client_name}：{c.service_code ?? ""}
+        </button>
+        <Link
+          href={disabilityRecordHref}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          className="shrink-0 text-[11px] font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
+        >
+          {formatRosterRecordMonthLabel(recordYearMonth)}
+        </Link>
+      </div>
 
       {c.spot_status === "募集中" && (
         <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[9px] font-bold text-gray-900 shadow">

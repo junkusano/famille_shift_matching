@@ -32,8 +32,11 @@ export async function POST(request: NextRequest) {
     const body: unknown = await request.json();
     if (!isRecord(body) || !isRunnerId(body.runner_id)) return NextResponse.json({ ok: false, error: 'Runner IDは英数字・ハイフン・アンダースコアで3〜80文字にしてください。' }, { status: 400 });
     const runnerName = text(body.runner_name, 100);
+    if (!runnerName) return NextResponse.json({ ok: false, error: '表示名はtrim後1〜100文字で入力してください。' }, { status: 400 });
+    if (typeof body.token !== 'string') return NextResponse.json({ ok: false, error: 'Runnerトークンが送信されていません。' }, { status: 400 });
     const token = text(body.token, 500);
-    if (!runnerName || !token || token.length < 32) return NextResponse.json({ ok: false, error: 'Runner名と32文字以上のトークンを入力してください。' }, { status: 400 });
+    if (!token) return NextResponse.json({ ok: false, error: 'Runnerトークンはtrim後1〜500文字で入力してください。' }, { status: 400 });
+    if (token.length < 32) return NextResponse.json({ ok: false, error: 'Runnerトークンはtrim後32文字以上で入力してください。' }, { status: 400 });
     const { data, error } = await supabaseAdmin
       .from('rpa_runners')
       .insert({ runner_id: body.runner_id, runner_name: runnerName, token_hash: hashRunnerToken(token) })

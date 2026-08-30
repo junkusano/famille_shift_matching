@@ -15,6 +15,11 @@ export const formatRosterErrorYearMonth = (value: string) => {
   return `${match[1]}年${Number(match[2])}月`;
 };
 
+export const formatRosterRecordMonthLabel = (value: string) => {
+  const match = value.match(/^\d{4}-(\d{2})$/);
+  return `${match ? Number(match[1]) : value}月分実績記録`;
+};
+
 export const hasRosterIssues = (shift: RosterIssueFlags) =>
   Boolean(
     shift.has_roster_error ||
@@ -33,6 +38,18 @@ export const buildDisabilityCheckHref = (
     ym: yearMonth,
     kaipoke_cs_id: String(kaipokeCsId ?? ""),
     check: "unsubmitted",
+  });
+
+  return `/portal/disability-check-beta?${params.toString()}`;
+};
+
+export const buildDisabilityRecordHref = (
+  yearMonth: string,
+  kaipokeCsId: string | number | undefined,
+) => {
+  const params = new URLSearchParams({
+    ym: yearMonth,
+    kaipoke_cs_id: String(kaipokeCsId ?? ""),
   });
 
   return `/portal/disability-check-beta?${params.toString()}`;

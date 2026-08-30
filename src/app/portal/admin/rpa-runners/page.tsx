@@ -7,6 +7,13 @@ type Runner = { runner_id: string; runner_name: string; is_active: boolean; last
 type Job = { id: string; job_type: string; payload: Record<string, unknown>; timeout_ms: number | null; status: string; target_runner_id: string | null; claimed_runner_id: string | null; created_at: string; error_message: string | null };
 const defaultRunnerForm = { runner_id: '', runner_name: '', token: '' };
 
+function jobStatusLabel(status: string): string {
+  if (status === 'pending') return 'queued';
+  if (status === 'claimed') return 'running';
+  if (status === 'completed') return 'succeeded';
+  return status;
+}
+
 export default function RpaRunnersPage() {
   const [runners, setRunners] = useState<Runner[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -41,7 +48,15 @@ export default function RpaRunnersPage() {
   async function registerRunner() {
     try {
       setMessage('');
-      await request('/api/rpa/admin/runners', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(runnerForm) });
+      const registration = {
+        runner_id: runnerForm.runner_id.trim(),
+        runner_name: runnerForm.runner_name.trim(),
+        token: runnerForm.token.trim(),
+      };
+      if (!/^[A-Za-z0-9_-]{3,80}$/.test(registration.runner_id)) throw new Error('Runner IDは英数字・ハイフン・アンダースコアで3〜80文字にしてください。');
+      if (!registration.runner_name || registration.runner_name.length > 100) throw new Error('表示名はtrim後1〜100文字で入力してください。');
+      if (registration.token.length < 32 || registration.token.length > 500) throw new Error('Runnerトークンはtrim後32〜500文字で入力してください。');
+      await request('/api/rpa/admin/runners', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(registration) });
       setRunnerForm(defaultRunnerForm); setMessage('Runnerを登録しました。トークンは画面に保存・再表示されません。'); await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Runnerを登録できませんでした。'); }
   }
@@ -53,6 +68,21 @@ export default function RpaRunnersPage() {
       await request('/api/rpa/admin/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_type: 'test.sleep', payload: { duration_ms: duration }, timeout_ms: timeout, target_runner_id: targetRunnerId || null }) });
       setMessage('test.sleepジョブを登録しました。'); await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : 'ジョブを登録できませんでした。'); }
+  }
+  async function executeTaimeeFollow(dryRun: boolean) {
+    try {
+      setMessage("");
+      await request("/api/rpa/admin/jobs", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          job_type: "taimee.daily_worker_follow_sms",
+          payload: { client_id: "263546", days: [0, -1, -2], dry_run: dryRun },
+          timeout_ms: 600000, target_runner_id: targetRunnerId || null,
+        }),
+      });
+      setMessage(dryRun ? "テストJobを登録しました。SMSは送信されません。" : "本番SMS送信Jobを登録しました。");
+      await load();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Jobを登録できませんでした。"); }
   }
   async function toggleRunner(runner: Runner) {
     try { await request('/api/rpa/admin/runners', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runner_id: runner.runner_id, is_active: !runner.is_active }) }); await load(); }
@@ -72,7 +102,7 @@ export default function RpaRunnersPage() {
       <label className="text-sm"><span className="mb-1 block text-gray-600">待機時間（ms）</span><input type="number" min="0" className="w-full rounded border px-2 py-2" value={durationMs} onChange={(event) => setDurationMs(event.target.value)} /></label>
       <label className="text-sm"><span className="mb-1 block text-gray-600">タイムアウト（ms）</span><input type="number" min="1" className="w-full rounded border px-2 py-2" value={timeoutMs} onChange={(event) => setTimeoutMs(event.target.value)} /></label>
     </div><button className="mt-4 rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white" onClick={() => void queueTestJob()}>test.sleepを登録</button></section>
-    <section className="overflow-x-auto rounded border bg-white"><div className="flex items-center justify-between border-b px-4 py-3"><h2 className="font-semibold">Runner一覧</h2><button className="rounded border px-3 py-1 text-sm" onClick={() => void load()} disabled={loading}>{loading ? '更新中…' : '更新'}</button></div><table className="min-w-full text-left text-sm"><thead className="bg-gray-50"><tr>{['名前 / ID', '状態', '最終heartbeat', '実行中ジョブ', '操作'].map((label) => <th className="px-3 py-2" key={label}>{label}</th>)}</tr></thead><tbody>{runners.map((runner) => <tr className="border-t" key={runner.runner_id}><td className="px-3 py-2"><div className="font-medium">{runner.runner_name}</div><div className="font-mono text-xs text-gray-500">{runner.runner_id}</div></td><td className="px-3 py-2">{runner.is_active ? (runner.last_status === 'busy' ? '実行中' : '有効') : '無効'}</td><td className="px-3 py-2">{runner.last_heartbeat_at ? new Date(runner.last_heartbeat_at).toLocaleString('ja-JP') : '未接続'}</td><td className="px-3 py-2 font-mono text-xs">{runner.current_job_id ?? '—'}</td><td className="px-3 py-2"><button className="text-sm text-blue-700" onClick={() => void toggleRunner(runner)}>{runner.is_active ? '無効化' : '有効化'}</button></td></tr>)}{runners.length === 0 && <tr><td className="px-3 py-6 text-center text-gray-500" colSpan={5}>Runnerが未登録です</td></tr>}</tbody></table></section>
-    <section className="overflow-x-auto rounded border bg-white"><div className="border-b px-4 py-3"><h2 className="font-semibold">最近のジョブ</h2></div><table className="min-w-full text-left text-sm"><thead className="bg-gray-50"><tr>{['タイプ', '状態', '対象 / 実行Runner', '作成日時', 'エラー'].map((label) => <th className="px-3 py-2" key={label}>{label}</th>)}</tr></thead><tbody>{jobs.map((job) => <tr className="border-t" key={job.id}><td className="px-3 py-2"><div className="font-mono">{job.job_type}</div><div className="text-xs text-gray-500">{JSON.stringify(job.payload)}</div></td><td className="px-3 py-2">{job.status}</td><td className="px-3 py-2 font-mono text-xs">{job.target_runner_id ?? 'any'} / {job.claimed_runner_id ?? '—'}</td><td className="px-3 py-2">{new Date(job.created_at).toLocaleString('ja-JP')}</td><td className="px-3 py-2 text-red-700">{job.error_message ?? '—'}</td></tr>)}{jobs.length === 0 && <tr><td className="px-3 py-6 text-center text-gray-500" colSpan={5}>ジョブがありません</td></tr>}</tbody></table></section>
+    <section className="rounded border border-amber-300 bg-amber-50 p-4 shadow-sm"><h2 className="mb-2 font-semibold">タイミー勤務者フォロー</h2><p className="mb-3 text-sm text-gray-700">必ず先にテスト実行を行ってください。テストJobは当日・前日・前々日の対象者を取得しますが、SMS送信関数とSMS APIを呼びません。</p><div className="flex flex-wrap gap-3"><button className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white" onClick={() => void executeTaimeeFollow(true)}>テスト実行（SMS送信なし）</button><button className="rounded bg-red-700 px-4 py-2 text-sm font-semibold text-white" onClick={() => void executeTaimeeFollow(false)}>今すぐ実行</button></div></section>    <section className="overflow-x-auto rounded border bg-white"><div className="flex items-center justify-between border-b px-4 py-3"><h2 className="font-semibold">Runner一覧</h2><button className="rounded border px-3 py-1 text-sm" onClick={() => void load()} disabled={loading}>{loading ? '更新中…' : '更新'}</button></div><table className="min-w-full text-left text-sm"><thead className="bg-gray-50"><tr>{['名前 / ID', '状態', '最終heartbeat', '実行中ジョブ', '操作'].map((label) => <th className="px-3 py-2" key={label}>{label}</th>)}</tr></thead><tbody>{runners.map((runner) => <tr className="border-t" key={runner.runner_id}><td className="px-3 py-2"><div className="font-medium">{runner.runner_name}</div><div className="font-mono text-xs text-gray-500">{runner.runner_id}</div></td><td className="px-3 py-2">{!runner.is_active ? '無効' : runner.last_status === 'busy' ? 'RUNNING' : runner.last_status === 'online' ? 'ONLINE' : '有効（未接続）'}</td><td className="px-3 py-2">{runner.last_heartbeat_at ? new Date(runner.last_heartbeat_at).toLocaleString('ja-JP') : '未接続'}</td><td className="px-3 py-2 font-mono text-xs">{runner.current_job_id ?? '—'}</td><td className="px-3 py-2"><button className="text-sm text-blue-700" onClick={() => void toggleRunner(runner)}>{runner.is_active ? '無効化' : '有効化'}</button></td></tr>)}{runners.length === 0 && <tr><td className="px-3 py-6 text-center text-gray-500" colSpan={5}>Runnerが未登録です</td></tr>}</tbody></table></section>
+    <section className="overflow-x-auto rounded border bg-white"><div className="border-b px-4 py-3"><h2 className="font-semibold">最近のジョブ</h2></div><table className="min-w-full text-left text-sm"><thead className="bg-gray-50"><tr>{['タイプ', '状態', '対象 / 実行Runner', '作成日時', 'エラー'].map((label) => <th className="px-3 py-2" key={label}>{label}</th>)}</tr></thead><tbody>{jobs.map((job) => <tr className="border-t" key={job.id}><td className="px-3 py-2"><div className="font-mono">{job.job_type}</div><div className="text-xs text-gray-500">{JSON.stringify(job.payload)}</div></td><td className="px-3 py-2">{jobStatusLabel(job.status)}</td><td className="px-3 py-2 font-mono text-xs">{job.target_runner_id ?? 'any'} / {job.claimed_runner_id ?? '—'}</td><td className="px-3 py-2">{new Date(job.created_at).toLocaleString('ja-JP')}</td><td className="px-3 py-2 text-red-700">{job.error_message ?? '—'}</td></tr>)}{jobs.length === 0 && <tr><td className="px-3 py-6 text-center text-gray-500" colSpan={5}>ジョブがありません</td></tr>}</tbody></table></section>
   </main>;
 }

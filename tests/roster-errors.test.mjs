@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildDisabilityCheckHref,
+  buildDisabilityRecordHref,
   buildVisitRecordHref,
   formatRosterErrorYearMonth,
+  formatRosterRecordMonthLabel,
   hasRosterIssues,
 } from "../src/lib/roster/rosterErrors.ts";
 
@@ -44,6 +46,17 @@ test("未提出月リンクは年月・利用者・未提出フィルターを�
   assert.equal(url.searchParams.get("kaipoke_cs_id"), "12345");
   assert.equal(url.searchParams.get("check"), "unsubmitted");
   assert.equal(formatRosterErrorYearMonth("2026-07"), "2026年7月");
+});
+
+test("当月実績リンクはエラーフィルターを付けず年月と利用者を保持する", () => {
+  const href = buildDisabilityRecordHref("2026-08", "12345");
+  const url = new URL(href, "https://myfamille.shi-on.net");
+
+  assert.equal(url.pathname, "/portal/disability-check-beta");
+  assert.equal(url.searchParams.get("ym"), "2026-08");
+  assert.equal(url.searchParams.get("kaipoke_cs_id"), "12345");
+  assert.equal(url.searchParams.has("check"), false);
+  assert.equal(formatRosterRecordMonthLabel("2026-08"), "8月分実績記録");
 });
 
 test("訪問記録リンクは利用者・日付・担当者フィルターを保持する", () => {

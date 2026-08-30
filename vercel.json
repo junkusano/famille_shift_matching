@@ -4,7 +4,10 @@
       "path": "/api/cron/google-maps-distance",
       "schedule": "0 18 */3 * *"
     },
-    { "path": "/api/cron/holiday-shift-check", "schedule": "15 18 * * *" },
+    {
+      "path": "/api/cron/holiday-shift-check",
+      "schedule": "15 18 * * *"
+    },
     {
       "path": "/api/cron/sync-lineworks-master-all",
       "schedule": "*/5 * * * *"
@@ -248,6 +251,10 @@
     {
       "path": "/api/cron/entry-attachment-reconcile",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/rpa-scheduler",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
