@@ -27,6 +27,9 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         box-sizing: border-box;
       }
       .box { border: 1px solid #000; }
+      .beta-jisseki-print-page table.grid {
+        display: table;
+      }
       .grid {
         width: 100%;
         border-collapse: collapse;
@@ -66,7 +69,7 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
       }
       .record-sort-slot {
         position: absolute;
-        right: 23%;
+        right: 0.5mm;
         bottom: 0;
         width: 25%;
         box-sizing: border-box;
@@ -291,6 +294,7 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
 
         body.beta-jisseki-print-active .grid,
         body.beta-jisseki-print-active .doko-sheet table {
+          display: table !important;
           width: 100% !important;
           max-width: 100% !important;
           table-layout: fixed !important;
