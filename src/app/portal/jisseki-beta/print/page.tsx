@@ -180,19 +180,6 @@ export default function JissekiPrintPage() {
             sheet.style.removeProperty("zoom");
             sheet.style.setProperty("transform", "none", "important");
 
-            // 分類記号は、タイトル行の幅ではなく帳票表の実際の右罫線へ合わせる。
-            // Preview/印刷時は表の最終セルとタイトル行で右端が異なるため、DOM実寸で補正する。
-            const recordSortSlot = sheet.querySelector<HTMLElement>(".record-sort-slot");
-            const firstGridRow = sheet.querySelector<HTMLElement>(".grid tr");
-            const lastGridCell = firstGridRow?.querySelector<HTMLElement>("th:last-child, td:last-child");
-            if (recordSortSlot && lastGridCell) {
-                recordSortSlot.style.removeProperty("right");
-                const slotRight = recordSortSlot.getBoundingClientRect().right;
-                const gridRight = lastGridCell.getBoundingClientRect().right;
-                const rightGap = Math.max(0, slotRight - gridRight);
-                recordSortSlot.style.setProperty("right", `${rightGap}px`);
-            }
-
             // 表内の文字や装飾の scrollWidth ではなく、帳票外枠そのものを基準にする。
             // table-layout: fixed の帳票で scrollWidth を使うと、外枠より大きく誤計測される。
             const sourceWidth = sheet.offsetWidth;
@@ -396,7 +383,7 @@ export default function JissekiPrintPage() {
 function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
     return (
         <div className="formBox p-2">
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div className="record-print-header" style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
                 </div>
@@ -405,9 +392,9 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                     居宅介護サービス提供実績記録票（様式１）
                 </div>
 
-                <div className="small right record-sort-slot" style={{ flex: "1 1 0%" }}>
+                <span className="small right record-sort-slot">
                     <RecordSortLabel data={data} service="disability" />
-                </div>
+                </span>
             </div>
 
             {/* ★ズレ防止：ヘッダ＋明細を 1つの table に統合 */}
@@ -944,16 +931,16 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     return (
         <div className="formBox p-2">
             {/* タイトル行（PDF寄せ：左右に小枠がある体裁） */}
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div className="record-print-header" style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
                 </div>
                 <div className="title" style={{ flex: "2 1 0%" }}>
                     行動援護サービス提供実績記録票
                 </div>
-                <div className="small right record-sort-slot" style={{ flex: "1 1 0%" }}>
+                <span className="small right record-sort-slot">
                     <RecordSortLabel data={data} service="disability" /> （様式２）
-                </div>
+                </span>
             </div>
 
             {/* ★ヘッダ＋明細を 1つの table に統合（ズレ防止） */}
@@ -1232,7 +1219,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     return (
         <div className="formBox p-2 doko-sheet">
             {/* タイトル行（PDFは右上に(様式19)表記） */}
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div className="record-print-header" style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
                 </div>
@@ -1241,9 +1228,9 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                     同行援護サービス提供実績記録票（様式19）
                 </div>
 
-                <div className="small right record-sort-slot" style={{ flex: "1 1 0%" }}>
+                <span className="small right record-sort-slot">
                     <RecordSortLabel data={data} service="disability" />
-                </div>
+                </span>
             </div>
 
             {/* ★ヘッダ＋明細を “1つの table” に統合（ズレ防止） */}
@@ -1617,16 +1604,16 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     return (
         <div className="formBox p-2">
             {/* タイトル（PDF寄せ：左右に小枠がある体裁） */}
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div className="record-print-header" style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
                 </div>
                 <div className="title" style={{ flex: "2 1 0%" }}>
                     重度訪問介護サービス提供実績記録票
                 </div>
-                <div className="small right record-sort-slot" style={{ flex: "1 1 0%" }}>
+                <span className="small right record-sort-slot">
                     <RecordSortLabel data={data} service="disability" /> （様式３－１）
-                </div>
+                </span>
             </div>
 
             {/* ★ズレ防止：ヘッダ＋明細を 1つの table に統合（移動支援方式） */}
@@ -2063,7 +2050,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
     return (
         <div className="formBox p-2" style={{ position: "relative" }}>
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div className="record-print-header" style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
                 </div>
@@ -2072,9 +2059,9 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                     移動支援サービス提供実績記録票（様式３）
                 </div>
 
-                <div className="small right record-sort-slot" style={{ flex: "1 1 0%" }}>
+                <span className="small right record-sort-slot">
                     <RecordSortLabel data={data} service="mobility" />
-                </div>
+                </span>
             </div>
 
             {/* ★統合：ヘッダ＋明細を “1つの table” にする（横幅ズレ防止） */}

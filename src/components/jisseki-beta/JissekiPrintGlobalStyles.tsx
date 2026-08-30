@@ -59,9 +59,16 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         font-weight: 700;
         text-align: center;
       }
-      .record-sort-slot {
+      .record-print-header {
         position: relative;
-        min-width: 0;
+        box-sizing: border-box;
+        padding-right: 25%;
+      }
+      .record-sort-slot {
+        position: absolute;
+        right: 23%;
+        bottom: 0;
+        width: 25%;
         box-sizing: border-box;
         padding-right: 0.5mm;
         overflow: hidden;
