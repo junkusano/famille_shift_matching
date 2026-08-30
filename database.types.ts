@@ -8347,21 +8347,99 @@ export type Database = {
         }
         Relationships: []
       }
+      rpa_runner_alerts: {
+        Row: {
+          created_at: string
+          error_category: string
+          error_code: string
+          fingerprint: string
+          id: string
+          job_id: string
+          job_type: string
+          notification_error: string | null
+          notified_at: string | null
+          resolved_at: string | null
+          retry_count: number
+          runner_id: string
+          summary: string
+          suppressed_by_alert_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_category: string
+          error_code: string
+          fingerprint: string
+          id?: string
+          job_id: string
+          job_type: string
+          notification_error?: string | null
+          notified_at?: string | null
+          resolved_at?: string | null
+          retry_count?: number
+          runner_id: string
+          summary: string
+          suppressed_by_alert_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_category?: string
+          error_code?: string
+          fingerprint?: string
+          id?: string
+          job_id?: string
+          job_type?: string
+          notification_error?: string | null
+          notified_at?: string | null
+          resolved_at?: string | null
+          retry_count?: number
+          runner_id?: string
+          summary?: string
+          suppressed_by_alert_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rpa_runner_alerts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "rpa_runner_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rpa_runner_alerts_runner_id_fkey"
+            columns: ["runner_id"]
+            isOneToOne: false
+            referencedRelation: "rpa_runners"
+            referencedColumns: ["runner_id"]
+          },
+          {
+            foreignKeyName: "rpa_runner_alerts_suppressed_by_alert_id_fkey"
+            columns: ["suppressed_by_alert_id"]
+            isOneToOne: false
+            referencedRelation: "rpa_runner_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rpa_runner_jobs: {
         Row: {
           claimed_at: string | null
           claimed_runner_id: string | null
           completed_at: string | null
           created_at: string
+          error_category: string | null
           error_code: string | null
           error_debug: Json | null
+          error_fingerprint: string | null
           error_message: string | null
           error_type: string | null
+          failed_at: string | null
           id: string
           job_definition_id: string | null
           job_type: string
+          lineworks_notified_at: string | null
           payload: Json
           result: Json | null
+          retry_count: number
           scheduled_for: string | null
           status: string
           target_runner_id: string | null
@@ -8373,15 +8451,20 @@ export type Database = {
           claimed_runner_id?: string | null
           completed_at?: string | null
           created_at?: string
+          error_category?: string | null
           error_code?: string | null
           error_debug?: Json | null
+          error_fingerprint?: string | null
           error_message?: string | null
           error_type?: string | null
+          failed_at?: string | null
           id?: string
           job_definition_id?: string | null
           job_type: string
+          lineworks_notified_at?: string | null
           payload?: Json
           result?: Json | null
+          retry_count?: number
           scheduled_for?: string | null
           status?: string
           target_runner_id?: string | null
@@ -8393,15 +8476,20 @@ export type Database = {
           claimed_runner_id?: string | null
           completed_at?: string | null
           created_at?: string
+          error_category?: string | null
           error_code?: string | null
           error_debug?: Json | null
+          error_fingerprint?: string | null
           error_message?: string | null
           error_type?: string | null
+          failed_at?: string | null
           id?: string
           job_definition_id?: string | null
           job_type?: string
+          lineworks_notified_at?: string | null
           payload?: Json
           result?: Json | null
+          retry_count?: number
           scheduled_for?: string | null
           status?: string
           target_runner_id?: string | null

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   try {
     await requireTaimeeRpaOperator(request);
     const { data, error } = await supabaseAdmin.from('rpa_runner_jobs')
-      .select('id, job_type, payload, timeout_ms, status, target_runner_id, claimed_runner_id, claimed_at, completed_at, result, error_code, error_type, error_message, created_at')
+      .select('id, job_type, payload, timeout_ms, status, target_runner_id, claimed_runner_id, claimed_at, completed_at, result, error_code, error_type, error_category, error_message, retry_count, failed_at, lineworks_notified_at, created_at')
       .order('created_at', { ascending: false }).limit(100);
     if (error) throw error;
     return NextResponse.json({ ok: true, jobs: data ?? [] });
