@@ -70,9 +70,10 @@ const CmMenuStructure: CmMenuGroup[] = [
     label: '人事・労務',
     icon: BriefcaseBusiness,
     items: [
-      { id: 'salary-slip', label: '給与明細', path: '/portal/user_salary_monthly' },
-      { id: 'health-check-results', label: '健康診断結果', path: '/portal/health-check-results' },
-      { id: 'bento-survey', label: 'お弁当アンケート', path: '/portal/bento' },
+      { id: 'salary-slip', label: '給与明細', path: '/cm-portal/hr-labor/salary-slip' },
+      { id: 'health-check-results', label: '健康診断結果', path: '/cm-portal/hr-labor/health-check-results' },
+      { id: 'monthly-meeting-check', label: '月例会議参加チェック', path: '/cm-portal/hr-labor/monthly-meeting-check' },
+      { id: 'bento-survey', label: 'お弁当アンケート', path: '/cm-portal/hr-labor/bento' },
     ],
   },
   {
