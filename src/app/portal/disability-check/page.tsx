@@ -942,6 +942,25 @@ const DisabilityCheckPage: React.FC = () => {
     // role 取得が終わるまで待つ
     if (!myUserId && !isManager && !isAdmin) return;
 
+    const ym = searchParams.get("ym") ?? "";
+    if (/^\d{4}-\d{2}$/.test(ym)) setYearMonth(ym);
+
+    const service = searchParams.get("svc") ?? "";
+    setKaipokeServicek(service);
+
+    const team = searchParams.get("team") ?? "";
+    setFilterTeamId(team);
+
+    const district = searchParams.get("dist") ?? "";
+    setDistricts(district ? [district] : []);
+
+    const requestedCheckFilter = searchParams.get("check") ?? "";
+    setCheckFilter(
+      requestedCheckFilter === "unsubmitted" || requestedCheckFilter === "unchecked"
+        ? requestedCheckFilter
+        : ""
+    );
+
     const cs =
       searchParams.get("kaipoke_cs_id") ??
       searchParams.get("cs") ??
@@ -978,6 +997,7 @@ const DisabilityCheckPage: React.FC = () => {
 
     // 利用者（新キーに統一）
     if (filterKaipokeCsId) qp.set("kaipoke_cs_id", filterKaipokeCsId);
+    if (checkFilter) qp.set("check", checkFilter);
 
     // 実績担当者
     if (!(isManager || isAdmin)) {
@@ -1001,7 +1021,9 @@ const DisabilityCheckPage: React.FC = () => {
     districts,
     filterKaipokeCsId,   // ★追加
     filterStaffId,      // ★追加
+    checkFilter,
     isManager,
+    isAdmin,
     myUserId,
     pathname,
     router,
@@ -1014,8 +1036,11 @@ const DisabilityCheckPage: React.FC = () => {
 
   /** フィルタ変更で再読込 */
   useEffect(() => {
+    if (!didInitFromUrl) return;
+
     fetchRecords();
   }, [
+    didInitFromUrl,
     yearMonth,
     kaipokeServicek,
     districts,

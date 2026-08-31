@@ -3,17 +3,13 @@
 import React, { useEffect, useMemo, useRef, type RefObject } from "react";
 
 import {
-    TAKINO_JUKYUSHA_NO,
     TAKINO_OFFICE_NO,
     TAKINO_OFFICE_NAME,
-    KODO_JUKYUSHA_NO,
     KODO_OFFICE_NO,
     KODO_OFFICE_NAME,
-    DOKO_JUKYUSHA_NO,
     DOKO_OFFICE_NO,
     DOKO_CONTRACT,
     DOKO_OFFICE_NAME,
-    JYUHO_JUKYUSHA_NO,
     JYUHO_OFFICE_NO,
     JYUHO_OFFICE_NAME,
     OFFICE_NO,
@@ -27,6 +23,7 @@ export type PrintPayload = {
         kaipoke_cs_id: string;
         client_name: string;
         ido_jukyusyasho?: string | null;
+        shogai_jukyusha_no?: string | null;
         municipality_display_name?: string | null;
         municipality_sort_order?: number | null;
         last_name_kana?: string | null;
@@ -63,7 +60,7 @@ type FormProps = {
 };
 
 function RecordSortLabel({ data, service }: { data: PrintPayload; service: JissekiServiceCategory }) {
-    return <span className="font-semibold" style={{ fontSize: "12px", whiteSpace: "nowrap" }}>
+    return <span className="record-sort-label font-semibold">
         {createJissekiRecordSortLabel(service, data.client)}
     </span>;
 }
@@ -298,7 +295,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
     return (
         <div className="formBox p-2">
             {/* タイトル行：左に「令和〇年〇月」、中央に帳票名 */}
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div className="record-print-header" style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
                 </div>
@@ -307,10 +304,9 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                     居宅介護サービス提供実績記録票（様式１）
                 </div>
 
-                {/* 右側は他帳票と高さ合わせ用（必要なら将来ページ数等を表示可） */}
-                <div className="small right" style={{ flex: "1 1 0%" }}>
+                <span className="small right record-sort-slot">
                     <RecordSortLabel data={data} service="disability" />
-                </div>
+                </span>
             </div>
 
             {/* ★ズレ防止：ヘッダ＋明細を 1つの table に統合 */}
@@ -364,7 +360,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "0px 3px" }}>
-                                            <DigitBoxes10 value={TAKINO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 
@@ -844,16 +840,16 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
     return (
         <div className="formBox p-2">
             {/* タイトル行（PDF寄せ：左右に小枠がある体裁） */}
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div className="record-print-header" style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
                 </div>
                 <div className="title" style={{ flex: "2 1 0%" }}>
                     行動援護サービス提供実績記録票
                 </div>
-                <div className="small right" style={{ flex: "1 1 0%" }}>
+                <span className="small right record-sort-slot">
                     <RecordSortLabel data={data} service="disability" /> （様式２）
-                </div>
+                </span>
             </div>
 
             {/* ★ヘッダ＋明細を 1つの table に統合（ズレ防止） */}
@@ -900,7 +896,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "1px 3px" }}>
-                                            <DigitBoxes10 value={KODO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 
@@ -1139,7 +1135,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
     return (
         <div className="formBox p-2 doko-sheet">
             {/* タイトル行（PDFは右上に(様式19)表記） */}
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div className="record-print-header" style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
                 </div>
@@ -1148,9 +1144,9 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                     同行援護サービス提供実績記録票（様式19）
                 </div>
 
-                <div className="small right" style={{ flex: "1 1 0%" }}>
+                <span className="small right record-sort-slot">
                     <RecordSortLabel data={data} service="disability" />
-                </div>
+                </span>
             </div>
 
             {/* ★ヘッダ＋明細を “1つの table” に統合（ズレ防止） */}
@@ -1201,7 +1197,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "1px 3px" }}>
-                                            <DigitBoxes10 value={DOKO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 
@@ -1531,16 +1527,16 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
     return (
         <div className="formBox p-2">
             {/* タイトル（PDF寄せ：左右に小枠がある体裁） */}
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div className="record-print-header" style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
                 </div>
                 <div className="title" style={{ flex: "2 1 0%" }}>
                     重度訪問介護サービス提供実績記録票
                 </div>
-                <div className="small right" style={{ flex: "1 1 0%" }}>
+                <span className="small right record-sort-slot">
                     <RecordSortLabel data={data} service="disability" /> （様式３－１）
-                </div>
+                </span>
             </div>
 
             {/* ★ズレ防止：ヘッダ＋明細を 1つの table に統合（移動支援方式） */}
@@ -1594,7 +1590,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "1px 3px" }}>
-                                            <DigitBoxes10 value={(data.client.ido_jukyusyasho ?? "").trim() || JYUHO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 
@@ -1964,7 +1960,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
             className="formBox p-2"
             style={{ position: "relative", paddingTop: "12mm" }}
         >
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div className="record-print-header" style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
                 </div>
@@ -1973,9 +1969,9 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                     移動支援サービス提供実績記録票（様式３）
                 </div>
 
-                <div className="small right" style={{ flex: "1 1 0%" }}>
+                <span className="small right record-sort-slot">
                     <RecordSortLabel data={data} service="mobility" />
-                </div>
+                </span>
             </div>
 
             {/* ★統合：ヘッダ＋明細を “1つの table” にする（横幅ズレ防止） */}

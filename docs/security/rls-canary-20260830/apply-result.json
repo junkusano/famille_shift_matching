@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "mode": "apply",
+  "committed": true,
+  "table": "public.msg_lw_status",
+  "changed_tables": 1,
+  "applied_at": "2026-08-29T15:50:37.778Z"
+}

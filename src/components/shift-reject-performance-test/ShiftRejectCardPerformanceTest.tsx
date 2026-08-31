@@ -30,6 +30,14 @@ import GroupAddButtonPerformanceTest from "@/components/shift-coordinate-perform
 import { supabase } from "@/lib/supabaseClient";
 import { buildSmsMessage, getClientSmsBusinessName, getClientSmsMainPhone } from "@/lib/smsMessage";
 import type { ServiceKey } from "@/lib/certificateJudge";
+import {
+  buildDisabilityCheckHref,
+  buildDisabilityRecordHref,
+  buildVisitRecordHref,
+  formatRosterErrorYearMonth,
+  formatRosterRecordMonthLabel,
+} from "@/lib/roster/rosterErrors";
+import ShiftEventAlertItems from "@/components/shift-alerts/ShiftEventAlertItems";
 import type {
   RejectPerformanceShift,
   RejectPerformanceStaffRow,
@@ -265,9 +273,22 @@ function ShiftRejectCardPerformanceTest({
       shift.shift_detail_information?.trim(),
   );
   const yearMonth = shift.shift_start_date.slice(0, 7);
-  const monthlyHref = `/portal/shift-view?client=${encodeURIComponent(
+  const monthlyHref = `/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(
     shift.kaipoke_cs_id,
-  )}&date=${encodeURIComponent(yearMonth)}-01`;
+  )}&month=${encodeURIComponent(yearMonth)}`;
+  const disabilityRecordHref = buildDisabilityRecordHref(yearMonth, shift.kaipoke_cs_id);
+  const rosterIssueMonths = Array.from(
+    new Set(shift.roster_error_actual_record_months ?? []),
+  ).sort();
+  const eventAlerts = shift.shift_event_alerts ?? [];
+  const hasRosterIssues = Boolean(
+    shift.roster_error_visit_record || shift.roster_error_actual_record || eventAlerts.length,
+  );
+  const visitRecordHref = buildVisitRecordHref(
+    shift.shift_start_date,
+    shift.kaipoke_cs_id,
+    accountId,
+  );
   const smsManagerPhone = shift.sms_reply_phone_numbers?.join(" / ") || null;
   const smsBusinessName = getClientSmsBusinessName();
   const smsMainPhone = getClientSmsMainPhone();
@@ -455,6 +476,7 @@ function ShiftRejectCardPerformanceTest({
         "group h-full overflow-hidden border-slate-200/90 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-lg focus-within:ring-2 focus-within:ring-purple-200",
         !eligible ? "bg-slate-50" : "",
         eligible && shift.time_adjustable ? "border-pink-300 bg-pink-50/70 ring-1 ring-pink-200" : "",
+        hasRosterIssues ? "border-red-300 ring-1 ring-red-200" : "",
       ].join(" ")}
       style={!eligible ? { opacity: 0.78, filter: "grayscale(0.08)" } : undefined}
     >
@@ -493,7 +515,16 @@ function ShiftRejectCardPerformanceTest({
             <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
             <div className="min-w-0 flex-1 break-words">
               <span className="mr-1 text-xs font-semibold text-slate-500">利用者</span>
-              <span className="font-semibold text-slate-950">{shift.client_name || "—"}</span> 様
+              <span className={hasRosterIssues ? "font-semibold text-red-600" : "font-semibold text-slate-950"}>
+                {shift.client_name || "—"}
+              </span>{" "}
+              様
+              <Link
+                href={disabilityRecordHref}
+                className="ml-2 inline-block text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
+              >
+                {formatRosterRecordMonthLabel(yearMonth)}
+              </Link>
             </div>
           </div>
 
@@ -549,6 +580,51 @@ function ShiftRejectCardPerformanceTest({
             </div>
           </div>
         </div>
+
+        {hasRosterIssues && (
+          <section className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3">
+            <div className="mb-2 font-semibold text-red-800">要確認・不備</div>
+            <div className="space-y-2 text-sm">
+              {shift.roster_error_visit_record && (
+                <div className="rounded-lg border border-red-100 bg-white p-2 text-red-800">
+                  <div className="font-medium">⚠ 訪問記録が未入力です</div>
+                  <div className="mt-1 text-xs text-red-700">
+                    サービス終了時刻を過ぎています。
+                    <Link
+                      href={visitRecordHref}
+                      className="ml-1 font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
+                    >
+                      訪問記録を確認
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {shift.roster_error_actual_record && (
+                <div className="rounded-lg border border-red-100 bg-white p-2 text-red-800">
+                  <div className="font-medium">⚠ 実績記録の未提出があります</div>
+                  {rosterIssueMonths.length > 0 ? (
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {rosterIssueMonths.map((month) => (
+                        <Link
+                          key={month}
+                          href={buildDisabilityCheckHref(month, shift.kaipoke_cs_id)}
+                          className="text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
+                        >
+                          {formatRosterErrorYearMonth(month)}を確認
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-xs text-red-700">実績記録チェックを確認</div>
+                  )}
+                </div>
+              )}
+
+              <ShiftEventAlertItems alerts={eventAlerts} />
+            </div>
+          </section>
+        )}
 
         <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
           <div className="mb-1 text-[11px] font-semibold tracking-wide text-slate-500">担当スタッフ</div>
@@ -731,9 +807,12 @@ function ShiftRejectCardPerformanceTest({
             judoIdo={shift.judo_ido}
           />
 
-          <Button variant="secondary" asChild className="w-full">
-            <Link href={monthlyHref}>月間</Link>
-          </Button>
+          <Link
+            href={monthlyHref}
+            className="inline-flex min-h-9 w-full items-center justify-center rounded-md text-sm font-medium text-blue-700 underline underline-offset-2 hover:bg-blue-50 hover:text-blue-900"
+          >
+            月間シフト
+          </Link>
 
           <div className="[&>button]:w-full">
             <GroupAddButtonPerformanceTest shift={shift} />

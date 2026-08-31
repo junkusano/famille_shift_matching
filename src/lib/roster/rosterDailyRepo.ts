@@ -13,6 +13,7 @@ import type {
   RosterShiftDialogData,
   RosterStaff,
 } from "@/types/roster";
+import { normalizeShiftEventAlerts } from "@/lib/shiftEventAlerts";
 
 interface RosterSortRow {
   user_id: string | number;
@@ -60,6 +61,15 @@ interface ShiftRowView {
   required_staff_count?: number | null;
   two_person_work_flg?: boolean | null;
   judo_ido?: string | null;
+
+  has_roster_error?: boolean | null;
+  roster_error_visit_record?: boolean | null;
+  roster_error_actual_record?: boolean | null;
+  roster_error_actual_record_months?: string[] | null;
+  roster_error_care_consultant?: boolean | null;
+  roster_error_transport_info?: boolean | null;
+  roster_error_kodoengo_plan?: boolean | null;
+  shift_event_alerts?: unknown;
 }
 
 interface ShiftRowFallback {
@@ -128,6 +138,18 @@ const makeDialog = (r: ShiftRowView): RosterShiftDialogData => ({
     typeof r.required_staff_count === "number" ? r.required_staff_count : null,
   two_person_work_flg: toBool(r.two_person_work_flg),
   judo_ido: r.judo_ido ?? null,
+
+  has_roster_error: Boolean(
+    r.has_roster_error || normalizeShiftEventAlerts(r.shift_event_alerts).length,
+  ),
+  roster_error_visit_record: Boolean(r.roster_error_visit_record),
+  roster_error_actual_record: Boolean(r.roster_error_actual_record),
+  roster_error_actual_record_months:
+    r.roster_error_actual_record_months ?? [],
+  roster_error_care_consultant: Boolean(r.roster_error_care_consultant),
+  roster_error_transport_info: Boolean(r.roster_error_transport_info),
+  roster_error_kodoengo_plan: Boolean(r.roster_error_kodoengo_plan),
+  shift_event_alerts: normalizeShiftEventAlerts(r.shift_event_alerts),
 });
 
 const makeCard = (
@@ -148,6 +170,9 @@ const makeCard = (
   gender_request_name: r.gender_request_name ?? null,
   male_flg: r.male_flg ?? null,
   female_flg: r.female_flg ?? null,
+  has_roster_error: Boolean(
+    r.has_roster_error || normalizeShiftEventAlerts(r.shift_event_alerts).length,
+  ),
   dialog: makeDialog(r),
 });
 
@@ -229,6 +254,14 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     "required_staff_count",
     "two_person_work_flg",
     "judo_ido",
+    "has_roster_error",
+    "roster_error_visit_record",
+    "roster_error_actual_record",
+    "roster_error_actual_record_months",
+    "roster_error_care_consultant",
+    "roster_error_transport_info",
+    "roster_error_kodoengo_plan",
+    "shift_event_alerts",
   ].join(",");
 
   let shiftRows: ShiftRowView[] | null = null;
@@ -301,6 +334,14 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
         required_staff_count: null,
         two_person_work_flg: null,
         judo_ido: null,
+        has_roster_error: false,
+        roster_error_visit_record: false,
+        roster_error_actual_record: false,
+        roster_error_actual_record_months: [],
+        roster_error_care_consultant: false,
+        roster_error_transport_info: false,
+        roster_error_kodoengo_plan: false,
+        shift_event_alerts: [],
       }));
     }
   }

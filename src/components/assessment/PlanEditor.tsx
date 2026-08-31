@@ -1,7 +1,7 @@
 // src/components/assessment/PlanEditor.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 const OFFICE_NAME = "ファミーユヘルパーサービス愛知";
@@ -215,6 +215,9 @@ export default function PlanEditor({ detail, onReload }: Props) {
     const [savingServiceId, setSavingServiceId] =
         useState<string | null>(null);
 
+    const [addingService, setAddingService] =
+        useState(false);
+
     useEffect(() => {
         setPlanDraft(
             toPlanDraft(detail.plan),
@@ -238,16 +241,6 @@ export default function PlanEditor({ detail, onReload }: Props) {
         "訪問介護サービス" ||
         detail.plan.plan_document_kind ===
         "訪問介護予防サービス";
-
-    const monthlySummaryRows = useMemo(() => {
-        if (!Array.isArray(detail.plan.monthly_summary)) return [];
-        return detail.plan.monthly_summary as Array<{
-            category?: string;
-            monthly_minutes?: number;
-            monthly_hours?: number | string;
-            occurrence_factor?: number | string;
-        }>;
-    }, [detail.plan.monthly_summary]);
 
     async function savePlan() {
 
@@ -349,6 +342,9 @@ export default function PlanEditor({ detail, onReload }: Props) {
                     ...(bearer ? { Authorization: bearer } : {}),
                 },
                 body: JSON.stringify({
+                    weekday: service.weekday,
+                    start_time: service.start_time,
+                    end_time: service.end_time,
                     service_title: service.service_title ?? "",
                     service_detail: service.service_detail ?? "",
                     procedure_notes: service.procedure_notes ?? "",
@@ -369,10 +365,57 @@ export default function PlanEditor({ detail, onReload }: Props) {
                 window.alert(`サービス保存に失敗: ${j?.error ?? "unknown error"}`);
                 return;
             }
-
-            await onReload(detail.plan.plan_id);
+        } catch (error) {
+            window.alert(
+                `サービス保存に失敗: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            );
         } finally {
             setSavingServiceId(null);
+        }
+    }
+
+    async function addService() {
+        setAddingService(true);
+        try {
+            const bearer = await getBearer();
+            const res = await fetch("/api/plan-services", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(bearer ? { Authorization: bearer } : {}),
+                },
+                body: JSON.stringify({ plan_id: detail.plan.plan_id }),
+            });
+            const result = await res.json();
+            if (!res.ok || !result?.ok) {
+                window.alert(`サービス追加に失敗: ${result?.error ?? "unknown error"}`);
+                return;
+            }
+            setServiceDrafts((previous) => [
+                ...previous,
+                result.data as PlanServiceForEditor,
+            ]);
+        } catch (error) {
+            window.alert(
+                `サービス追加に失敗: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            );
+        } finally {
+            setAddingService(false);
+        }
+    }
+
+    async function copyText(value: string | null, label: string) {
+        const text = value?.trim() ?? "";
+        if (!text) return;
+
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch {
+            window.prompt(`${label}をコピーしてください`, text);
         }
     }
 
@@ -486,6 +529,59 @@ export default function PlanEditor({ detail, onReload }: Props) {
             `この目標の期間（${sourceStartDate} ～ ${sourceEndDate}）を、日付が空欄の目標 ${targetCount}件へ画面上で反映しました。保存ボタンを押すまでデータベースには保存されません。`,
         );
     }
+
+    function addLongTermGoal() {
+        const now = new Date().toISOString();
+        const planLongTermGoalId = `draft-long-${crypto.randomUUID()}`;
+        setGoalGroupDrafts((previous) => [
+            ...previous,
+            {
+                long_term_goal: {
+                    plan_long_term_goal_id: planLongTermGoalId,
+                    plan_id: detail.plan.plan_id,
+                    display_order: previous.length + 1,
+                    goal_start_date: null,
+                    goal_end_date: null,
+                    goal_text: "",
+                    achievement_level: null,
+                    effectiveness_satisfaction: null,
+                    active: true,
+                    created_at: now,
+                    updated_at: now,
+                },
+                short_term_goals: [],
+            },
+        ]);
+    }
+
+    function addShortTermGoal(planLongTermGoalId: string) {
+        const now = new Date().toISOString();
+        setGoalGroupDrafts((previous) =>
+            previous.map((group) =>
+                group.long_term_goal.plan_long_term_goal_id === planLongTermGoalId
+                    ? {
+                        ...group,
+                        short_term_goals: [
+                            ...group.short_term_goals,
+                            {
+                                plan_short_term_goal_id: `draft-short-${crypto.randomUUID()}`,
+                                plan_long_term_goal_id: planLongTermGoalId,
+                                display_order: group.short_term_goals.length + 1,
+                                goal_start_date: null,
+                                goal_end_date: null,
+                                goal_text: "",
+                                achievement_level: null,
+                                effectiveness_satisfaction: null,
+                                active: true,
+                                created_at: now,
+                                updated_at: now,
+                            },
+                        ],
+                    }
+                    : group,
+            ),
+        );
+    }
     return (
         <div className="space-y-4">
             <div className="border rounded p-3 bg-white space-y-3">
@@ -498,23 +594,7 @@ export default function PlanEditor({ detail, onReload }: Props) {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                        <button
-                            className="border rounded px-3 py-1 bg-black text-white disabled:opacity-40"
-                            disabled={savingPlan}
-                            onClick={savePlan}
-                        >
-                            {savingPlan
-                                ? "保存中..."
-                                : "計画書・目標を保存"}
-                        </button>
-                        <button
-                            className="border rounded px-3 py-1 bg-green-700 text-white"
-                            onClick={() => {
-                                window.open(`/portal/plans/${detail.plan.plan_id}/print`, "_blank");
-                            }}
-                        >
-                            印刷用View
-                        </button>
+                        <PlanSaveButton saving={savingPlan} onClick={savePlan} />
                     </div>
 
                 </div>
@@ -787,8 +867,13 @@ export default function PlanEditor({ detail, onReload }: Props) {
                             原文と照合し、必要な場合のみ修正してください。
                         </div>
                     </div>
-
-
+                    <button
+                        type="button"
+                        className="rounded border border-blue-700 bg-blue-700 px-3 py-2 text-sm font-semibold text-white"
+                        onClick={addLongTermGoal}
+                    >
+                        長期目標を追加
+                    </button>
                 </div>
                 {goalGroupDrafts.length === 0 ? (
                     <div className="rounded border border-dashed p-4 text-sm text-gray-500">
@@ -960,6 +1045,20 @@ export default function PlanEditor({ detail, onReload }: Props) {
 
                                         {/* 短期目標 */}
                                         <div className="space-y-3">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <div className="font-semibold">短期目標</div>
+                                                <button
+                                                    type="button"
+                                                    className="rounded border border-blue-600 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-800"
+                                                    onClick={() =>
+                                                        addShortTermGoal(
+                                                            longGoal.plan_long_term_goal_id,
+                                                        )
+                                                    }
+                                                >
+                                                    短期目標を追加
+                                                </button>
+                                            </div>
                                             {group.short_term_goals
                                                 .length ===
                                                 0 ? (
@@ -1142,11 +1241,27 @@ export default function PlanEditor({ detail, onReload }: Props) {
                 <div className="text-sm text-gray-600">
                     変更した目標は、画面上部の「計画書・目標を保存」でまとめて保存されます。
                 </div>
+                <div className="flex justify-end">
+                    <PlanSaveButton saving={savingPlan} onClick={savePlan} />
+                </div>
             </div>
 
             <div className="border rounded p-3 bg-white space-y-3">
-                <div className="font-bold text-lg">
-                    サービス詳細編集
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <div className="font-bold text-lg">サービス詳細編集</div>
+                        <div className="text-sm text-gray-500">
+                            曜日・時間を含め、生成後にサービスを手動追加できます。
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        className="rounded border border-blue-700 bg-blue-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        disabled={addingService}
+                        onClick={() => void addService()}
+                    >
+                        {addingService ? "追加中..." : "サービスを追加"}
+                    </button>
                 </div>
 
                 {serviceDrafts.length === 0 ? (
@@ -1154,7 +1269,19 @@ export default function PlanEditor({ detail, onReload }: Props) {
                 ) : (
                     <div className="space-y-3">
                         {serviceDrafts.map((s, index) => (
-                            <div key={s.plan_service_id} className="border rounded p-3 space-y-3 bg-gray-50">
+                            <div
+                                key={s.plan_service_id}
+                                className="border rounded p-3 space-y-3 bg-gray-50"
+                                onBlur={(event) => {
+                                    if (
+                                        !event.currentTarget.contains(
+                                            event.relatedTarget as Node | null,
+                                        )
+                                    ) {
+                                        void saveService(s);
+                                    }
+                                }}
+                            >
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div className="font-semibold">
                                         サービス{index + 1} / {s.weekday_jp ?? ""}{" "}
@@ -1162,17 +1289,67 @@ export default function PlanEditor({ detail, onReload }: Props) {
                                         {s.start_time || s.end_time ? " - " : ""}
                                         {(s.end_time ?? "").slice(0, 5)}
                                     </div>
-
-                                    <button
-                                        className="border rounded px-3 py-1 bg-blue-600 text-white disabled:opacity-40"
-                                        disabled={savingServiceId === s.plan_service_id}
-                                        onClick={() => saveService(s)}
-                                    >
-                                        {savingServiceId === s.plan_service_id ? "保存中..." : "このサービスを保存"}
-                                    </button>
+                                    <div className="text-xs text-gray-500">
+                                        {savingServiceId === s.plan_service_id
+                                            ? "自動保存中..."
+                                            : "編集欄から離れると自動保存"}
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <Field label="曜日">
+                                        <select
+                                            className="border rounded px-2 py-1 w-full"
+                                            value={s.weekday ?? ""}
+                                            onChange={(e) =>
+                                                updateService(s.plan_service_id, {
+                                                    weekday: e.target.value === "" ? null : Number(e.target.value),
+                                                    weekday_jp:
+                                                        e.target.value === ""
+                                                            ? null
+                                                            : WEEKDAY_OPTIONS[Number(e.target.value)]?.label ?? null,
+                                                })
+                                            }
+                                        >
+                                            <option value="">未選択</option>
+                                            {WEEKDAY_OPTIONS.map((weekday) => (
+                                                <option key={weekday.value} value={weekday.value}>
+                                                    {weekday.label}曜日
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </Field>
+
+                                    <Field label="開始時刻">
+                                        <input
+                                            type="time"
+                                            className="border rounded px-2 py-1 w-full"
+                                            value={(s.start_time ?? "").slice(0, 5)}
+                                            onChange={(e) =>
+                                                updateService(s.plan_service_id, {
+                                                    start_time: e.target.value || null,
+                                                    monthly_minutes: null,
+                                                    monthly_hours: null,
+                                                })
+                                            }
+                                        />
+                                    </Field>
+
+                                    <Field label="終了時刻">
+                                        <input
+                                            type="time"
+                                            className="border rounded px-2 py-1 w-full"
+                                            value={(s.end_time ?? "").slice(0, 5)}
+                                            onChange={(e) =>
+                                                updateService(s.plan_service_id, {
+                                                    end_time: e.target.value || null,
+                                                    monthly_minutes: null,
+                                                    monthly_hours: null,
+                                                })
+                                            }
+                                        />
+                                    </Field>
+
                                     <Field label="サービス名">
                                         <input
                                             className="border rounded px-2 py-1 w-full"
@@ -1205,7 +1382,16 @@ export default function PlanEditor({ detail, onReload }: Props) {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <Field label="サービスの内容">
+                                    <Field
+                                        label="サービスの内容"
+                                        action={
+                                            <CopyButton
+                                                label="サービスの内容"
+                                                disabled={!s.service_detail?.trim()}
+                                                onClick={() => copyText(s.service_detail, "サービスの内容")}
+                                            />
+                                        }
+                                    >
                                         <textarea
                                             className="border rounded px-2 py-1 w-full min-h-[90px]"
                                             value={s.service_detail ?? ""}
@@ -1216,7 +1402,16 @@ export default function PlanEditor({ detail, onReload }: Props) {
                                         />
                                     </Field>
 
-                                    <Field label="手順・留意事項・観察ポイント">
+                                    <Field
+                                        label="手順・留意事項・観察ポイント"
+                                        action={
+                                            <CopyButton
+                                                label="手順・留意事項・観察ポイント"
+                                                disabled={!s.procedure_notes?.trim()}
+                                                onClick={() => copyText(s.procedure_notes, "手順・留意事項・観察ポイント")}
+                                            />
+                                        }
+                                    >
                                         <textarea
                                             className="border rounded px-2 py-1 w-full min-h-[90px]"
                                             value={s.procedure_notes ?? ""}
@@ -1227,7 +1422,16 @@ export default function PlanEditor({ detail, onReload }: Props) {
                                         />
                                     </Field>
 
-                                    <Field label="本人・家族にやっていただくこと">
+                                    <Field
+                                        label="本人・家族にやっていただくこと"
+                                        action={
+                                            <CopyButton
+                                                label="本人・家族にやっていただくこと"
+                                                disabled={!s.family_action?.trim()}
+                                                onClick={() => copyText(s.family_action, "本人・家族にやっていただくこと")}
+                                            />
+                                        }
+                                    >
                                         <textarea
                                             className="border rounded px-2 py-1 w-full min-h-[90px]"
                                             value={s.family_action ?? ""}
@@ -1238,7 +1442,16 @@ export default function PlanEditor({ detail, onReload }: Props) {
                                     </Field>
                                 </div>
 
-                                <Field label="観察ポイント">
+                                <Field
+                                    label="観察ポイント"
+                                    action={
+                                        <CopyButton
+                                            label="観察ポイント"
+                                            disabled={!s.observation_points?.trim()}
+                                            onClick={() => copyText(s.observation_points, "観察ポイント")}
+                                        />
+                                    }
+                                >
                                     <textarea
                                         className="border rounded px-2 py-1 w-full min-h-[60px]"
                                         value={s.observation_points ?? ""}
@@ -1251,568 +1464,94 @@ export default function PlanEditor({ detail, onReload }: Props) {
                         ))}
                     </div>
                 )}
+                <div className="flex justify-end">
+                    <PlanSaveButton saving={savingPlan} onClick={savePlan} />
+                </div>
             </div>
-
-            <PlanPreview
-                plan={detail.plan}
-                planDraft={planDraft}
-                services={serviceDrafts}
-                goalGroups={goalGroupDrafts}
-                monthlySummaryRows={monthlySummaryRows}
-            />
         </div>
     );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+const WEEKDAY_OPTIONS = [
+    { value: 0, label: "日" },
+    { value: 1, label: "月" },
+    { value: 2, label: "火" },
+    { value: 3, label: "水" },
+    { value: 4, label: "木" },
+    { value: 5, label: "金" },
+    { value: 6, label: "土" },
+];
+
+function PlanSaveButton({
+    saving,
+    onClick,
+}: {
+    saving: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            className="rounded border bg-black px-3 py-1 text-white disabled:opacity-40"
+            disabled={saving}
+            onClick={onClick}
+        >
+            {saving ? "保存中..." : "計画書・目標を保存"}
+        </button>
+    );
+}
+
+function CopyButton({
+    label,
+    disabled,
+    onClick,
+}: {
+    label: string;
+    disabled: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            className="rounded border border-gray-300 bg-white p-1 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+            disabled={disabled}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={onClick}
+            aria-label={`${label}をコピー`}
+            title={`${label}をコピー`}
+        >
+            <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+            >
+                <rect x="8" y="8" width="11" height="11" rx="2" />
+                <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+            </svg>
+        </button>
+    );
+}
+
+function Field({
+    label,
+    action,
+    children,
+}: {
+    label: string;
+    action?: React.ReactNode;
+    children: React.ReactNode;
+}) {
     return (
         <label className="block">
-            <div className="text-sm font-semibold mb-1">{label}</div>
+            <div className="mb-1 flex items-center justify-between gap-2">
+                <div className="text-sm font-semibold">{label}</div>
+                {action}
+            </div>
             {children}
         </label>
-    );
-}
-
-function PlanPreview({
-    plan,
-    planDraft,
-    services,
-    goalGroups,
-    monthlySummaryRows,
-}: {
-    plan: PlanSummaryForEditor;
-    planDraft: PlanDraft;
-    services: PlanServiceForEditor[];
-    goalGroups: PlanGoalGroupForEditor[];
-    monthlySummaryRows: Array<{
-        category?: string;
-        monthly_minutes?: number;
-        monthly_hours?: number | string;
-        occurrence_factor?: number | string;
-    }>;
-}) {
-    const groupedServices = groupServicesForPreview(services);
-    return (
-        <div className="border rounded p-3 bg-white space-y-4">
-            <div className="flex items-center justify-between">
-                <div>
-                    <div className="font-bold text-lg">PDFプレビュー</div>
-                    <div className="text-sm text-gray-500">
-                        既定フォーマットに近い表示です。次工程でPDF化します。
-                    </div>
-                </div>
-            </div>
-
-            <div className="border border-black p-2 bg-white text-xs overflow-x-auto">
-                <div className="text-center font-bold text-xl mb-2">
-                    {plan.plan_document_kind ===
-                        "移動支援サービス"
-                        ? "移動支援サービス計画書"
-                        : plan.plan_document_kind ===
-                            "訪問介護サービス"
-                            ? "訪問介護計画書"
-                            : plan.plan_document_kind ===
-                                "訪問介護予防サービス"
-                                ? "介護予防訪問介護計画書"
-                                : "居宅介護等計画書"}
-                </div>
-
-                <table className="w-full border-collapse border border-black">
-                    <tbody>
-                        <tr>
-                            <Th>事業所名</Th>
-                            <Td colSpan={3}>{OFFICE_NAME}</Td>
-                            <Th>作成者</Th>
-                            <Td>{planDraft.author_name}</Td>
-                        </tr>
-                        <tr>
-                            <Th>作成日</Th>
-                            <Td>{formatDate(planDraft.plan_start_date)}</Td>
-                            <Th>交付日</Th>
-                            <Td>{formatDate(planDraft.issued_on)}</Td>
-                            <Th>計画期間</Th>
-                            <Td>
-                                {formatDate(planDraft.plan_start_date)}
-                                {planDraft.plan_start_date || planDraft.plan_end_date ? " - " : ""}
-                                {formatDate(planDraft.plan_end_date)}
-                            </Td>
-                        </tr>
-                        <tr>
-                            <Th>利用者番号</Th>
-                            <Td>{plan.kaipoke_cs_id}</Td>
-                            <Th>帳票種別</Th>
-                            <Td colSpan={3}>{plan.plan_document_kind}</Td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <table className="w-full border-collapse border border-black mt-2">
-                    <tbody>
-                        <tr>
-                            <Th className="w-[140px]">
-                                本人(家族)の希望
-                            </Th>
-
-                            <Td
-                                className="whitespace-pre-wrap"
-                                colSpan={5}
-                            >
-                                {planDraft.person_family_hope}
-                            </Td>
-                        </tr>
-
-                        <tr>
-                            <Th>援助目標</Th>
-
-                            <Td
-                                className="whitespace-pre-wrap"
-                                colSpan={5}
-                            >
-                                {planDraft.assistance_goal}
-                            </Td>
-                        </tr>
-
-                        {plan.plan_document_kind ===
-                            "訪問介護サービス" ||
-                            plan.plan_document_kind ===
-                            "訪問介護予防サービス" ? (
-                            <>
-                                <tr>
-                                    <Th>
-                                        訪問介護利用までの経緯
-                                        <br />
-                                        （活動歴や病歴）
-                                    </Th>
-
-                                    <Td
-                                        className="whitespace-pre-wrap"
-                                        colSpan={5}
-                                    >
-                                        {
-                                            planDraft
-                                                .care_service_history
-                                        }
-                                    </Td>
-                                </tr>
-
-                                <tr>
-                                    <Th>
-                                        解決すべき課題
-                                    </Th>
-
-                                    <Td
-                                        className="whitespace-pre-wrap"
-                                        colSpan={5}
-                                    >
-                                        {
-                                            planDraft
-                                                .identified_needs
-                                        }
-                                    </Td>
-                                </tr>
-
-                                <tr>
-                                    <Th>
-                                        健康状態
-                                        <br />
-                                        <span className="text-[9px] font-normal">
-                                            病名、合併症、服薬状況等
-                                        </span>
-                                    </Th>
-
-                                    <Td
-                                        className="whitespace-pre-wrap"
-                                        colSpan={5}
-                                    >
-                                        {
-                                            planDraft
-                                                .health_status
-                                        }
-                                    </Td>
-                                </tr>
-
-                                <tr>
-                                    <Th>
-                                        ケアの上での医学的リスク
-                                        <br />
-                                        <span className="text-[9px] font-normal">
-                                            血圧、転倒、嚥下障害等・留意事項
-                                        </span>
-                                    </Th>
-
-                                    <Td
-                                        className="whitespace-pre-wrap"
-                                        colSpan={5}
-                                    >
-                                        {
-                                            planDraft
-                                                .medical_care_risks
-                                        }
-                                    </Td>
-                                </tr>
-
-                                <tr>
-                                    <Th>
-                                        自宅での活動・参加の状況
-                                        <br />
-                                        （役割など）
-                                    </Th>
-
-                                    <Td
-                                        className="whitespace-pre-wrap"
-                                        colSpan={5}
-                                    >
-                                        {
-                                            planDraft
-                                                .home_activity_participation
-                                        }
-                                    </Td>
-                                </tr>
-                            </>
-                        ) : null}
-
-                        <tr>
-                            <Th>備考</Th>
-
-                            <Td
-                                className="whitespace-pre-wrap"
-                                colSpan={5}
-                            >
-                                {planDraft.remarks}
-                            </Td>
-                        </tr>
-                    </tbody>
-                </table>
-                <table className="w-full border-collapse border border-black mt-2">
-                    <tbody>
-                        <tr>
-                            <Th className="w-[140px]">
-                                サービス内容
-                            </Th>
-
-                            <Td>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
-                                    {monthlySummaryRows.length === 0 ? (
-                                        <span>集計なし</span>
-                                    ) : (
-                                        monthlySummaryRows.map(
-                                            (m, idx) => (
-                                                <span
-                                                    key={`${m.category}-${idx}`}
-                                                >
-                                                    ■
-                                                    {m.category ??
-                                                        "未分類"}{" "}
-                                                    {m.monthly_hours ??
-                                                        ""}
-                                                    時間
-                                                </span>
-                                            ),
-                                        )
-                                    )}
-                                </div>
-                            </Td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <div className="font-bold text-base mt-3 mb-1">
-                    【利用目標】
-                </div>
-
-                {goalGroups.length === 0 ? (
-                    <div className="border border-black p-3">
-                        長期目標・短期目標は登録されていません。
-                    </div>
-                ) : (
-                    <div className="space-y-2">
-                        {goalGroups.map(
-                            (group, groupIndex) => {
-                                const longGoal =
-                                    group.long_term_goal;
-
-                                return (
-                                    <table
-                                        key={
-                                            longGoal
-                                                .plan_long_term_goal_id
-                                        }
-                                        className="w-full border-collapse border border-black"
-                                    >
-                                        <tbody>
-                                            <tr>
-                                                <Th className="w-[90px]">
-                                                    長期目標
-                                                    {goalGroups.length >
-                                                        1
-                                                        ? ` ${groupIndex + 1}`
-                                                        : ""}
-                                                </Th>
-
-                                                <Td className="w-[110px] text-center">
-                                                    {formatDate(
-                                                        longGoal
-                                                            .goal_start_date,
-                                                    )}
-                                                </Td>
-
-                                                <Td className="w-[20px] text-center">
-                                                    ～
-                                                </Td>
-
-                                                <Td className="w-[110px] text-center">
-                                                    {formatDate(
-                                                        longGoal
-                                                            .goal_end_date,
-                                                    )}
-                                                </Td>
-
-                                                <Td className="whitespace-pre-wrap">
-                                                    {longGoal.goal_text}
-                                                </Td>
-
-                                                <Th className="w-[80px]">
-                                                    達成度
-                                                </Th>
-
-                                                <Td className="w-[70px] text-center">
-                                                    {longGoal
-                                                        .achievement_level ??
-                                                        "未選択"}
-                                                </Td>
-                                            </tr>
-
-                                            {group.short_term_goals
-                                                .length === 0 ? (
-                                                <tr>
-                                                    <Th>短期目標</Th>
-
-                                                    <Td
-                                                        colSpan={6}
-                                                        className="text-gray-500"
-                                                    >
-                                                        短期目標は登録されていません。
-                                                    </Td>
-                                                </tr>
-                                            ) : (
-                                                group.short_term_goals.map(
-                                                    (
-                                                        shortGoal,
-                                                        shortIndex,
-                                                    ) => (
-                                                        <tr
-                                                            key={
-                                                                shortGoal
-                                                                    .plan_short_term_goal_id
-                                                            }
-                                                        >
-                                                            <Th>
-                                                                短期目標
-                                                                {group
-                                                                    .short_term_goals
-                                                                    .length >
-                                                                    1
-                                                                    ? ` ${shortIndex + 1}`
-                                                                    : ""}
-                                                            </Th>
-
-                                                            <Td className="text-center">
-                                                                {formatDate(
-                                                                    shortGoal
-                                                                        .goal_start_date,
-                                                                )}
-                                                            </Td>
-
-                                                            <Td className="text-center">
-                                                                ～
-                                                            </Td>
-
-                                                            <Td className="text-center">
-                                                                {formatDate(
-                                                                    shortGoal
-                                                                        .goal_end_date,
-                                                                )}
-                                                            </Td>
-
-                                                            <Td className="whitespace-pre-wrap">
-                                                                {
-                                                                    shortGoal.goal_text
-                                                                }
-                                                            </Td>
-
-                                                            <Th>
-                                                                達成度
-                                                            </Th>
-
-                                                            <Td className="text-center">
-                                                                {shortGoal
-                                                                    .achievement_level ??
-                                                                    "未選択"}
-                                                            </Td>
-                                                        </tr>
-                                                    ),
-                                                )
-                                            )}
-                                        </tbody>
-                                    </table>
-                                );
-                            },
-                        )}
-                    </div>
-                )}
-
-                <div className="font-bold text-base mt-3 mb-1">
-                    【計画予定表】
-                </div>
-                <table className="w-full border-collapse border border-black">
-                    <thead>
-                        <tr>
-                            <Th>時間</Th>
-                            <Th>月</Th>
-                            <Th>火</Th>
-                            <Th>水</Th>
-                            <Th>木</Th>
-                            <Th>金</Th>
-                            <Th>土</Th>
-                            <Th>日</Th>
-                            <Th>備考</Th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {["2:00", "4:00", "6:00", "8:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00", "24:00"].map((time) => (
-                            <tr key={time}>
-                                <Th>{time}</Th>
-                                {["月", "火", "水", "木", "金", "土", "日"].map((w) => (
-                                    <Td key={w} className="h-[28px] align-top">
-                                        {services
-                                            .filter((s) => s.weekday_jp === w)
-                                            .filter((s) => isSameSlot(s.start_time, time))
-                                            .map((s) => s.plan_service_category ?? s.service_title ?? s.service_code ?? "")
-                                            .join(" / ")}
-                                    </Td>
-                                ))}
-                                <Td className="align-top">
-                                    {time === "2:00" ? planDraft.weekly_plan_comment : ""}
-                                </Td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-
-                <div className="grid grid-cols-[140px_180px_140px_1fr] border border-black mt-2">
-                    <div className="border-r border-black p-2 font-bold text-center">交付日</div>
-                    <div className="border-r border-black p-2 text-center">
-                        {formatDate(planDraft.issued_on)}
-                    </div>
-                    <div className="border-r border-black p-2 font-bold text-center">
-                        利用者サイン
-                    </div>
-                    <div className="p-2 min-h-[44px]">&nbsp;</div>
-                </div>
-            </div>
-
-            <div className="border border-black p-2 bg-white text-xs overflow-x-auto">
-                <div className="font-bold mb-2">
-                    【サービス内容】以下の方法で、居宅介護等サービスを提供していきます。
-                </div>
-
-                <table className="w-full border-collapse border border-black">
-                    <thead>
-                        <tr>
-                            <Th className="w-[80px]">サービス</Th>
-                            <Th className="w-[100px]">所要時間</Th>
-                            <Th className="w-[180px]">サービスの内容</Th>
-                            <Th>手順・留意事項・観察ポイント</Th>
-                            <Th>本人・家族にやっていただくこと</Th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {groupedServices.map((s, idx) => (
-                            <tr key={s.plan_service_id}>
-                                <Th>サービス{idx + 1}</Th>
-                                <Td className="align-top">
-                                    {s.duration_minutes ? `${s.duration_minutes}分` : ""}
-                                    <div>
-                                        {s.weekday_jp ? `${s.weekday_jp} ` : ""}
-                                        {(s.start_time ?? "").slice(0, 5)}
-                                        {s.start_time || s.end_time ? " - " : ""}
-                                        {(s.end_time ?? "").slice(0, 5)}
-                                    </div>
-                                </Td>
-                                <Td className="align-top whitespace-pre-wrap">
-                                    {s.service_detail || s.service_title || s.service_code || ""}
-                                </Td>
-                                <Td className="align-top whitespace-pre-wrap">
-                                    {s.procedure_notes ?? s.observation_points ?? ""}
-                                </Td>
-                                <Td className="align-top whitespace-pre-wrap">
-                                    {s.family_action ?? ""}
-                                </Td>
-                            </tr>
-                        ))}
-
-                        {Array.from({ length: Math.max(0, 7 - groupedServices.length) }).map((_, idx) => (
-                            <tr key={`empty-${idx}`}>
-                                <Th>&nbsp;</Th>
-                                <Td className="h-[44px]">&nbsp;</Td>
-                                <Td>&nbsp;</Td>
-                                <Td>&nbsp;</Td>
-                                <Td>&nbsp;</Td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-
-                <table className="w-full border-collapse border border-black mt-2">
-                    <tbody>
-                        <tr>
-                            <Th className="w-[80px]">種類等</Th>
-                            <Td>
-                                {monthlySummaryRows.length === 0 ? (
-                                    <span>□身体（時間　分） □家事（時間　分） □重訪（時間　分）</span>
-                                ) : (
-                                    monthlySummaryRows.map((m, idx) => (
-                                        <span key={`${m.category}-type-${idx}`} className="mr-4">
-                                            ■{m.category ?? "未分類"}（{m.monthly_hours ?? ""}時間）
-                                        </span>
-                                    ))
-                                )}
-                            </Td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-}
-
-function Th({
-    children,
-    className = "",
-}: {
-    children: React.ReactNode;
-    className?: string;
-}) {
-    return (
-        <th className={`border border-black bg-gray-100 px-2 py-1 text-center font-bold ${className}`}>
-            {children}
-        </th>
-    );
-}
-
-function Td({
-    children,
-    colSpan,
-    className = "",
-}: {
-    children: React.ReactNode;
-    colSpan?: number;
-    className?: string;
-}) {
-    return (
-        <td colSpan={colSpan} className={`border border-black px-2 py-1 ${className}`}>
-            {children}
-        </td>
     );
 }
 
@@ -1853,63 +1592,4 @@ function toPlanDraft(plan: PlanSummaryForEditor): PlanDraft {
 function formatDate(v: string | null | undefined) {
     if (!v) return "";
     return v;
-}
-
-function isSameSlot(startTime: string | null, slot: string) {
-    if (!startTime) return false;
-    const hour = Number(startTime.slice(0, 2));
-    const slotHour = Number(slot.split(":")[0]);
-    if (!Number.isFinite(hour) || !Number.isFinite(slotHour)) return false;
-    return hour >= slotHour && hour < slotHour + 2;
-}
-
-function groupServicesForPreview(
-    services: PlanServiceForEditor[],
-): PlanServiceForEditor[] {
-    const map = new Map<string, PlanServiceForEditor>();
-
-    for (const s of services) {
-        const key = [
-            s.start_time ?? "",
-            s.end_time ?? "",
-            s.duration_minutes ?? "",
-            s.service_title ?? "",
-            s.service_detail ?? "",
-            s.procedure_notes ?? "",
-            s.observation_points ?? "",
-            s.family_action ?? "",
-            s.schedule_note ?? "",
-            s.plan_service_category ?? "",
-        ].join("|");
-
-        const existing = map.get(key);
-
-        if (!existing) {
-            map.set(key, {
-                ...s,
-                weekday_jp: s.weekday_jp ?? "",
-            });
-            continue;
-        }
-
-        const weekdays = new Set(
-            [
-                ...(existing.weekday_jp ?? "").split("・").filter(Boolean),
-                s.weekday_jp ?? "",
-            ].filter(Boolean),
-        );
-
-        existing.weekday_jp = sortWeekdays([...weekdays]).join("・");
-    }
-
-    return [...map.values()].sort((a, b) => {
-        const aTime = `${a.start_time ?? ""}-${a.end_time ?? ""}`;
-        const bTime = `${b.start_time ?? ""}-${b.end_time ?? ""}`;
-        return aTime.localeCompare(bTime);
-    });
-}
-
-function sortWeekdays(days: string[]): string[] {
-    const order = ["月", "火", "水", "木", "金", "土", "日"];
-    return [...days].sort((a, b) => order.indexOf(a) - order.indexOf(b));
 }

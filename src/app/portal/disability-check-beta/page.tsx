@@ -6,6 +6,10 @@ import { supabase } from "@/lib/supabaseClient";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import styles from "./page.module.css";
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from "@/components/ui/SearchableSelect";
 
 /** ビュー行の型（disability_check_view の列名に一致） */
 interface Row {
@@ -146,6 +150,7 @@ const DisabilityCheckPage: React.FC = () => {
 
   // ★追加：受給者証番号ソート
   type SortKey =
+    | "year_month"
     | "district"
     | "kaipoke_cs_id"
     | "client_name"
@@ -267,6 +272,28 @@ const DisabilityCheckPage: React.FC = () => {
     return allStaffOptions.map(({ id, name }) => ({ id, name }));
   }, [allStaffOptions]);
 
+  const clientSelectOptions = useMemo<SearchableSelectOption[]>(
+    () =>
+      clientGroups.flatMap((group) =>
+        group.options.map((client) => ({
+          value: client.id,
+          label: `${client.name}（${group.label}）`,
+          searchText: `${client.kana} ${client.id} ${client.district ?? ""} ${group.label}`,
+        })),
+      ),
+    [clientGroups],
+  );
+
+  const staffSelectOptions = useMemo<SearchableSelectOption[]>(
+    () =>
+      staffOptions.map((staff) => ({
+        value: staff.id,
+        label: staff.name,
+        searchText: staff.id,
+      })),
+    [staffOptions],
+  );
+
   const teamOptions = useMemo(() => {
     const map = new Map<string, string>(); // id -> name
     records.forEach((r) => {
@@ -324,6 +351,9 @@ const DisabilityCheckPage: React.FC = () => {
 
     arr.sort((a, b) => {
       switch (sortKey) {
+        case "year_month":
+          return jaCollator.compare(a.year_month, b.year_month) * dir;
+
         case "district": {
           const av = municipalityLabel(a);
           const bv = municipalityLabel(b);
@@ -416,52 +446,68 @@ const DisabilityCheckPage: React.FC = () => {
       return a;
     };
 
+    const recordKey = (row: Row) =>
+      `${row.year_month}::${normCsId(row.kaipoke_cs_id)}`;
     const map = new Map<string, Row>();
 
     for (const r of sortedRecords) {
-      const id = normCsId(r.kaipoke_cs_id);
-      if (!id) continue;
+      const key = recordKey(r);
+      if (!normCsId(r.kaipoke_cs_id)) continue;
 
-      const prev = map.get(id);
+      const prev = map.get(key);
       if (!prev) {
-        map.set(id, r);
+        map.set(key, r);
       } else {
-        map.set(id, pickBetter(prev, r));
+        map.set(key, pickBetter(prev, r));
       }
     }
 
     const seen = new Set<string>();
     const out: Row[] = [];
     for (const r of sortedRecords) {
-      const id = normCsId(r.kaipoke_cs_id);
-      if (!id || seen.has(id)) continue;
-      const v = map.get(id);
+      const key = recordKey(r);
+      if (!normCsId(r.kaipoke_cs_id) || seen.has(key)) continue;
+      const v = map.get(key);
       if (v) out.push(v);
-      seen.add(id);
+      seen.add(key);
     }
     return out;
   }, [sortedRecords]);
 
-  const visibleClientIds = useMemo(
-    () => uniqueFilteredRecords.map((r) => normCsId(r.kaipoke_cs_id)).filter(Boolean),
+  const visibleRecordKeys = useMemo(
+    () =>
+      uniqueFilteredRecords.map(
+        (r) => `${r.year_month}::${normCsId(r.kaipoke_cs_id)}`,
+      ),
     [uniqueFilteredRecords]
   );
-  const visibleClientIdSet = useMemo(() => new Set(visibleClientIds), [visibleClientIds]);
-  const selectedVisibleClientIds = useMemo(
-    () => visibleClientIds.filter((id) => selectedClientIds.has(id)),
-    [visibleClientIds, selectedClientIds]
+  const visibleRecordKeySet = useMemo(
+    () => new Set(visibleRecordKeys),
+    [visibleRecordKeys],
+  );
+  const selectedVisibleRecords = useMemo(
+    () =>
+      uniqueFilteredRecords.filter((r) =>
+        selectedClientIds.has(
+          `${r.year_month}::${normCsId(r.kaipoke_cs_id)}`,
+        ),
+      ),
+    [uniqueFilteredRecords, selectedClientIds]
   );
   const allVisibleSelected =
-    visibleClientIds.length > 0 && selectedVisibleClientIds.length === visibleClientIds.length;
+    visibleRecordKeys.length > 0 &&
+    selectedVisibleRecords.length === visibleRecordKeys.length;
 
   // フィルターや月を変えた際、画面に見えない利用者を印刷対象へ残さない。
   useEffect(() => {
     setSelectedClientIds((previous) => {
-      const next = new Set(Array.from(previous).filter((id) => visibleClientIdSet.has(id)));
+      const next = new Set(
+        Array.from(previous).filter((key) => visibleRecordKeySet.has(key)),
+      );
       if (next.size === previous.size) return previous;
       return next;
     });
-  }, [visibleClientIdSet]);
+  }, [visibleRecordKeySet]);
 
   // ★件数・表示中は「実際に表示している行（=1人1行）」に揃える
   const totalCount = uniqueFilteredRecords.length;     // 件数
@@ -840,22 +886,22 @@ const DisabilityCheckPage: React.FC = () => {
 
   const handleSelectAllVisible = (checked: boolean) => {
     setBulkPrintMessage("");
-    setSelectedClientIds(checked ? new Set(visibleClientIds) : new Set());
+    setSelectedClientIds(checked ? new Set(visibleRecordKeys) : new Set());
   };
 
-  const handleClientPrintSelection = (clientId: string, checked: boolean) => {
+  const handleClientPrintSelection = (recordKey: string, checked: boolean) => {
     setBulkPrintMessage("");
     setSelectedClientIds((previous) => {
       const next = new Set(previous);
-      if (checked) next.add(clientId);
-      else next.delete(clientId);
+      if (checked) next.add(recordKey);
+      else next.delete(recordKey);
       return next;
     });
   };
 
   // β版専用：画面上で明示的に選択された利用者だけをまとめて印刷する。
   const handleBulkPrint = () => {
-    if (selectedVisibleClientIds.length === 0) {
+    if (selectedVisibleRecords.length === 0) {
       setBulkPrintMessage("印刷する利用者を選択してください。");
       return;
     }
@@ -864,14 +910,16 @@ const DisabilityCheckPage: React.FC = () => {
     setBulkPrintMessage("");
     setIsOpeningBulkPrint(true);
     const payload = {
-      month: yearMonth,
-      clientIds: selectedVisibleClientIds,
+      items: selectedVisibleRecords.map((row) => ({
+        kaipoke_cs_id: normCsId(row.kaipoke_cs_id),
+        month: row.year_month,
+      })),
     };
 
     localStorage.setItem("jisseki_beta_bulk_print", JSON.stringify(payload));
 
     window.open(
-      `/portal/jisseki-beta/print/bulk?month=${encodeURIComponent(yearMonth)}`,
+      "/portal/jisseki-beta/print/bulk",
       "_blank",
       "noopener,noreferrer"
     );
@@ -980,6 +1028,26 @@ const DisabilityCheckPage: React.FC = () => {
     // role 取得が終わるまで待つ
     if (!myUserId && !isManager && !isAdmin) return;
 
+    const ym = searchParams.get("ym") ?? "";
+    if (ym === "all") setYearMonth("");
+    else if (/^\d{4}-\d{2}$/.test(ym)) setYearMonth(ym);
+
+    const service = searchParams.get("svc") ?? "";
+    setKaipokeServicek(service);
+
+    const team = searchParams.get("team") ?? "";
+    setFilterTeamId(team);
+
+    const district = searchParams.get("dist") ?? "";
+    setDistricts(district ? [district] : []);
+
+    const requestedCheckFilter = searchParams.get("check") ?? "";
+    setCheckFilter(
+      requestedCheckFilter === "unsubmitted" || requestedCheckFilter === "unchecked"
+        ? requestedCheckFilter
+        : ""
+    );
+
     const cs =
       searchParams.get("kaipoke_cs_id") ??
       searchParams.get("cs") ??
@@ -1009,13 +1077,14 @@ const DisabilityCheckPage: React.FC = () => {
     const qp = new URLSearchParams();
 
     // 共通：年月・サービス・チーム・地域
-    if (yearMonth) qp.set("ym", yearMonth);
+    qp.set("ym", yearMonth || "all");
     if (kaipokeServicek) qp.set("svc", kaipokeServicek); // ""(全て)は省略
     if (filterTeamId) qp.set("team", filterTeamId);
     if (districts[0]) qp.set("dist", districts[0]);
 
     // 利用者（新キーに統一）
     if (filterKaipokeCsId) qp.set("kaipoke_cs_id", filterKaipokeCsId);
+    if (checkFilter) qp.set("check", checkFilter);
 
     // 実績担当者
     if (!(isManager || isAdmin)) {
@@ -1038,7 +1107,9 @@ const DisabilityCheckPage: React.FC = () => {
     filterTeamId,
     districts,
     filterKaipokeCsId,   // ★追加
-    filterStaffId,      // ★追加
+    filterStaffId,       // ★追加
+    checkFilter,
+    isAdmin,
     isManager,
     myUserId,
     pathname,
@@ -1052,8 +1123,11 @@ const DisabilityCheckPage: React.FC = () => {
 
   /** フィルタ変更で再読込 */
   useEffect(() => {
+    if (!didInitFromUrl) return;
+
     fetchRecords();
   }, [
+    didInitFromUrl,
     yearMonth,
     kaipokeServicek,
     districts,
@@ -1134,20 +1208,14 @@ const DisabilityCheckPage: React.FC = () => {
             type="button"
             onClick={handleBulkPrint}
             disabled={isOpeningBulkPrint}
-            style={{
-              padding: "8px 12px",
-              border: "1px solid #999",
-              borderRadius: 6,
-              background: isOpeningBulkPrint ? "#f5f5f5" : "#fff",
-              cursor: isOpeningBulkPrint ? "wait" : "pointer",
-            }}
+            className={styles.bulkPrintButton}
           >
             {isOpeningBulkPrint
               ? "印刷画面を開いています..."
-              : `選択した利用者を一括印刷（${selectedVisibleClientIds.length}名）`}
+              : `選択した利用者を一括印刷（${selectedVisibleRecords.length}件）`}
           </button>
           <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-            チェックした利用者だけを、表示中の年月で印刷します（別タブで印刷画面が開きます）
+            チェックした利用者だけを、各行の年月で印刷します（別タブで印刷画面が開きます）
           </div>
           {bulkPrintMessage && (
             <div role="alert" style={{ fontSize: 13, color: "#b91c1c", marginTop: 4 }}>
@@ -1166,6 +1234,19 @@ const DisabilityCheckPage: React.FC = () => {
             flexWrap: "wrap",
           }}
         >
+          <label style={{ width: 180 }}>
+            <span style={{ display: "block", marginBottom: 4 }}>年月</span>
+            <select
+              value={yearMonth}
+              onChange={(e) => setYearMonth(e.target.value)}
+              style={{ width: 180, minHeight: 36 }}
+            >
+              <option value="">（全て）</option>
+              {yearMonthOptions.map((ym) => (
+                <option key={ym} value={ym}>{ym}</option>
+              ))}
+            </select>
+          </label>
           <label style={{ flex: "1 1 280px", maxWidth: 520 }}>
             <span style={{ display: "block", marginBottom: 4 }}>利用者名・苗字で検索</span>
             <input
@@ -1200,13 +1281,6 @@ const DisabilityCheckPage: React.FC = () => {
         style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 12, alignItems: "end", padding: 12, background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 8 }}
       >
         <label style={{ width: 180 }}>
-          年月
-          <select value={yearMonth} onChange={(e) => setYearMonth(e.target.value)} style={{ width: 180 }}>
-            {yearMonthOptions.map((ym) => <option key={ym} value={ym}>{ym}</option>)}
-          </select>
-        </label>
-
-        <label style={{ width: 180 }}>
           サービス
           <select
             value={kaipokeServicek}
@@ -1240,34 +1314,30 @@ const DisabilityCheckPage: React.FC = () => {
 
         <label style={{ width: 220 }}>
           利用者（一覧から選択）
-          <select value={filterKaipokeCsId} onChange={(e) => setFilterKaipokeCsId(e.target.value)} style={{ width: 220 }}>
-            <option value="">（全て）</option>
-            {clientGroups.map((g) => (
-              <optgroup key={g.label} label={g.label}>
-                {g.options.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </optgroup>
-            ))}
-          </select>
+          <SearchableSelect
+            options={clientSelectOptions}
+            value={filterKaipokeCsId}
+            onChange={(value) => setFilterKaipokeCsId(value ?? "")}
+            placeholder="（全て）"
+            searchPlaceholder="利用者名・かな・IDで検索"
+            ariaLabel="利用者を絞り込み"
+          />
         </label>
 
         <label style={{ width: 220 }}>
           実績担当者
-          <select
+          <SearchableSelect
+            options={staffSelectOptions}
             value={filterStaffId}
-            disabled={isMember} // ★memberのみ無効
-            onChange={(e) => {
+            disabled={isMember}
+            onChange={(value) => {
               if (isMember) return;
-              setFilterStaffId(e.target.value);
+              setFilterStaffId(value ?? "");
             }}
-            style={{ width: 220 }}
-          >
-            <option value="">（全て）</option>
-            {staffOptions.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+            placeholder="（全て）"
+            searchPlaceholder="スタッフ名・IDで検索"
+            ariaLabel="実績担当者を絞り込み"
+          />
         </label>
 
         {/* ★追加：チーム名検索 */}
@@ -1351,12 +1421,23 @@ const DisabilityCheckPage: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={allVisibleSelected}
-                    disabled={visibleClientIds.length === 0}
+                    disabled={visibleRecordKeys.length === 0}
                     onChange={(e) => handleSelectAllVisible(e.target.checked)}
                   />
                 </label>
                 <span style={{ display: "block", fontSize: 11 }}>全選択</span>
               </th>
+              {!yearMonth && (
+                <th
+                  style={{ cursor: "pointer", whiteSpace: "nowrap", padding: 8 }}
+                  onClick={() => toggleSort("year_month")}
+                >
+                  年月
+                  <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                    {sortMark("year_month")}
+                  </span>
+                </th>
+              )}
               <th
                 className={styles.checkColumn}
                 onClick={() => toggleSort("is_submitted")}
@@ -1452,12 +1533,12 @@ const DisabilityCheckPage: React.FC = () => {
           <tbody>
           {uniqueFilteredRecords.length === 0 ? (
             <tr>
-              <td colSpan={10} style={{ padding: 24, textAlign: "center", color: "#666" }}>
+              <td colSpan={yearMonth ? 10 : 11} style={{ padding: 24, textAlign: "center", color: "#666" }}>
                 条件に一致する利用者はいません。検索条件を確認するか、「クリア」を押してください。
               </td>
             </tr>
           ) : uniqueFilteredRecords.map((r) => {
-            const key = normCsId(r.kaipoke_cs_id);
+            const key = `${r.year_month}::${normCsId(r.kaipoke_cs_id)}`;
             return (
               <tr
                 key={key}
@@ -1474,6 +1555,9 @@ const DisabilityCheckPage: React.FC = () => {
                     />
                   </label>
                 </td>
+                {!yearMonth && (
+                  <td style={{ padding: 8, whiteSpace: "nowrap" }}>{r.year_month}</td>
+                )}
                 {/* 提出・回収はスマホで最初に操作できるよう先頭に配置 */}
                 <td className={styles.checkColumn}>
                   <label className={styles.checkControl}>
@@ -1569,25 +1653,24 @@ const DisabilityCheckPage: React.FC = () => {
 
                 {/* ① 実績担当者表示 */}
                 <td style={{ padding: 8 }}>
-                  <select
-                    value={r.asigned_jisseki_staff_id ?? ""}
-                    disabled={!(isManager || isAdmin)}
-                    onMouseDown={(e) => e.stopPropagation()} // ★親のクリック/Link遷移を止める
-                    onClick={(e) => e.stopPropagation()}     // ★念のため
-                    onChange={(e) => {
-                      if (!(isManager || isAdmin)) return;
-                      const v = e.target.value;
-                      handleAssignedStaffChange(r, v ? v : null); // ★DB更新だけ
-                    }}
+                  <div
                     style={{ width: 220 }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <option value="">（未選択）</option>
-                    {staffOptions.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SearchableSelect
+                      options={staffSelectOptions}
+                      value={r.asigned_jisseki_staff_id ?? ""}
+                      disabled={!(isManager || isAdmin)}
+                      onChange={(value) => {
+                        if (!(isManager || isAdmin)) return;
+                        handleAssignedStaffChange(r, value);
+                      }}
+                      placeholder="（未選択）"
+                      searchPlaceholder="スタッフ名・IDで検索"
+                      ariaLabel={`${r.client_name}の実績担当者`}
+                    />
+                  </div>
                 </td>
 
                 {/* ★追加：チーム名 */}
@@ -1598,13 +1681,6 @@ const DisabilityCheckPage: React.FC = () => {
               </tr>
             );
           })}
-          {uniqueFilteredRecords.length === 0 && (
-            <tr>
-              <td colSpan={9} style={{ textAlign: "center", padding: 12 }}>
-                該当データがありません
-              </td>
-            </tr>
-          )}
           </tbody>
         </table>
       </div>

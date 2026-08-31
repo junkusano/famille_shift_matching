@@ -1,0 +1,36 @@
+{
+  "ok": true,
+  "credential_exposed": false,
+  "persistent_data_change": false,
+  "tests": [
+    {
+      "operation": "SELECT",
+      "status": 401,
+      "ok": false,
+      "code": "42501",
+      "message": "permission denied"
+    },
+    {
+      "operation": "INSERT",
+      "status": 401,
+      "ok": false,
+      "code": "42501",
+      "message": "permission denied"
+    },
+    {
+      "operation": "UPDATE",
+      "status": 401,
+      "ok": false,
+      "code": "42501",
+      "message": "permission denied"
+    },
+    {
+      "operation": "DELETE",
+      "status": 401,
+      "ok": false,
+      "code": "42501",
+      "message": "permission denied"
+    }
+  ],
+  "tested_at": "2026-08-29T15:52:22.987Z"
+}

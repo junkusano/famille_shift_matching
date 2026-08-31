@@ -1,0 +1,261 @@
+{
+  "captured_at": "2026-08-29T15:44:07.413Z",
+  "table": "public.msg_lw_status",
+  "row_count": 4,
+  "relation": {
+    "oid": "63770",
+    "schema": "public",
+    "name": "msg_lw_status",
+    "relkind": "r",
+    "owner": "postgres",
+    "rls_enabled": false,
+    "rls_forced": false,
+    "acl": "{postgres=arwdDxt/postgres,anon=arwdDxt/postgres,authenticated=arwdDxt/postgres,service_role=arwdDxt/postgres}"
+  },
+  "columns": [
+    {
+      "column_name": "id",
+      "data_type": "smallint",
+      "udt_name": "int2",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "label",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "description",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "sort_order",
+      "data_type": "smallint",
+      "udt_name": "int2",
+      "is_nullable": "YES",
+      "column_default": "0"
+    }
+  ],
+  "constraints": [
+    {
+      "name": "msg_lw_status_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)"
+    }
+  ],
+  "indexes": [
+    {
+      "name": "msg_lw_status_pkey",
+      "definition": "CREATE UNIQUE INDEX msg_lw_status_pkey ON public.msg_lw_status USING btree (id)"
+    }
+  ],
+  "triggers": [],
+  "realtime": [],
+  "dependent_views": [],
+  "function_references": [],
+  "policies": [],
+  "grants": [
+    {
+      "grantee": "anon",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "DELETE",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "anon",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "INSERT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "anon",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "REFERENCES",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "anon",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "anon",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "TRIGGER",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "anon",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "TRUNCATE",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "anon",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "UPDATE",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "authenticated",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "DELETE",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "authenticated",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "INSERT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "authenticated",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "REFERENCES",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "authenticated",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "authenticated",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "TRIGGER",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "authenticated",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "TRUNCATE",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "authenticated",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "UPDATE",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "postgres",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "DELETE",
+      "is_grantable": "YES"
+    },
+    {
+      "grantee": "postgres",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "INSERT",
+      "is_grantable": "YES"
+    },
+    {
+      "grantee": "postgres",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "REFERENCES",
+      "is_grantable": "YES"
+    },
+    {
+      "grantee": "postgres",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "SELECT",
+      "is_grantable": "YES"
+    },
+    {
+      "grantee": "postgres",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "TRIGGER",
+      "is_grantable": "YES"
+    },
+    {
+      "grantee": "postgres",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "TRUNCATE",
+      "is_grantable": "YES"
+    },
+    {
+      "grantee": "postgres",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "UPDATE",
+      "is_grantable": "YES"
+    },
+    {
+      "grantee": "service_role",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "DELETE",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "service_role",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "INSERT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "service_role",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "REFERENCES",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "service_role",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "service_role",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "TRIGGER",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "service_role",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "TRUNCATE",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "service_role",
+      "table_schema": "public",
+      "table_name": "msg_lw_status",
+      "privilege_type": "UPDATE",
+      "is_grantable": "NO"
+    }
+  ]
+}

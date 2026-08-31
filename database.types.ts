@@ -2971,6 +2971,13 @@ export type Database = {
             foreignKeyName: "cm_kaipoke_support_office_care_manager_id_fkey"
             columns: ["care_manager_id"]
             isOneToOne: false
+            referencedRelation: "manager_monthly_google_maps_distance_view"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "cm_kaipoke_support_office_care_manager_id_fkey"
+            columns: ["care_manager_id"]
+            isOneToOne: false
             referencedRelation: "reentry_recruitment_candidates"
             referencedColumns: ["user_id"]
           },
@@ -4665,6 +4672,7 @@ export type Database = {
           id: string
           is_active: boolean
           overview: string | null
+          shift_alert: boolean
           template_name: string
           updated_at: string
         }
@@ -4676,6 +4684,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           overview?: string | null
+          shift_alert?: boolean
           template_name: string
           updated_at?: string
         }
@@ -4687,6 +4696,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           overview?: string | null
+          shift_alert?: boolean
           template_name?: string
           updated_at?: string
         }
@@ -6198,6 +6208,13 @@ export type Database = {
             foreignKeyName: "monthly_meeting_attendance_manager_checked_by_fkey"
             columns: ["manager_checked_by"]
             isOneToOne: false
+            referencedRelation: "manager_monthly_google_maps_distance_view"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "monthly_meeting_attendance_manager_checked_by_fkey"
+            columns: ["manager_checked_by"]
+            isOneToOne: false
             referencedRelation: "reentry_recruitment_candidates"
             referencedColumns: ["user_id"]
           },
@@ -6263,6 +6280,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "audit_log_display_view"
             referencedColumns: ["actor_user_id_text"]
+          },
+          {
+            foreignKeyName: "monthly_meeting_attendance_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "manager_monthly_google_maps_distance_view"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "monthly_meeting_attendance_user_id_fkey"
@@ -7400,6 +7424,7 @@ export type Database = {
           file_name: string
           file_size_bytes: number
           id: string
+          is_secret: boolean
           local_recording_id: string
           participants: Json
           recorded_at: string
@@ -7422,6 +7447,7 @@ export type Database = {
           file_name: string
           file_size_bytes: number
           id?: string
+          is_secret?: boolean
           local_recording_id: string
           participants?: Json
           recorded_at: string
@@ -7444,6 +7470,7 @@ export type Database = {
           file_name?: string
           file_size_bytes?: number
           id?: string
+          is_secret?: boolean
           local_recording_id?: string
           participants?: Json
           recorded_at?: string
@@ -8176,6 +8203,48 @@ export type Database = {
           },
         ]
       }
+      rpa_job_definitions: {
+        Row: {
+          created_at: string
+          execution_mode: string
+          id: string
+          is_enabled: boolean
+          job_type: string
+          last_generated_at: string | null
+          name: string
+          payload: Json
+          schedule: Json
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          execution_mode?: string
+          id?: string
+          is_enabled?: boolean
+          job_type: string
+          last_generated_at?: string | null
+          name: string
+          payload?: Json
+          schedule?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          execution_mode?: string
+          id?: string
+          is_enabled?: boolean
+          job_type?: string
+          last_generated_at?: string | null
+          name?: string
+          payload?: Json
+          schedule?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rpa_job_presets: {
         Row: {
           created_at: string
@@ -8275,6 +8344,215 @@ export type Database = {
           purpose?: string | null
           scripts?: Json
           service?: string
+        }
+        Relationships: []
+      }
+      rpa_runner_alerts: {
+        Row: {
+          created_at: string
+          error_category: string
+          error_code: string
+          fingerprint: string
+          id: string
+          job_id: string
+          job_type: string
+          notification_error: string | null
+          notified_at: string | null
+          resolved_at: string | null
+          retry_count: number
+          runner_id: string
+          summary: string
+          suppressed_by_alert_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_category: string
+          error_code: string
+          fingerprint: string
+          id?: string
+          job_id: string
+          job_type: string
+          notification_error?: string | null
+          notified_at?: string | null
+          resolved_at?: string | null
+          retry_count?: number
+          runner_id: string
+          summary: string
+          suppressed_by_alert_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_category?: string
+          error_code?: string
+          fingerprint?: string
+          id?: string
+          job_id?: string
+          job_type?: string
+          notification_error?: string | null
+          notified_at?: string | null
+          resolved_at?: string | null
+          retry_count?: number
+          runner_id?: string
+          summary?: string
+          suppressed_by_alert_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rpa_runner_alerts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "rpa_runner_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rpa_runner_alerts_runner_id_fkey"
+            columns: ["runner_id"]
+            isOneToOne: false
+            referencedRelation: "rpa_runners"
+            referencedColumns: ["runner_id"]
+          },
+          {
+            foreignKeyName: "rpa_runner_alerts_suppressed_by_alert_id_fkey"
+            columns: ["suppressed_by_alert_id"]
+            isOneToOne: false
+            referencedRelation: "rpa_runner_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rpa_runner_jobs: {
+        Row: {
+          claimed_at: string | null
+          claimed_runner_id: string | null
+          completed_at: string | null
+          created_at: string
+          error_category: string | null
+          error_code: string | null
+          error_debug: Json | null
+          error_fingerprint: string | null
+          error_message: string | null
+          error_type: string | null
+          failed_at: string | null
+          id: string
+          job_definition_id: string | null
+          job_type: string
+          lineworks_notified_at: string | null
+          payload: Json
+          result: Json | null
+          retry_count: number
+          scheduled_for: string | null
+          status: string
+          target_runner_id: string | null
+          timeout_ms: number | null
+          updated_at: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          claimed_runner_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_category?: string | null
+          error_code?: string | null
+          error_debug?: Json | null
+          error_fingerprint?: string | null
+          error_message?: string | null
+          error_type?: string | null
+          failed_at?: string | null
+          id?: string
+          job_definition_id?: string | null
+          job_type: string
+          lineworks_notified_at?: string | null
+          payload?: Json
+          result?: Json | null
+          retry_count?: number
+          scheduled_for?: string | null
+          status?: string
+          target_runner_id?: string | null
+          timeout_ms?: number | null
+          updated_at?: string
+        }
+        Update: {
+          claimed_at?: string | null
+          claimed_runner_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_category?: string | null
+          error_code?: string | null
+          error_debug?: Json | null
+          error_fingerprint?: string | null
+          error_message?: string | null
+          error_type?: string | null
+          failed_at?: string | null
+          id?: string
+          job_definition_id?: string | null
+          job_type?: string
+          lineworks_notified_at?: string | null
+          payload?: Json
+          result?: Json | null
+          retry_count?: number
+          scheduled_for?: string | null
+          status?: string
+          target_runner_id?: string | null
+          timeout_ms?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rpa_runner_jobs_claimed_runner_id_fkey"
+            columns: ["claimed_runner_id"]
+            isOneToOne: false
+            referencedRelation: "rpa_runners"
+            referencedColumns: ["runner_id"]
+          },
+          {
+            foreignKeyName: "rpa_runner_jobs_job_definition_id_fkey"
+            columns: ["job_definition_id"]
+            isOneToOne: false
+            referencedRelation: "rpa_job_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rpa_runner_jobs_target_runner_id_fkey"
+            columns: ["target_runner_id"]
+            isOneToOne: false
+            referencedRelation: "rpa_runners"
+            referencedColumns: ["runner_id"]
+          },
+        ]
+      }
+      rpa_runners: {
+        Row: {
+          created_at: string
+          current_job_id: string | null
+          is_active: boolean
+          last_heartbeat_at: string | null
+          last_status: string | null
+          runner_id: string
+          runner_name: string
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_job_id?: string | null
+          is_active?: boolean
+          last_heartbeat_at?: string | null
+          last_status?: string | null
+          runner_id: string
+          runner_name: string
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_job_id?: string | null
+          is_active?: boolean
+          last_heartbeat_at?: string | null
+          last_status?: string | null
+          runner_id?: string
+          runner_name?: string
+          token_hash?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -9102,6 +9380,7 @@ export type Database = {
           requires_license: boolean | null
           salary: string | null
           send_msg_flg: boolean | null
+          sharefull_template_id: string | null
           shift_id: Json | null
           smoking_area_work: boolean | null
           smoking_policy: string | null
@@ -9142,6 +9421,7 @@ export type Database = {
           requires_license?: boolean | null
           salary?: string | null
           send_msg_flg?: boolean | null
+          sharefull_template_id?: string | null
           shift_id?: Json | null
           smoking_area_work?: boolean | null
           smoking_policy?: string | null
@@ -9182,6 +9462,7 @@ export type Database = {
           requires_license?: boolean | null
           salary?: string | null
           send_msg_flg?: boolean | null
+          sharefull_template_id?: string | null
           shift_id?: Json | null
           smoking_area_work?: boolean | null
           smoking_policy?: string | null
@@ -11928,6 +12209,16 @@ export type Database = {
         }
         Relationships: []
       }
+      dashboard_staff_monthly_service_hours_view: {
+        Row: {
+          manager_category: string | null
+          staff_name: string | null
+          staff_user_id: string | null
+          total_service_hours: number | null
+          year_month: string | null
+        }
+        Relationships: []
+      }
       disability_check_view: {
         Row: {
           application_check: boolean | null
@@ -13015,15 +13306,23 @@ export type Database = {
           female_flg: boolean | null
           gender_request: string | null
           gender_request_name: string | null
+          has_roster_error: boolean | null
           judo_ido: string | null
           kaipoke_cs_id: string | null
           male_flg: boolean | null
           map_url: string | null
           postal_code: string | null
           required_staff_count: number | null
+          roster_error_actual_record: boolean | null
+          roster_error_actual_record_months: string[] | null
+          roster_error_care_consultant: boolean | null
+          roster_error_kodoengo_plan: boolean | null
+          roster_error_transport_info: boolean | null
+          roster_error_visit_record: boolean | null
           service_code: string | null
           service_name: string | null
           shift_date: string | null
+          shift_event_alerts: Json | null
           shift_id: number | null
           staff_02_attend_flg: boolean | null
           staff_03_attend_flg: boolean | null
@@ -14352,6 +14651,15 @@ export type Database = {
           p_url: string
         }
         Returns: Json
+      }
+      claim_rpa_runner_job: {
+        Args: { p_runner_id: string }
+        Returns: {
+          id: string
+          job_type: string
+          payload: Json
+          timeout_ms: number
+        }[]
       }
       classify_cs_doc_label: {
         Args: { p_current_label?: string; p_text: string }

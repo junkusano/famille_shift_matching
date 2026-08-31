@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "credential_exposed": false,
+  "dangerous_sql_executed": false,
+  "tests": [
+    {
+      "function": "exec_sql",
+      "status": 401,
+      "ok": false,
+      "code": "42501",
+      "message": "permission denied"
+    },
+    {
+      "function": "get_schema_list",
+      "status": 401,
+      "ok": false,
+      "code": "42501",
+      "message": "permission denied"
+    },
+    {
+      "function": "cm_get_alert_stats",
+      "status": 401,
+      "ok": false,
+      "code": "42501",
+      "message": "permission denied"
+    }
+  ],
+  "tested_at": "2026-08-29T16:31:50.227Z"
+}

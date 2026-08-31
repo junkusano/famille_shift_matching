@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   const { data: templates, error: tErr } = await supabaseAdmin
     .from("event_template")
     .select(
-      "id, template_name, overview, due_rule_type, due_offset_days, due_rule_json, is_active, created_at, updated_at"
+      "id, template_name, overview, due_rule_type, due_offset_days, due_rule_json, is_active, shift_alert, created_at, updated_at"
     )
     .order("updated_at", { ascending: false });
 
@@ -125,6 +125,7 @@ export async function POST(req: Request) {
       due_offset_days: body.due_offset_days ?? 0,
       due_rule_json: body.due_rule_json ?? {},
       is_active: body.is_active ?? true,
+      shift_alert: body.shift_alert ?? false,
     })
     .select("id")
     .single();

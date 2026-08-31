@@ -1,0 +1,913 @@
+{
+  "generated_at": "2026-08-29T16:27:20.881Z",
+  "source_snapshot": "2026-08-29T16:25:45.428Z",
+  "counts": {
+    "total": 35,
+    "server_only": 31,
+    "authenticated": 4,
+    "anon": 0,
+    "unknown": 0,
+    "search_path_fixed": 9,
+    "search_path_unfixed": 26
+  },
+  "authenticated_retain": [
+    "cm_get_alert_stats()",
+    "wf_is_admin()",
+    "wf_is_approver()",
+    "wf_my_user_id()"
+  ],
+  "anon_retain": [],
+  "functions": [
+    {
+      "signature": "batch_reassign_departed_staff_shifts(p_actor_auth_id uuid, p_start_at timestamp without time zone, p_from_user_id text, p_to_user_id text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": [
+        "search_path=public, pg_temp"
+      ],
+      "search_path_fixed": true,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "cm_get_alert_stats()",
+      "category": "B",
+      "reason": "browser client with authenticated user JWT",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "cm_resolve_alert_by_reference(p_kaipoke_cs_id text, p_category text, p_reference_id text, p_resolution_note text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": false,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "cm_resolve_alerts_by_termination(p_category text, p_resolution_note text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": false,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "cron_sync_cs_documents()",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "dashboard_service_time_qualification_staff_rows()",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": [
+        "search_path=public"
+      ],
+      "search_path_fixed": true,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "exec_sql(sql_text text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "get_candidate_clients_multi(p_office_ids bigint[])",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "get_foreign_keys(target_schema text, target_table text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "get_lw_channel_id(p_group_account text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": [
+        "search_path=public"
+      ],
+      "search_path_fixed": true,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "get_primary_keys(target_schema text, target_table text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "get_schema_list()",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "get_schema_tables(target_schema text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "get_table_columns(target_schema text, target_table text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "read_secret(secret_name text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": [
+        "search_path=public"
+      ],
+      "search_path_fixed": true,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "rebuild_staff_monthly_stats(p_from date, p_to date)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": false,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": [
+        "search_path=public"
+      ],
+      "search_path_fixed": true,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "roster_patch_shift_with_context(p_shift_id bigint, p_date date, p_start time without time zone, p_end time without time zone, p_update_at timestamp without time zone, p_target_col text, p_staff_id text, p_actor_user_id text, p_request_path text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "set_audit_context(p_user_id text, p_action text, p_trace_id text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "shift_delete_with_context(p_shift_id bigint, p_actor_user_id text, p_request_path text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "shift_direct_reassign(p_shift_id bigint, p_from_user_id text, p_to_user_id text, p_actor_auth_id text, p_reason text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": [
+        "search_path=public, pg_temp"
+      ],
+      "search_path_fixed": true,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "shift_direct_reassign(p_shift_id bigint, p_from_user_id text, p_to_user_id text, p_actor_auth_id text, p_reason text, p_event_type text, p_penalty_level text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "shift_direct_reassign(p_shift_id bigint, p_from_user_id text, p_to_user_id text, p_reason text, p_actor_user_id uuid, p_request_path text, p_event_type text, p_penalty_level text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "shift_direct_reassign_uuid(p_shift_id uuid, p_from_user_id text, p_to_user_id text, p_actor_auth_id uuid, p_reason text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "shift_insert_with_context(p_row jsonb, p_actor_user_id text, p_request_path text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "shift_update_with_context(p_shift_id bigint, p_patch jsonb, p_actor_user_id text, p_request_path text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "shifts_delete_with_context(p_shift_ids bigint[], p_actor_user_id text, p_request_path text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": [
+        "search_path=public"
+      ],
+      "search_path_fixed": true,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "shifts_update_with_context(p_actor_user_id text, p_patch jsonb, p_request_path text, p_shift_id bigint)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "snapshot_biz_stats_shift_sum(p_year_month text)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "staff_retirement_review_rows()",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": false,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": [
+        "search_path=public"
+      ],
+      "search_path_fixed": true,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "submit_entry_application(p_submission_id uuid, p_payload jsonb)",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": false,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": [
+        "search_path=public"
+      ],
+      "search_path_fixed": true,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "sync_cs_docs_to_kaipoke_documents()",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "trg_audit_shift_min()",
+      "category": "A",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": true,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": [
+        {
+          "function_oid": "486737",
+          "table_name": "shift",
+          "trigger_name": "audit_shift_iud"
+        }
+      ]
+    },
+    {
+      "signature": "wf_is_admin()",
+      "category": "B",
+      "reason": "called by authenticated RLS policies",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": false,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [
+        {
+          "function_oid": "592494",
+          "table_name": "wf_approval_step",
+          "policy_name": "wf_step_select_min"
+        },
+        {
+          "function_oid": "592494",
+          "table_name": "wf_approval_step",
+          "policy_name": "wf_step_update_min"
+        },
+        {
+          "function_oid": "592494",
+          "table_name": "wf_approval_step",
+          "policy_name": "wf_step_update_min"
+        },
+        {
+          "function_oid": "592494",
+          "table_name": "wf_request",
+          "policy_name": "wf_request_select_min"
+        },
+        {
+          "function_oid": "592494",
+          "table_name": "wf_request",
+          "policy_name": "wf_request_update_min"
+        },
+        {
+          "function_oid": "592494",
+          "table_name": "wf_request",
+          "policy_name": "wf_request_update_min"
+        },
+        {
+          "function_oid": "592494",
+          "table_name": "wf_request_attachment",
+          "policy_name": "wf_att_delete_min"
+        },
+        {
+          "function_oid": "592494",
+          "table_name": "wf_request_attachment",
+          "policy_name": "wf_att_insert_min"
+        },
+        {
+          "function_oid": "592494",
+          "table_name": "wf_request_attachment",
+          "policy_name": "wf_att_select_min"
+        }
+      ],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "wf_is_approver()",
+      "category": "B",
+      "reason": "called by authenticated RLS policies",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": false,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [],
+      "trigger_dependencies": []
+    },
+    {
+      "signature": "wf_my_user_id()",
+      "category": "B",
+      "reason": "server/service_role only",
+      "retain": {
+        "PUBLIC": false,
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "before": {
+        "PUBLIC": false,
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "owner": "postgres",
+      "proconfig": null,
+      "search_path_fixed": false,
+      "policy_dependencies": [
+        {
+          "function_oid": "592492",
+          "table_name": "wf_approval_step",
+          "policy_name": "wf_step_select_min"
+        },
+        {
+          "function_oid": "592492",
+          "table_name": "wf_approval_step",
+          "policy_name": "wf_step_update_min"
+        },
+        {
+          "function_oid": "592492",
+          "table_name": "wf_approval_step",
+          "policy_name": "wf_step_update_min"
+        },
+        {
+          "function_oid": "592492",
+          "table_name": "wf_request",
+          "policy_name": "wf_request_insert_min"
+        },
+        {
+          "function_oid": "592492",
+          "table_name": "wf_request",
+          "policy_name": "wf_request_select_min"
+        },
+        {
+          "function_oid": "592492",
+          "table_name": "wf_request",
+          "policy_name": "wf_request_update_min"
+        },
+        {
+          "function_oid": "592492",
+          "table_name": "wf_request",
+          "policy_name": "wf_request_update_min"
+        },
+        {
+          "function_oid": "592492",
+          "table_name": "wf_request_attachment",
+          "policy_name": "wf_att_delete_min"
+        },
+        {
+          "function_oid": "592492",
+          "table_name": "wf_request_attachment",
+          "policy_name": "wf_att_insert_min"
+        },
+        {
+          "function_oid": "592492",
+          "table_name": "wf_request_attachment",
+          "policy_name": "wf_att_select_min"
+        }
+      ],
+      "trigger_dependencies": []
+    }
+  ]
+}

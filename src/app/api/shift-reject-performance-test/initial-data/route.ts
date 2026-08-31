@@ -11,6 +11,7 @@ import type {
   RejectPerformanceStaffRow,
   RejectRecordStatus,
 } from "@/types/shiftRejectPerformanceTest";
+import { normalizeShiftEventAlerts } from "@/lib/shiftEventAlerts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -155,6 +156,14 @@ type ShiftRecordRow = {
   updated_at: string | null;
 };
 
+type RosterErrorRow = {
+  shift_id: string | number;
+  roster_error_visit_record: boolean | null;
+  roster_error_actual_record: boolean | null;
+  roster_error_actual_record_months: string[] | null;
+  shift_event_alerts: unknown;
+};
+
 type MealExpenseRow = {
   payload: unknown;
 };
@@ -187,10 +196,22 @@ function getSupabaseAnonKey() {
   return value;
 }
 
+function getSupabaseServiceRoleKey() {
+  const value = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!value) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
+  return value;
+}
+
 function createUserClient(token: string) {
   return createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+}
+
+function createServiceClient() {
+  return createClient(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
@@ -511,7 +532,11 @@ async function hydrateShifts(
   rawShifts: ShiftRow[],
   authUserId: string,
   includeSmsPhone: boolean,
+  includeRosterErrors: boolean,
 ) {
+  // shift_daily_dialog_view は既存の1回だけ取得する。一般スタッフへは、このAPIで
+  // 本人に割り当て済みのshift_idへ絞った結果だけを返す。
+  const rosterViewClient = includeRosterErrors ? createServiceClient() : sb;
   const kaipokeCsIds = Array.from(
     new Set(rawShifts.map((shift) => String(shift.kaipoke_cs_id ?? "").trim()).filter(Boolean)),
   );
@@ -527,7 +552,7 @@ async function hydrateShifts(
     ),
   );
 
-  const [clientRows, shiftDetailRows, csDocRows, staffRows, recordRows, mealRows, parkingRows, myServiceKeys] =
+  const [clientRows, shiftDetailRows, csDocRows, staffRows, recordRows, rosterErrorRows, mealRows, parkingRows, myServiceKeys] =
     await timedStage(timings, "initial.parallel_dependent_fetches", () =>
       Promise.all([
         fetchRowsByColumn<ClientInfoRow>(sb, timings, counter, {
@@ -583,6 +608,21 @@ async function hydrateShifts(
           values: shiftIds,
           orders: [{ column: "updated_at", ascending: false, nullsFirst: false }],
         }),
+        includeRosterErrors
+          ? fetchRowsByColumn<RosterErrorRow>(rosterViewClient, timings, counter, {
+              stage: "supabase.shift_daily_dialog_view.roster_errors",
+              table: "shift_daily_dialog_view",
+              select: [
+                "shift_id",
+                "roster_error_visit_record",
+                "roster_error_actual_record",
+                "roster_error_actual_record_months",
+                "shift_event_alerts",
+              ].join(","),
+              column: "shift_id",
+              values: shiftIds,
+            })
+          : Promise.resolve([] as RosterErrorRow[]),
         fetchMealExpenseRows(sb, timings, counter, shiftIds),
         fetchRowsByColumn<ParkingPresenceRow>(sb, timings, counter, {
           stage: "supabase.parking_cs_places.active_presence",
@@ -645,6 +685,9 @@ async function hydrateShifts(
       recordStatusMap.set(shiftId, row.status);
     }
   }
+  const rosterErrorMap = new Map(
+    rosterErrorRows.map((row) => [String(row.shift_id), row]),
+  );
   const mealExpenseShiftIds = new Set(mealRows.map((row) => payloadShiftId(row.payload)).filter(Boolean));
   const parkingCsIds = new Set(parkingRows.map((row) => String(row.kaipoke_cs_id)));
   const adjustMap = new Map(adjustRows.map((row) => [String(row.id), row]));
@@ -673,6 +716,7 @@ async function hydrateShifts(
       const adjust = client?.time_adjustability_id
         ? adjustMap.get(String(client.time_adjustability_id))
         : undefined;
+      const rosterError = rosterErrorMap.get(shiftId);
       const advance = Number(adjust?.Advance_adjustability ?? 0);
       const backward = Number(adjust?.Backwoard_adjustability ?? 0);
 
@@ -726,6 +770,10 @@ async function hydrateShifts(
         record_status: recordStatusMap.get(shiftId),
         meal_expense_requested: mealExpenseShiftIds.has(shiftId),
         has_active_parking: parkingCsIds.has(csId),
+        roster_error_visit_record: Boolean(rosterError?.roster_error_visit_record),
+        roster_error_actual_record: Boolean(rosterError?.roster_error_actual_record),
+        roster_error_actual_record_months: rosterError?.roster_error_actual_record_months ?? [],
+        shift_event_alerts: normalizeShiftEventAlerts(rosterError?.shift_event_alerts),
       };
     })
     .sort((left, right) => {
@@ -745,6 +793,7 @@ async function hydrateShifts(
       recordStatuses: recordStatusMap.size,
       mealExpenseRequests: mealExpenseShiftIds.size,
       clientsWithParking: parkingCsIds.size,
+      rosterErrors: rosterErrorMap.size,
     },
   };
 }
@@ -847,6 +896,7 @@ export async function GET(req: NextRequest) {
       scopedRows,
       authUser.id,
       true,
+      scope === "assigned",
     );
     const response = {
       ok: true,

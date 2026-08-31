@@ -1042,7 +1042,11 @@ const topPx =
           e.stopPropagation();
           openShiftDialog(c);
         }}
-        className="text-[17px] truncate text-blue-700 hover:underline text-left"
+        className={`text-[17px] truncate hover:underline text-left ${
+          c.has_roster_error
+            ? "font-semibold text-red-600 hover:text-red-700"
+            : "text-blue-700"
+        }`}
       >
         {c.client_name}：{c.service_code ?? ""}
       </button>

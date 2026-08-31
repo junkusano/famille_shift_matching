@@ -33,6 +33,8 @@ export type ShogaiJukyushaRenewalClient = {
   id: string;
   kaipoke_cs_id: string;
   name: string | null;
+  shogai_jukyusha_no: string | null;
+  shogai_start_at: string | null;
   shogai_end_at: string | null;
   asigned_jisseki_staff: string | null;
   asigned_org: string | null;
@@ -40,6 +42,7 @@ export type ShogaiJukyushaRenewalClient = {
 
 type ShiftRow = { kaipoke_cs_id: string | null; service_code: string | null };
 export type ShogaiJukyushaRenewalTarget = ShogaiJukyushaRenewalClient & {
+  certificateIssue: "missing" | "expired";
   serviceCodes: string[];
 };
 
@@ -53,30 +56,38 @@ export type FindShogaiJukyushaRenewalTargetsArgs = {
 
 /**
  * 受給者証更新アラートとチーム成績で共用する対象判定。
- * 有効な障害福祉利用者のうち、指定期間に受給者証が切れ、判定月にも
- * 対象の障害福祉サービスを利用している人だけを返す。
+ * 有効な障害福祉利用者のうち、受給者証情報が未登録、または指定期間に
+ * 受給者証が切れ、判定月にも対象の障害福祉サービスを利用している人を返す。
  */
 export async function findShogaiJukyushaRenewalTargets(
   args: FindShogaiJukyushaRenewalTargetsArgs,
 ): Promise<{ scannedClients: number; targets: ShogaiJukyushaRenewalTarget[] }> {
   let clientQuery = supabaseAdmin
     .from("cs_kaipoke_info")
-    .select("id,kaipoke_cs_id,name,shogai_end_at,asigned_jisseki_staff,asigned_org")
+    .select("id,kaipoke_cs_id,name,shogai_jukyusha_no,shogai_start_at,shogai_end_at,asigned_jisseki_staff,asigned_org")
     .eq("is_active", true)
-    .lt("shogai_end_at", args.expiryBefore)
+    .or(`shogai_end_at.is.null,shogai_end_at.lt.${args.expiryBefore}`)
     .eq("shogai_jukyusha_penalty_exempt", false);
-  if (args.expiryFrom) clientQuery = clientQuery.gte("shogai_end_at", args.expiryFrom);
   if (args.targetKaipokeCsId) clientQuery = clientQuery.eq("kaipoke_cs_id", args.targetKaipokeCsId);
 
   const { data: clientData, error: clientError } = await clientQuery;
   if (clientError) throw new Error(`recipient certificate lookup failed: ${clientError.message}`);
-  const expiredClients = (clientData ?? []) as ShogaiJukyushaRenewalClient[];
-  if (!expiredClients.length) return { scannedClients: 0, targets: [] };
+  const certificateIssueByClientId = new Map<string, "missing" | "expired">();
+  const certificateIssueClients = ((clientData ?? []) as ShogaiJukyushaRenewalClient[]).filter((client) => {
+    if (!client.shogai_end_at) {
+      certificateIssueByClientId.set(client.kaipoke_cs_id, "missing");
+      return true;
+    }
+    if (args.expiryFrom && client.shogai_end_at < args.expiryFrom) return false;
+    certificateIssueByClientId.set(client.kaipoke_cs_id, "expired");
+    return true;
+  });
+  if (!certificateIssueClients.length) return { scannedClients: 0, targets: [] };
 
   const { data: shiftData, error: shiftError } = await supabaseAdmin
     .from("shift")
     .select("kaipoke_cs_id,service_code")
-    .in("kaipoke_cs_id", expiredClients.map((client) => client.kaipoke_cs_id))
+    .in("kaipoke_cs_id", certificateIssueClients.map((client) => client.kaipoke_cs_id))
     .gte("shift_start_date", args.serviceMonthStart)
     .lt("shift_start_date", args.serviceMonthEnd);
   if (shiftError) throw new Error(`disability service shift lookup failed: ${shiftError.message}`);
@@ -92,10 +103,11 @@ export async function findShogaiJukyushaRenewalTargets(
   }
 
   return {
-    scannedClients: expiredClients.length,
-    targets: expiredClients.flatMap((client) => {
+    scannedClients: certificateIssueClients.length,
+    targets: certificateIssueClients.flatMap((client) => {
       const serviceCodes = Array.from(serviceCodesByClient.get(client.kaipoke_cs_id) ?? []);
-      return serviceCodes.length > 0 ? [{ ...client, serviceCodes }] : [];
+      const certificateIssue = certificateIssueByClientId.get(client.kaipoke_cs_id);
+      return serviceCodes.length > 0 && certificateIssue ? [{ ...client, certificateIssue, serviceCodes }] : [];
     }),
   };
 }
@@ -317,9 +329,12 @@ export async function runShogaiJukyushaRenewalAlerts(
       const mention = mentions.map((item) => `<m userId="${item.userId}">さん`).join("\n");
       const services = client.serviceCodes.join("・");
       const detailUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://myfamille.shi-on.net"}/portal/kaipoke-info-detail/${client.id}`;
+      const certificateMessage = client.certificateIssue === "missing"
+        ? `${name}様は、障害サービス受給者証の情報がカイポケに登録されていません。\n`
+        : `${name}様は、先月（${displayDate(client.shogai_end_at ?? previousMonthStart)}）で障害サービス受給者証の有効期間が切れています。\n`;
       const message =
         `${mention ? `${mention}\n` : ""}【障害サービス受給者証の更新確認】\n` +
-        `${name}様は、先月（${displayDate(client.shogai_end_at ?? previousMonthStart)}）で障害サービス受給者証の有効期間が切れています。\n` +
+        certificateMessage +
         `当月も ${services} を実施しているため、マネジャーと相談のうえ、新しい受給者証の取得を進めてください。\n` +
         `取得後は、マネジャーが速やかにカイポケへ登録してください。カイポケへ登録されると、このアラートは自動で消えます。\n\n` +
         `月を超えても未登録のままの場合は、チーム成績に影響（減点）します。\n` +

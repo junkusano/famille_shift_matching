@@ -83,6 +83,7 @@ type TemplateDraft = {
     due_offset_days: number;
     due_rule_json_text: string; // textarea
     is_active: boolean;
+    shift_alert: boolean;
     required_docs: ReqDocDraft[];
 };
 
@@ -93,6 +94,7 @@ const emptyDraft = (): TemplateDraft => ({
     due_offset_days: 0,
     due_rule_json_text: "{}",
     is_active: true,
+    shift_alert: false,
     required_docs: [],
 });
 
@@ -189,6 +191,7 @@ export default function Page() {
             due_offset_days: typeof t.due_offset_days === "number" ? t.due_offset_days : 0,
             due_rule_json_text: safeJsonStringify(t.due_rule_json),
             is_active: !!t.is_active,
+            shift_alert: !!t.shift_alert,
             required_docs: (t.required_docs ?? []).map((d, idx) => ({
                 doc_type_id: d.doc_type_id,
                 check_source: d.check_source as CheckSource,
@@ -209,6 +212,7 @@ export default function Page() {
             due_offset_days: Number.isFinite(draft.due_offset_days) ? draft.due_offset_days : 0,
             due_rule_json,
             is_active: draft.is_active,
+            shift_alert: draft.shift_alert,
             required_docs: draft.required_docs
                 .filter((r) => !!r.doc_type_id)
                 .map((r) => ({
@@ -361,6 +365,20 @@ export default function Page() {
                         </div>
 
                         <div className="space-y-1">
+                            <Label>シフトアラート</Label>
+                            <div className="flex items-center gap-2 pt-2">
+                                <Checkbox
+                                    checked={createDraft.shift_alert}
+                                    onCheckedChange={(v) =>
+                                        setCreateDraft((p) => ({ ...p, shift_alert: !!v }))
+                                    }
+                                    disabled={!admin || loading}
+                                />
+                                <span className="text-sm">シフトアラートとして表示する</span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-1">
                             <Label>期日ルール</Label>
                             <Select
                                 value={createDraft.due_rule_type}
@@ -464,6 +482,7 @@ export default function Page() {
                             <TableRow>
                                 <TableHead>name</TableHead>
                                 <TableHead>active</TableHead>
+                                <TableHead>shift alert</TableHead>
                                 <TableHead>due_rule</TableHead>
                                 <TableHead>offset</TableHead>
                                 <TableHead>docs</TableHead>
@@ -475,6 +494,7 @@ export default function Page() {
                                 <TableRow key={t.id}>
                                     <TableCell className="font-medium">{t.template_name}</TableCell>
                                     <TableCell>{t.is_active ? "Y" : "N"}</TableCell>
+                                    <TableCell>{t.shift_alert ? "Y" : "N"}</TableCell>
                                     <TableCell>{t.due_rule_type}</TableCell>
                                     <TableCell>{t.due_offset_days}</TableCell>
                                     <TableCell>{(t.required_docs ?? []).length}</TableCell>
@@ -502,7 +522,7 @@ export default function Page() {
                             ))}
                             {!templates.length && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-muted-foreground">
+                                    <TableCell colSpan={7} className="text-muted-foreground">
                                         まだテンプレがありません
                                     </TableCell>
                                 </TableRow>
@@ -540,6 +560,20 @@ export default function Page() {
                                                 disabled={!admin || loading}
                                             />
                                             <span className="text-sm">is_active</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <Label>シフトアラート</Label>
+                                        <div className="flex items-center gap-2 pt-2">
+                                            <Checkbox
+                                                checked={editDraft.shift_alert}
+                                                onCheckedChange={(v) =>
+                                                    setEditDraft((p) => ({ ...p, shift_alert: !!v }))
+                                                }
+                                                disabled={!admin || loading}
+                                            />
+                                            <span className="text-sm">シフトアラートとして表示する</span>
                                         </div>
                                     </div>
 

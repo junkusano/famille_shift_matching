@@ -1,0 +1,72 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  buildDisabilityCheckHref,
+  buildDisabilityRecordHref,
+  buildVisitRecordHref,
+  formatRosterErrorYearMonth,
+  formatRosterRecordMonthLabel,
+  hasRosterIssues,
+} from "../src/lib/roster/rosterErrors.ts";
+
+const baseShift = {
+  shift_id: 1,
+  shift_date: "2026-08-28",
+  start_at: "09:00:00",
+  end_at: "10:00:00",
+  client_name: "テスト利用者",
+  service_code: "居宅介護",
+  service_name: "居宅介護",
+};
+
+test("不備がないシフトは通常表示のままになる", () => {
+  assert.equal(hasRosterIssues(baseShift), false);
+});
+
+test("複数種別の不備があるシフトを要確認として扱う", () => {
+  assert.equal(
+    hasRosterIssues({
+      ...baseShift,
+      roster_error_visit_record: true,
+      roster_error_actual_record: true,
+      roster_error_care_consultant: true,
+      roster_error_transport_info: true,
+      roster_error_kodoengo_plan: true,
+    }),
+    true,
+  );
+});
+
+test("未提出月リンクは年月・利用者・未提出フィルターを保持する", () => {
+  const href = buildDisabilityCheckHref("2026-07", "12345");
+  const url = new URL(href, "https://myfamille.shi-on.net");
+
+  assert.equal(url.pathname, "/portal/disability-check-beta");
+  assert.equal(url.searchParams.get("ym"), "2026-07");
+  assert.equal(url.searchParams.get("kaipoke_cs_id"), "12345");
+  assert.equal(url.searchParams.get("check"), "unsubmitted");
+  assert.equal(formatRosterErrorYearMonth("2026-07"), "2026年7月");
+});
+
+test("当月実績リンクはエラーフィルターを付けず年月と利用者を保持する", () => {
+  const href = buildDisabilityRecordHref("2026-08", "12345");
+  const url = new URL(href, "https://myfamille.shi-on.net");
+
+  assert.equal(url.pathname, "/portal/disability-check-beta");
+  assert.equal(url.searchParams.get("ym"), "2026-08");
+  assert.equal(url.searchParams.get("kaipoke_cs_id"), "12345");
+  assert.equal(url.searchParams.has("check"), false);
+  assert.equal(formatRosterRecordMonthLabel("2026-08"), "8月分実績記録");
+});
+
+test("訪問記録リンクは利用者・日付・担当者フィルターを保持する", () => {
+  const href = buildVisitRecordHref("2026-08-28", "12345", "junkusano");
+  const url = new URL(href, "https://myfamille.shi-on.net");
+
+  assert.equal(url.pathname, "/portal/shift-view-beta");
+  assert.equal(url.searchParams.get("user_id"), "junkusano");
+  assert.equal(url.searchParams.get("client"), "12345");
+  assert.equal(url.searchParams.get("date"), "2026-08-28");
+  assert.equal(url.searchParams.get("per"), "50");
+  assert.equal(url.searchParams.get("page"), "1");
+});

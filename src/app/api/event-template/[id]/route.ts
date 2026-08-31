@@ -47,6 +47,7 @@ export async function PUT(req: Request, { params }: RouteParams) {
       due_offset_days: body.due_offset_days ?? 0,
       due_rule_json: (body.due_rule_json ?? {}) as Record<string, unknown>,
       is_active: body.is_active ?? true,
+      shift_alert: body.shift_alert ?? false,
     })
     .eq("id", id);
 

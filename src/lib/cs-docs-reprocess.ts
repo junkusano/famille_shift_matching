@@ -1,6 +1,9 @@
 import "server-only";
 
+import { rootCertificates } from "node:tls";
 import OpenAI from "openai";
+import { Agent } from "undici";
+import { GODADDY_DV_R1_G2_CERTIFICATE_CHAIN } from "@/lib/certificates/godaddy-dv-r1-g2";
 import { downloadGoogleDriveFile } from "@/lib/google-drive/upload";
 import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 import { supabaseAdmin } from "@/lib/supabase/service";
@@ -8,6 +11,16 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 const MAX_ABBYY_POLLS = 30;
 const ABBYY_POLL_INTERVAL_MS = 3_000;
 const MAX_GATEWAY_PDF_BYTES = 10 * 1024 * 1024;
+
+const abbyyDispatcher = new Agent({
+  connect: {
+    // Keep Node's normal trust store and add the chain ABBYY currently omits.
+    ca: [...rootCertificates, GODADDY_DV_R1_G2_CERTIFICATE_CHAIN],
+    rejectUnauthorized: true,
+  },
+});
+
+type AbbyyFetchStage = "submit" | "status" | "result";
 
 type AbbyyTask = {
   id: string;
@@ -91,14 +104,51 @@ async function abbyyError(response: Response): Promise<Error> {
   return new Error(`ABBYY OCRエラー HTTP ${response.status}: ${body.slice(0, 300)}`);
 }
 
-export async function extractTextWithAbbyy(pdf: Buffer): Promise<string> {
+
+function errorCode(error: unknown): string | null {
+  if (!error || typeof error !== "object") return null;
+  const value = error as { code?: unknown; cause?: unknown };
+  if (typeof value.code === "string") return value.code;
+  return errorCode(value.cause);
+}
+
+async function fetchAbbyy(
+  stage: AbbyyFetchStage,
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(
+      url,
+      {
+        ...init,
+        dispatcher: abbyyDispatcher,
+      } as RequestInit,
+    );
+  } catch (error) {
+    const code = errorCode(error);
+    console.error("[cs-docs][reprocess] ABBYY request failed", {
+      stage,
+      origin: new URL(url).origin,
+      code,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    if (code === "UNABLE_TO_GET_ISSUER_CERT_LOCALLY" || code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE") {
+      throw new Error("ABBYY OCRへの安全な接続に失敗しました（TLS証明書チェーンを検証できません）");
+    }
+    throw error;
+  }
+}
+
+async function extractTextWithAbbyy(pdf: Buffer): Promise<string> {
+>>>>>>> 6131add11480ca6055d9fae115dce473cd9e1656
   const config = getAbbyyConfig();
   const form = new FormData();
   form.set("language", "japanese");
   form.set("exportFormat", "txt");
   form.set("file", new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), "input.pdf");
 
-  const submitted = await fetch(config.processUrl, {
+  const submitted = await fetchAbbyy("submit", config.processUrl, {
     method: "POST",
     headers: { Authorization: config.authorization },
     body: form,
@@ -113,7 +163,8 @@ export async function extractTextWithAbbyy(pdf: Buffer): Promise<string> {
     }
 
     await wait(ABBYY_POLL_INTERVAL_MS);
-    const statusResponse = await fetch(
+    const statusResponse = await fetchAbbyy(
+      "status",
       `${config.statusUrl}?taskId=${encodeURIComponent(task.id)}`,
       { headers: { Authorization: config.authorization }, cache: "no-store" },
     );
@@ -125,7 +176,7 @@ export async function extractTextWithAbbyy(pdf: Buffer): Promise<string> {
     throw new Error("ABBYY OCRが制限時間内に完了しませんでした");
   }
 
-  const result = await fetch(task.resultUrl, { cache: "no-store" });
+  const result = await fetchAbbyy("result", task.resultUrl, { cache: "no-store" });
   if (!result.ok) throw new Error(`ABBYY OCR結果の取得に失敗しました HTTP ${result.status}`);
 
   return (await result.text())

@@ -1,5 +1,7 @@
 // src/types/roster.ts
 
+import type { ShiftEventAlert } from "@/lib/shiftEventAlerts";
+
 export type RosterStaff = {
   id: string;
   name: string;
@@ -44,6 +46,15 @@ export type RosterShiftDialogData = {
   required_staff_count?: number | null;
   two_person_work_flg?: boolean | null;
   judo_ido?: string | null;
+
+  has_roster_error?: boolean;
+  roster_error_visit_record?: boolean;
+  roster_error_actual_record?: boolean;
+  roster_error_actual_record_months?: string[];
+  roster_error_care_consultant?: boolean;
+  roster_error_transport_info?: boolean;
+  roster_error_kodoengo_plan?: boolean;
+  shift_event_alerts?: ShiftEventAlert[];
 };
 
 export type RosterShiftCard = {
@@ -63,6 +74,7 @@ export type RosterShiftCard = {
   female_flg?: boolean | null;
 
   dialog?: RosterShiftDialogData;
+  has_roster_error?: boolean;
   has_rpa_request?: boolean;
   spot_status?: string | null;
 };

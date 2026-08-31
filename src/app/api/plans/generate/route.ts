@@ -10,7 +10,6 @@ import {
   type PlanGenerationSourceAvailability,
 } from "@/lib/plans/generation-source-policy";
 import {
-  buildWeeklyShiftScheduleFallback,
   buildWeeklyShiftServiceContext,
   type WeeklyShiftServiceContextRow,
 } from "@/lib/plans/weekly-shift-service-context";
@@ -77,6 +76,22 @@ type SourceRow = {
   plan_document_kind: PlanDocumentKind | null;
   plan_service_category: string | null;
   plan_display_name: string | null;
+};
+
+type WeeklyTemplateRow = {
+  template_id: number;
+  kaipoke_cs_id: string;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  service_code: string;
+  required_staff_count: number;
+  two_person_work_flg: boolean;
+  active: boolean;
+  effective_from: string | null;
+  effective_to: string | null;
+  is_biweekly: boolean | null;
+  nth_weeks: number[] | null;
 };
 
 type CsDocRow = {
@@ -218,6 +233,80 @@ function round2(v: number) {
   return Math.round(v * 100) / 100;
 }
 
+const WEEKDAY_JP = ["日", "月", "火", "水", "木", "金", "土"];
+
+function timeToMinutes(value: string | null): number | null {
+  const match = value?.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
+function mergeUnmappedWeeklyTemplates(params: {
+  mappedRows: SourceRow[];
+  weeklyRows: WeeklyTemplateRow[];
+  targetDocumentKinds: PlanDocumentKind[];
+}): SourceRow[] {
+  const { mappedRows, weeklyRows, targetDocumentKinds } = params;
+  const mappedTemplateIds = new Set(
+    mappedRows
+      .map((row) => row.template_id)
+      .filter((templateId): templateId is number => templateId !== null),
+  );
+  const mappedDocumentKinds = [
+    ...new Set(
+      mappedRows
+        .map((row) => row.plan_document_kind)
+        .filter((kind): kind is PlanDocumentKind => kind !== null),
+    ),
+  ];
+  const fallbackDocumentKind =
+    mappedDocumentKinds.length === 1 &&
+      targetDocumentKinds.includes(mappedDocumentKinds[0])
+      ? mappedDocumentKinds[0]
+      : targetDocumentKinds[0];
+
+  const recoveredRows = weeklyRows
+    .filter((row) => row.active && !mappedTemplateIds.has(row.template_id))
+    .map((row): SourceRow => {
+      const startMinutes = timeToMinutes(row.start_time);
+      const endMinutes = timeToMinutes(row.end_time);
+      const validTime =
+        startMinutes !== null && endMinutes !== null && endMinutes >= startMinutes;
+      const serviceCode = row.service_code?.trim() || null;
+
+      return {
+        template_id: row.template_id,
+        kaipoke_cs_id: row.kaipoke_cs_id,
+        weekday: row.weekday,
+        weekday_jp: WEEKDAY_JP[row.weekday] ?? null,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        duration_minutes: validTime ? endMinutes - startMinutes : null,
+        service_code: serviceCode,
+        required_staff_count: row.required_staff_count,
+        two_person_work_flg: row.two_person_work_flg,
+        active: row.active,
+        effective_from: row.effective_from,
+        effective_to: row.effective_to,
+        is_biweekly: row.is_biweekly,
+        nth_weeks: row.nth_weeks,
+        invalid_time: !validTime,
+        overlaps_same_weekday: false,
+        shift_service_code_id: null,
+        kaipoke_servicek: null,
+        kaipoke_servicecode: null,
+        plan_document_kind: fallbackDocumentKind,
+        plan_service_category: null,
+        plan_display_name: serviceCode || "サービス区分未設定",
+      };
+    });
+
+  return [...mappedRows, ...recoveredRows];
+}
+
 function calcMonthlySummary(rows: SourceRow[]) {
   const map = new Map<
     string,
@@ -285,6 +374,11 @@ function extractAssessmentTexts(content: Record<string, unknown>) {
 
 function buildWarnings(rows: SourceRow[]) {
   const warnings: string[] = [];
+  if (rows.some((r) => !r.service_code?.trim())) {
+    warnings.push(
+      "サービス区分が未設定の週間シフトを含みます。生成後にサービス名・内容を確認してください。",
+    );
+  }
   if (rows.some((r) => r.invalid_time)) warnings.push("時間不整合の可能性がある週間シフトを含みます。");
   if (rows.some((r) => r.overlaps_same_weekday)) warnings.push("同曜日重複の可能性がある週間シフトを含みます。");
   if (rows.some((r) => r.is_biweekly)) warnings.push("隔週シフトを含みます。月間総量は概算です。");
@@ -1296,27 +1390,17 @@ async function buildServiceDraftsByCategory(params: {
 }): Promise<Record<string, ServiceTextDraft>> {
   const { sourceText, targetRows } = params;
 
-  const rowsByKey = new Map<string, SourceRow[]>();
-  for (const row of targetRows) {
-    const key = buildServiceDraftKey(row);
-    const existingRows = rowsByKey.get(key) ?? [];
-    existingRows.push(row);
-    rowsByKey.set(key, existingRows);
-  }
-
-  const keys = [...rowsByKey.keys()];
+  const keys = [
+    ...new Set(
+      targetRows.map(
+        buildServiceDraftKey,
+      ),
+    ),
+  ];
 
   const fallback: Record<string, ServiceTextDraft> = {};
-  for (const [key, rows] of rowsByKey) {
-    fallback[key] = {
-      ...fallbackServiceDraft(),
-      service_detail:
-        buildWeeklyShiftScheduleFallback(
-          rows.map(
-            toWeeklyShiftServiceContextRow,
-          ),
-        ),
-    };
+  for (const key of keys) {
+    fallback[key] = fallbackServiceDraft();
   }
 
   if (!process.env.OPENAI_API_KEY || !sourceText.trim()) {
@@ -1337,14 +1421,15 @@ async function buildServiceDraftsByCategory(params: {
 - 資料に書かれている事実・意向・会議内容だけを使ってください。
 - 推測、創作、一般論による補完は禁止です。
 - 利用者本人の氏名、家族氏名、職員名は本文に入れないでください。
+- 曜日、開始・終了時刻、頻度、回数、サービス区分名は計画予定表で管理するため、service_detail / procedure_notes / family_action の本文には入れないでください。
 - service_detail は50〜150文字程度。
 - procedure_notes は50〜150文字程度。
 - family_action は、必要な場合のみ50〜100文字程度。
 
 【サービスの内容 service_detail】
-- ケアプラン、アセスメント、担当者会議、訪問記録、週間シフトから、実際に訪問介護員が行う支援内容を作成してください。
-- 「週間シフト（実際の登録内容）」は、実施曜日・時間・頻度・サービス区分の一次情報です。記載された曜日・時間・サービス区分を必ず反映してください。
-- 週間シフトに具体的な援助内容がなく、他資料にも根拠がない場合は、曜日・時間・サービス区分の事実だけを記載し、身体介護や生活援助の内容を推測して追加してはいけません。
+- ケアプラン、アセスメント、担当者会議、訪問記録から、実際に訪問介護員が行う支援そのものを作成してください。
+- 週間シフトは対象サービスを判断する補助情報としてだけ使い、曜日・時間・頻度・回数・サービス区分は本文へ転記しないでください。
+- 具体的な援助内容の根拠が他資料にない場合、予定情報で埋めずに空文字にしてください。
 - 入浴、更衣、排泄、移動、食事、服薬確認、掃除、洗濯、調理、買い物等、資料に根拠のある具体的な支援を記載してください。
 - 単に「身体介護」「生活援助」とだけ書かず、実施する動作が分かる内容にしてください。
 - 資料から読み取れない内容は追加しないでください。
@@ -2283,8 +2368,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: sourceRows, error: sErr } =
-      await supabaseAdmin
+    const [sourceResult, weeklyTemplateResult] = await Promise.all([
+      supabaseAdmin
         .from("plan_generation_source_view")
         .select(`
         template_id,
@@ -2314,9 +2399,36 @@ export async function POST(req: NextRequest) {
         .eq("kaipoke_cs_id", a.kaipoke_cs_id)
         .order("plan_document_kind", { ascending: true })
         .order("weekday", { ascending: true })
-        .order("start_time", { ascending: true });
+        .order("start_time", { ascending: true }),
+      supabaseAdmin
+        .from("shift_weekly_template")
+        .select(`
+          template_id,
+          kaipoke_cs_id,
+          weekday,
+          start_time,
+          end_time,
+          service_code,
+          required_staff_count,
+          two_person_work_flg,
+          active,
+          effective_from,
+          effective_to,
+          is_biweekly,
+          nth_weeks
+        `)
+        .eq("kaipoke_cs_id", a.kaipoke_cs_id)
+        .eq("active", true)
+        .order("weekday", { ascending: true })
+        .order("start_time", { ascending: true }),
+    ]);
+
+    const { data: sourceRows, error: sErr } = sourceResult;
+    const { data: weeklyTemplateRows, error: weeklyTemplateError } =
+      weeklyTemplateResult;
 
     if (sErr) throw sErr;
+    if (weeklyTemplateError) throw weeklyTemplateError;
 
     /*
      * アセスメントのサービス種別に応じて、
@@ -2338,8 +2450,14 @@ export async function POST(req: NextRequest) {
           "移動支援サービス",
         ];
 
+    const mergedSourceRows = mergeUnmappedWeeklyTemplates({
+      mappedRows: (sourceRows ?? []) as SourceRow[],
+      weeklyRows: (weeklyTemplateRows ?? []) as WeeklyTemplateRow[],
+      targetDocumentKinds,
+    });
+
     const rows =
-      ((sourceRows ?? []) as SourceRow[]).filter(
+      mergedSourceRows.filter(
         (row) =>
           row.plan_document_kind !== null &&
           targetDocumentKinds.includes(
@@ -2409,7 +2527,13 @@ export async function POST(req: NextRequest) {
           targetDocumentKinds,
 
         source_row_count:
+          mergedSourceRows.length,
+
+        mapped_source_row_count:
           sourceRows?.length ?? 0,
+
+        recovered_unmapped_row_count:
+          mergedSourceRows.length - (sourceRows?.length ?? 0),
 
         matched_row_count:
           rows.length,

@@ -27,6 +27,9 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         box-sizing: border-box;
       }
       .box { border: 1px solid #000; }
+      .beta-jisseki-print-page table.grid {
+        display: table;
+      }
       .grid {
         width: 100%;
         border-collapse: collapse;
@@ -58,6 +61,30 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         font-size: 14px;
         font-weight: 700;
         text-align: center;
+      }
+      .record-print-header {
+        position: relative;
+        box-sizing: border-box;
+        padding-right: 25%;
+      }
+      .record-sort-slot {
+        position: absolute;
+        right: 0.5mm;
+        bottom: 0;
+        width: 25%;
+        box-sizing: border-box;
+        padding-right: 0.5mm;
+        overflow: hidden;
+        white-space: nowrap;
+        font-size: 9px;
+        line-height: 1.2;
+      }
+      .record-sort-label {
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        white-space: nowrap;
+        vertical-align: bottom;
       }
 
       .digits10 {
@@ -215,11 +242,14 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
           zoom: 1 !important;
         }
 
-        /* @pageの3mm余白を除いた204x291mmを、全ページ共通の基準領域にする。 */
+        /*
+         * 印刷可能高291mmぴったりは、Chromiumのmm→px丸めで末尾が数px
+         * はみ出し、完全な空白ページを追加することがある。1mmの安全余白を残す。
+         */
         body.beta-jisseki-print-active .print-page {
           display: flex !important;
           width: 204mm !important;
-          height: 291mm !important;
+          height: 290mm !important;
           box-sizing: border-box !important;
           align-items: flex-start !important;
           justify-content: center !important;
@@ -238,6 +268,11 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         body.beta-jisseki-print-active .beta-print-client:not(:last-child) {
           break-after: page;
           page-break-after: always;
+        }
+        body.beta-jisseki-print-active .print-page:last-child,
+        body.beta-jisseki-print-active .beta-print-client:last-child {
+          break-after: auto !important;
+          page-break-after: auto !important;
         }
 
         body.beta-jisseki-print-active .print-scale {
@@ -259,6 +294,7 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
 
         body.beta-jisseki-print-active .grid,
         body.beta-jisseki-print-active .doko-sheet table {
+          display: table !important;
           width: 100% !important;
           max-width: 100% !important;
           table-layout: fixed !important;

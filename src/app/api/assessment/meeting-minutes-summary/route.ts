@@ -19,6 +19,8 @@ type Body = {
 type TranscriptRow = {
   id: string;
   client_id: string | null;
+  is_secret: boolean;
+  recorder_user_id: string;
   context_name: string | null;
   file_name: string;
   recorder_email: string | null;
@@ -86,11 +88,13 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from("recording_transcripts")
       .select(
-        "id,client_id,context_name,file_name,recorder_email,recorded_at,transcript_status,transcript_raw,participants",
+        "id,client_id,is_secret,recorder_user_id,context_name,file_name,recorder_email,recorded_at,transcript_status,transcript_raw,participants",
       )
       .in("id", transcriptIds)
       .in("client_id", allowedClientIds)
-      .eq("transcript_status", "completed");
+      .eq("transcript_status", "completed")
+      // シークレット録音は録音者本人だけが二次利用できる。
+      .or(`is_secret.eq.false,recorder_user_id.eq.${user.id}`);
     if (error) throw error;
 
     const rows = (data ?? []) as TranscriptRow[];

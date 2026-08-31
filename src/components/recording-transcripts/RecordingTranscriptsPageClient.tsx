@@ -93,6 +93,14 @@ function ParticipantsSummary({ value }: { value: unknown }) {
   );
 }
 
+function SecretBadge() {
+  return (
+    <span className="inline-flex whitespace-nowrap rounded-full bg-fuchsia-100 px-2 py-1 text-xs font-semibold text-fuchsia-800">
+      シークレット
+    </span>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   return (
     <span
@@ -282,6 +290,7 @@ function DetailModal({
                 <div><dt className="text-xs text-slate-500">ファイル名</dt><dd className="mt-1 break-all font-medium">{detail.file_name}</dd></div>
                 <div><dt className="text-xs text-slate-500">ファイルサイズ</dt><dd className="mt-1 font-medium">{formatFileSize(detail.file_size_bytes)}</dd></div>
                 <div><dt className="text-xs text-slate-500">文字起こし状態</dt><dd className="mt-1"><StatusBadge status={detail.transcript_status} /></dd></div>
+                {detail.is_secret && <div><dt className="text-xs text-slate-500">公開範囲</dt><dd className="mt-1"><SecretBadge /></dd></div>}
               </dl>
 
               {editing ? (
@@ -716,12 +725,12 @@ export default function RecordingTranscriptsPageClient({ basePath, data, filters
       </div>
 
       <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
-        <table className="min-w-[1750px] w-full text-left text-xs">
-          <thead className="bg-slate-100 text-slate-700"><tr><th className="px-3 py-3">録音日時</th><th className="px-3 py-3">録音者</th><th className="px-3 py-3">メール</th><th className="px-3 py-3">利用者</th><th className="px-3 py-3">利用者ID</th><th className="px-3 py-3">コンテキスト</th><th className="px-3 py-3">録音時間</th><th className="px-3 py-3">ファイル名</th><th className="px-3 py-3">サイズ</th><th className="px-3 py-3">状態</th><th className="px-3 py-3">参加者</th><th className="px-3 py-3">完了日時</th><th className="px-3 py-3">作成日時</th><th className="px-3 py-3">操作</th></tr></thead>
+        <table className="min-w-[1830px] w-full text-left text-xs">
+          <thead className="bg-slate-100 text-slate-700"><tr><th className="px-3 py-3">録音日時</th><th className="px-3 py-3">録音者</th><th className="px-3 py-3">メール</th><th className="px-3 py-3">公開範囲</th><th className="px-3 py-3">利用者</th><th className="px-3 py-3">利用者ID</th><th className="px-3 py-3">コンテキスト</th><th className="px-3 py-3">録音時間</th><th className="px-3 py-3">ファイル名</th><th className="px-3 py-3">サイズ</th><th className="px-3 py-3">状態</th><th className="px-3 py-3">参加者</th><th className="px-3 py-3">完了日時</th><th className="px-3 py-3">作成日時</th><th className="px-3 py-3">操作</th></tr></thead>
           <tbody className="divide-y">
             {viewData.rows.map((row) => (
               <tr className="cursor-pointer hover:bg-sky-50" key={row.id} onClick={() => openDetail(row)}>
-                <td className="whitespace-nowrap px-3 py-3 font-medium">{formatDateTime(row.recorded_at)}</td><td className="whitespace-nowrap px-3 py-3">{row.recorder_name}</td><td className="max-w-64 break-all px-3 py-3">{row.recorder_email ?? "－"}</td><td className="px-3 py-3">{row.client_name ?? "－"}</td><td className="px-3 py-3">{row.client_id ?? "－"}</td><td className="px-3 py-3">{row.context_name ?? "－"}</td><td className="whitespace-nowrap px-3 py-3">{formatDuration(row.duration_millis)}</td><td className="max-w-64 break-all px-3 py-3">{row.file_name}</td><td className="whitespace-nowrap px-3 py-3">{formatFileSize(row.file_size_bytes)}</td><td className="px-3 py-3"><StatusBadge status={row.transcript_status} /></td><td className="max-w-64 px-3 py-3"><ParticipantsSummary value={row.participants} /></td><td className="whitespace-nowrap px-3 py-3">{formatDateTime(row.transcribed_at)}</td><td className="whitespace-nowrap px-3 py-3">{formatDateTime(row.created_at)}</td><td className="px-3 py-3"><button className="rounded border bg-white px-3 py-1.5 font-medium text-sky-700 hover:bg-sky-50" onClick={(event) => { event.stopPropagation(); openDetail(row); }} type="button">確認・編集</button></td>
+                <td className="whitespace-nowrap px-3 py-3 font-medium">{formatDateTime(row.recorded_at)}</td><td className="whitespace-nowrap px-3 py-3">{row.recorder_name}</td><td className="max-w-64 break-all px-3 py-3">{row.recorder_email ?? "－"}</td><td className="px-3 py-3">{row.is_secret ? <SecretBadge /> : "通常"}</td><td className="px-3 py-3">{row.client_name ?? "－"}</td><td className="px-3 py-3">{row.client_id ?? "－"}</td><td className="px-3 py-3">{row.context_name ?? "－"}</td><td className="whitespace-nowrap px-3 py-3">{formatDuration(row.duration_millis)}</td><td className="max-w-64 break-all px-3 py-3">{row.file_name}</td><td className="whitespace-nowrap px-3 py-3">{formatFileSize(row.file_size_bytes)}</td><td className="px-3 py-3"><StatusBadge status={row.transcript_status} /></td><td className="max-w-64 px-3 py-3"><ParticipantsSummary value={row.participants} /></td><td className="whitespace-nowrap px-3 py-3">{formatDateTime(row.transcribed_at)}</td><td className="whitespace-nowrap px-3 py-3">{formatDateTime(row.created_at)}</td><td className="px-3 py-3"><button className="rounded border bg-white px-3 py-1.5 font-medium text-sky-700 hover:bg-sky-50" onClick={(event) => { event.stopPropagation(); openDetail(row); }} type="button">確認・編集</button></td>
               </tr>
             ))}
           </tbody>

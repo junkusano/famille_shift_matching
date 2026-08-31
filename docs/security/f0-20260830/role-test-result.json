@@ -1,0 +1,52 @@
+{
+  "ok": true,
+  "mode": "role-tests",
+  "persistent_change": false,
+  "tests": [
+    {
+      "role": "anon",
+      "label": "exec_sql denied",
+      "allowed": false,
+      "sqlstate": "42501",
+      "message": "permission denied"
+    },
+    {
+      "role": "authenticated",
+      "label": "exec_sql denied",
+      "allowed": false,
+      "sqlstate": "42501",
+      "message": "permission denied"
+    },
+    {
+      "role": "service_role",
+      "label": "exec_sql service SELECT 1",
+      "allowed": true,
+      "sqlstate": null
+    },
+    {
+      "role": "authenticated",
+      "label": "cm_get_alert_stats",
+      "allowed": true,
+      "sqlstate": null
+    },
+    {
+      "role": "authenticated",
+      "label": "wf_is_admin",
+      "allowed": true,
+      "sqlstate": null
+    },
+    {
+      "role": "authenticated",
+      "label": "wf_is_approver",
+      "allowed": true,
+      "sqlstate": null
+    },
+    {
+      "role": "authenticated",
+      "label": "wf_my_user_id",
+      "allowed": true,
+      "sqlstate": null
+    }
+  ],
+  "tested_at": "2026-08-29T16:31:06.069Z"
+}
