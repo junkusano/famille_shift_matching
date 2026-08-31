@@ -16,9 +16,23 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       .from('rpa_runner_jobs')
       .update({ status: 'completed', result: body.result, completed_at: new Date().toISOString() })
       .eq('id', id).eq('claimed_runner_id', runner.runnerId).eq('status', 'claimed')
-      .select('id, job_type').maybeSingle();
+      .select('id, job_type, payload').maybeSingle();
     if (error) return NextResponse.json({ ok: false, error: 'Job completion failed' }, { status: 500 });
     if (!data) return NextResponse.json({ ok: false, error: 'Job is not claimable by this runner' }, { status: 409 });
+    if (data.job_type === 'sharefull.create_spot_offer') {
+      const payload = isRecord(data.payload) ? data.payload : {};
+      const result = isRecord(body.result) ? body.result : {};
+      const requestId = typeof payload.spot_offer_request_id === 'string' ? payload.spot_offer_request_id.trim() : '';
+      const sharefullJobId = typeof result.sharefull_job_id === 'string' ? result.sharefull_job_id.trim() : '';
+      if (requestId && sharefullJobId) {
+        const { error: sharefullUpdateError } = await supabaseAdmin
+          .from('spot_offer_request_table')
+          .update({ sharefull_job_id: sharefullJobId, sharefull_status: 'published' })
+          .eq('id', requestId)
+          .is('sharefull_job_id', null);
+        if (sharefullUpdateError) return NextResponse.json({ ok: false, error: 'Sharefull案件IDの保存に失敗しました' }, { status: 500 });
+      }
+    }
     await resolveRpaFailureAlerts(runner.runnerId, data.job_type);
     return NextResponse.json({ ok: true });
   } catch (error) {

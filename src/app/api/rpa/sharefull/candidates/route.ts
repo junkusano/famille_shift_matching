@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
  * 対象は、未来の勤務日でタイミー募集済み、かつSharefull未募集の案件です。
  * このAPIは検出のみを行い、既存テーブルへの登録・更新は行いません。
  * 既存のSharefullテンプレートがある案件だけを対象にします。
+ * 現段階ではテンプレート審査完了を前提とし、template_reviewも掲載候補として返します。
  * テンプレート作成や、テンプレート未作成案件のジョブ登録はこのAPIでは行いません。
  */
 export async function GET(request: NextRequest) {
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
         template_title: template?.template_title ?? null,
         kaipoke_cs_id: template?.kaipoke_cs_id ?? null,
         next_action: row.sharefull_status === "template_review"
-          ? "wait_review"
+          ? "create_spot_offer_assuming_review_complete"
           : row.sharefull_status === "ready_for_offer"
             ? "create_spot_offer"
             : "none",

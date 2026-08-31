@@ -3,7 +3,8 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 
 export const dynamic = "force-dynamic";
 
-const ACTIVE_RPA_STATUSES = ["waiting_approval", "approved", "running"];
+const ACTIVE_RUNNER_STATUSES = ["pending", "claimed"];
+const SHAREFULL_JOB_TYPE = "sharefull.create_spot_offer";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -24,9 +25,8 @@ function isEnabled(): boolean {
 /**
  * ready_for_offer の案件について、Sharefull案件掲載用のRPA指示を登録する。
  *
- * 現時点では vercel.json に登録していないため、既存Cronからは呼ばれない。
- * SHAREFULL_AUTO_POST_ENABLED=true かつ専用RPAテンプレートID・実行ユーザーIDが
- * 設定されている場合だけ、実際に rpa_command_requests へ登録する。
+ * vercel.json から5分ごとに呼ばれるが、SHAREFULL_AUTO_POST_ENABLED=true かつ
+ * 専用RPAテンプレートIDが設定されている場合だけ、実際に rpa_runner_jobs へ登録する。
  */
 export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) {
@@ -34,7 +34,6 @@ export async function GET(request: NextRequest) {
   }
 
   const rpaTemplateId = text(process.env.SHAREFULL_JOB_CREATE_RPA_TEMPLATE_ID);
-  const requesterId = text(process.env.SHAREFULL_RPA_REQUESTER_ID);
 
   if (!isEnabled()) {
     return NextResponse.json({
@@ -45,11 +44,11 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  if (!rpaTemplateId || !requesterId) {
+  if (!rpaTemplateId) {
     return NextResponse.json(
       {
         ok: false,
-        error: "Sharefull掲載用RPAテンプレートIDまたは実行ユーザーIDが未設定です",
+        error: "Sharefull掲載用RPAテンプレートIDが未設定です",
       },
       { status: 503 }
     );
@@ -62,7 +61,7 @@ export async function GET(request: NextRequest) {
       "id, core_id, shift_id, shift_start_date, shift_start_time, shift_end_time, unit_amount, commute_fee, status, taimee_job_id, sharefull_job_id, sharefull_status"
     )
     .eq("status", "募集中")
-    .eq("sharefull_status", "ready_for_offer")
+    .in("sharefull_status", ["template_review", "ready_for_offer"])
     .is("sharefull_job_id", null)
     .gte("shift_start_date", today)
     .not("taimee_job_id", "is", null)
@@ -92,15 +91,16 @@ export async function GET(request: NextRequest) {
   );
 
   const { data: existingRequests, error: existingError } = await supabaseAdmin
-    .from("rpa_command_requests")
-    .select("id, status, request_details")
-    .in("status", ACTIVE_RPA_STATUSES)
+    .from("rpa_runner_jobs")
+    .select("id, status, payload")
+    .eq("job_type", SHAREFULL_JOB_TYPE)
+    .in("status", ACTIVE_RUNNER_STATUSES)
     .limit(5000);
 
   if (existingError) throw existingError;
 
   const activeKeys = new Set(
-    (existingRequests ?? []).map((row) => text((row.request_details as JsonRecord | null)?.operation_key)).filter(Boolean)
+    (existingRequests ?? []).map((row) => text((row.payload as JsonRecord | null)?.operation_key)).filter(Boolean)
   );
 
   const registered: Array<{ request_id: string; shift_id: string; sharefull_template_id: string }> = [];
@@ -121,10 +121,23 @@ export async function GET(request: NextRequest) {
       continue;
     }
 
+    // 現段階では、既存のSharefullテンプレートは審査完了済みとして扱う。
+    // 将来はここをSharefull画面の審査状態確認に置き換える。
+    if (row.sharefull_status === "template_review") {
+      const { error: statusUpdateError } = await supabaseAdmin
+        .from("spot_offer_request_table")
+        .update({ sharefull_status: "ready_for_offer" })
+        .eq("id", row.id)
+        .eq("sharefull_status", "template_review")
+        .is("sharefull_job_id", null);
+      if (statusUpdateError) throw statusUpdateError;
+    }
+
     const requestDetails = {
       action: "create_sharefull_job",
       command: "create_spot_offer",
       operation_key: operationKey,
+      spot_offer_request_id: row.id,
       shift_id: row.shift_id,
       core_id: row.core_id,
       taimee_job_id: row.taimee_job_id,
@@ -138,15 +151,14 @@ export async function GET(request: NextRequest) {
     };
 
     const { data, error } = await supabaseAdmin
-      .from("rpa_command_requests")
+      .from("rpa_runner_jobs")
       .insert({
-        template_id: rpaTemplateId,
-        requester_id: requesterId,
-        approver_id: requesterId,
-        status: "approved",
-        approved_at: new Date().toISOString(),
-        requested_at: new Date().toISOString(),
-        request_details: requestDetails,
+        job_type: SHAREFULL_JOB_TYPE,
+        status: "pending",
+        payload: {
+          ...requestDetails,
+          rpa_template_id: rpaTemplateId,
+        },
       })
       .select("id")
       .single();
