@@ -140,8 +140,7 @@ async function fetchAbbyy(
   }
 }
 
-async function extractTextWithAbbyy(pdf: Buffer): Promise<string> {
->>>>>>> 6131add11480ca6055d9fae115dce473cd9e1656
+export async function extractTextWithAbbyy(pdf: Buffer): Promise<string> {
   const config = getAbbyyConfig();
   const form = new FormData();
   form.set("language", "japanese");
