@@ -91,7 +91,7 @@ async function abbyyError(response: Response): Promise<Error> {
   return new Error(`ABBYY OCRエラー HTTP ${response.status}: ${body.slice(0, 300)}`);
 }
 
-async function extractTextWithAbbyy(pdf: Buffer): Promise<string> {
+export async function extractTextWithAbbyy(pdf: Buffer): Promise<string> {
   const config = getAbbyyConfig();
   const form = new FormData();
   form.set("language", "japanese");
@@ -205,7 +205,7 @@ async function downloadCsDocPdfViaGas(
   }
   return pdf;
 }
-async function downloadCsDocPdf(fileId: string, accessToken: string): Promise<Buffer> {
+export async function downloadCsDocPdf(fileId: string, accessToken: string): Promise<Buffer> {
   try {
     return await downloadGoogleDriveFile(fileId);
   } catch (driveError) {

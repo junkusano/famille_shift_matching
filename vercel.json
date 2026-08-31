@@ -82,6 +82,10 @@
       "schedule": "06 19 * * *"
     },
     {
+      "path": "/api/cron/alert-fax-unhandled",
+      "schedule": "00 0 * * *"
+    },
+    {
       "path": "/api/cron/alert-reset-shift-cert",
       "schedule": "11 19 * * *"
     },

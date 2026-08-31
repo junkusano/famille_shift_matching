@@ -27,7 +27,6 @@ import {
   Terminal,
   Inbox,
   Shield, // ★ 追加: 監査グループ用
-  BriefcaseBusiness,
 } from 'lucide-react';
 import styles from '@/styles/cm-styles/components/sidebar.module.css';
 import { CmUserSection } from './CmUserSection';
@@ -63,16 +62,6 @@ const CmMenuStructure: CmMenuGroup[] = [
         requireBoth: true,
       },
       { id: 'kyotaku-home', label: '居宅介護支援ポータルHome', path: '/cm-portal' },
-    ],
-  },
-  {
-    id: 'hr-labor',
-    label: '人事・労務',
-    icon: BriefcaseBusiness,
-    items: [
-      { id: 'salary-slip', label: '給与明細', path: '/portal/user_salary_monthly' },
-      { id: 'health-check-results', label: '健康診断結果', path: '/portal/health-check-results' },
-      { id: 'bento-survey', label: 'お弁当アンケート', path: '/portal/bento' },
     ],
   },
   {
@@ -213,7 +202,7 @@ type CmSidebarProps = {
 
 export function CmSidebar({ isOpen, onToggle }: CmSidebarProps) {
   const pathname = usePathname();
-  const [expandedMenus, setExpandedMenus] = useState<string[]>(['home', 'hr-labor', 'clients', 'input']);
+  const [expandedMenus, setExpandedMenus] = useState<string[]>(['home', 'clients', 'input']);
   
   const isManagerOrAdmin = useCmHasRole(['admin', 'manager']);
   const isAdmin = useCmHasRole(['admin']);
