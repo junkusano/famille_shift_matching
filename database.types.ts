@@ -9305,6 +9305,8 @@ export type Database = {
           shift_start_time: string | null
           start_at: string | null
           status: string
+          sharefull_job_id: string | null
+          sharefull_status: string | null
           taimee_job_id: string | null
           template_title: string | null
           unit_amount: number | null
@@ -9326,6 +9328,8 @@ export type Database = {
           shift_start_time?: string | null
           start_at?: string | null
           status?: string
+          sharefull_job_id?: string | null
+          sharefull_status?: string | null
           taimee_job_id?: string | null
           template_title?: string | null
           unit_amount?: number | null
@@ -9347,6 +9351,8 @@ export type Database = {
           shift_start_time?: string | null
           start_at?: string | null
           status?: string
+          sharefull_job_id?: string | null
+          sharefull_status?: string | null
           taimee_job_id?: string | null
           template_title?: string | null
           unit_amount?: number | null

@@ -13,11 +13,24 @@ export async function POST(request: NextRequest) {
       .from("spot_offer_template_unified").select("core_id").eq("core_id", coreId).maybeSingle();
     if (lookupError) throw lookupError;
     if (!existing) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
-  const { error } = await supabaseAdmin.from("spot_offer_template_unified")
+    const updatedAt = new Date().toISOString();
+    const { error } = await supabaseAdmin.from("spot_offer_template_unified")
     .update({ sharefull_template_id: templateId })
     .eq("core_id", coreId);
     if (error) throw error;
-    return NextResponse.json({ ok: true });
+
+    // テンプレート作成直後はSharefull審査中のため、対象案件を保留状態にする。
+    // 既存のタイミー募集状態や案件データは変更しない。
+    const { error: statusError } = await supabaseAdmin
+      .from("spot_offer_request_table")
+      .update({ sharefull_status: "template_review", updated_at: updatedAt })
+      .eq("core_id", coreId)
+      .gte("shift_start_date", updatedAt.slice(0, 10))
+      .is("sharefull_status", null);
+
+    if (statusError) throw statusError;
+
+    return NextResponse.json({ ok: true, sharefull_status: "template_review" });
   } catch (error) {
     if (isRpaTaimeeError(error)) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[rpa/sharefull/template-id] failed", error);
