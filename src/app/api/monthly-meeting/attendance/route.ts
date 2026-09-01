@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
+import { getMonthlyMeetingStaffIds } from "@/lib/monthlyMeeting/staff";
 
 export const dynamic = "force-dynamic";
 
@@ -157,8 +158,15 @@ export async function GET(req: NextRequest) {
         }
 
         // 既存shift対象 + meeting_must対象 を合体
+        // 在籍職員を必ず含める。シフト未作成・所属の meeting_must=false でも一覧対象にする。
+        const registeredStaffIds = await getMonthlyMeetingStaffIds();
         let staffIds = Array.from(
-            new Set([...staffIdsFromShift, ...meetingUserIds, ...FORCE_MONTHLY_MEETING_USER_IDS])
+            new Set([
+                ...staffIdsFromShift,
+                ...meetingUserIds,
+                ...registeredStaffIds,
+                ...FORCE_MONTHLY_MEETING_USER_IDS,
+            ])
         );
 
         // ★それでも0件なら attendance から復元

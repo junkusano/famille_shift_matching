@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
+import { getMonthlyMeetingStaffIds } from "@/lib/monthlyMeeting/staff";
 
 export const dynamic = "force-dynamic";
 
@@ -56,14 +57,6 @@ function isRecord(v: unknown): v is Record<string, unknown> {
     return typeof v === "object" && v !== null;
 }
 
-type ShiftStaffRow = {
-    staff_01_user_id: string | null;
-    staff_02_user_id: string | null;
-    staff_03_user_id: string | null;
-};
-
-const FORCE_MONTHLY_MEETING_USER_IDS = ["shinomasuda", "satominishio", "taigamisu"];
-
 export async function POST(req: NextRequest) {
     try {
         // 認証確認
@@ -79,79 +72,8 @@ export async function POST(req: NextRequest) {
             return json({ ok: false, error: "ym is required (YYYY-MM)" }, 400);
         }
 
-        const { monthStartStr, fromDate, toDate } = parseYm(ym);
-
-        // 1) 対象月の shift から staff を集める
-        const { data: shifts, error: shiftErr } = await supabaseAdmin
-            .from("shift")
-            .select("staff_01_user_id, staff_02_user_id, staff_03_user_id")
-            .gte("shift_start_date", fromDate)
-            .lt("shift_start_date", toDate)
-            .limit(100000)
-            .returns<ShiftStaffRow[]>();
-
-        if (shiftErr) throw shiftErr;
-
-        const staffSet = new Set<string>();
-        for (const row of shifts ?? []) {
-            const s1 = String(row.staff_01_user_id ?? "").trim();
-            const s2 = String(row.staff_02_user_id ?? "").trim();
-            const s3 = String(row.staff_03_user_id ?? "").trim();
-
-            if (s1) staffSet.add(s1);
-            if (s2) staffSet.add(s2);
-            if (s3) staffSet.add(s3);
-        }
-
-        const shiftStaffIds = Array.from(staffSet);
-
-        // meeting_must=true の org を取得
-        const { data: orgs, error: orgErr } = await supabaseAdmin
-            .from("orgs")
-            .select("orgunitid")
-            .eq("meeting_must", true);
-
-        if (orgErr) throw orgErr;
-
-        const meetingOrgIds = Array.from(
-            new Set(
-                (orgs ?? [])
-                    .map((r) => String(r.orgunitid ?? "").trim())
-                    .filter((v) => v.length > 0)
-            )
-        );
-
-        let meetingUserIds: string[] = [];
-
-        if (meetingOrgIds.length > 0) {
-            const { data: users, error: userErr } = await supabaseAdmin
-                .from("users")
-                .select("user_id, status, org_unit_id")
-                .in("org_unit_id", meetingOrgIds);
-
-            if (userErr) throw userErr;
-
-            meetingUserIds = Array.from(
-                new Set(
-                    (users ?? [])
-                        .filter((u) => {
-                            const status = String(u.status ?? "").toLowerCase();
-                            return !status.startsWith("removed");
-                        })
-                        .map((u) => String(u.user_id ?? "").trim())
-                        .filter((v) => v.length > 0)
-                )
-            );
-        }
-
-        // 既存のshift対象 + meeting_must対象 を合体
-        const staffIds = Array.from(
-            new Set([
-                ...shiftStaffIds,
-                ...meetingUserIds,
-                ...FORCE_MONTHLY_MEETING_USER_IDS,
-            ])
-        );
+        const { monthStartStr } = parseYm(ym);
+        const staffIds = await getMonthlyMeetingStaffIds();
         
         // 対象者が0人なら何もしない（shift + meeting_must 合算）
         if (staffIds.length === 0) {
