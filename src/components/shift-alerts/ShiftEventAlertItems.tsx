@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  buildEventTaskHref,
   tokenizeShiftAlertText,
   type ShiftEventAlert,
 } from "@/lib/shiftEventAlerts";
@@ -46,16 +47,16 @@ export default function ShiftEventAlertItems({
           ) : (
             <div className="mt-1 text-xs text-red-700">メモ・備考なし</div>
           )}
+          {showEventTasksLink ? (
+            <Link
+              href={buildEventTaskHref(alert)}
+              className="mt-1 inline-block text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
+            >
+              このイベントタスクを確認
+            </Link>
+          ) : null}
         </div>
       ))}
-      {showEventTasksLink ? (
-        <Link
-          href="/portal/event-tasks"
-          className="inline-block text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
-        >
-          イベントタスクを確認
-        </Link>
-      ) : null}
     </div>
   );
 }

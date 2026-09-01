@@ -173,10 +173,12 @@ const [pagination, setPagination] = useState<Pagination>({
     const [error, setError] = useState<string | null>(null);
 
     // filters
+    const [taskIdFilter, setTaskIdFilter] = useState<string>("");
     const [statusFilter, setStatusFilter] = useState<string>("");
     const [dueFilter, setDueFilter] = useState<string>("");
     const [clientFilter, setClientFilter] = useState<string>("");
     const [userFilter, setUserFilter] = useState<string>("");
+    const [urlFiltersReady, setUrlFiltersReady] = useState(false);
     const [sortColumn, setSortColumn] = useState<
     | "due_date"
     | "status"
@@ -223,6 +225,51 @@ const [pagination, setPagination] = useState<Pagination>({
         [meta?.users],
     );
 
+    useEffect(() => {
+        const applyUrlFilters = () => {
+            const params = new URLSearchParams(window.location.search);
+            const due = params.get("due") ?? "";
+            const status = params.get("status") ?? "";
+            const parsedPage = Number(params.get("page") ?? "1");
+
+            setTaskIdFilter(params.get("id") ?? "");
+            setClientFilter(params.get("client_id") ?? "");
+            setUserFilter(params.get("user_id") ?? "");
+            setDueFilter(["overdue", "today", "week", "month"].includes(due) ? due : "");
+            setStatusFilter(TASK_STATUS.some((item) => item.value === status) ? status : "");
+            setPage(Number.isFinite(parsedPage) ? Math.max(1, Math.floor(parsedPage)) : 1);
+            setUrlFiltersReady(true);
+        };
+
+        applyUrlFilters();
+        window.addEventListener("popstate", applyUrlFilters);
+        return () => window.removeEventListener("popstate", applyUrlFilters);
+    }, []);
+
+    useEffect(() => {
+        if (!urlFiltersReady) return;
+
+        const url = new URL(window.location.href);
+        const setOrDelete = (key: string, value: string) => {
+            if (value) url.searchParams.set(key, value);
+            else url.searchParams.delete(key);
+        };
+
+        setOrDelete("id", taskIdFilter.trim());
+        setOrDelete("client_id", clientFilter);
+        setOrDelete("user_id", userFilter);
+        setOrDelete("due", dueFilter);
+        setOrDelete("status", statusFilter);
+        if (page > 1) url.searchParams.set("page", String(page));
+        else url.searchParams.delete("page");
+
+        window.history.replaceState(
+            window.history.state,
+            "",
+            `${url.pathname}${url.search}${url.hash}`,
+        );
+    }, [taskIdFilter, clientFilter, userFilter, dueFilter, statusFilter, page, urlFiltersReady]);
+
     function handleSort(
     column:
         | "due_date"
@@ -266,6 +313,10 @@ const [pagination, setPagination] = useState<Pagination>({
         qs.set("pageSize", "50");
         qs.set("sort", sortColumn);
         qs.set("order", sortOrder);
+
+        if (taskIdFilter.trim()) {
+            qs.set("id", taskIdFilter.trim());
+        }
 
         if (statusFilter) {
             qs.set("status", statusFilter);
@@ -330,9 +381,11 @@ const [pagination, setPagination] = useState<Pagination>({
 }
 
     useEffect(() => {
+    if (!urlFiltersReady) return;
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
+    taskIdFilter,
     statusFilter,
     dueFilter,
     clientFilter,
@@ -340,6 +393,7 @@ const [pagination, setPagination] = useState<Pagination>({
     sortColumn,
     sortOrder,
     page,
+    urlFiltersReady,
 ]);
 
     // template を選んだら due_date 初期値を offset 反映
@@ -499,7 +553,19 @@ return (
             絞り込み
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+            <div className="space-y-1">
+                <label className="text-sm font-medium">ID</label>
+                <Input
+                    value={taskIdFilter}
+                    onChange={(event) => {
+                        setTaskIdFilter(event.target.value);
+                        setPage(1);
+                    }}
+                    placeholder="イベントタスクID"
+                    disabled={loading}
+                />
+            </div>
             <div className="space-y-1">
                 <label className="text-sm font-medium">
                     期日
@@ -546,13 +612,11 @@ return (
 >
     <SelectItem value="">すべて</SelectItem>
 
-    <SelectItem value="open">
-        open
-    </SelectItem>
-
-    <SelectItem value="done">
-        done
-    </SelectItem>
+    {TASK_STATUS.map((status) => (
+        <SelectItem key={status.value} value={status.value}>
+            {status.label}
+        </SelectItem>
+    ))}
 </Select>
             </div>
                         <div className="space-y-1">

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildEventTaskHref,
   normalizeShiftEventAlerts,
   tokenizeShiftAlertText,
 } from "../src/lib/shiftEventAlerts.ts";
@@ -42,4 +43,18 @@ test("メモ内のhttp/https URLだけをリンク用tokenにする", () => {
 test("javascript URLはリンク化しない", () => {
   const tokens = tokenizeShiftAlertText("javascript:alert(1)");
   assert.equal(tokens.some((token) => token.kind === "url"), false);
+});
+
+test("イベントタスクへのリンクに該当ID・利用者・担当者を設定する", () => {
+  const href = buildEventTaskHref({
+    id: "task-1",
+    kaipoke_cs_id: "client-1",
+    user_id: "staff-1",
+  });
+  const url = new URL(href, "https://example.com");
+
+  assert.equal(url.pathname, "/portal/event-tasks");
+  assert.equal(url.searchParams.get("id"), "task-1");
+  assert.equal(url.searchParams.get("client_id"), "client-1");
+  assert.equal(url.searchParams.get("user_id"), "staff-1");
 });

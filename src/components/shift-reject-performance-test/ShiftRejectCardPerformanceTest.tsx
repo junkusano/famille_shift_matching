@@ -621,7 +621,10 @@ function ShiftRejectCardPerformanceTest({
                 </div>
               )}
 
-              <ShiftEventAlertItems alerts={eventAlerts} />
+              <ShiftEventAlertItems
+                alerts={eventAlerts}
+                showEventTasksLink={userRole === "admin" || userRole === "manager"}
+              />
             </div>
           </section>
         )}

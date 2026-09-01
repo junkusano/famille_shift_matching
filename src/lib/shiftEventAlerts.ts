@@ -58,6 +58,17 @@ export function normalizeShiftEventAlerts(value: unknown): ShiftEventAlert[] {
   return alerts;
 }
 
+export function buildEventTaskHref(
+  alert: Pick<ShiftEventAlert, "id" | "kaipoke_cs_id" | "user_id">,
+) {
+  const params = new URLSearchParams({
+    id: alert.id,
+    client_id: alert.kaipoke_cs_id,
+  });
+  if (alert.user_id) params.set("user_id", alert.user_id);
+  return `/portal/event-tasks?${params.toString()}`;
+}
+
 export function tokenizeShiftAlertText(value: string): ShiftAlertTextToken[] {
   const tokens: ShiftAlertTextToken[] = [];
   const urlPattern = /https?:\/\/[^\s<>"']+/giu;

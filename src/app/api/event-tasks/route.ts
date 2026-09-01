@@ -66,6 +66,7 @@ const safePage = Math.max(1, page);
     const due_from = url.searchParams.get("due_from");
     const due_to = url.searchParams.get("due_to");
     const order = searchParams.get("order") === "desc" ? "desc" : "asc";
+    const taskIdFilter = searchParams.get("id")?.trim() || null;
     const rawStatusFilter = searchParams.get("status");
 const rawDueFilter = searchParams.get("due");
 const rawClientFilter = searchParams.get("client_id");
@@ -112,6 +113,10 @@ const sort =
     .order(sortColumn, {
         ascending: order === "asc",
     });
+
+    if (taskIdFilter) {
+        q = q.eq("id", taskIdFilter);
+    }
 
     if (clientFilter) {
     q = q.eq(
