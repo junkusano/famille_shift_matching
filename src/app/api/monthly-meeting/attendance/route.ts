@@ -169,6 +169,14 @@ export async function GET(req: NextRequest) {
             ])
         );
 
+        // 一覧は当月の対象者だけを表示する。attendance の行自体は在籍職員分を
+        // 自動作成しておき、今後シフトが入った月にはそのまま表示できるようにする。
+        const visibleStaffIds = new Set([
+            ...staffIdsFromShift,
+            ...meetingUserIds,
+            ...FORCE_MONTHLY_MEETING_USER_IDS,
+        ]);
+
         // ★それでも0件なら attendance から復元
         if (staffIds.length === 0) {
             const { data: attOnly, error: attOnlyErr } = await supabaseAdmin
@@ -288,6 +296,7 @@ export async function GET(req: NextRequest) {
 
         // 5) rows を作って返す（名前は姓+名）
         const allRows = finalStaffData
+            .filter((s: StaffRow) => visibleStaffIds.has(String(s.user_id ?? "").trim()))
             .map((s: StaffRow) => {
                 const userId = String(s.user_id ?? "").trim();
                 if (!userId) return null;

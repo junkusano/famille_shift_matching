@@ -598,6 +598,23 @@ export default function MonthlyMeetingCheckPage() {
         <div className="p-4 space-y-4">
             {/* 上段：操作 */}
             <div className="rounded border p-3 space-y-2">
+                <div className="rounded border border-amber-300 bg-amber-50 p-4 text-sm leading-7 text-gray-800">
+                    <div className="font-bold text-amber-900 mb-2">月例会議への参加について</div>
+                    <p>
+                        定期的な会議は、<strong>毎月1回以上開催する必要があります。</strong>
+                    </p>
+                    <p>
+                        ファミーユでは、この要件に対応するため月例会議を開催し、参加状況を「月例会議参加チェック」で確認しています。
+                    </p>
+                    <p>
+                        ただし、<strong>当月にファミーユでの勤務シフトが1件も入っていない方については、その月の会議参加は必須ではありません。</strong>
+                    </p>
+                    <p>
+                        そのため、月例会議参加チェックの一覧には、<strong>当月にシフトが入っている方のみ表示されます。</strong>
+                    </p>
+                    <p>当月にシフトがある方は、月例会議への参加・内容確認をお願いします。</p>
+                </div>
+
                 {/* ★使い方説明（目立つ版） */}
                 <div className="rounded border border-blue-300 bg-blue-50 p-4 text-sm leading-7">
                     <div className="flex items-center gap-2 font-bold text-blue-800 mb-2">
