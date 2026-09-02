@@ -5,6 +5,8 @@ export const dynamic = "force-dynamic";
 
 const ACTIVE_RUNNER_STATUSES = ["pending", "claimed"];
 const SHAREFULL_JOB_TYPE = "sharefull.create_spot_offer";
+const SHAREFULL_EXECUTION_MODES = ["save", "publish"] as const;
+type SharefullExecutionMode = (typeof SHAREFULL_EXECUTION_MODES)[number];
 
 type JsonRecord = Record<string, unknown>;
 
@@ -22,6 +24,10 @@ function isEnabled(): boolean {
   return process.env.SHAREFULL_AUTO_POST_ENABLED?.trim().toLowerCase() === "true";
 }
 
+function executionMode(): SharefullExecutionMode {
+  return process.env.SHAREFULL_AUTO_POST_MODE?.trim().toLowerCase() === "publish" ? "publish" : "save";
+}
+
 /**
  * ready_for_offer の案件について、Sharefull案件掲載用のRPA指示を登録する。
  *
@@ -34,6 +40,7 @@ export async function GET(request: NextRequest) {
   }
 
   const rpaTemplateId = text(process.env.SHAREFULL_JOB_CREATE_RPA_TEMPLATE_ID);
+  const mode = executionMode();
 
   if (!isEnabled()) {
     return NextResponse.json({
@@ -80,21 +87,24 @@ export async function GET(request: NextRequest) {
   const { data: templates, error: templateError } = coreIds.length
     ? await supabaseAdmin
         .from("spot_offer_template_unified")
-        .select("core_id, sharefull_template_id")
+        .select("core_id, sharefull_template_id, sharefull_template_status")
         .in("core_id", coreIds)
     : { data: [], error: null };
 
   if (templateError) throw templateError;
 
   const templateByCoreId = new Map(
-    (templates ?? []).map((template) => [text(template.core_id), text(template.sharefull_template_id)])
+    (templates ?? []).map((template) => [
+      text(template.core_id),
+      { id: text(template.sharefull_template_id), status: text(template.sharefull_template_status) },
+    ])
   );
 
   const { data: existingRequests, error: existingError } = await supabaseAdmin
     .from("rpa_runner_jobs")
     .select("id, status, payload")
     .eq("job_type", SHAREFULL_JOB_TYPE)
-    .in("status", ACTIVE_RUNNER_STATUSES)
+    .in("status", [...ACTIVE_RUNNER_STATUSES, "completed"])
     .limit(5000);
 
   if (existingError) throw existingError;
@@ -109,11 +119,16 @@ export async function GET(request: NextRequest) {
   for (const row of candidates) {
     const shiftId = text(row.shift_id);
     const coreId = text(row.core_id);
-    const sharefullTemplateId = templateByCoreId.get(coreId) ?? "";
-    const operationKey = `sharefull:create_spot_offer:${shiftId}`;
+    const template = templateByCoreId.get(coreId) ?? { id: "", status: "" };
+    const sharefullTemplateId = template.id;
+    const operationKey = `sharefull:create_spot_offer:${mode}:${shiftId}`;
 
     if (!sharefullTemplateId) {
       skipped.push({ shift_id: shiftId, reason: "sharefull_template_idがありません" });
+      continue;
+    }
+    if (template.status === "template_review") {
+      skipped.push({ shift_id: shiftId, reason: "シェアフルテンプレートが審査中です" });
       continue;
     }
     if (activeKeys.has(operationKey)) {
@@ -121,8 +136,7 @@ export async function GET(request: NextRequest) {
       continue;
     }
 
-    // 現段階では、既存のSharefullテンプレートは審査完了済みとして扱う。
-    // 将来はここをSharefull画面の審査状態確認に置き換える。
+    // NULLは既存データ互換のため掲載可能として扱う。審査中は上で除外する。
     if (row.sharefull_status === "template_review") {
       const { error: statusUpdateError } = await supabaseAdmin
         .from("spot_offer_request_table")
@@ -147,6 +161,7 @@ export async function GET(request: NextRequest) {
       shift_end_time: row.shift_end_time,
       hourly_wage: row.unit_amount,
       commute_fee: row.commute_fee,
+      execution_mode: mode,
       created_from: "cron.open-sharefull-jobs",
     };
 
@@ -171,6 +186,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     ok: true,
     enabled: true,
+    execution_mode: mode,
     target_date_from: today,
     registered_count: registered.length,
     skipped_count: skipped.length,

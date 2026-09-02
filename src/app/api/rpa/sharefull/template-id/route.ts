@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     if (!existing) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
     const updatedAt = new Date().toISOString();
     const { error } = await supabaseAdmin.from("spot_offer_template_unified")
-    .update({ sharefull_template_id: templateId })
+    .update({ sharefull_template_id: templateId, sharefull_template_status: "template_review", updated_at: updatedAt })
     .eq("core_id", coreId);
     if (error) throw error;
 

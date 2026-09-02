@@ -9387,6 +9387,7 @@ export type Database = {
           salary: string | null
           send_msg_flg: boolean | null
           sharefull_template_id: string | null
+          sharefull_template_status: string | null
           shift_id: Json | null
           smoking_area_work: boolean | null
           smoking_policy: string | null
@@ -9428,6 +9429,7 @@ export type Database = {
           salary?: string | null
           send_msg_flg?: boolean | null
           sharefull_template_id?: string | null
+          sharefull_template_status?: string | null
           shift_id?: Json | null
           smoking_area_work?: boolean | null
           smoking_policy?: string | null
@@ -9469,6 +9471,7 @@ export type Database = {
           salary?: string | null
           send_msg_flg?: boolean | null
           sharefull_template_id?: string | null
+          sharefull_template_status?: string | null
           shift_id?: Json | null
           smoking_area_work?: boolean | null
           smoking_policy?: string | null
