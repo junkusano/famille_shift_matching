@@ -19,7 +19,8 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
     <style jsx global>{`
       @page {
         size: A4 portrait;
-        margin: 3mm;
+        /* プリンタの印刷不可領域やブラウザ側の丸めで右端が切れないよう安全余白を確保 */
+        margin: 5mm;
       }
 
       .formBox {
@@ -248,7 +249,7 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
          */
         body.beta-jisseki-print-active .print-page {
           display: flex !important;
-          width: 204mm !important;
+          width: 200mm !important;
           height: 290mm !important;
           box-sizing: border-box !important;
           align-items: flex-start !important;
@@ -277,7 +278,7 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
 
         body.beta-jisseki-print-active .print-scale {
           position: relative;
-          width: 204mm;
+          width: 200mm;
           max-width: none;
           margin: 0;
           flex: 0 0 auto;
@@ -285,7 +286,7 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         }
         body.beta-jisseki-print-active .print-scale > .formBox,
         body.beta-jisseki-print-active .print-page > .formBox {
-          width: 204mm !important;
+          width: 200mm !important;
           max-width: none !important;
           box-sizing: border-box !important;
           margin: 0 !important;

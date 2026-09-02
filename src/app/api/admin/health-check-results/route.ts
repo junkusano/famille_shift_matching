@@ -12,6 +12,7 @@ type RequestRow = {
   id: string; applicant_user_id: string; status: string; submitted_at: string | null; created_at: string;
   payload: Record<string, unknown> | null; health_check_occupational_physician_checked: boolean | null;
   health_check_occupational_physician_checked_at: string | null; health_check_occupational_physician_checked_by: string | null;
+  health_check_doctor_comment: string | null;
   health_check_admin_checked: boolean | null; health_check_admin_checked_at: string | null; health_check_admin_checked_by: string | null;
 };
 
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
     if ((requests?.length ?? 0) > 0) {
       const { data: reviewRows, error: reviewError } = await supabaseAdmin
         .from("wf_request")
-        .select("id,health_check_occupational_physician_checked,health_check_occupational_physician_checked_at,health_check_occupational_physician_checked_by,health_check_admin_checked,health_check_admin_checked_at,health_check_admin_checked_by")
+        .select("id,health_check_doctor_comment,health_check_occupational_physician_checked,health_check_occupational_physician_checked_at,health_check_occupational_physician_checked_by,health_check_admin_checked,health_check_admin_checked_at,health_check_admin_checked_by")
         .in("id", (requests ?? []).map((row) => row.id));
       if (reviewError) {
         if (reviewError.code === "42703") reviewMetadataAvailable = false;
@@ -89,7 +90,14 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const actor = await requireHealthCheckManager(req);
-    const body = await req.json() as { request_id?: string; field?: "occupational_physician" | "admin"; checked?: boolean };
+    const body = await req.json() as { request_id?: string; field?: "occupational_physician" | "admin" | "doctor_comment"; checked?: boolean; doctor_comment?: string | null };
+    if (body.field === "doctor_comment") {
+      if (!body.request_id || typeof body.doctor_comment !== "string" || body.doctor_comment.length > 10000) return NextResponse.json({ ok: false, error: "医師の意見が不正です。" }, { status: 400 });
+      const comment = body.doctor_comment.trim() || null;
+      const { error } = await supabaseAdmin.from("wf_request").update({ health_check_doctor_comment: comment, updated_at: new Date().toISOString() }).eq("id", body.request_id);
+      if (error) throw error;
+      return NextResponse.json({ ok: true, doctor_comment: comment });
+    }
     if (!body.request_id || !body.field || typeof body.checked !== "boolean") return NextResponse.json({ ok: false, error: "不正なリクエストです。" }, { status: 400 });
     const prefix = body.field === "occupational_physician" ? "health_check_occupational_physician" : "health_check_admin";
     const now = new Date().toISOString();

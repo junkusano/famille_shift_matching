@@ -17,6 +17,7 @@ type HealthAttachment = {
         id: string;
         title: string | null;
         status: string;
+        health_check_doctor_comment: string | null;
         submitted_at: string | null;
         created_at: string;
         applicant_user_id: string;
@@ -114,6 +115,7 @@ export default function HealthCheckResultsPage() {
                             submitted_at,
                             created_at,
                             applicant_user_id,
+                            health_check_doctor_comment,
                             request_type:wf_request_type!inner(
                                 code,
                                 label
@@ -281,6 +283,15 @@ export default function HealthCheckResultsPage() {
                                                                 </div>
                                                             </div>
                                                         </div>
+
+                                                        {row.request?.health_check_doctor_comment && (
+                                                            <div className="mb-3 rounded border border-blue-200 bg-blue-50 p-3">
+                                                                <div className="text-sm font-semibold text-blue-900">医師の意見</div>
+                                                                <p className="mt-1 whitespace-pre-wrap text-sm text-gray-800">
+                                                                    {row.request.health_check_doctor_comment}
+                                                                </p>
+                                                            </div>
+                                                        )}
 
                                                         {isImage ? (
                                                             <div className="rounded border bg-white p-2">

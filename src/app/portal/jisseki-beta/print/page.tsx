@@ -175,7 +175,7 @@ export default function JissekiPrintPage() {
             const sheet = scaleWrapper?.querySelector<HTMLElement>(":scope > .formBox");
             if (!scaleWrapper || !sheet) return;
 
-            scaleWrapper.style.setProperty("width", "204mm");
+            scaleWrapper.style.setProperty("width", "200mm");
             scaleWrapper.style.removeProperty("height");
             sheet.style.removeProperty("zoom");
             sheet.style.setProperty("transform", "none", "important");
