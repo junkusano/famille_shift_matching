@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   try {
     await requireTaimeeRpaOperator(request);
     const { data, error } = await supabaseAdmin.from("spot_offer_template_unified")
-      .select("core_id,template_title,internal_label,work_description,matching_place_name,meeting_yuubinn,meeting_place,meeting_place_banchi,required_licenses,matching_msg,kaipoke_cs_id,status,start_at,end_at,updated_at")
+      .select("core_id,template_title,internal_label,work_description,matching_place_name,meeting_yuubinn,meeting_place,meeting_place_banchi,required_licenses,matching_msg,kaipoke_cs_id,status,start_at,end_at,sharefull_template_id,sharefull_template_status,updated_at")
       .order("updated_at", { ascending: false }).limit(500);
     if (error) throw error;
 
