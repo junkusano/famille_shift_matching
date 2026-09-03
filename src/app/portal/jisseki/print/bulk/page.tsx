@@ -275,7 +275,7 @@ export default function BulkPrintPage() {
     }
 
     return (
-        <div className="print-root">
+        <div className="classic-jisseki-print-page print-root">
             {/* bulk でも /print と同じ見た目・余白に寄せる */}
             <JissekiPrintGlobalStyles mode="single" />
 
@@ -288,10 +288,10 @@ export default function BulkPrintPage() {
 
             {/* 印刷対象 */}
             <div className="print-only">
-                {datas.map((d, i) => {
+                {datas.map((d) => {
                     const key = `${d.client.kaipoke_cs_id}-${d.month}`;
                     return (
-                        <div key={key} className={i === 0 ? "" : "page-break"}>
+                        <div key={key} className="classic-print-client">
                             {/* ★重要：print-only を二重にしない */}
                             <JissekiPrintBody data={d} wrapPrintOnly={false} />
                         </div>

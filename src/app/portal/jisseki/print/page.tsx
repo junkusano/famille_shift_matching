@@ -109,6 +109,7 @@ export default function JissekiPrintPage() {
     const [data, setData] = useState<PrintPayload | null>(null);
     const [error, setError] = useState<string>("");
     const fitRefs = useRef<HTMLElement[]>([]);
+    const printPageRefs = useRef<HTMLElement[]>([]);
 
     const fitAllText = () => {
         const MIN_PX = 8;     // 最小フォント（これ以下にはしない）
@@ -148,14 +149,51 @@ export default function JissekiPrintPage() {
         });
     };
 
+    const fitPrintPages = () => {
+        const printableWidthPx = (200 / 25.4) * 96;
+        const printableHeightPx = (287 / 25.4) * 96;
+
+        printPageRefs.current.forEach((page) => {
+            const scaleWrapper = page.querySelector<HTMLElement>(":scope > .print-scale");
+            const sheet = scaleWrapper?.querySelector<HTMLElement>(":scope > .formBox");
+            if (!scaleWrapper || !sheet) return;
+
+            scaleWrapper.style.setProperty("width", "200mm");
+            scaleWrapper.style.removeProperty("height");
+            sheet.style.removeProperty("zoom");
+            sheet.style.setProperty("transform", "none", "important");
+
+            const sourceWidth = sheet.offsetWidth;
+            const sourceHeight = sheet.offsetHeight;
+            if (!sourceWidth || !sourceHeight) return;
+
+            const scale = Math.min(
+                1,
+                printableWidthPx / sourceWidth,
+                printableHeightPx / sourceHeight
+            );
+
+            scaleWrapper.style.setProperty("width", `${sourceWidth}px`);
+            scaleWrapper.style.setProperty("height", `${sourceHeight * scale}px`);
+            sheet.style.setProperty("transform", `scale(${scale.toFixed(4)})`, "important");
+            sheet.style.setProperty("transform-origin", "top center", "important");
+        });
+    };
+
     // data描画後＋印刷直前にもfitを実行
     useEffect(() => {
         if (!data) return;
 
         // DOMが描画された後に計測したいので rAF
-        requestAnimationFrame(() => fitAllText());
+        requestAnimationFrame(() => {
+            fitAllText();
+            fitPrintPages();
+        });
 
-        const onBeforePrint = () => fitAllText();
+        const onBeforePrint = () => {
+            fitAllText();
+            fitPrintPages();
+        };
         window.addEventListener("beforeprint", onBeforePrint);
         return () => window.removeEventListener("beforeprint", onBeforePrint);
     }, [data]);
@@ -195,7 +233,7 @@ export default function JissekiPrintPage() {
     }, [data]);
 
     return (
-        <div className="min-h-screen bg-white text-black">
+        <div className="classic-jisseki-print-page min-h-screen bg-white text-black">
             <JissekiPrintGlobalStyles mode="single" />
 
             <div className="no-print p-4 flex items-center gap-3 border-b">
@@ -248,7 +286,14 @@ export default function JissekiPrintPage() {
                     const totalPages = pages.length;
 
                     return pages.map((p, idx) => (
-                        <div key={`${p.formType}-${idx}`} className={idx === 0 ? "print-page" : "print-page page-break"}>
+                        <div
+                            key={`${p.formType}-${idx}`}
+                            ref={(element) => {
+                                if (element) printPageRefs.current[idx] = element;
+                            }}
+                            className={idx === 0 ? "print-page" : "print-page page-break"}
+                        >
+                            <div className="print-scale">
                             {p.formType === "TAKINO" && (
                                 <TakinokyoForm
                                     data={data}
@@ -298,6 +343,7 @@ export default function JissekiPrintPage() {
                                     fitRefs={fitRefs}
                                 />
                             )}
+                            </div>
                         </div>
                     ));
                 })()}
@@ -328,8 +374,8 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                 <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
                     {/* ★列数を固定（ズレの原因を排除） */}
                     <colgroup>
-                        <col style={{ width: "2.8%" }} />  {/* 日付 */}
-                        <col style={{ width: "2.8%" }} />  {/* 曜日 */}
+                        <col style={{ width: "3%" }} />    {/* 日付 */}
+                        <col style={{ width: "3%" }} />    {/* 曜日 */}
                         <col style={{ width: "10%" }} />   {/* サービス内容 */}
                         <col style={{ width: "5%" }} />    {/* 計画 開始 */}
                         <col style={{ width: "5%" }} />    {/* 計画 終了 */}
@@ -339,12 +385,12 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                         <col style={{ width: "5%" }} />    {/* 提供 終了 */}
                         <col style={{ width: "4%" }} />    {/* 算定 時間 */}
                         <col style={{ width: "4%" }} />    {/* 算定 乗降 */}
-                        <col style={{ width: "3.5%" }} />  {/* 派遣人数 */}
-                        <col style={{ width: "3.5%" }} />  {/* 初回加算 */}
-                        <col style={{ width: "5.5%" }} />  {/* 緊急時対応加算 */}
-                        <col style={{ width: "6.5%" }} />  {/* 福祉専門職員等連携加算 */}
-                        <col style={{ width: "6%" }} />    {/* 利用者確認欄 */}
-                        <col style={{ width: "23.4%" }} /> {/* 備考・サービス提供者名 */}
+                        <col style={{ width: "4%" }} />    {/* 派遣人数 */}
+                        <col style={{ width: "4%" }} />    {/* 初回加算 */}
+                        <col style={{ width: "5%" }} />    {/* 緊急時対応加算 */}
+                        <col style={{ width: "4%" }} />    {/* 福祉専門職員等連携加算 */}
+                        <col style={{ width: "8%" }} />    {/* 利用者確認欄 */}
+                        <col style={{ width: "23%" }} />   {/* 備考・サービス提供者名 */}
                     </colgroup>
 
                     <tbody>

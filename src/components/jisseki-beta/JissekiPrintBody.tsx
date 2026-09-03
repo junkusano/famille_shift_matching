@@ -314,32 +314,23 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                 <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
                     {/* ★列数を固定（ズレの原因を排除） */}
                     <colgroup>
-                        {/* 日付・曜日 */}
-                        <col style={{ width: "3%" }} />
-                        <col style={{ width: "3%" }} />
-
-                        {/* サービス内容 */}
-                        <col style={{ width: "12%" }} />
-
-                        {/* 居宅介護計画（2列） */}
-                        <col style={{ width: "7%" }} />
-                        <col style={{ width: "7%" }} />
-
-                        {/* サービス提供時間（2列） */}
-                        <col style={{ width: "7%" }} />
-                        <col style={{ width: "7%" }} />
-
-                        {/* 算定時間数（2列：時間／乗降） */}
-                        <col style={{ width: "5%" }} />
-                        <col style={{ width: "5%" }} />
-
-                        {/* 右側 */}
+                        <col style={{ width: "3%" }} />  {/* 日付 */}
+                        <col style={{ width: "3%" }} />  {/* 曜日 */}
+                        <col style={{ width: "10%" }} /> {/* サービス内容 */}
+                        <col style={{ width: "5%" }} />  {/* 計画 開始 */}
+                        <col style={{ width: "5%" }} />  {/* 計画 終了 */}
+                        <col style={{ width: "4%" }} />  {/* 計画 時間 */}
+                        <col style={{ width: "4%" }} />  {/* 計画 乗降 */}
+                        <col style={{ width: "5%" }} />  {/* 提供 開始 */}
+                        <col style={{ width: "5%" }} />  {/* 提供 終了 */}
+                        <col style={{ width: "4%" }} />  {/* 算定 時間 */}
+                        <col style={{ width: "4%" }} />  {/* 算定 乗降 */}
                         <col style={{ width: "4%" }} />  {/* 派遣人数 */}
                         <col style={{ width: "4%" }} />  {/* 初回加算 */}
                         <col style={{ width: "5%" }} />  {/* 緊急時対応加算 */}
-                        <col style={{ width: "5%" }} />  {/* 福祉専門職員等連携加算 */}
-                        <col style={{ width: "7%" }} />  {/* 利用者確認欄 */}
-                        <col style={{ width: "19%" }} /> {/* 備考（必要ならここをさらに増やす） */}
+                        <col style={{ width: "4%" }} />  {/* 福祉専門職員等連携加算 */}
+                        <col style={{ width: "8%" }} />  {/* 利用者確認欄 */}
+                        <col style={{ width: "23%" }} /> {/* 備考・サービス提供者名 */}
                     </colgroup>
 
                     <tbody>

@@ -1,12 +1,21 @@
 // src/components/jisseki/JissekiPrintGlobalStyles.tsx
 "use client";
 
+import { useEffect } from "react";
+
 type Props = {
   /** single: /portal/jisseki/print 用, bulk: /portal/jisseki/print/bulk 用 */
   mode: "single" | "bulk";
 };
 
+const PRINT_BODY_CLASS = "classic-jisseki-print-active";
+
 export default function JissekiPrintGlobalStyles({ mode }: Props) {
+  useEffect(() => {
+    document.body.classList.add(PRINT_BODY_CLASS);
+    return () => document.body.classList.remove(PRINT_BODY_CLASS);
+  }, []);
+
   return (
     <style jsx global>{`
       /* =========================
@@ -364,6 +373,159 @@ ${mode === "bulk" ? `
   box-sizing: border-box;
 }
       ` : ""}
+
+      /*
+       * 従来版の帳票内容は変えず、β版と同じA4安全領域・中央基準で印刷する。
+       * 既存ルールより後ろに置き、単票／一括の双方で左右ずれを抑える。
+       */
+      @page {
+        size: A4 portrait;
+        margin: 5mm;
+      }
+
+      .classic-jisseki-print-page .formBox {
+        box-sizing: border-box;
+      }
+
+      @media screen {
+        .classic-jisseki-print-page .print-only {
+          width: 210mm;
+          min-height: 297mm;
+          margin: 0 auto;
+          background: #fff;
+        }
+
+        .classic-jisseki-print-page .print-page {
+          display: flex;
+          width: 100%;
+          justify-content: center;
+        }
+
+        .classic-jisseki-print-page .print-scale,
+        .classic-jisseki-print-page .print-page > .formBox {
+          width: 204mm;
+          margin-right: auto;
+          margin-left: auto;
+        }
+      }
+
+      @media print {
+        :root { --row-2line: ${mode === "bulk" ? "6.3mm" : "7.7mm"}; }
+
+        html,
+        body.classic-jisseki-print-active {
+          width: auto !important;
+          min-width: 0 !important;
+          height: auto !important;
+          min-height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+        }
+
+        body.classic-jisseki-print-active * {
+          visibility: hidden !important;
+        }
+
+        body.classic-jisseki-print-active .print-only,
+        body.classic-jisseki-print-active .print-only * {
+          visibility: visible !important;
+        }
+
+        body.classic-jisseki-print-active .left-menu,
+        body.classic-jisseki-print-active .menu,
+        body.classic-jisseki-print-active .hamburger,
+        body.classic-jisseki-print-active .edge-hotzone,
+        body.classic-jisseki-print-active .no-print,
+        body.classic-jisseki-print-active footer,
+        body.classic-jisseki-print-active main > .flex-1 > :not(.classic-jisseki-print-page),
+        body.classic-jisseki-print-active .portal-container > :not(main) {
+          display: none !important;
+        }
+
+        body.classic-jisseki-print-active .portal-container,
+        body.classic-jisseki-print-active main,
+        body.classic-jisseki-print-active main > .flex-1,
+        body.classic-jisseki-print-active .classic-jisseki-print-page {
+          display: block !important;
+          width: auto !important;
+          min-width: 0 !important;
+          max-width: none !important;
+          height: auto !important;
+          min-height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+        }
+
+        body.classic-jisseki-print-active .print-only {
+          position: static !important;
+          width: 100% !important;
+          max-width: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+          zoom: 1 !important;
+        }
+
+        body.classic-jisseki-print-active .print-page {
+          display: flex !important;
+          width: 200mm !important;
+          height: 290mm !important;
+          box-sizing: border-box !important;
+          align-items: flex-start !important;
+          justify-content: center !important;
+          margin: 0 !important;
+          padding: 10mm 0 0 !important;
+          overflow: visible !important;
+          break-after: auto;
+          break-inside: avoid-page;
+          page-break-after: auto;
+          page-break-inside: avoid;
+        }
+
+        body.classic-jisseki-print-active .print-page + .print-page {
+          break-before: page;
+          page-break-before: always;
+        }
+
+        body.classic-jisseki-print-active .classic-print-client:not(:last-child) {
+          break-after: page;
+          page-break-after: always;
+        }
+
+        body.classic-jisseki-print-active .print-page:last-child,
+        body.classic-jisseki-print-active .classic-print-client:last-child {
+          break-after: auto !important;
+          page-break-after: auto !important;
+        }
+
+        body.classic-jisseki-print-active .print-scale {
+          position: relative;
+          width: 200mm;
+          max-width: none;
+          margin: 0;
+          flex: 0 0 auto;
+          overflow: visible;
+        }
+
+        body.classic-jisseki-print-active .print-scale > .formBox,
+        body.classic-jisseki-print-active .print-page > .formBox {
+          width: 200mm !important;
+          max-width: none !important;
+          box-sizing: border-box !important;
+          margin: 0 !important;
+          transform-origin: top center !important;
+        }
+
+        body.classic-jisseki-print-active .grid,
+        body.classic-jisseki-print-active .doko-sheet table {
+          display: table !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          table-layout: fixed !important;
+        }
+      }
     `}</style>
   );
 }
