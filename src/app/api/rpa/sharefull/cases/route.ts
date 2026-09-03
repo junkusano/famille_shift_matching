@@ -31,6 +31,12 @@ export async function GET(request: NextRequest) {
     // 一覧取得を起点に、既に審査完了済みの案件も掲載ジョブへ再照合する。
     // 操作キーで重複登録を防ぐため、手動再読み込みや初期表示でも安全に実行できる。
     const publication = await enqueueSharefullPublicationJobsForReadyTemplates("rpa.sharefull.cases");
+    console.info("[rpa/sharefull/cases] publication reconciliation", {
+      registered_count: publication.registeredCount,
+      candidate_core_count: publication.candidateCoreCount ?? 0,
+      skipped_count: publication.skipped.length,
+      skipped: publication.skipped,
+    });
     return NextResponse.json({ cases, publication_jobs_registered: publication.registeredCount });
   } catch (error) {
     if (isRpaTaimeeError(error)) return NextResponse.json({ error: error.message }, { status: error.status });
