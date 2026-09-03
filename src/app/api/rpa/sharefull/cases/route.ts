@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
+import { enqueueSharefullPublicationJobsForReadyTemplates } from "@/lib/spot-offer/enqueueSharefullPublicationJob";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,10 @@ export async function GET(request: NextRequest) {
       if (aActive !== bActive) return aActive - bActive;
       return a.client_name.localeCompare(b.client_name, "ja");
     });
-    return NextResponse.json({ cases });
+    // 一覧取得を起点に、既に審査完了済みの案件も掲載ジョブへ再照合する。
+    // 操作キーで重複登録を防ぐため、手動再読み込みや初期表示でも安全に実行できる。
+    const publication = await enqueueSharefullPublicationJobsForReadyTemplates("rpa.sharefull.cases");
+    return NextResponse.json({ cases, publication_jobs_registered: publication.registeredCount });
   } catch (error) {
     if (isRpaTaimeeError(error)) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[rpa/sharefull/cases] failed", error);
