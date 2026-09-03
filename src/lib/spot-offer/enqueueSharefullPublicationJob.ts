@@ -5,6 +5,15 @@ const ACTIVE_STATUSES = ["pending", "claimed", "completed"];
 
 type JsonRecord = Record<string, unknown>;
 
+type ReconciliationDiagnostic = {
+  core_id: string;
+  template_status?: string;
+  candidate_request_count: number;
+  duplicate_job_count: number;
+  registered_count: number;
+  skipped_count: number;
+};
+
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -22,7 +31,12 @@ function executionMode(): "save" | "publish" {
  * 自動掲載フラグが無効な場合は何も登録しない（既存運用の安全策）。
  */
 export async function enqueueSharefullPublicationJobsForTemplate(coreId: string, source: string) {
-  if (!enabled()) return { enabled: false, registeredCount: 0, skipped: ["自動掲載が無効です"] };
+  if (!enabled()) return {
+    enabled: false,
+    registeredCount: 0,
+    skipped: ["自動掲載が無効です"],
+    diagnostic: { core_id: coreId, candidate_request_count: 0, duplicate_job_count: 0, registered_count: 0, skipped_count: 1 },
+  };
 
   const { data: template, error: templateError } = await supabaseAdmin
     .from("spot_offer_template_unified")
@@ -31,11 +45,28 @@ export async function enqueueSharefullPublicationJobsForTemplate(coreId: string,
     .maybeSingle();
   if (templateError) throw templateError;
   if (!template || text(template.sharefull_template_status) !== "ready_for_offer") {
-    return { enabled: true, registeredCount: 0, skipped: ["テンプレートが審査完了状態ではありません"] };
+    return {
+      enabled: true,
+      registeredCount: 0,
+      skipped: ["テンプレートが審査完了状態ではありません"],
+      diagnostic: {
+        core_id: coreId,
+        template_status: text(template?.sharefull_template_status) || "missing",
+        candidate_request_count: 0,
+        duplicate_job_count: 0,
+        registered_count: 0,
+        skipped_count: 1,
+      },
+    };
   }
 
   const sharefullTemplateId = text(template.sharefull_template_id);
-  if (!sharefullTemplateId) return { enabled: true, registeredCount: 0, skipped: ["SharefullテンプレートIDがありません"] };
+  if (!sharefullTemplateId) return {
+    enabled: true,
+    registeredCount: 0,
+    skipped: ["SharefullテンプレートIDがありません"],
+    diagnostic: { core_id: coreId, template_status: "ready_for_offer", candidate_request_count: 0, duplicate_job_count: 0, registered_count: 0, skipped_count: 1 },
+  };
 
   const today = new Date().toISOString().slice(0, 10);
   const { data: requests, error: requestError } = await supabaseAdmin
@@ -64,6 +95,7 @@ export async function enqueueSharefullPublicationJobsForTemplate(coreId: string,
     (existing ?? []).map((row) => text((row.payload as JsonRecord | null)?.operation_key)).filter(Boolean),
   );
   let registeredCount = 0;
+  let duplicateJobCount = 0;
   const skipped: string[] = [];
 
   for (const row of requests ?? []) {
@@ -71,6 +103,7 @@ export async function enqueueSharefullPublicationJobsForTemplate(coreId: string,
     if (!shiftId) continue;
     const operationKey = `sharefull:create_spot_offer:${mode}:${shiftId}`;
     if (operationKeys.has(operationKey)) {
+      duplicateJobCount += 1;
       skipped.push(`${shiftId}:同じジョブが登録済みです`);
       continue;
     }
@@ -105,7 +138,19 @@ export async function enqueueSharefullPublicationJobsForTemplate(coreId: string,
     registeredCount += 1;
   }
 
-  return { enabled: true, registeredCount, skipped };
+  return {
+    enabled: true,
+    registeredCount,
+    skipped,
+    diagnostic: {
+      core_id: coreId,
+      template_status: "ready_for_offer",
+      candidate_request_count: (requests ?? []).length,
+      duplicate_job_count: duplicateJobCount,
+      registered_count: registeredCount,
+      skipped_count: skipped.length,
+    },
+  };
 }
 
 /**
@@ -129,10 +174,12 @@ export async function enqueueSharefullPublicationJobsForReadyTemplates(source: s
   const coreIds = Array.from(new Set((rows ?? []).map((row) => text(row.core_id)).filter(Boolean)));
   let registeredCount = 0;
   const skipped: string[] = [];
+  const coreResults: ReconciliationDiagnostic[] = [];
   for (const coreId of coreIds) {
     const result = await enqueueSharefullPublicationJobsForTemplate(coreId, source);
     registeredCount += result.registeredCount;
     skipped.push(...result.skipped.map((reason) => `${coreId}: ${reason}`));
+    if (result.diagnostic) coreResults.push(result.diagnostic);
   }
-  return { enabled: true, registeredCount, skipped, candidateCoreCount: coreIds.length };
+  return { enabled: true, registeredCount, skipped, candidateCoreCount: coreIds.length, coreResults };
 }

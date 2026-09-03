@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
       candidate_core_count: publication.candidateCoreCount ?? 0,
       skipped_count: publication.skipped.length,
       skipped: publication.skipped,
+      core_results: publication.coreResults ?? [],
     });
     return NextResponse.json({ cases, publication_jobs_registered: publication.registeredCount });
   } catch (error) {
