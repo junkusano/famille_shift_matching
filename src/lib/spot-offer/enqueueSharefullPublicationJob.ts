@@ -84,6 +84,17 @@ export async function enqueueSharefullPublicationJobsForTemplate(coreId: string,
     .order("shift_start_time", { ascending: true });
   if (requestError) throw requestError;
 
+  const shiftIds = (requests ?? [])
+    .map((row) => row.shift_id)
+    .filter((shiftId): shiftId is number => typeof shiftId === "number");
+  const { data: shifts, error: shiftError } = shiftIds.length === 0
+    ? { data: [], error: null }
+    : await supabaseAdmin.from("shift").select("shift_id, required_staff_count").in("shift_id", shiftIds);
+  if (shiftError) throw shiftError;
+  const requiredStaffCountByShiftId = new Map(
+    (shifts ?? []).map((shift) => [shift.shift_id, shift.required_staff_count]),
+  );
+
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("rpa_runner_jobs")
     .select("payload")
@@ -124,6 +135,7 @@ export async function enqueueSharefullPublicationJobsForTemplate(coreId: string,
       shift_end_time: row.shift_end_time,
       hourly_wage: row.unit_amount,
       commute_fee: row.commute_fee,
+      headcount: requiredStaffCountByShiftId.get(row.shift_id) ?? 1,
       execution_mode: mode,
       created_from: source,
     };
