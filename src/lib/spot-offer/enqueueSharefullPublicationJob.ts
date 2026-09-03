@@ -5,8 +5,19 @@ const ACTIVE_STATUSES = ["pending", "claimed", "completed"];
 
 type JsonRecord = Record<string, unknown>;
 
+type ReconciliationDiagnostic = {
+  core_id: string;
+  template_status?: string;
+  candidate_request_count: number;
+  duplicate_job_count: number;
+  registered_count: number;
+  skipped_count: number;
+};
+
 function text(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "";
 }
 
 function enabled(): boolean {
@@ -14,7 +25,7 @@ function enabled(): boolean {
 }
 
 function executionMode(): "save" | "publish" {
-  return process.env.SHAREFULL_AUTO_POST_MODE?.trim().toLowerCase() === "publish" ? "publish" : "save";
+  return process.env.SHAREFULL_AUTO_POST_MODE?.trim().toLowerCase() === "save" ? "save" : "publish";
 }
 
 /**
@@ -22,7 +33,12 @@ function executionMode(): "save" | "publish" {
  * 自動掲載フラグが無効な場合は何も登録しない（既存運用の安全策）。
  */
 export async function enqueueSharefullPublicationJobsForTemplate(coreId: string, source: string) {
-  if (!enabled()) return { enabled: false, registeredCount: 0, skipped: ["自動掲載が無効です"] };
+  if (!enabled()) return {
+    enabled: false,
+    registeredCount: 0,
+    skipped: ["自動掲載が無効です"],
+    diagnostic: { core_id: coreId, candidate_request_count: 0, duplicate_job_count: 0, registered_count: 0, skipped_count: 1 },
+  };
 
   const { data: template, error: templateError } = await supabaseAdmin
     .from("spot_offer_template_unified")
@@ -31,11 +47,28 @@ export async function enqueueSharefullPublicationJobsForTemplate(coreId: string,
     .maybeSingle();
   if (templateError) throw templateError;
   if (!template || text(template.sharefull_template_status) !== "ready_for_offer") {
-    return { enabled: true, registeredCount: 0, skipped: ["テンプレートが審査完了状態ではありません"] };
+    return {
+      enabled: true,
+      registeredCount: 0,
+      skipped: ["テンプレートが審査完了状態ではありません"],
+      diagnostic: {
+        core_id: coreId,
+        template_status: text(template?.sharefull_template_status) || "missing",
+        candidate_request_count: 0,
+        duplicate_job_count: 0,
+        registered_count: 0,
+        skipped_count: 1,
+      },
+    };
   }
 
   const sharefullTemplateId = text(template.sharefull_template_id);
-  if (!sharefullTemplateId) return { enabled: true, registeredCount: 0, skipped: ["SharefullテンプレートIDがありません"] };
+  if (!sharefullTemplateId) return {
+    enabled: true,
+    registeredCount: 0,
+    skipped: ["SharefullテンプレートIDがありません"],
+    diagnostic: { core_id: coreId, template_status: "ready_for_offer", candidate_request_count: 0, duplicate_job_count: 0, registered_count: 0, skipped_count: 1 },
+  };
 
   const today = new Date().toISOString().slice(0, 10);
   const { data: requests, error: requestError } = await supabaseAdmin
@@ -51,6 +84,17 @@ export async function enqueueSharefullPublicationJobsForTemplate(coreId: string,
     .order("shift_start_time", { ascending: true });
   if (requestError) throw requestError;
 
+  const shiftIds = (requests ?? [])
+    .map((row) => row.shift_id)
+    .filter((shiftId): shiftId is number => typeof shiftId === "number");
+  const { data: shifts, error: shiftError } = shiftIds.length === 0
+    ? { data: [], error: null }
+    : await supabaseAdmin.from("shift").select("shift_id, required_staff_count").in("shift_id", shiftIds);
+  if (shiftError) throw shiftError;
+  const requiredStaffCountByShiftId = new Map(
+    (shifts ?? []).map((shift) => [shift.shift_id, shift.required_staff_count]),
+  );
+
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("rpa_runner_jobs")
     .select("payload")
@@ -64,6 +108,7 @@ export async function enqueueSharefullPublicationJobsForTemplate(coreId: string,
     (existing ?? []).map((row) => text((row.payload as JsonRecord | null)?.operation_key)).filter(Boolean),
   );
   let registeredCount = 0;
+  let duplicateJobCount = 0;
   const skipped: string[] = [];
 
   for (const row of requests ?? []) {
@@ -71,6 +116,7 @@ export async function enqueueSharefullPublicationJobsForTemplate(coreId: string,
     if (!shiftId) continue;
     const operationKey = `sharefull:create_spot_offer:${mode}:${shiftId}`;
     if (operationKeys.has(operationKey)) {
+      duplicateJobCount += 1;
       skipped.push(`${shiftId}:同じジョブが登録済みです`);
       continue;
     }
@@ -89,6 +135,7 @@ export async function enqueueSharefullPublicationJobsForTemplate(coreId: string,
       shift_end_time: row.shift_end_time,
       hourly_wage: row.unit_amount,
       commute_fee: row.commute_fee,
+      headcount: requiredStaffCountByShiftId.get(row.shift_id) ?? 1,
       execution_mode: mode,
       created_from: source,
     };
@@ -105,5 +152,48 @@ export async function enqueueSharefullPublicationJobsForTemplate(coreId: string,
     registeredCount += 1;
   }
 
-  return { enabled: true, registeredCount, skipped };
+  return {
+    enabled: true,
+    registeredCount,
+    skipped,
+    diagnostic: {
+      core_id: coreId,
+      template_status: "ready_for_offer",
+      candidate_request_count: (requests ?? []).length,
+      duplicate_job_count: duplicateJobCount,
+      registered_count: registeredCount,
+      skipped_count: skipped.length,
+    },
+  };
+}
+
+/**
+ * 審査完了済みの全テンプレートを対象に掲載ジョブを登録する。
+ * Cronはこの関数だけを呼び出し、審査完了通知時の即時登録と同じ判定を使う。
+ */
+export async function enqueueSharefullPublicationJobsForReadyTemplates(source: string) {
+  if (!enabled()) return { enabled: false, registeredCount: 0, skipped: ["自動掲載が無効です"] };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: rows, error } = await supabaseAdmin
+    .from("spot_offer_request_table")
+    .select("core_id")
+    .eq("status", "募集中")
+    .gte("shift_start_date", today)
+    .not("taimee_job_id", "is", null)
+    .is("sharefull_job_id", null)
+    .in("sharefull_status", ["template_review", "ready_for_offer"]);
+  if (error) throw error;
+
+  const coreIds = Array.from(new Set((rows ?? []).map((row) => text(row.core_id)).filter(Boolean)));
+  let registeredCount = 0;
+  const skipped: string[] = [];
+  const coreResults: ReconciliationDiagnostic[] = [];
+  for (const coreId of coreIds) {
+    const result = await enqueueSharefullPublicationJobsForTemplate(coreId, source);
+    registeredCount += result.registeredCount;
+    skipped.push(...result.skipped.map((reason) => `${coreId}: ${reason}`));
+    if (result.diagnostic) coreResults.push(result.diagnostic);
+  }
+  return { enabled: true, registeredCount, skipped, candidateCoreCount: coreIds.length, coreResults };
 }
