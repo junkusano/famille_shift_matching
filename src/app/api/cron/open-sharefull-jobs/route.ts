@@ -31,15 +31,14 @@ function executionMode(): SharefullExecutionMode {
 /**
  * ready_for_offer の案件について、Sharefull案件掲載用のRPA指示を登録する。
  *
- * vercel.json から5分ごとに呼ばれるが、SHAREFULL_AUTO_POST_ENABLED=true かつ
- * 専用RPAテンプレートIDが設定されている場合だけ、実際に rpa_runner_jobs へ登録する。
+ * vercel.json から5分ごとに呼ばれるが、SHAREFULL_AUTO_POST_ENABLED=true の場合だけ、
+ * 実際に rpa_runner_jobs へ登録する。Runner側のジョブ種別が掲載処理を決定する。
  */
 export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const rpaTemplateId = text(process.env.SHAREFULL_JOB_CREATE_RPA_TEMPLATE_ID);
   const mode = executionMode();
 
   if (!isEnabled()) {
@@ -49,16 +48,6 @@ export async function GET(request: NextRequest) {
       registered_count: 0,
       message: "Sharefull自動掲載は無効です",
     });
-  }
-
-  if (!rpaTemplateId) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Sharefull掲載用RPAテンプレートIDが未設定です",
-      },
-      { status: 503 }
-    );
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -172,7 +161,6 @@ export async function GET(request: NextRequest) {
         status: "pending",
         payload: {
           ...requestDetails,
-          rpa_template_id: rpaTemplateId,
         },
       })
       .select("id")

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
+import { enqueueSharefullPublicationJobsForTemplate } from "@/lib/spot-offer/enqueueSharefullPublicationJob";
 
 const ALLOWED_STATUSES = new Set(["template_review", "ready_for_offer"]);
 
@@ -44,7 +45,13 @@ export async function POST(request: NextRequest) {
       .gte("shift_start_date", updatedAt.slice(0, 10));
     if (requestUpdateError) throw requestUpdateError;
 
-    return NextResponse.json({ ok: true, core_id: coreId, sharefull_template_status: status });
+    // 審査完了通知を受けた瞬間に、未来案件の掲載RPAジョブをRunnerへ渡す。
+    // 自動掲載フラグが無効な環境ではヘルパーが何も登録しない。
+    const dispatch = status === "ready_for_offer"
+      ? await enqueueSharefullPublicationJobsForTemplate(coreId, "rpa.sharefull.template-status")
+      : { registeredCount: 0 };
+
+    return NextResponse.json({ ok: true, core_id: coreId, sharefull_template_status: status, publication_jobs_registered: dispatch.registeredCount });
   } catch (error) {
     if (isRpaTaimeeError(error)) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[rpa/sharefull/template-status] failed", error);
