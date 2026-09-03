@@ -57,9 +57,9 @@ function getConfig() {
     );
   }
 
-  if (!/^https?:$/.test(baseUrl.protocol)) {
+  if (baseUrl.protocol !== "https:") {
     throw new WordPressApiError(
-      "WORDPRESS_API_URLにはhttpまたはhttpsのURLを指定してください。",
+      "WORDPRESS_API_URLにはhttpsのURLを指定してください。",
       503,
       "wordpress_config_invalid"
     );
