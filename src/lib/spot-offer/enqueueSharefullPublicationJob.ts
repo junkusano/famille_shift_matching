@@ -14,7 +14,7 @@ function enabled(): boolean {
 }
 
 function executionMode(): "save" | "publish" {
-  return process.env.SHAREFULL_AUTO_POST_MODE?.trim().toLowerCase() === "publish" ? "publish" : "save";
+  return process.env.SHAREFULL_AUTO_POST_MODE?.trim().toLowerCase() === "save" ? "save" : "publish";
 }
 
 /**
@@ -106,4 +106,33 @@ export async function enqueueSharefullPublicationJobsForTemplate(coreId: string,
   }
 
   return { enabled: true, registeredCount, skipped };
+}
+
+/**
+ * 審査完了済みの全テンプレートを対象に掲載ジョブを登録する。
+ * Cronはこの関数だけを呼び出し、審査完了通知時の即時登録と同じ判定を使う。
+ */
+export async function enqueueSharefullPublicationJobsForReadyTemplates(source: string) {
+  if (!enabled()) return { enabled: false, registeredCount: 0, skipped: ["自動掲載が無効です"] };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: rows, error } = await supabaseAdmin
+    .from("spot_offer_request_table")
+    .select("core_id")
+    .eq("status", "募集中")
+    .gte("shift_start_date", today)
+    .not("taimee_job_id", "is", null)
+    .is("sharefull_job_id", null)
+    .in("sharefull_status", ["template_review", "ready_for_offer"]);
+  if (error) throw error;
+
+  const coreIds = Array.from(new Set((rows ?? []).map((row) => text(row.core_id)).filter(Boolean)));
+  let registeredCount = 0;
+  const skipped: string[] = [];
+  for (const coreId of coreIds) {
+    const result = await enqueueSharefullPublicationJobsForTemplate(coreId, source);
+    registeredCount += result.registeredCount;
+    skipped.push(...result.skipped.map((reason) => `${coreId}: ${reason}`));
+  }
+  return { enabled: true, registeredCount, skipped, candidateCoreCount: coreIds.length };
 }
