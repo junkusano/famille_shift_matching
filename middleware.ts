@@ -90,6 +90,7 @@ export async function middleware(req: NextRequest) {
       '/portal/rpa_requests',
       '/portal/rpa_temp',
       '/portal/admin/monitoring-office-notice',
+      '/portal/admin/website',
     ]
 
     const isAdminPath = adminOnlyPaths.some((path) => pathname.startsWith(path))
