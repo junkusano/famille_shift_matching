@@ -49,6 +49,9 @@ const MAX_CONCURRENCY = Math.max(1, Math.min(8, Number(process.env.GOOGLE_MAPS_C
 // Vercelの関数タイムアウト前に結果を保存して終了するための安全時間。
 const MAX_RUNTIME_MS = Math.max(15_000, Number(process.env.GOOGLE_MAPS_MAX_RUNTIME_MS ?? 45_000));
 const RETRY_MINUTES = Math.max(5, Number(process.env.GOOGLE_MAPS_RETRY_MINUTES ?? 60));
+// 完了済み実績だけでなく、登録済みの予定シフトも概算に含める。
+// 月間画面の先々の月にも対応できるよう、既定では今日から12か月先まで取得する。
+const FUTURE_MONTHS = Math.max(0, Number(process.env.GOOGLE_MAPS_DISTANCE_FUTURE_MONTHS ?? 12));
 const EXCLUDED_STAFF_NAMES = new Set([
   "濵川 千咲", "サービス サポート", "益田 名実", "塩澤 里美", "高橋 りか",
   "松岡 佑太", "増田 志乃", "太田 明子", "大津 美羽", "池本 梨夏",
@@ -129,8 +132,13 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
     const from = new Date();
     from.setMonth(from.getMonth() - 12);
     const fromDate = from.toISOString().slice(0, 10);
-    // 将来シフトは月間実績の対象外なので、現在日までを処理する。
-    const toDate = new Date().toISOString().slice(0, 10);
+    // 完了済み実績に加え、登録済みの予定シフトも概算対象にする。
+    // shiftテーブルには完了/予定を分けるステータス列がないため、日付範囲内の
+    // シフトをそのまま対象にする。住所や担当者が後から変わった場合は、
+    // 既存の住所ハッシュ差分で次回更新時に再計算される。
+    const to = new Date();
+    to.setMonth(to.getMonth() + FUTURE_MONTHS);
+    const toDate = to.toISOString().slice(0, 10);
     const { data: shifts, error: shiftError } = await supabaseAdmin
       .from("shift")
       .select("shift_id, shift_start_date, shift_start_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id")

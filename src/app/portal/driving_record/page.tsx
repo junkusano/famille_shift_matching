@@ -286,7 +286,7 @@ export default function ManagerDistanceIndexPage() {
 </div>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Google Mapsの道路距離を、職員ごとに月間集計しています。
+            Google Mapsの道路距離を、完了済み・予定シフトの両方から職員ごとに月間集計しています。
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
             Google Maps距離　最終更新：{lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString("ja-JP") : "未更新"}
