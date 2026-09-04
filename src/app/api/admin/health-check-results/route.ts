@@ -5,7 +5,6 @@ import {
   getHealthCheckFiscalYear,
   getHealthCheckType,
   HEALTH_CHECK_SUBMITTED_STATUSES,
-  isLegacyHealthCheckBackfill,
 } from "@/lib/healthCheck";
 
 type RequestRow = {
@@ -13,6 +12,7 @@ type RequestRow = {
   payload: Record<string, unknown> | null; health_check_occupational_physician_checked: boolean | null;
   health_check_occupational_physician_checked_at: string | null; health_check_occupational_physician_checked_by: string | null;
   health_check_doctor_comment: string | null;
+  health_check_rejection_reason: string | null; health_check_rejected_at: string | null; health_check_rejected_by: string | null;
   health_check_admin_checked: boolean | null; health_check_admin_checked_at: string | null; health_check_admin_checked_by: string | null;
 };
 
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     ]);
     if (staffError || typeError) throw staffError ?? typeError;
     const { data: requests, error: requestError } = type?.id
-      ? await supabaseAdmin.from("wf_request").select("id,applicant_user_id,status,submitted_at,created_at,payload").eq("request_type_id", type.id).in("status", [...HEALTH_CHECK_SUBMITTED_STATUSES])
+      ? await supabaseAdmin.from("wf_request").select("id,applicant_user_id,status,submitted_at,created_at,payload").eq("request_type_id", type.id).in("status", [...HEALTH_CHECK_SUBMITTED_STATUSES, "rejected"])
       : { data: [], error: null };
     if (requestError) throw requestError;
     // Keep the list usable until the accompanying schema migration has been applied.
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
     if ((requests?.length ?? 0) > 0) {
       const { data: reviewRows, error: reviewError } = await supabaseAdmin
         .from("wf_request")
-        .select("id,health_check_doctor_comment,health_check_occupational_physician_checked,health_check_occupational_physician_checked_at,health_check_occupational_physician_checked_by,health_check_admin_checked,health_check_admin_checked_at,health_check_admin_checked_by")
+        .select("id,health_check_doctor_comment,health_check_rejection_reason,health_check_rejected_at,health_check_rejected_by,health_check_occupational_physician_checked,health_check_occupational_physician_checked_at,health_check_occupational_physician_checked_by,health_check_admin_checked,health_check_admin_checked_at,health_check_admin_checked_by")
         .in("id", (requests ?? []).map((row) => row.id));
       if (reviewError) {
         if (reviewError.code === "42703") reviewMetadataAvailable = false;
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
     const latestByUser = new Map<string, RequestRow>();
     for (const request of (requests ?? []) as RequestRow[]) {
       const date = getHealthCheckDate(request.payload);
-      if (!date || getHealthCheckFiscalYear(date) !== fiscalYear || (!(attachmentsByRequest.get(request.id)?.length) && !isLegacyHealthCheckBackfill(request.payload))) continue;
+      if (!date || getHealthCheckFiscalYear(date) !== fiscalYear) continue;
       const current = latestByUser.get(request.applicant_user_id);
       if (!current || (request.submitted_at ?? request.created_at) > (current.submitted_at ?? current.created_at)) latestByUser.set(request.applicant_user_id, request);
     }
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
       return {
         user_id: person.user_id, entry_id: person.entry_id, staff_name: `${person.last_name_kanji ?? ""}${person.first_name_kanji ?? ""}`.trim() || person.user_id,
         orgunitname: person.orgunitname, role: person.system_role, status: person.status,
-        submitted: Boolean(request),
+        submitted: request ? Boolean(attachmentsByRequest.get(request.id)?.length) && request.status !== "rejected" : false,
         request: request ? { ...request, ...review, health_check_date: getHealthCheckDate(request.payload), health_check_type: getHealthCheckType(request.payload), attachments: attachmentsByRequest.get(request.id) ?? [] } : null,
       };
     }).sort((a, b) => a.staff_name.localeCompare(b.staff_name, "ja"));
@@ -90,7 +90,15 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const actor = await requireHealthCheckManager(req);
-    const body = await req.json() as { request_id?: string; field?: "occupational_physician" | "admin" | "doctor_comment"; checked?: boolean; doctor_comment?: string | null };
+    const body = await req.json() as { request_id?: string; field?: "occupational_physician" | "admin" | "doctor_comment" | "reject"; checked?: boolean; doctor_comment?: string | null; rejection_reason?: string };
+    if (body.field === "reject") {
+      if (!body.request_id || typeof body.rejection_reason !== "string" || body.rejection_reason.trim().length > 10000) return NextResponse.json({ ok: false, error: "差し戻し理由が不正です。" }, { status: 400 });
+      const now = new Date().toISOString();
+      const reason = body.rejection_reason.trim() || "健診結果の内容を確認してください。";
+      const { error } = await supabaseAdmin.from("wf_request").update({ status: "rejected", health_check_rejection_reason: reason, health_check_rejected_at: now, health_check_rejected_by: actor.user_id, updated_at: now }).eq("id", body.request_id);
+      if (error) throw error;
+      return NextResponse.json({ ok: true, status: "rejected", rejection_reason: reason, rejected_at: now, rejected_by: actor.user_id });
+    }
     if (body.field === "doctor_comment") {
       if (!body.request_id || typeof body.doctor_comment !== "string" || body.doctor_comment.length > 10000) return NextResponse.json({ ok: false, error: "医師の意見が不正です。" }, { status: 400 });
       const comment = body.doctor_comment.trim() || null;

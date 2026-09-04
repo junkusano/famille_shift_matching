@@ -120,10 +120,9 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
   try {
     const from = new Date();
     from.setMonth(from.getMonth() - 12);
-    const to = new Date();
-    to.setMonth(to.getMonth() + 3);
     const fromDate = from.toISOString().slice(0, 10);
-    const toDate = to.toISOString().slice(0, 10);
+    // 将来シフトは月間実績の対象外なので、現在日までを処理する。
+    const toDate = new Date().toISOString().slice(0, 10);
     const { data: shifts, error: shiftError } = await supabaseAdmin
       .from("shift")
       .select("shift_id, shift_start_date, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id")
@@ -176,6 +175,18 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
       .map((staffId) => ({ shift, staffId, origin: addressByStaff.get(staffId) ?? "", destination: addressByClient.get(shift.kaipoke_cs_id) ?? "" }))
       .filter((t) => Boolean(t.shift.shift_start_date && t.origin && t.destination && t.origin !== t.destination))) as Array<{ shift: ShiftRow; staffId: string; origin: string; destination: string }>;
 
+    // 直近の締め月（例：9月なら8月）を優先し、月次集計に必要な過去分を先に確定させる。
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const previousMonthDate = new Date();
+    previousMonthDate.setMonth(previousMonthDate.getMonth() - 1);
+    const previousMonth = previousMonthDate.toISOString().slice(0, 7);
+    targets.sort((a, b) => {
+      const aMonth = a.shift.shift_start_date?.slice(0, 7) ?? "";
+      const bMonth = b.shift.shift_start_date?.slice(0, 7) ?? "";
+      const priority = (month: string) => month === previousMonth ? 0 : month === currentMonth ? 1 : 2;
+      return priority(aMonth) - priority(bMonth) || (b.shift.shift_start_date ?? "").localeCompare(a.shift.shift_start_date ?? "");
+    });
+
     await supabaseAdmin.from("google_maps_distance_cron_runs").update({ target_shift_count: shiftRows.length, target_segment_count: targets.length }).eq("id", run.id);
     let nextTargetIndex = 0;
     const processTarget = async (target: (typeof targets)[number]) => {
@@ -191,6 +202,11 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
       if (cache?.status === "success" && cache.distance_meters != null) {
         cacheHitCount++;
         await supabaseAdmin.from("manager_distance_segments").update({ distance_cache_id: cache.id, status: "success", distance_meters: cache.distance_meters, duration_seconds: cache.duration_seconds, calculated_at: cache.calculated_at, last_error: null, updated_at: new Date().toISOString() }).eq("id", segment.id);
+        return;
+      }
+      if (cache?.status === "error" && cache.retry_after && new Date(cache.retry_after).getTime() > Date.now()) {
+        skippedByLimitCount++;
+        await supabaseAdmin.from("manager_distance_segments").update({ status: "error", last_error: cache.last_error, updated_at: new Date().toISOString() }).eq("id", segment.id);
         return;
       }
       if (requestCount >= MAX_REQUESTS) { skippedByLimitCount++; return; }

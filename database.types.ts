@@ -11609,6 +11609,9 @@ export type Database = {
           health_check_admin_checked_at: string | null
           health_check_admin_checked_by: string | null
           health_check_doctor_comment: string | null
+          health_check_rejection_reason: string | null
+          health_check_rejected_at: string | null
+          health_check_rejected_by: string | null
           health_check_occupational_physician_checked: boolean
           health_check_occupational_physician_checked_at: string | null
           health_check_occupational_physician_checked_by: string | null
@@ -11630,6 +11633,9 @@ export type Database = {
           health_check_admin_checked_at?: string | null
           health_check_admin_checked_by?: string | null
           health_check_doctor_comment?: string | null
+          health_check_rejection_reason?: string | null
+          health_check_rejected_at?: string | null
+          health_check_rejected_by?: string | null
           health_check_occupational_physician_checked?: boolean
           health_check_occupational_physician_checked_at?: string | null
           health_check_occupational_physician_checked_by?: string | null
@@ -11651,6 +11657,9 @@ export type Database = {
           health_check_admin_checked_at?: string | null
           health_check_admin_checked_by?: string | null
           health_check_doctor_comment?: string | null
+          health_check_rejection_reason?: string | null
+          health_check_rejected_at?: string | null
+          health_check_rejected_by?: string | null
           health_check_occupational_physician_checked?: boolean
           health_check_occupational_physician_checked_at?: string | null
           health_check_occupational_physician_checked_by?: string | null
