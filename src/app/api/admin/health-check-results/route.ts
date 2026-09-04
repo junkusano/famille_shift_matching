@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     if ((requests?.length ?? 0) > 0) {
       const { data: reviewRows, error: reviewError } = await supabaseAdmin
         .from("wf_request")
-        .select("id,health_check_doctor_comment,health_check_occupational_physician_required,health_check_occupational_physician_checked,health_check_occupational_physician_checked_at,health_check_occupational_physician_checked_by,health_check_admin_checked,health_check_admin_checked_at,health_check_admin_checked_by")
+        .select("id,health_check_doctor_comment,health_check_occupational_physician_checked,health_check_occupational_physician_checked_at,health_check_occupational_physician_checked_by,health_check_admin_checked,health_check_admin_checked_at,health_check_admin_checked_by")
         .in("id", (requests ?? []).map((row) => row.id));
       if (reviewError) {
         if (reviewError.code === "42703") reviewMetadataAvailable = false;
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
         user_id: person.user_id, entry_id: person.entry_id, staff_name: `${person.last_name_kanji ?? ""}${person.first_name_kanji ?? ""}`.trim() || person.user_id,
         orgunitname: person.orgunitname, role: person.system_role, status: person.status,
         submitted: request ? Boolean(attachmentsByRequest.get(request.id)?.length) && request.status !== "rejected" : false,
-        request: request ? { ...request, ...review, health_check_rejection_reason: review?.health_check_rejection_reason ?? payloadRejectionReason, health_check_rejected_at: review?.health_check_rejected_at ?? (typeof payload.health_check_rejected_at === "string" ? payload.health_check_rejected_at : null), health_check_rejected_by: review?.health_check_rejected_by ?? (typeof payload.health_check_rejected_by === "string" ? payload.health_check_rejected_by : null), health_check_date: getHealthCheckDate(request.payload), health_check_type: getHealthCheckType(request.payload), attachments: attachmentsByRequest.get(request.id) ?? [] } : null,
+        request: request ? { ...request, ...review, health_check_occupational_physician_checked: typeof review?.health_check_occupational_physician_checked === "boolean" ? review.health_check_occupational_physician_checked : payload.health_check_occupational_physician_checked === true, health_check_admin_checked: typeof review?.health_check_admin_checked === "boolean" ? review.health_check_admin_checked : payload.health_check_admin_checked === true, health_check_occupational_physician_required: typeof review?.health_check_occupational_physician_required === "boolean" ? review.health_check_occupational_physician_required : payload.health_check_occupational_physician_required === true, health_check_rejection_reason: review?.health_check_rejection_reason ?? payloadRejectionReason, health_check_rejected_at: review?.health_check_rejected_at ?? (typeof payload.health_check_rejected_at === "string" ? payload.health_check_rejected_at : null), health_check_rejected_by: review?.health_check_rejected_by ?? (typeof payload.health_check_rejected_by === "string" ? payload.health_check_rejected_by : null), health_check_date: getHealthCheckDate(request.payload), health_check_type: getHealthCheckType(request.payload), attachments: attachmentsByRequest.get(request.id) ?? [] } : null,
       };
     }).sort((a, b) => a.staff_name.localeCompare(b.staff_name, "ja"));
     return NextResponse.json({ ok: true, rows, review_metadata_available: reviewMetadataAvailable });
@@ -100,8 +100,17 @@ export async function PATCH(req: NextRequest) {
       const update = body.required
         ? { health_check_occupational_physician_required: true, health_check_occupational_physician_checked: false, health_check_occupational_physician_checked_at: null, health_check_occupational_physician_checked_by: null, updated_at: now }
         : { health_check_occupational_physician_required: false, health_check_occupational_physician_checked: true, health_check_occupational_physician_checked_at: now, health_check_occupational_physician_checked_by: actor.user_id, updated_at: now };
-      const { error } = await supabaseAdmin.from("wf_request").update(update).eq("id", body.request_id);
-      if (error) throw error;
+      const { data: current, error: currentError } = await supabaseAdmin.from("wf_request").select("payload").eq("id", body.request_id).maybeSingle();
+      if (currentError || !current) throw currentError ?? new Error("健診申請が見つかりません。");
+      const currentPayload = current.payload && typeof current.payload === "object" && !Array.isArray(current.payload) ? current.payload as Record<string, unknown> : {};
+      const { error } = await supabaseAdmin.from("wf_request").update({ ...update, payload: { ...currentPayload, health_check_occupational_physician_required: body.required } }).eq("id", body.request_id);
+      if (error?.code === "42703") {
+        const fallbackUpdate = body.required
+          ? { health_check_occupational_physician_checked: false, health_check_occupational_physician_checked_at: null, health_check_occupational_physician_checked_by: null, payload: { ...currentPayload, health_check_occupational_physician_required: true }, updated_at: now }
+          : { health_check_occupational_physician_checked: true, health_check_occupational_physician_checked_at: now, health_check_occupational_physician_checked_by: actor.user_id, payload: { ...currentPayload, health_check_occupational_physician_required: false }, updated_at: now };
+        const { error: fallbackError } = await supabaseAdmin.from("wf_request").update(fallbackUpdate).eq("id", body.request_id);
+        if (fallbackError) throw fallbackError;
+      } else if (error) throw error;
       return NextResponse.json({ ok: true, required: body.required, checked: !body.required, checked_at: body.required ? null : now, checked_by: body.required ? null : actor.user_id });
     }
     if (body.field === "reject") {
@@ -132,8 +141,13 @@ export async function PATCH(req: NextRequest) {
       : { [`${prefix}_checked`]: false, [`${prefix}_checked_at`]: null, [`${prefix}_checked_by`]: null, updated_at: now };
     const { error } = await supabaseAdmin.from("wf_request").update(update).eq("id", body.request_id);
     if (error) {
-      if (error.code === "42703") throw new Error("健康診断管理のDB migration が未適用です。202608181000_health_check_management.sql を適用してください。");
-      throw error;
+      if (error.code !== "42703") throw error;
+      const { data: current, error: currentError } = await supabaseAdmin.from("wf_request").select("payload").eq("id", body.request_id).maybeSingle();
+      if (currentError || !current) throw currentError ?? new Error("健診申請が見つかりません。");
+      const currentPayload = current.payload && typeof current.payload === "object" && !Array.isArray(current.payload) ? current.payload as Record<string, unknown> : {};
+      const fallbackUpdate = { payload: { ...currentPayload, [`health_check_${body.field}_checked`]: body.checked, [`health_check_${body.field}_checked_at`]: body.checked ? now : null, [`health_check_${body.field}_checked_by`]: body.checked ? actor.user_id : null }, updated_at: now };
+      const { error: fallbackError } = await supabaseAdmin.from("wf_request").update(fallbackUpdate).eq("id", body.request_id);
+      if (fallbackError) throw fallbackError;
     }
     return NextResponse.json({ ok: true, checked: body.checked, checked_at: body.checked ? now : null, checked_by: body.checked ? actor.user_id : null });
   } catch (error) { return failure(error); }
