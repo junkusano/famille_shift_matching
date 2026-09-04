@@ -105,9 +105,16 @@ export async function PATCH(req: NextRequest) {
       const currentPayload = current.payload && typeof current.payload === "object" && !Array.isArray(current.payload) ? current.payload as Record<string, unknown> : {};
       const { error } = await supabaseAdmin.from("wf_request").update({ ...update, payload: { ...currentPayload, health_check_occupational_physician_required: body.required } }).eq("id", body.request_id);
       if (error?.code === "42703") {
+        const fallbackPayload = {
+          ...currentPayload,
+          health_check_occupational_physician_required: body.required,
+          health_check_occupational_physician_checked: !body.required,
+          health_check_occupational_physician_checked_at: body.required ? null : now,
+          health_check_occupational_physician_checked_by: body.required ? null : actor.user_id,
+        };
         const fallbackUpdate = body.required
-          ? { health_check_occupational_physician_checked: false, health_check_occupational_physician_checked_at: null, health_check_occupational_physician_checked_by: null, payload: { ...currentPayload, health_check_occupational_physician_required: true }, updated_at: now }
-          : { health_check_occupational_physician_checked: true, health_check_occupational_physician_checked_at: now, health_check_occupational_physician_checked_by: actor.user_id, payload: { ...currentPayload, health_check_occupational_physician_required: false }, updated_at: now };
+          ? { payload: fallbackPayload, updated_at: now }
+          : { payload: fallbackPayload, updated_at: now };
         const { error: fallbackError } = await supabaseAdmin.from("wf_request").update(fallbackUpdate).eq("id", body.request_id);
         if (fallbackError) throw fallbackError;
       } else if (error) throw error;

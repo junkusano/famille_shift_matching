@@ -21,24 +21,6 @@ type ManagerSummary = {
   total: number;
 };
 
-const GASOLINE_LIMITS = [
-  {
-    min: 0,
-    max: 899,
-    amount: 13000,
-  },
-  {
-    min: 900,
-    max: 1499,
-    amount: 16000,
-  },
-  {
-    min: 1500,
-    max: Infinity,
-    amount: 20000,
-  },
-] as const;
-
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -258,32 +240,6 @@ export default function ManagerDistanceIndexPage() {
           <h1 className="text-2xl font-bold tracking-tight">
             マネージャー移動距離指数
           </h1>
-
-<div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4">
-  <h2 className="mb-3 text-lg font-semibold text-amber-900">
-    ガソリン代上限額
-  </h2>
-
-  <div className="grid gap-2 text-sm sm:grid-cols-3">
-    {GASOLINE_LIMITS.map((item) => (
-      <div
-        key={item.min}
-        className="rounded-md bg-white px-4 py-3 shadow-sm"
-      >
-        <div className="font-medium text-gray-700">
-          指数{" "}
-          {item.max === Infinity
-            ? `${item.min.toLocaleString()}以上`
-            : `${item.min.toLocaleString()}～${item.max.toLocaleString()}`}
-        </div>
-
-        <div className="mt-1 text-lg font-bold text-gray-900">
-          {item.amount.toLocaleString()}円
-        </div>
-      </div>
-    ))}
-  </div>
-</div>
 
           <p className="mt-1 text-sm text-muted-foreground">
             Google Mapsの道路距離を、完了済み・予定シフトの両方から職員ごとに月間集計しています。
