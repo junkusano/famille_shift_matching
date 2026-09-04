@@ -12,6 +12,7 @@ type RequestRow = {
   payload: Record<string, unknown> | null; health_check_occupational_physician_checked: boolean | null;
   health_check_occupational_physician_checked_at: string | null; health_check_occupational_physician_checked_by: string | null;
   health_check_doctor_comment: string | null;
+  health_check_occupational_physician_required: boolean | null;
   health_check_rejection_reason?: string | null; health_check_rejected_at?: string | null; health_check_rejected_by?: string | null;
   health_check_admin_checked: boolean | null; health_check_admin_checked_at: string | null; health_check_admin_checked_by: string | null;
 };
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
     if ((requests?.length ?? 0) > 0) {
       const { data: reviewRows, error: reviewError } = await supabaseAdmin
         .from("wf_request")
-        .select("id,health_check_doctor_comment,health_check_occupational_physician_checked,health_check_occupational_physician_checked_at,health_check_occupational_physician_checked_by,health_check_admin_checked,health_check_admin_checked_at,health_check_admin_checked_by")
+        .select("id,health_check_doctor_comment,health_check_occupational_physician_required,health_check_occupational_physician_checked,health_check_occupational_physician_checked_at,health_check_occupational_physician_checked_by,health_check_admin_checked,health_check_admin_checked_at,health_check_admin_checked_by")
         .in("id", (requests ?? []).map((row) => row.id));
       if (reviewError) {
         if (reviewError.code === "42703") reviewMetadataAvailable = false;
@@ -92,7 +93,17 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const actor = await requireHealthCheckManager(req);
-    const body = await req.json() as { request_id?: string; field?: "occupational_physician" | "admin" | "doctor_comment" | "reject"; checked?: boolean; doctor_comment?: string | null; rejection_reason?: string };
+    const body = await req.json() as { request_id?: string; field?: "occupational_physician" | "admin" | "doctor_comment" | "occupational_physician_required" | "reject"; checked?: boolean; required?: boolean; doctor_comment?: string | null; rejection_reason?: string };
+    if (body.field === "occupational_physician_required") {
+      if (!body.request_id || typeof body.required !== "boolean") return NextResponse.json({ ok: false, error: "産業医意見聴取の設定が不正です。" }, { status: 400 });
+      const now = new Date().toISOString();
+      const update = body.required
+        ? { health_check_occupational_physician_required: true, health_check_occupational_physician_checked: false, health_check_occupational_physician_checked_at: null, health_check_occupational_physician_checked_by: null, updated_at: now }
+        : { health_check_occupational_physician_required: false, health_check_occupational_physician_checked: true, health_check_occupational_physician_checked_at: now, health_check_occupational_physician_checked_by: actor.user_id, updated_at: now };
+      const { error } = await supabaseAdmin.from("wf_request").update(update).eq("id", body.request_id);
+      if (error) throw error;
+      return NextResponse.json({ ok: true, required: body.required, checked: !body.required, checked_at: body.required ? null : now, checked_by: body.required ? null : actor.user_id });
+    }
     if (body.field === "reject") {
       if (!body.request_id || typeof body.rejection_reason !== "string" || body.rejection_reason.trim().length > 10000) return NextResponse.json({ ok: false, error: "差し戻し理由が不正です。" }, { status: 400 });
       const now = new Date().toISOString();
@@ -107,7 +118,9 @@ export async function PATCH(req: NextRequest) {
     if (body.field === "doctor_comment") {
       if (!body.request_id || typeof body.doctor_comment !== "string" || body.doctor_comment.length > 10000) return NextResponse.json({ ok: false, error: "医師の意見が不正です。" }, { status: 400 });
       const comment = body.doctor_comment.trim() || null;
-      const { error } = await supabaseAdmin.from("wf_request").update({ health_check_doctor_comment: comment, updated_at: new Date().toISOString() }).eq("id", body.request_id);
+      const now = new Date().toISOString();
+      const { data: current } = await supabaseAdmin.from("wf_request").select("health_check_occupational_physician_required").eq("id", body.request_id).maybeSingle();
+      const { error } = await supabaseAdmin.from("wf_request").update({ health_check_doctor_comment: comment, ...(current?.health_check_occupational_physician_required !== true || comment ? { health_check_occupational_physician_checked: true, health_check_occupational_physician_checked_at: now, health_check_occupational_physician_checked_by: actor.user_id } : {}), updated_at: now }).eq("id", body.request_id);
       if (error) throw error;
       return NextResponse.json({ ok: true, doctor_comment: comment });
     }
