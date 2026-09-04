@@ -22,7 +22,7 @@ async function requireHealthCheckManager(req: NextRequest) {
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user) throw new Error("UNAUTHORIZED");
   const { data: me, error: meError } = await supabaseAdmin.from("users").select("user_id,system_role").eq("auth_user_id", data.user.id).maybeSingle();
-  if (meError || !me || !["admin", "manager"].includes((me.system_role ?? "").toLowerCase())) throw new Error("FORBIDDEN");
+  if (meError || !me || !["admin", "manager"].includes((me.system_role ?? "").toLowerCase()) || me.user_id === "servicesuport") throw new Error("FORBIDDEN");
   return me;
 }
 

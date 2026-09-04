@@ -7,6 +7,7 @@ type DistanceResult = { distanceMeters: number; durationSeconds: number };
 type ShiftRow = {
   shift_id: number;
   shift_start_date: string | null;
+  shift_start_time: string | null;
   kaipoke_cs_id: string | null;
   staff_01_user_id: string | null;
   staff_02_user_id: string | null;
@@ -20,6 +21,13 @@ type EntryRow = {
   address: string | null;
   last_name_kanji: string | null;
   first_name_kanji: string | null;
+};
+type RouteTarget = {
+  shift: ShiftRow;
+  staffId: string;
+  segmentKind: "home_to_client" | "client_to_client" | "client_to_home";
+  origin: string;
+  destination: string;
 };
 
 export type DistanceRunResult = {
@@ -125,7 +133,7 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
     const toDate = new Date().toISOString().slice(0, 10);
     const { data: shifts, error: shiftError } = await supabaseAdmin
       .from("shift")
-      .select("shift_id, shift_start_date, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id")
+      .select("shift_id, shift_start_date, shift_start_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id")
       .gte("shift_start_date", fromDate).lte("shift_start_date", toDate);
     if (shiftError) throw new Error(shiftError.message);
 
@@ -169,11 +177,41 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
       if (address) addressByStaff.set(user.user_id, address);
     }
     const addressByClient = new Map<string, string>(clientRows.map((c: ClientRow) => [c.kaipoke_cs_id, clean(c.address)]));
-    const targets = shiftRows.flatMap((shift: ShiftRow) => [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
+    const assigned = shiftRows.flatMap((shift: ShiftRow) => [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
       .filter((staffId): staffId is string => Boolean(staffId && staffId !== "-"))
       .filter((staffId) => managerStaffIds.has(staffId))
-      .map((staffId) => ({ shift, staffId, origin: addressByStaff.get(staffId) ?? "", destination: addressByClient.get(shift.kaipoke_cs_id) ?? "" }))
-      .filter((t) => Boolean(t.shift.shift_start_date && t.origin && t.destination && t.origin !== t.destination))) as Array<{ shift: ShiftRow; staffId: string; origin: string; destination: string }>;
+      .map((staffId) => ({
+        shift,
+        staffId,
+        home: addressByStaff.get(staffId) ?? "",
+        client: addressByClient.get(shift.kaipoke_cs_id) ?? "",
+      }))
+      .filter((t) => Boolean(t.shift.shift_start_date && t.home && t.client)));
+    const shiftsByStaffDay = new Map<string, typeof assigned>();
+    for (const item of assigned) {
+      const key = `${item.staffId}:${item.shift.shift_start_date}`;
+      const day = shiftsByStaffDay.get(key) ?? [];
+      day.push(item);
+      shiftsByStaffDay.set(key, day);
+    }
+    const targets: RouteTarget[] = [];
+    for (const day of shiftsByStaffDay.values()) {
+      day.sort((a, b) => (a.shift.shift_start_time ?? "").localeCompare(b.shift.shift_start_time ?? "") || a.shift.shift_id - b.shift.shift_id);
+      const first = day[0];
+      const last = day[day.length - 1];
+      if (!first || !last) continue;
+      targets.push({ shift: first.shift, staffId: first.staffId, segmentKind: "home_to_client", origin: first.home, destination: first.client });
+      for (let index = 1; index < day.length; index++) {
+        const previous = day[index - 1];
+        const current = day[index];
+        if (previous.client !== current.client) {
+          targets.push({ shift: current.shift, staffId: current.staffId, segmentKind: "client_to_client", origin: previous.client, destination: current.client });
+        }
+      }
+      if (last.client !== last.home) {
+        targets.push({ shift: last.shift, staffId: last.staffId, segmentKind: "client_to_home", origin: last.client, destination: last.home });
+      }
+    }
 
     // 直近の締め月（例：9月なら8月）を優先し、月次集計に必要な過去分を先に確定させる。
     const currentMonth = new Date().toISOString().slice(0, 7);
@@ -194,7 +232,7 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
       const destinationHash = addressHash(target.destination);
       const { data: segment } = await supabaseAdmin.from("manager_distance_segments").upsert({
         shift_id: target.shift.shift_id, staff_user_id: target.staffId, segment_date: target.shift.shift_start_date as string,
-        segment_kind: "home_to_client", origin_address: target.origin, destination_address: target.destination,
+        segment_kind: target.segmentKind, origin_address: target.origin, destination_address: target.destination,
         origin_address_hash: originHash, destination_address_hash: destinationHash, status: "pending", last_error: null, updated_at: new Date().toISOString(),
       }, { onConflict: "shift_id,staff_user_id,segment_kind" }).select("id, distance_cache_id, status, origin_address_hash, destination_address_hash").single();
       if (!segment) return;

@@ -69,7 +69,7 @@ export async function middleware(req: NextRequest) {
 
     const { data: profile, error } = await supabase
       .from('users')
-      .select('system_role, service_type')
+      .select('user_id, system_role, service_type')
       .eq('auth_user_id', user.id)
       .maybeSingle()
 
@@ -91,12 +91,13 @@ export async function middleware(req: NextRequest) {
       '/portal/rpa_temp',
       '/portal/admin/monitoring-office-notice',
       '/portal/admin/website',
+      '/portal/admin/health-check-results',
     ]
 
     const isAdminPath = adminOnlyPaths.some((path) => pathname.startsWith(path))
 
     if (isAdminPath) {
-      if (!['admin', 'manager'].includes(profile.system_role)) {
+      if (!['admin', 'manager'].includes(profile.system_role) || profile.user_id === 'servicesuport') {
         return NextResponse.redirect(new URL('/unauthorized', req.url))
       }
     }
