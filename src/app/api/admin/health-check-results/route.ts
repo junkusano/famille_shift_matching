@@ -32,6 +32,10 @@ function failure(error: unknown) {
   return NextResponse.json({ ok: false, error: message }, { status: message === "UNAUTHORIZED" ? 401 : message === "FORBIDDEN" ? 403 : 500 });
 }
 
+function isMissingColumnError(error: { code?: string; message?: string } | null) {
+  return Boolean(error && (error.code === "42703" || error.code === "PGRST204" || /column .* does not exist|schema cache/i.test(error.message ?? "")));
+}
+
 export async function GET(req: NextRequest) {
   try {
     await requireHealthCheckManager(req);
@@ -104,7 +108,7 @@ export async function PATCH(req: NextRequest) {
       if (currentError || !current) throw currentError ?? new Error("健診申請が見つかりません。");
       const currentPayload = current.payload && typeof current.payload === "object" && !Array.isArray(current.payload) ? current.payload as Record<string, unknown> : {};
       const { error } = await supabaseAdmin.from("wf_request").update({ ...update, payload: { ...currentPayload, health_check_occupational_physician_required: body.required } }).eq("id", body.request_id);
-      if (error?.code === "42703") {
+      if (isMissingColumnError(error)) {
         const fallbackPayload = {
           ...currentPayload,
           health_check_occupational_physician_required: body.required,
@@ -148,7 +152,7 @@ export async function PATCH(req: NextRequest) {
       : { [`${prefix}_checked`]: false, [`${prefix}_checked_at`]: null, [`${prefix}_checked_by`]: null, updated_at: now };
     const { error } = await supabaseAdmin.from("wf_request").update(update).eq("id", body.request_id);
     if (error) {
-      if (error.code !== "42703") throw error;
+      if (!isMissingColumnError(error)) throw error;
       const { data: current, error: currentError } = await supabaseAdmin.from("wf_request").select("payload").eq("id", body.request_id).maybeSingle();
       if (currentError || !current) throw currentError ?? new Error("健診申請が見つかりません。");
       const currentPayload = current.payload && typeof current.payload === "object" && !Array.isArray(current.payload) ? current.payload as Record<string, unknown> : {};
