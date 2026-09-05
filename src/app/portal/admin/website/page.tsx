@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { HomeMigrationPanel } from "@/components/wordpress/HomeMigrationPanel";
 import type {
   WordPressEditorKind,
   WordPressPageDetail,
@@ -453,6 +454,13 @@ export default function WebsiteAdminPage() {
             )}
           </CardContent>
         </Card>
+
+        <HomeMigrationPanel
+          connected={connection.connected}
+          authenticatedFetch={authenticatedFetch}
+          onOpenPage={(id) => void openEdit(id)}
+          onDraftCreated={() => void loadPages(1)}
+        />
 
         {editor && (
           <Card ref={editorRef}>

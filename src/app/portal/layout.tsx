@@ -98,7 +98,7 @@ function AvatarBlock({
   );
 }
 
-type MenuItem = { label: string; href: string; beta?: boolean; secondary?: { label: string; href: string; beta?: boolean } };
+type MenuItem = { label: string; href: string; beta?: boolean; adminOnly?: boolean; secondary?: { label: string; href: string; beta?: boolean } };
 type MenuGroup = { label: string; icon: string; items: MenuItem[] };
 
 const managerMenuGroups: MenuGroup[] = [
@@ -106,7 +106,7 @@ const managerMenuGroups: MenuGroup[] = [
     { label: "ダッシュボード", href: "/portal/dashboard" }, { label: "イベント管理", href: "/portal/event-tasks" },
     { label: "イベントテンプレート管理", href: "/portal/event-template" }, { label: "走行距離指数", href: "/portal/driving_record" },
     { label: "組織アイコン設定", href: "/portal/orgIcons" }, { label: "電話帳", href: "/portal/phone" },
-    { label: "監査ログ", href: "/portal/audit_log" }, { label: "お弁当アンケート【管理用】", href: "/portal/bento/admin" },
+    { label: "監査ログ", href: "/portal/audit_log" }, { label: "ナレッジ管理", href: "/portal/admin/knowledge", adminOnly: true }, { label: "お弁当アンケート【管理用】", href: "/portal/bento/admin" },
     { label: "目標・研修【管理用】", href: "/portal/training-goals/manage" }, { label: "健康診断管理", href: "/portal/admin/health-check-results" }, { label: "日払い申請履歴", href: "/portal/user_advance_payment_history" },
     { label: "RPAテンプレ管理", href: "/portal/rpa_temp/list" }, { label: "RPA求人プリセット", href: "/portal/admin/rpa-job-presets" }, { label: "RPA Runner管理", href: "/portal/admin/rpa-runners" }, { label: "RPA Job定義", href: "/portal/admin/rpa-job-definitions" }, { label: "RPAリクエスト管理", href: "/portal/rpa_requests" },
     { label: "モニタリング「事業所より」設定", href: "/portal/admin/monitoring-office-notice" },
@@ -211,6 +211,7 @@ function LegacyMenu({ role }: { role: string | null }) {
           <li><Link href="/portal/roster/daily" className="text-blue-300 hover:underline">シフト表</Link></li>
           <li><Link href="/portal/shift-wish" className="text-blue-300 hover:underline">シフトWish</Link></li>
           <li><Link href="/portal/audit_log" className="text-blue-300 hover:underline">監査ログ</Link></li>
+          {normalizedRole === "admin" && <li><Link href="/portal/admin/knowledge" className="text-blue-300 hover:underline">ナレッジ管理</Link></li>}
           <li>
             <Link
               href="/portal/expense-claims"
@@ -317,6 +318,10 @@ function TreeMenu({ role, onUseLegacy }: { role: string | null; onUseLegacy: () 
   const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
   const isManagerOrAdmin = ["manager", "admin"].includes((role ?? "").trim().toLowerCase());
+  const visibleManagerMenuGroups = managerMenuGroups.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.adminOnly || (role ?? "").trim().toLowerCase() === "admin"),
+  }));
   const currentYm = getCurrentYmJst();
   const managerFrequentItems: MenuItem[] = [{ label: "ダッシュボード", href: "/portal/dashboard" }, { label: "エントリー一覧", href: "/portal/entry-list" }, { label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "シフト表", href: "/portal/roster/daily" }, { label: "月間シフト", href: "/portal/roster/monthly" }];
   const commonFrequentItems: MenuItem[] = [{ label: "ポータルHome", href: "/portal" }, { label: "シフト・訪問記録", href: "/portal/shift", secondary: { label: "β版", href: "/portal/shift-reject-performance-test", beta: true } }, { label: "シフ子", href: "/portal/shift-coordinate", secondary: { label: "β版", href: "/portal/shift-coordinate-performance-test", beta: true } }, { label: "実績記録チェック", href: "/portal/disability-check", secondary: { label: "β版", href: "/portal/disability-check-beta", beta: true } }, { label: "職員証", href: "/portal/badge" }];
@@ -325,7 +330,7 @@ function TreeMenu({ role, onUseLegacy }: { role: string | null; onUseLegacy: () 
       <h3 className="px-2 pb-1 text-xs font-bold tracking-wide text-sky-200">よく使うメニュー</h3>
       <div className="space-y-0.5">{isManagerOrAdmin && managerFrequentItems.map((item) => <MenuLink key={item.href} item={item} pathname={pathname} searchParams={searchParams} />)}{commonFrequentItems.map((item) => <MenuLink key={item.href} item={item} pathname={pathname} searchParams={searchParams} />)}</div>
     </div>
-    {isManagerOrAdmin && <div className="space-y-2"><h3 className="px-1 text-xs font-bold tracking-wide text-slate-200">管理メニュー</h3>{managerMenuGroups.map((group) => <TreeGroup key={group.label} group={group} pathname={pathname} searchParams={searchParams} />)}</div>}
+    {isManagerOrAdmin && <div className="space-y-2"><h3 className="px-1 text-xs font-bold tracking-wide text-slate-200">管理メニュー</h3>{visibleManagerMenuGroups.map((group) => <TreeGroup key={group.label} group={group} pathname={pathname} searchParams={searchParams} />)}</div>}
     <div className="space-y-2"><h3 className="px-1 text-xs font-bold tracking-wide text-slate-200">全員共通メニュー</h3>{commonMenuGroups(currentYm).map((group) => <TreeGroup key={group.label} group={group} pathname={pathname} searchParams={searchParams} />)}</div>
     <div className="space-y-0.5 border-t border-white/20 pt-3"><MenuLink item={{ label: "🏠 サイトHome", href: "/" }} pathname={pathname} searchParams={searchParams} /><MenuLink item={{ label: "LINE WORKSログインガイド", href: "/lineworks-login-guide" }} pathname={pathname} searchParams={searchParams} /></div>
     <button type="button" onClick={onUseLegacy} className="w-full rounded-md border border-white/20 px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 hover:text-white">従来の一覧メニューに切り替える</button>

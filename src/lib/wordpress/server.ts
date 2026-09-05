@@ -95,7 +95,7 @@ async function wordpressFetch<T>(
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   headers.set("Authorization", config.authorization);
-  if (init.body) headers.set("Content-Type", "application/json");
+  if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
 
   let response: Response;
   try {
@@ -310,5 +310,78 @@ export async function createWordPressPage(input: WordPressPageInput) {
     body: JSON.stringify(input),
   });
   if (!isObject(data)) throw new WordPressApiError("WordPressの作成応答が不正です。", 502);
+  return pageSummary(data);
+}
+
+export type WordPressUploadedMedia = {
+  id: number;
+  sourceUrl: string;
+};
+
+export async function uploadWordPressMedia(input: {
+  filename: string;
+  contentType: string;
+  bytes: ArrayBuffer;
+  altText: string;
+}): Promise<WordPressUploadedMedia> {
+  const filename = input.filename.replace(/[^a-zA-Z0-9._-]/g, "-") || "legacy-image";
+  const { data } = await wordpressFetch<unknown>("media", {
+    method: "POST",
+    headers: {
+      "Content-Type": input.contentType,
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+    body: Buffer.from(input.bytes),
+  });
+  if (!isObject(data) || !Number.isSafeInteger(Number(data.id)) || !stringValue(data.source_url)) {
+    throw new WordPressApiError("WordPressメディアのアップロード応答が不正です。", 502);
+  }
+  const id = Number(data.id);
+  const altText = input.altText.trim();
+  if (altText) {
+    await wordpressFetch<unknown>(`media/${id}?context=edit`, {
+      method: "POST",
+      body: JSON.stringify({ alt_text: altText }),
+    });
+  }
+  return { id, sourceUrl: stringValue(data.source_url) };
+}
+
+export async function assertWordPressMigrationDraftAvailable(slug: string) {
+  const search = new URLSearchParams({
+    context: "edit",
+    slug,
+    status: "any",
+    per_page: "100",
+    _fields: "id,title,slug,status,modified,link",
+  });
+  const { data: existing } = await wordpressFetch<unknown>(`pages?${search}`);
+  if (Array.isArray(existing) && existing.some((page) => isObject(page) && stringValue(page.slug) === slug)) {
+    throw new WordPressApiError(
+      `slug「${slug}」の固定ページがすでに存在します。既存ページを確認してください。`,
+      409,
+      "wordpress_migration_draft_exists"
+    );
+  }
+}
+
+export async function createWordPressMigrationDraft(input: {
+  title: string;
+  slug: string;
+  content: string;
+  featuredMediaId?: number;
+}) {
+  await assertWordPressMigrationDraftAvailable(input.slug);
+  const { data } = await wordpressFetch<unknown>("pages?context=edit", {
+    method: "POST",
+    body: JSON.stringify({
+      title: input.title,
+      slug: input.slug,
+      content: input.content,
+      status: "draft",
+      ...(input.featuredMediaId ? { featured_media: input.featuredMediaId } : {}),
+    }),
+  });
+  if (!isObject(data)) throw new WordPressApiError("WordPress下書きの作成応答が不正です。", 502);
   return pageSummary(data);
 }
