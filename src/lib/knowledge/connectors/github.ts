@@ -20,7 +20,10 @@ async function getGitHubToken() {
   const appId = process.env.GITHUB_KNOWLEDGE_APP_ID;
   const privateKey = process.env.GITHUB_KNOWLEDGE_PRIVATE_KEY?.replace(/\\n/g, "\n");
   const installationId = process.env.GITHUB_KNOWLEDGE_INSTALLATION_ID;
-  if (!appId || !privateKey || !installationId) throw new Error("GitHub knowledge credentials are not configured.");
+  if (!appId && !privateKey && !installationId) return null;
+  if (!appId || !privateKey || !installationId) {
+    throw new Error("GitHub Appの設定が不足しています。3項目をすべて設定してください。");
+  }
   const key = await importPKCS8(privateKey, "RS256");
   const now = Math.floor(Date.now() / 1_000);
   const jwt = await new SignJWT({})
@@ -40,12 +43,25 @@ async function getGitHubToken() {
   return body.token;
 }
 
-async function githubFetch<T>(path: string, token: string): Promise<T> {
+async function githubFetch<T>(path: string, token: string | null): Promise<T> {
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
   const response = await fetch(`${API}${path}`, {
-    headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" },
+    headers,
     cache: "no-store",
   });
-  if (!response.ok) throw new Error(`GitHub API request failed (${response.status}).`);
+  if (!response.ok) {
+    if (!token && response.status === 404) {
+      throw new Error("非公開GitHubリポジトリを読むためのGitHub App接続が未設定です。");
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw new Error("GitHub Appの設定が無効か、対象リポジトリへの権限がありません。");
+    }
+    throw new Error(`GitHub APIへの接続に失敗しました（${response.status}）。`);
+  }
   return response.json() as Promise<T>;
 }
 
