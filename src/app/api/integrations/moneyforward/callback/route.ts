@@ -59,7 +59,16 @@ export async function GET(request: NextRequest) {
       ? await supabaseAdmin.from("knowledge_integrations").update(payload).eq("id", existing.id).select("id").single()
       : await supabaseAdmin.from("knowledge_integrations").insert(payload).select("id").single();
     if (result.error || !result.data) throw new Error("Connection save failed");
-    await supabaseAdmin.from("knowledge_sources").update({ integration_id: result.data.id }).eq("source_key", "moneyforward-accounting");
+    await supabaseAdmin.from("knowledge_sources").update({
+      integration_id: result.data.id,
+      enabled: true,
+      sync_frequency: "daily",
+      schedule: { time: "07:15" },
+      next_run_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+      last_error_at: null,
+      last_error_code: null,
+      last_error_message: null,
+    }).eq("source_key", "moneyforward-accounting");
     await supabaseAdmin.from("integration_oauth_states").update({ consumed_at: new Date().toISOString() }).eq("id", oauthState.id);
     return redirectResult(request, "connected");
   } catch {
@@ -67,4 +76,3 @@ export async function GET(request: NextRequest) {
     return redirectResult(request, "failed");
   }
 }
-

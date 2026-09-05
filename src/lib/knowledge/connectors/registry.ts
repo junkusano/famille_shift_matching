@@ -4,11 +4,13 @@ import type { KnowledgeConnector } from "@/lib/knowledge/types";
 import { googleSheetsConnector } from "@/lib/knowledge/connectors/googleSheets";
 import { faxConnector } from "@/lib/knowledge/connectors/fax";
 import { githubConnector } from "@/lib/knowledge/connectors/github";
+import { moneyForwardConnector } from "@/lib/knowledge/connectors/moneyforward";
 
 const connectors = new Map<string, KnowledgeConnector>([
   [googleSheetsConnector.key, googleSheetsConnector],
   [faxConnector.key, faxConnector],
   [githubConnector.key, githubConnector],
+  [moneyForwardConnector.key, moneyForwardConnector],
 ]);
 
 export function getKnowledgeConnector(key: string): KnowledgeConnector {

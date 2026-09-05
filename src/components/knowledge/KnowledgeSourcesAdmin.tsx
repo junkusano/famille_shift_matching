@@ -80,7 +80,7 @@ export function KnowledgeSourcesAdmin() {
           <tbody className="divide-y divide-slate-100">
             {loading ? <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-500">読み込み中…</td></tr> : sources.map((source) => {
               const connection = connectionLabel(source);
-              const unsupported = !["google_sheets", "fax", "github"].includes(source.connector_key);
+              const unsupported = !["google_sheets", "fax", "github", "moneyforward"].includes(source.connector_key);
               return <tr key={source.id} className="align-top hover:bg-slate-50">
                 <td className="px-4 py-3"><p className="font-semibold text-slate-900">{source.name}</p><p className="text-xs text-slate-500">{source.source_type} / {source.connector_key}</p>{source.description && <p className="mt-1 max-w-sm text-xs text-slate-600">{source.description}</p>}{source.source_url && <a href={source.source_url} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-sky-700 hover:underline"><ExternalLink size={12} />原本</a>}</td>
                 <td className="px-4 py-3"><span className={`rounded px-2 py-1 text-xs ${connection.className}`}>{connection.text}</span>{unsupported && <p className="mt-2 text-xs text-amber-700">connector準備中</p>}{source.last_error_message && <p className="mt-2 max-w-xs text-xs text-rose-700">{source.last_error_message}</p>}</td>

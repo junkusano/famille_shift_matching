@@ -69,6 +69,7 @@ export type KnowledgeSource = {
   description: string | null;
   source_url: string | null;
   drive_url: string | null;
+  integration_id: string | null;
   enabled: boolean;
   sync_frequency: "manual" | "hourly" | "daily" | "weekly" | "monthly";
   schedule: Record<string, unknown>;
@@ -162,4 +163,3 @@ export type KnowledgeRunResult = {
   cursorAfter: Record<string, unknown>;
   warnings: string[];
 };
-

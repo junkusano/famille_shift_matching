@@ -88,7 +88,7 @@ knowledge_metric_snapshots  knowledge_items
 | GitHub | file revision / PR / commit | architecture / decision / constraint | 2 / internal_only | branch head SHA、checked_at |
 | FAX | FAX文書 | 複数事例から一般化したlessonのみ | 3 / never_publish | received_at、document ID |
 | LINE WORKS | channel・日・message範囲 | daily_summary / decision | 2〜3 / internal_only | message ID、message_at |
-| Money Forward | tenant・帳票・期間 | monthly financial summary | 2 / internal_only | period、fetched_at、hash |
+| Money Forward | tenant・帳票・期間 | daily connection check / financial summary | 2 / internal_only | period、fetched_at、hash |
 | MyFamille | 集計定義・期間 | fact / trend / monthly_summary | 1〜2 / internal_only | updated_at、record ID |
 
 RSSシート内の「監視対象」と「記事」はconnectorで判定し、前者はsource候補、後者はsource objectとして扱う。元Sheetはv0.1では変更しない。
@@ -137,7 +137,7 @@ FAXをナレッジ対象には含めるが、汎用ナレッジテーブルにOC
 
 ## 8. Money Forward方針
 
-v0.1はOAuth接続、tenant確認、scope確認、token refresh、Dry Runまでとする。PL、BS、月次推移は実装時点の公式OpenAPI定義で利用可能なendpointとscopeを確認してから有効化する。
+v0.1はOAuth接続、tenant確認、scope確認、token refresh、Dry Runまでとする。接続後は毎日7:15に接続先を確認する。PL、BS、月次推移は実装時点の公式OpenAPI定義で利用可能なendpointとscopeを確認してから有効化する。
 
 OAuth tokenはブラウザ、レスポンス、通常ログ、`knowledge_integrations` の平文カラムに出さない。第一候補はSupabase Vaultで、テーブルにはSecret IDのみ保存する。Vaultの安全な更新・取得RPCを実装前に検証する。
 
