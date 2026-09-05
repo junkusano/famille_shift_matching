@@ -122,6 +122,25 @@ export async function POST(
 
     if (rtErr) return json({ message: rtErr.message }, 500);
 
+    if (rt?.code === "health_check") {
+        const payload = r.payload && typeof r.payload === "object" && !Array.isArray(r.payload)
+            ? r.payload as Record<string, unknown>
+            : {};
+        const healthCheckDate = String(payload.health_check_date ?? "").trim();
+        const healthCheckType = String(payload.health_check_type ?? "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(healthCheckDate) || !["employment", "periodic"].includes(healthCheckType)) {
+            return json({ message: "受診日と健診種別を入力してください。" }, 400);
+        }
+        const { data: healthAttachments, error: healthAttachmentError } = await supabaseAdmin
+            .from("wf_request_attachment")
+            .select("id")
+            .eq("request_id", id)
+            .eq("kind", "health_result")
+            .limit(1);
+        if (healthAttachmentError) return json({ message: healthAttachmentError.message }, 500);
+        if (!healthAttachments?.length) return json({ message: "健康診断結果の画像またはPDFを添付してください。" }, 400);
+    }
+
     // 既存 step があれば削除（再提出時のため）
     const { error: delErr } = await supabaseAdmin
         .from("wf_approval_step")
