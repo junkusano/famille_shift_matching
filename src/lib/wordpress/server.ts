@@ -364,29 +364,108 @@ export async function createWordPressPage(input: WordPressPageInput) {
   return pageSummary(data);
 }
 
-export async function createWordPressPostDraft(input: {
-  title: string;
+export type WordPressPostCategory = {
+  id: number;
+  name: string;
   slug: string;
-  content: string;
-  excerpt: string;
-}) {
-  assertNoInternalReferenceLinks(input.content);
+  count: number;
+  parent: number;
+};
 
+export async function listWordPressPostCategories(): Promise<WordPressPostCategory[]> {
+  const query = new URLSearchParams({
+    context: "edit",
+    per_page: "100",
+    hide_empty: "false",
+    orderby: "name",
+    order: "asc",
+    _fields: "id,name,slug,count,parent",
+  });
+  const { data } = await wordpressFetch<unknown>(`categories?${query}`);
+  if (!Array.isArray(data)) {
+    throw new WordPressApiError("WordPressのカテゴリ一覧応答が不正です。", 502);
+  }
+  return data.flatMap((value) => {
+    if (!isObject(value)) return [];
+    const id = Number(value.id);
+    if (!Number.isSafeInteger(id) || id <= 0) return [];
+    return [{
+      id,
+      name: stringValue(value.name),
+      slug: stringValue(value.slug),
+      count: Number(value.count) || 0,
+      parent: Number(value.parent) || 0,
+    }];
+  });
+}
+
+export type WordPressFeaturedImage = {
+  id: number;
+  sourceUrl: string;
+  altText: string;
+};
+
+export async function findWordPressFeaturedImage(
+  searchTerms: string[]
+): Promise<WordPressFeaturedImage | null> {
+  const terms = [...new Set(searchTerms.map((term) => term.trim()).filter((term) => term.length >= 2))]
+    .slice(0, 4);
+  for (const term of terms) {
+    const query = new URLSearchParams({
+      context: "edit",
+      media_type: "image",
+      search: term,
+      per_page: "20",
+      orderby: "date",
+      order: "desc",
+      _fields: "id,alt_text,media_details,source_url",
+    });
+    const { data } = await wordpressFetch<unknown>(`media?${query}`);
+    if (!Array.isArray(data)) continue;
+    for (const value of data) {
+      if (!isObject(value)) continue;
+      const id = Number(value.id);
+      const details = isObject(value.media_details) ? value.media_details : {};
+      const width = Number(details.width) || 0;
+      const height = Number(details.height) || 0;
+      const sourceUrl = stringValue(value.source_url);
+      if (!Number.isSafeInteger(id) || id <= 0 || !sourceUrl || width < 780 || height < 437) continue;
+      const ratio = width / height;
+      if (ratio < 1.3 || ratio > 2.2) continue;
+      return { id, sourceUrl, altText: stringValue(value.alt_text) };
+    }
+  }
+  return null;
+}
+
+export async function assertWordPressPostDraftAvailable(slug: string) {
   const search = new URLSearchParams({
     context: "edit",
-    slug: input.slug,
+    slug,
     status: "any",
     per_page: "100",
-    _fields: "id,title,slug,status,modified,link",
+    _fields: "id,slug",
   });
   const { data: existing } = await wordpressFetch<unknown>(`posts?${search}`);
-  if (Array.isArray(existing) && existing.some((post) => isObject(post) && stringValue(post.slug) === input.slug)) {
+  if (Array.isArray(existing) && existing.some((post) => isObject(post) && stringValue(post.slug) === slug)) {
     throw new WordPressApiError(
       "この情報を元にしたブログ下書きはすでに存在します。",
       409,
       "wordpress_post_draft_exists"
     );
   }
+}
+
+export async function createWordPressPostDraft(input: {
+  title: string;
+  slug: string;
+  content: string;
+  excerpt: string;
+  featuredMediaId?: number;
+  categoryIds?: number[];
+}) {
+  assertNoInternalReferenceLinks(input.content);
+  await assertWordPressPostDraftAvailable(input.slug);
 
   const { data } = await wordpressFetch<unknown>("posts?context=edit", {
     method: "POST",
@@ -396,6 +475,8 @@ export async function createWordPressPostDraft(input: {
       content: input.content,
       excerpt: input.excerpt,
       status: "draft",
+      ...(input.featuredMediaId ? { featured_media: input.featuredMediaId } : {}),
+      ...(input.categoryIds?.length ? { categories: input.categoryIds } : {}),
     }),
   });
   if (!isObject(data)) throw new WordPressApiError("WordPress下書きの作成応答が不正です。", 502);

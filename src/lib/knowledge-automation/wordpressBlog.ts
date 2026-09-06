@@ -6,7 +6,14 @@ import { runKnowledgeSource } from "@/lib/knowledge/pipeline";
 import type { KnowledgeAutomationTask } from "@/lib/knowledge-automation/types";
 import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 import { supabaseAdmin } from "@/lib/supabase/service";
-import { createWordPressPostDraft } from "@/lib/wordpress/server";
+import {
+  assertWordPressPostDraftAvailable,
+  createWordPressPostDraft,
+  findWordPressFeaturedImage,
+  listWordPressPostCategories,
+  uploadWordPressMedia,
+  type WordPressPostCategory,
+} from "@/lib/wordpress/server";
 
 const articleSchema = z.object({
   title: z.string().trim().min(12).max(100),
@@ -21,6 +28,10 @@ const articleSchema = z.object({
   action_heading: z.string().trim().min(6).max(80),
   actions: z.array(z.string().trim().min(50).max(500)).min(2).max(4),
   conclusion: z.string().trim().min(100).max(700),
+  category_id: z.number().int().positive().nullable(),
+  featured_image_search_terms: z.array(z.string().trim().min(2).max(30)).min(2).max(4),
+  featured_image_prompt: z.string().trim().min(80).max(1_000),
+  featured_image_alt: z.string().trim().min(15).max(160),
 });
 
 type StorySeed = {
@@ -223,7 +234,14 @@ function assertArticleQuality(article: z.infer<typeof articleSchema>, research: 
   if (research.sources.length === 0) throw new Error("公開できる外部根拠がありません。");
 }
 
-async function generateArticle(openai: OpenAI, task: KnowledgeAutomationTask, seed: StorySeed, research: Research) {
+async function generateArticle(
+  openai: OpenAI,
+  task: KnowledgeAutomationTask,
+  seed: StorySeed,
+  research: Research,
+  categories: WordPressPostCategory[]
+) {
+  const categoryIds = categories.map((category) => category.id);
   const response = await openai.responses.create({
     model: OPENAI_PROFILES.heavy.model,
     reasoning: { effort: responsesReasoningEffort(OPENAI_PROFILES.heavy.reasoning) },
@@ -237,12 +255,16 @@ async function generateArticle(openai: OpenAI, task: KnowledgeAutomationTask, se
       "内部の編集メモは筆者の視点として自然に文章化しますが、内部資料・草野ナレッジ・Google Sheets・社内DBを出典として書いたりリンクしたりしてはいけません。",
       "外部事実は調査メモで確認できる範囲だけを使い、断定できない部分は筆者の問題提起・仮説として書いてください。",
       "『何が起きた→既存制度とのズレ→現場経営から見えること→より合理的な判断・制度』という一本の流れにしてください。",
+      "category_idには、提示されたWordPress既存カテゴリの中から記事の主題に最も近いものを一つ選びます。該当がなければnullにし、新しいカテゴリ名を創作しません。",
+      "featured_image_search_termsは既存メディア検索用の具体語、featured_image_promptは記事の主張を一枚で表す横長の編集写真または上質なコンセプトイラストの指示にします。",
+      "アイキャッチには文字、ロゴ、透かし、官公庁の紋章、読める書類、実在人物と識別できる顔を入れません。恐怖や過度な演出ではなく、経営コラムとして落ち着いた現実感を持たせます。",
       "検索者向けの説明より、読者が最後まで読みたくなる明確な論点と具体性を優先してください。HTMLやMarkdownは出力しません。",
     ].join("\n"),
     input: JSON.stringify({
       automation: { name: task.name, description: task.description, condition: task.condition_summary },
       private_editorial_seed: { title: seed.title, summary: seed.summary, detail: seed.detail, category: seed.category },
       public_research: { brief: research.brief, sources: research.sources },
+      wordpress_existing_categories: categories.map(({ id, name, parent }) => ({ id, name, parent })),
     }),
     text: {
       verbosity: "high",
@@ -250,7 +272,7 @@ async function generateArticle(openai: OpenAI, task: KnowledgeAutomationTask, se
         type: "json_schema", name: "opinionated_wordpress_article", strict: true,
         schema: {
           type: "object", additionalProperties: false,
-          required: ["title", "excerpt", "thesis", "trigger_heading", "trigger_body", "tension_heading", "tension_body", "viewpoint_heading", "viewpoint_body", "action_heading", "actions", "conclusion"],
+          required: ["title", "excerpt", "thesis", "trigger_heading", "trigger_body", "tension_heading", "tension_body", "viewpoint_heading", "viewpoint_body", "action_heading", "actions", "conclusion", "category_id", "featured_image_search_terms", "featured_image_prompt", "featured_image_alt"],
           properties: {
             title: { type: "string", minLength: 12, maxLength: 100 }, excerpt: { type: "string", minLength: 50, maxLength: 240 },
             thesis: { type: "string", minLength: 80, maxLength: 500 }, trigger_heading: { type: "string", minLength: 6, maxLength: 80 },
@@ -259,6 +281,12 @@ async function generateArticle(openai: OpenAI, task: KnowledgeAutomationTask, se
             viewpoint_body: { type: "string", minLength: 220, maxLength: 1400 }, action_heading: { type: "string", minLength: 6, maxLength: 80 },
             actions: { type: "array", minItems: 2, maxItems: 4, items: { type: "string", minLength: 50, maxLength: 500 } },
             conclusion: { type: "string", minLength: 100, maxLength: 700 },
+            category_id: categoryIds.length > 0
+              ? { anyOf: [{ type: "integer", enum: categoryIds }, { type: "null" }] }
+              : { type: "null" },
+            featured_image_search_terms: { type: "array", minItems: 2, maxItems: 4, items: { type: "string", minLength: 2, maxLength: 30 } },
+            featured_image_prompt: { type: "string", minLength: 80, maxLength: 1000 },
+            featured_image_alt: { type: "string", minLength: 15, maxLength: 160 },
           },
         },
       },
@@ -268,6 +296,50 @@ async function generateArticle(openai: OpenAI, task: KnowledgeAutomationTask, se
   const article = articleSchema.parse(JSON.parse(response.output_text));
   assertArticleQuality(article, research);
   return article;
+}
+
+async function prepareFeaturedImage(
+  openai: OpenAI,
+  task: KnowledgeAutomationTask,
+  article: z.infer<typeof articleSchema>,
+  filenameStem: string
+) {
+  if (task.settings.wordpress_featured_image === false) return null;
+
+  if (task.settings.wordpress_reuse_media !== false) {
+    const existing = await findWordPressFeaturedImage(article.featured_image_search_terms);
+    if (existing) return { id: existing.id, source: "existing" as const };
+  }
+
+  const configuredModel = typeof task.settings.openai_image_model === "string"
+    ? task.settings.openai_image_model.trim()
+    : "";
+  const image = await openai.images.generate({
+    model: process.env.OPENAI_IMAGE_MODEL?.trim() || configuredModel || "gpt-image-2",
+    prompt: [
+      "Use case: ads-marketing",
+      "Asset type: WordPress business-column featured image",
+      `Primary request: ${article.featured_image_prompt}`,
+      "Composition/framing: landscape editorial composition; clear subject; safe center crop for 780x437 and 571x373 thumbnails",
+      "Style/medium: polished natural editorial photography or restrained conceptual illustration, appropriate for a Japanese care-services management column",
+      "Constraints: no text, no letters, no numbers, no logos, no watermark, no government seals, no readable documents, no identifiable real person",
+    ].join("\n"),
+    size: "1536x1024",
+    quality: "medium",
+    output_format: "webp",
+    output_compression: 85,
+  });
+  const base64 = image.data?.[0]?.b64_json;
+  if (!base64) throw new Error("アイキャッチ画像の生成結果が空でした。");
+  const bytes = Buffer.from(base64, "base64");
+  const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  const uploaded = await uploadWordPressMedia({
+    filename: `${filenameStem}.webp`,
+    contentType: "image/webp",
+    bytes: arrayBuffer,
+    altText: article.featured_image_alt,
+  });
+  return { id: uploaded.id, source: "generated" as const };
 }
 
 export async function createWordPressBlogDraft(task: KnowledgeAutomationTask): Promise<WordPressBlogResult> {
@@ -285,19 +357,34 @@ export async function createWordPressBlogDraft(task: KnowledgeAutomationTask): P
   }
   if (!process.env.OPENAI_API_KEY) throw new Error("OpenAIの接続設定がありません。");
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const date = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" })
+    .format(new Date()).replaceAll("/", "");
+  const filenameStem = `smart-ai-${date}-${seed.id.slice(0, 8)}`;
+  await assertWordPressPostDraftAvailable(filenameStem);
   const research = await researchPublicEvidence(openai, seed);
   if (!research) {
     return { status: "skipped", message: "論点を裏づける公開中の外部情報が見つからなかったため、記事を作りませんでした。" };
   }
-  const article = await generateArticle(openai, task, seed, research);
-  const date = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" })
-    .format(new Date()).replaceAll("/", "");
+  const categories = task.settings.wordpress_auto_category === false
+    ? []
+    : (await listWordPressPostCategories()).filter((category) => category.slug !== "uncategorized");
+  const article = await generateArticle(openai, task, seed, research, categories);
+  const featuredImage = await prepareFeaturedImage(openai, task, article, filenameStem);
+  if (task.settings.wordpress_featured_image !== false && !featuredImage) {
+    throw new Error("アイキャッチを用意できなかったため、画像なしの記事は作成しませんでした。");
+  }
+  const categoryId = article.category_id && categories.some((category) => category.id === article.category_id)
+    ? article.category_id
+    : null;
   const post = await createWordPressPostDraft({
-    title: article.title, slug: `smart-ai-${date}-${seed.id.slice(0, 8)}`,
+    title: article.title, slug: filenameStem,
     content: articleHtml(article, research.sources), excerpt: article.excerpt,
+    featuredMediaId: featuredImage?.id,
+    categoryIds: categoryId ? [categoryId] : undefined,
   });
   return {
-    status: "created", message: `「${article.title}」をWordPressの下書きに追加しました。`,
+    status: "created",
+    message: `「${article.title}」をWordPressの下書きに追加しました。${featuredImage ? `アイキャッチは${featuredImage.source === "existing" ? "既存画像を再利用" : "新規生成"}しました。` : ""}${categoryId ? "カテゴリも設定しました。" : ""}`,
     sourceId: seed.id, sourceTitle: seed.title, postId: post.id, postLink: post.link,
   };
 }
