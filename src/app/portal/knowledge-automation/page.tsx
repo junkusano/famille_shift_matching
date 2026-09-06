@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BookOpenCheck, Bot, CheckCircle2, Clock3, Pencil, Plus, ShieldCheck } from "lucide-react";
+import { AlertTriangle, BookOpenCheck, Bot, CheckCircle2, Clock3, Pencil, Play, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { useRoleContext } from "@/context/RoleContext";
 import {
   APPROVAL_MODE_LABELS,
@@ -88,6 +88,7 @@ export default function KnowledgeAutomationPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [runningId, setRunningId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<KnowledgeAutomationTaskInput>(cloneInput(EMPTY_FORM));
@@ -178,6 +179,25 @@ export default function KnowledgeAutomationPage() {
     }
   }
 
+  async function runNow(task: KnowledgeAutomationTask) {
+    setRunningId(task.id);
+    setNotice(null);
+    try {
+      const response = await fetch(`/api/knowledge-automation/tasks/${task.id}/run`, {
+        method: "POST",
+        headers: await authHeaders(),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.ok) throw new Error(body.message ?? body.error ?? "自動化を実行できませんでした。");
+      setNotice({ kind: "success", text: body.message ?? "自動化を実行しました。" });
+      await loadTasks();
+    } catch (error) {
+      setNotice({ kind: "error", text: error instanceof Error ? error.message : "自動化を実行できませんでした。" });
+    } finally {
+      setRunningId(null);
+    }
+  }
+
   if (roleLoading) return <main className="p-6 text-sm text-slate-600">権限を確認しています…</main>;
   if (!canManage) return <main className="p-6 text-red-700">このページはマネジャー・管理者のみ利用できます。</main>;
 
@@ -248,7 +268,10 @@ export default function KnowledgeAutomationPage() {
               <textarea value={form.description ?? ""} onChange={(event) => setForm({ ...form, description: event.target.value })} maxLength={500} rows={2} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" placeholder="この自動化の目的を入力します" />
             </label>
             <label className="text-sm font-medium">実行するタイミング
-              <select value={form.trigger_type} onChange={(event) => setForm({ ...form, trigger_type: event.target.value as AutomationTriggerType, schedule: {} })} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5">
+              <select value={form.trigger_type} onChange={(event) => {
+                const triggerType = event.target.value as AutomationTriggerType;
+                setForm({ ...form, trigger_type: triggerType, schedule: triggerType === "daily" ? { times: ["09:00"] } : {} });
+              }} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5">
                 {Object.entries(TRIGGER_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
@@ -258,9 +281,43 @@ export default function KnowledgeAutomationPage() {
                   {[5, 10, 15, 30, 60, 180, 360, 720, 1440].map((minutes) => <option key={minutes} value={minutes}>{minutes < 60 ? `${minutes}分ごと` : minutes === 60 ? "1時間ごと" : minutes === 1440 ? "1日ごと" : `${minutes / 60}時間ごと`}</option>)}
                 </select>
               </label>}
-              {form.trigger_type === "daily" && <label>実行時刻（複数はカンマ区切り）
-                <input value={(form.schedule.times ?? []).join(", ")} onChange={(event) => setForm({ ...form, schedule: { times: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) } })} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" placeholder="08:00, 13:00, 19:00" />
-              </label>}
+              {form.trigger_type === "daily" && <div>
+                <div>実行時刻</div>
+                <div className="mt-1 space-y-2">
+                  {(form.schedule.times ?? []).map((time, index) => (
+                    <div key={`${index}-${time}`} className="flex items-center gap-2">
+                      <input
+                        type="time"
+                        value={time}
+                        aria-label={`実行時刻 ${index + 1}`}
+                        onChange={(event) => {
+                          const times = [...(form.schedule.times ?? [])];
+                          times[index] = event.target.value;
+                          setForm({ ...form, schedule: { ...form.schedule, times } });
+                        }}
+                        className="block min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2.5"
+                      />
+                      <button
+                        type="button"
+                        aria-label={`${time || index + 1}を削除`}
+                        disabled={(form.schedule.times ?? []).length <= 1}
+                        onClick={() => setForm({ ...form, schedule: { ...form.schedule, times: (form.schedule.times ?? []).filter((_, itemIndex) => itemIndex !== index) } })}
+                        className="rounded-lg border border-slate-300 p-2.5 text-slate-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Trash2 size={18} aria-hidden />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={(form.schedule.times ?? []).length >= 12}
+                    onClick={() => setForm({ ...form, schedule: { ...form.schedule, times: [...(form.schedule.times ?? []), "12:00"] } })}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+                  >
+                    <Plus size={16} aria-hidden /> 時刻を追加
+                  </button>
+                </div>
+              </div>}
               {form.trigger_type === "monthly" && <div className="grid grid-cols-2 gap-2">
                 <label>毎月何日
                   <input type="number" min={1} max={31} value={form.schedule.day ?? 15} onChange={(event) => setForm({ ...form, schedule: { ...form.schedule, day: Number(event.target.value) } })} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" />
@@ -288,7 +345,10 @@ export default function KnowledgeAutomationPage() {
 
           {form.approval_mode === "automatic" && (
             <div className="mt-4 flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              <AlertTriangle className="mt-0.5 shrink-0" size={18} aria-hidden /> 条件一致後に自動で反映します。最初は停止状態または「人の確認後に実行」での試行をおすすめします。
+              <AlertTriangle className="mt-0.5 shrink-0" size={18} aria-hidden />
+              {form.task_type === "wordpress_blog"
+                ? "時刻になるとWordPressへ自動で下書きを作ります。公開はWordPressで内容を確認してから行ってください。"
+                : "条件一致後に自動で反映します。最初は停止状態または「人の確認後に実行」での試行をおすすめします。"}
             </div>
           )}
 
@@ -332,9 +392,21 @@ export default function KnowledgeAutomationPage() {
                 <div><dt className="text-xs font-semibold text-slate-500">次回予定</dt><dd className="mt-0.5">{task.trigger_type === "event" ? "情報受信時" : formatDate(task.next_run_at)}</dd></div>
               </dl>
               {task.condition_summary && <div className="mt-3 text-sm"><span className="font-semibold">条件：</span><span className="text-slate-700">{task.condition_summary}</span></div>}
-              <div className="mt-4 flex items-center justify-between border-t pt-3">
+              {(task.last_result || task.last_error_message) && (
+                <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${task.last_error_message ? "border-red-200 bg-red-50 text-red-800" : "border-blue-200 bg-blue-50 text-blue-900"}`}>
+                  <span className="font-semibold">前回：</span>{task.last_error_message ?? task.last_result}
+                </div>
+              )}
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
                 <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700"><CheckCircle2 size={15} aria-hidden />安全チェック適用</div>
-                <button type="button" disabled={savingId === task.id} onClick={() => void toggle(task)} className={`rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 ${task.is_enabled ? "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}>{savingId === task.id ? "変更中…" : task.is_enabled ? "停止する" : "有効にする"}</button>
+                <div className="flex flex-wrap gap-2">
+                  {task.task_type === "wordpress_blog" && (
+                    <button type="button" disabled={runningId === task.id} onClick={() => void runNow(task)} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                      <Play size={15} aria-hidden />{runningId === task.id ? "実行中…" : "今すぐ実行"}
+                    </button>
+                  )}
+                  <button type="button" disabled={savingId === task.id} onClick={() => void toggle(task)} className={`rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 ${task.is_enabled ? "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}>{savingId === task.id ? "変更中…" : task.is_enabled ? "停止する" : "有効にする"}</button>
+                </div>
               </div>
             </article>
           ))}

@@ -43,6 +43,11 @@ function safeIso(value: string): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
+function truthySheetValue(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return Boolean(normalized) && !["false", "0", "no", "未", "未実施", "未対応", "いいえ"].includes(normalized);
+}
+
 async function createSheetsClient() {
   const { data, error } = await supabaseAdmin.rpc("read_secret", {
     secret_name: "google_service_account_key",
@@ -90,7 +95,9 @@ function makeSourceObject(input: {
     sourceRevision: contentHash,
     title: containsPersonalData ? `${sheetName} ${rowNumber}行` : title.slice(0, 500),
     safeExcerpt,
-    sourceUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
+    sourceUrl: mode === "rss_index" && fields["URL"]
+      ? fields["URL"].slice(0, 2_000)
+      : `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
     occurredAt,
     contentHash,
     locator: { spreadsheetId, sheetName, rowNumber },
@@ -98,6 +105,15 @@ function makeSourceObject(input: {
       category: fields["カテゴリ"] || fields["Category"] || null,
       hasSourceUrl: Boolean(fields["URL"]),
       mode,
+      ...(mode === "rss_index" ? {
+        media: fields["媒体"] || null,
+        keywords: fields["主要キーワード"] || null,
+        familleRelevance: fields["ファミーユとの関連"] || null,
+        kusanoRelevance: fields["草野思考ログとの関連"] || null,
+        topicality: fields["話題性"] || null,
+        articlePriority: fields["記事化優先度"] || null,
+        alreadyPublished: truthySheetValue(fields["記事化済み"] || ""),
+      } : {}),
     },
     privacyLevel,
     publishability: ctx.source.default_publishability,
@@ -235,4 +251,3 @@ export const googleSheetsConnector: KnowledgeConnector = {
     };
   },
 };
-

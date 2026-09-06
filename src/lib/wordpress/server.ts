@@ -313,6 +313,42 @@ export async function createWordPressPage(input: WordPressPageInput) {
   return pageSummary(data);
 }
 
+export async function createWordPressPostDraft(input: {
+  title: string;
+  slug: string;
+  content: string;
+  excerpt: string;
+}) {
+  const search = new URLSearchParams({
+    context: "edit",
+    slug: input.slug,
+    status: "any",
+    per_page: "100",
+    _fields: "id,title,slug,status,modified,link",
+  });
+  const { data: existing } = await wordpressFetch<unknown>(`posts?${search}`);
+  if (Array.isArray(existing) && existing.some((post) => isObject(post) && stringValue(post.slug) === input.slug)) {
+    throw new WordPressApiError(
+      "この情報を元にしたブログ下書きはすでに存在します。",
+      409,
+      "wordpress_post_draft_exists"
+    );
+  }
+
+  const { data } = await wordpressFetch<unknown>("posts?context=edit", {
+    method: "POST",
+    body: JSON.stringify({
+      title: input.title,
+      slug: input.slug,
+      content: input.content,
+      excerpt: input.excerpt,
+      status: "draft",
+    }),
+  });
+  if (!isObject(data)) throw new WordPressApiError("WordPress下書きの作成応答が不正です。", 502);
+  return pageSummary(data);
+}
+
 export type WordPressUploadedMedia = {
   id: number;
   sourceUrl: string;

@@ -124,7 +124,7 @@ export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
       description: "草野ナレッジ、社内情報、RSSの順に根拠を確認して記事を作ります。",
       task_type: "wordpress_blog",
       trigger_type: "daily",
-      schedule: { times: ["08:00", "13:00", "19:00"] },
+      schedule: { times: ["08:00", "13:00", "18:00"] },
       destination: "wordpress_post",
       approval_mode: "draft",
       condition_summary: "公開可能で承認済みの根拠があり、過去記事と重複しない場合",
