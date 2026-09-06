@@ -1,7 +1,7 @@
 import "server-only";
 
-import { createHash } from "crypto";
-import { importPKCS8, SignJWT } from "jose";
+import { createHash, createPrivateKey } from "crypto";
+import { SignJWT } from "jose";
 import { z } from "zod";
 import type { ConnectorResult, KnowledgeConnector, NormalizedSourceObject } from "@/lib/knowledge/types";
 
@@ -24,7 +24,9 @@ async function getGitHubToken() {
   if (!appId || !privateKey || !installationId) {
     throw new Error("GitHub Appの設定が不足しています。3項目をすべて設定してください。");
   }
-  const key = await importPKCS8(privateKey, "RS256");
+  // GitHub currently downloads RSA private keys as PKCS#1 PEM, while some
+  // deployments may supply PKCS#8 PEM. Node's parser safely accepts both.
+  const key = createPrivateKey(privateKey);
   const now = Math.floor(Date.now() / 1_000);
   const jwt = await new SignJWT({})
     .setProtectedHeader({ alg: "RS256" })

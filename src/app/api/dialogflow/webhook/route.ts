@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await leaveGroupMember(pending.channel_id, pending.requester_lw_userid ?? requesterLwUserid);
-    if (!result.success) return textResponse(result.error);
+    if ("error" in result) return textResponse(result.error);
 
     await finishSession(sessionKey, "completed");
     return textResponse("グループから退出しました。", true);

@@ -39,11 +39,28 @@ async function persistSourceObject(source: KnowledgeSource, object: NormalizedSo
   if (existingError) throw existingError;
 
   if (existing?.source_revision === object.sourceRevision && existing.content_hash === object.contentHash) {
-    await supabaseAdmin
+    const { error } = await supabaseAdmin
       .from("knowledge_source_objects")
-      .update({ last_seen_at: new Date().toISOString() })
+      .update({
+        object_type: object.objectType,
+        title: object.title ?? null,
+        safe_excerpt: object.safeExcerpt ?? null,
+        source_url: object.sourceUrl ?? null,
+        drive_url: object.driveUrl ?? null,
+        occurred_at: object.occurredAt ?? null,
+        period_start: object.periodStart ?? null,
+        period_end: object.periodEnd ?? null,
+        locator: object.locator,
+        metadata: object.metadata,
+        privacy_level: object.privacyLevel,
+        publishability: object.publishability,
+        contains_personal_data: object.containsPersonalData,
+        processing_status: "indexed",
+        last_seen_at: new Date().toISOString(),
+      })
       .eq("id", existing.id);
-    return { id: existing.id as string, action: "skipped" as const };
+    if (error) throw error;
+    return { id: existing.id as string, action: "updated" as const };
   }
 
   if (existing) {

@@ -23,6 +23,7 @@ const configSchema = z.object({
 });
 
 type RowHashes = Record<string, Record<string, string>>;
+const NORMALIZATION_VERSION = 2;
 
 function hash(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -39,6 +40,11 @@ function sheetRange(name: string, start: number, end: number) {
 
 function safeIso(value: string): string | undefined {
   if (!value) return undefined;
+  const jst = value.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?$/);
+  if (jst) {
+    const [, year, month, day, hours = "0", minutes = "0"] = jst;
+    return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hours) - 9, Number(minutes))).toISOString();
+  }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
@@ -46,6 +52,15 @@ function safeIso(value: string): string | undefined {
 function truthySheetValue(value: string) {
   const normalized = value.trim().toLowerCase();
   return Boolean(normalized) && !["false", "0", "no", "未", "未実施", "未対応", "いいえ"].includes(normalized);
+}
+
+function httpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 async function createSheetsClient() {
@@ -84,19 +99,22 @@ function makeSourceObject(input: {
     fields["テーマ"] || fields["記事タイトル"] || fields["リマインド怪談"] ||
     fields["Reminder"] || fields["リマインド"] || `${sheetName} ${rowNumber}行`;
   const summary = fields["会話の要約"] || fields["記事要約"] || "";
-  const occurredAt = safeIso(fields["日時"] || fields["公開日時"] || fields["取得日時"] || "");
+  const publishedAt = safeIso(fields["公開日時"] || "");
+  const rssUrl = httpUrl(fields["URL"] || "") ?? httpUrl(fields["記事タイトル"] || "");
+  const isRssArticle = mode === "rss_index" && Boolean(publishedAt && rssUrl && fields["記事要約"]);
+  const occurredAt = safeIso(fields["日時"] || (isRssArticle ? fields["公開日時"] : fields["取得日時"]) || "");
   const privacyLevel = ctx.source.default_privacy_level;
   const containsPersonalData = mode === "lesson_index" || privacyLevel === 3;
   const safeExcerpt = privacyLevel <= 1 && summary ? summary.slice(0, 1_000) : undefined;
 
   return {
     externalId: `${sheetName}:${rowNumber}`,
-    objectType: mode === "rss_index" ? "sheet_article" : mode === "thought_log" ? "sheet_thought" : mode === "lesson_index" ? "sheet_lesson" : "sheet_metric_range",
+    objectType: mode === "rss_index" ? (isRssArticle ? "rss_article" : "rss_watch_target") : mode === "thought_log" ? "sheet_thought" : mode === "lesson_index" ? "sheet_lesson" : "sheet_metric_range",
     sourceRevision: contentHash,
     title: containsPersonalData ? `${sheetName} ${rowNumber}行` : title.slice(0, 500),
     safeExcerpt,
-    sourceUrl: mode === "rss_index" && fields["URL"]
-      ? fields["URL"].slice(0, 2_000)
+    sourceUrl: mode === "rss_index" && rssUrl
+      ? rssUrl.slice(0, 2_000)
       : `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
     occurredAt,
     contentHash,
@@ -113,6 +131,8 @@ function makeSourceObject(input: {
         topicality: fields["話題性"] || null,
         articlePriority: fields["記事化優先度"] || null,
         alreadyPublished: truthySheetValue(fields["記事化済み"] || ""),
+        isArticle: isRssArticle,
+        publishedAt: publishedAt ?? null,
       } : {}),
     },
     privacyLevel,
@@ -159,7 +179,13 @@ function makeKnowledge(
     publishability: ctx.source.default_publishability,
     authorship: "source",
     evidenceExternalIds: [sourceObject.externalId],
-    metadata: { spreadsheetId, sheetName, rowNumber },
+    metadata: {
+      spreadsheetId,
+      sheetName,
+      rowNumber,
+      articleCandidate: fields["記事化候補"] || null,
+      relatedKnowledge: fields["関連ナレッジ"] || null,
+    },
   };
 }
 
@@ -187,6 +213,7 @@ export const googleSheetsConnector: KnowledgeConnector = {
     const config = configSchema.parse(ctx.source.config);
     const sheets = await createSheetsClient();
     const previousHashes = (ctx.cursor.rowHashes ?? {}) as RowHashes;
+    const canUsePreviousHashes = ctx.cursor.normalizationVersion === NORMALIZATION_VERSION;
     const nextHashes: RowHashes = {};
     const objects: NormalizedSourceObject[] = [];
     const proposedKnowledge: ProposedKnowledge[] = [];
@@ -214,7 +241,7 @@ export const googleSheetsConnector: KnowledgeConnector = {
         });
         const contentHash = hash({ headers, row });
         nextHashes[sheetConfig.name][String(rowNumber)] = contentHash;
-        if (previousHashes[sheetConfig.name]?.[String(rowNumber)] === contentHash) continue;
+        if (canUsePreviousHashes && previousHashes[sheetConfig.name]?.[String(rowNumber)] === contentHash) continue;
 
         const object = makeSourceObject({
           ctx,
@@ -242,6 +269,7 @@ export const googleSheetsConnector: KnowledgeConnector = {
       proposedKnowledge,
       nextCursor: {
         spreadsheetId: config.spreadsheetId,
+        normalizationVersion: NORMALIZATION_VERSION,
         lastRows,
         rowHashes: nextHashes,
         lastCheckedAt: new Date().toISOString(),

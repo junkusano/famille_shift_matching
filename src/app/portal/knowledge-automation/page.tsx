@@ -267,6 +267,23 @@ export default function KnowledgeAutomationPage() {
             <label className="text-sm font-medium md:col-span-2">説明
               <textarea value={form.description ?? ""} onChange={(event) => setForm({ ...form, description: event.target.value })} maxLength={500} rows={2} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" placeholder="この自動化の目的を入力します" />
             </label>
+            {form.task_type === "wordpress_blog" && (
+              <label className="md:col-span-2 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.settings?.allow_external_ai_context === true}
+                  onChange={(event) => setForm({
+                    ...form,
+                    settings: { ...(form.settings ?? {}), allow_external_ai_context: event.target.checked },
+                  })}
+                  className="mt-0.5 h-5 w-5 shrink-0"
+                />
+                <span>
+                  <span className="block font-semibold text-amber-950">公開可能な草野思考ログの編集要約を、記事生成のためOpenAI APIへ送ることを許可する</span>
+                  <span className="mt-1 block font-normal leading-5 text-amber-900">個人情報を含む項目と内部URLは送信しません。許可しない場合は、外部公開されたRSS実記事だけを使います。</span>
+                </span>
+              </label>
+            )}
             <label className="text-sm font-medium">実行するタイミング
               <select value={form.trigger_type} onChange={(event) => {
                 const triggerType = event.target.value as AutomationTriggerType;

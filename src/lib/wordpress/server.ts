@@ -216,6 +216,57 @@ function contentRaw(page: WordPressObject) {
   return stringValue(content.raw);
 }
 
+function isPrivateIpv4(hostname: string) {
+  const parts = hostname.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return false;
+  }
+  return (
+    parts[0] === 10 ||
+    parts[0] === 127 ||
+    (parts[0] === 169 && parts[1] === 254) ||
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    (parts[0] === 192 && parts[1] === 168)
+  );
+}
+
+function assertNoInternalReferenceLinks(content: string) {
+  const hrefPattern = /href\s*=\s*["']([^"']+)["']/gi;
+  for (const match of content.matchAll(hrefPattern)) {
+    const rawUrl = match[1]?.trim();
+    if (!rawUrl || !/^https?:\/\//i.test(rawUrl)) continue;
+
+    let url: URL;
+    try {
+      url = new URL(rawUrl);
+    } catch {
+      throw new WordPressApiError(
+        "記事内に形式が不正な参考リンクがあるため、下書きを作成しませんでした。",
+        422,
+        "wordpress_post_reference_invalid"
+      );
+    }
+
+    const hostname = url.hostname.toLowerCase();
+    const blocked =
+      hostname === "localhost" ||
+      hostname.endsWith(".local") ||
+      isPrivateIpv4(hostname) ||
+      hostname === "docs.google.com" ||
+      hostname === "drive.google.com" ||
+      hostname.endsWith(".supabase.co") ||
+      hostname.includes("lineworks") ||
+      hostname.includes("line-works");
+    if (blocked) {
+      throw new WordPressApiError(
+        "記事内に内部情報へのリンクが含まれているため、下書きを作成しませんでした。",
+        422,
+        "wordpress_post_internal_reference_blocked"
+      );
+    }
+  }
+}
+
 export function getWordPressHostname() {
   try {
     return getConfig().hostname;
@@ -319,6 +370,8 @@ export async function createWordPressPostDraft(input: {
   content: string;
   excerpt: string;
 }) {
+  assertNoInternalReferenceLinks(input.content);
+
   const search = new URLSearchParams({
     context: "edit",
     slug: input.slug,
