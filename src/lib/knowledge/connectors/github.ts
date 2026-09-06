@@ -7,6 +7,7 @@ import type { ConnectorResult, KnowledgeConnector, NormalizedSourceObject } from
 
 const configSchema = z.object({ repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/), branch: z.string().min(1).max(200) });
 const API = "https://api.github.com";
+const INITIAL_SCAN_FILE_LIMIT = 1_500;
 
 type GitHubTreeItem = { path?: string; type?: string; sha?: string; size?: number };
 type GitHubFile = { filename: string; sha: string; status: string; patch?: string; additions?: number; deletions?: number };
@@ -160,13 +161,17 @@ export const githubConnector: KnowledgeConnector = {
     if (!previousSha) {
       const commit = await githubFetch<{ tree: { sha: string } }>(`/repos/${config.repository}/git/commits/${headSha}`, token);
       const tree = await githubFetch<{ tree?: GitHubTreeItem[]; truncated?: boolean }>(`/repos/${config.repository}/git/trees/${commit.tree.sha}?recursive=1`, token);
-      objects = (tree.tree ?? []).filter((item) => item.type === "blob" && item.path && item.sha && isEligible(item.path)).slice(0, 500).map((item) => makeObject({ repository: config.repository, branch: config.branch, path: item.path!, commitSha: headSha, blobSha: item.sha! }));
+      const eligibleItems = (tree.tree ?? []).filter((item) => item.type === "blob" && item.path && item.sha && isEligible(item.path));
+      objects = eligibleItems.slice(0, INITIAL_SCAN_FILE_LIMIT).map((item) => makeObject({ repository: config.repository, branch: config.branch, path: item.path!, commitSha: headSha, blobSha: item.sha! }));
+      const limited = eligibleItems.length > INITIAL_SCAN_FILE_LIMIT;
       return {
         objects,
         proposedKnowledge: [],
         nextCursor: { repository: config.repository, branch: config.branch, lastCommitSha: headSha, lastCheckedAt: new Date().toISOString() },
-        hasMore: Boolean(tree.truncated),
-        warnings: tree.truncated ? ["GitHub treeが大きいため、初回解析は500ファイルまで索引化しました。"] : [],
+        hasMore: false,
+        warnings: tree.truncated || limited
+          ? [`GitHub treeが大きいため、初回解析は${INITIAL_SCAN_FILE_LIMIT}ファイルまで索引化しました。`]
+          : [],
       };
     }
 

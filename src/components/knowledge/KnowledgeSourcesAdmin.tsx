@@ -57,7 +57,8 @@ export function KnowledgeSourcesAdmin() {
     try {
       const response = await knowledgeApi<RunResponse>(`/api/admin/knowledge/sources/${source.id}/${dryRun ? "dry-run" : "sync"}`, { method: "POST" });
       const result = response.result;
-      setMessage(`${source.name}: ${dryRun ? "Dry Run" : "同期"}完了（処理 ${result.processed} / 作成候補 ${result.created} / 更新 ${result.updated} / スキップ ${result.skipped}）`);
+      const warning = result.warnings.length ? ` 注意: ${result.warnings.join(" / ")}` : "";
+      setMessage(`${source.name}: ${dryRun ? "Dry Run" : "同期"}完了（処理 ${result.processed} / 作成候補 ${result.created} / 更新 ${result.updated} / スキップ ${result.skipped}）${warning}`);
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : `${dryRun ? "Dry Run" : "同期"}に失敗しました。`);

@@ -240,6 +240,24 @@ export async function runKnowledgeSource(options: RunOptions): Promise<Knowledge
   const cursorBefore = (checkpointData?.cursor ?? {}) as Record<string, unknown>;
   const checkpointVersion = Number(checkpointData?.cursor_version ?? 0);
 
+  // A serverless function can be stopped by the platform before our catch block
+  // runs. Release only expired leases so a terminated run cannot block every
+  // subsequent manual or scheduled sync forever.
+  const recoveryAt = new Date().toISOString();
+  const { error: recoveryError } = await supabaseAdmin
+    .from("knowledge_sync_runs")
+    .update({
+      status: "failed",
+      error_code: "LEASE_EXPIRED",
+      error_message: "前回の同期は実行時間上限を超えたため終了しました。再実行できます。",
+      finished_at: recoveryAt,
+      lease_expires_at: null,
+    })
+    .eq("source_id", source.id)
+    .in("status", ["queued", "running"])
+    .lt("lease_expires_at", recoveryAt);
+  if (recoveryError) throw recoveryError;
+
   const { data: run, error: runError } = await supabaseAdmin
     .from("knowledge_sync_runs")
     .insert({
