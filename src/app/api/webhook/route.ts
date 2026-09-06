@@ -517,6 +517,43 @@ function shouldReplyToMessage(params: {
     return true;
 }
 
+function isSelfQuitRequest(text: string | null): boolean {
+    if (!text) return false;
+    const normalized = text
+        .replace(/@[\S]+/g, "")
+        .replace(/[\s　、。！？!?,.]/g, "")
+        .toLowerCase();
+
+    const refersToSelf = /(私|わたし|自分|僕|ぼく|俺)/.test(normalized);
+    const refersToRoom = /(この)?(部屋|ルーム|グループ|トーク)/.test(normalized);
+    const asksToLeave = /(退出|退室|抜け).*(して|させて|お願い)|.*(退出|退室|抜け)(したい)/.test(normalized);
+    return refersToSelf && refersToRoom && asksToLeave;
+}
+
+async function hasActiveQuitConfirmation(channelId: string, requesterLwUserid: string | null): Promise<boolean> {
+    if (!requesterLwUserid) return false;
+    const { data, error } = await supabaseAdmin
+        .from("dialogflow_pending_shift_requests")
+        .select("id,expires_at")
+        .eq("channel_id", channelId)
+        .eq("requester_lw_userid", requesterLwUserid)
+        .eq("intent_name", "quit_lw_group")
+        .eq("status", "confirming")
+        .maybeSingle();
+
+    if (error || !data) return false;
+    return !!data.expires_at && new Date(data.expires_at).getTime() > Date.now();
+}
+
+async function shouldRouteToQuitDialogflow(params: {
+    text: string | null;
+    channelId: string;
+    requesterLwUserid: string | null;
+}) {
+    if (isSelfQuitRequest(params.text)) return true;
+    return await hasActiveQuitConfirmation(params.channelId, params.requesterLwUserid);
+}
+
 export async function POST(req: NextRequest) {
     try {
         const data = (await req.json()) as Record<string, unknown>;
@@ -595,14 +632,20 @@ export async function POST(req: NextRequest) {
         console.log("[lw webhook] groupType=", groupType);
 
 
-        if (
+        const routeToQuitDialogflow =
             shouldReplyToMessage({
                 eventType,
                 text: message,
                 userId,
             }) &&
-            shouldRunDialogflowForGroup(groupType)
-        ) {
+            shouldRunDialogflowForGroup(groupType) &&
+            await shouldRouteToQuitDialogflow({
+                text: message,
+                channelId,
+                requesterLwUserid: userId,
+            });
+
+        if (routeToQuitDialogflow) {
             try {
                 const mentionLwUserids = extractMentionLwUserIds(data);
 
@@ -659,23 +702,11 @@ export async function POST(req: NextRequest) {
             } catch (dialogflowError) {
                 console.error("[lw webhook] dialogflow flow error", dialogflowError);
 
-                if (
-                    shouldReplyToMessage({
-                        eventType,
-                        text: message,
-                        userId,
-                    }) &&
-                    shouldRunDialogflowForGroup(groupType)
-                ) {
-                    // ...
-                } else {
-                    console.log("[lw webhook] skip dialogflow", {
-                        eventType,
-                        channelId,
-                        groupType,
-                        hasMessage: !!message,
-                    });
-                }
+                console.warn("[lw webhook] quit-only Dialogflow request failed", {
+                    eventType,
+                    channelId,
+                    groupType,
+                });
             }
         }
 
