@@ -4,7 +4,7 @@ import { authenticateAdmin } from "@/lib/auth/requireAdmin";
 import { recordOperationLog } from "@/lib/cm/audit/recordOperationLog";
 import { calculateNextRunAt } from "@/lib/knowledge/scheduling";
 import type { KnowledgeSource } from "@/lib/knowledge/types";
-import { sourceUpdateSchema } from "@/lib/knowledge/validation";
+import { sourceUpdateSchema, validateEditableSourceConfig } from "@/lib/knowledge/validation";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
@@ -21,9 +21,25 @@ export async function PATCH(request: NextRequest, context: Context) {
   const { data: current, error: currentError } = await supabaseAdmin.from("knowledge_sources").select("*").eq("id", id).maybeSingle();
   if (currentError) return NextResponse.json({ ok: false, error: "情報源を取得できませんでした。" }, { status: 500 });
   if (!current) return NextResponse.json({ ok: false, error: "情報源が見つかりません。" }, { status: 404 });
-  const merged = { ...current, ...parsed.data } as KnowledgeSource;
+  let safeConfig: Record<string, unknown> | undefined;
+  if (parsed.data.config !== undefined) {
+    try {
+      safeConfig = validateEditableSourceConfig(
+        current.connector_key,
+        (current.config ?? {}) as Record<string, unknown>,
+        parsed.data.config
+      );
+    } catch (error) {
+      return NextResponse.json({
+        ok: false,
+        error: error instanceof Error ? error.message : "接続設定を確認してください。",
+      }, { status: 400 });
+    }
+  }
+  const normalizedPatch = safeConfig ? { ...parsed.data, config: safeConfig } : parsed.data;
+  const merged = { ...current, ...normalizedPatch } as KnowledgeSource;
   const update = {
-    ...parsed.data,
+    ...normalizedPatch,
     next_run_at: parsed.data.next_run_at !== undefined
       ? parsed.data.next_run_at
       : calculateNextRunAt(merged),
@@ -37,7 +53,11 @@ export async function PATCH(request: NextRequest, context: Context) {
     description: "ナレッジ情報源設定を更新",
     resourceType: "knowledge_source",
     resourceId: id,
-    metadata: { enabled: data.enabled, syncFrequency: data.sync_frequency },
+    metadata: {
+      enabled: data.enabled,
+      syncFrequency: data.sync_frequency,
+      connectorConfigUpdated: safeConfig !== undefined,
+    },
   });
   return NextResponse.json({ ok: true, source: data });
 }

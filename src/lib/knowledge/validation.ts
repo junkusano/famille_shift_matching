@@ -43,6 +43,31 @@ export const sourceUpdateSchema = z.object({
   enabled: z.boolean().optional(),
   sync_frequency: z.enum(["manual", "hourly", "daily", "weekly", "monthly"]).optional(),
   schedule: z.record(z.string(), z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
   next_run_at: z.string().datetime().nullable().optional(),
 });
 
+const googleAnalyticsConfigSchema = z.object({
+  propertyId: z.string().trim().regex(/^\d+$/, "GA4の数値プロパティIDを入力してください。"),
+  lookbackDays: z.coerce.number().int().min(7).max(90),
+  siteUrl: z.string().trim().url(),
+  credentialSecretName: z.literal("google_service_account_key").default("google_service_account_key"),
+});
+
+const microsoftClarityConfigSchema = z.object({
+  numOfDays: z.coerce.number().int().min(1).max(3),
+  dimensions: z.array(z.enum(["Browser", "Device", "Country/Region", "OS", "Source", "Medium", "Campaign", "Channel", "URL"])).max(3),
+  siteUrl: z.string().trim().url(),
+  tokenSecretName: z.literal("clarity_data_export_api_token").default("clarity_data_export_api_token"),
+});
+
+export function validateEditableSourceConfig(
+  connectorKey: string,
+  currentConfig: Record<string, unknown>,
+  patch: Record<string, unknown>
+) {
+  const merged = { ...currentConfig, ...patch };
+  if (connectorKey === "google_analytics") return googleAnalyticsConfigSchema.parse(merged);
+  if (connectorKey === "microsoft_clarity") return microsoftClarityConfigSchema.parse(merged);
+  throw new Error("この情報源の接続設定は、この画面から変更できません。");
+}

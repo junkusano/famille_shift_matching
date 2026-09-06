@@ -4,6 +4,8 @@ export type KnowledgeSourceType =
   | "lesson_reminder"
   | "billing"
   | "moneyforward"
+  | "google_analytics"
+  | "microsoft_clarity"
   | "github"
   | "fax"
   | "lineworks_chat"
@@ -87,6 +89,12 @@ export type KnowledgeSource = {
   created_at: string;
   updated_at: string;
   checkpoint?: { cursor: Record<string, unknown>; cursor_version: number } | null;
+  setup_status?: {
+    ready: boolean;
+    issues: string[];
+    serviceAccountEmail?: string;
+    secretConfigured?: boolean;
+  };
 };
 
 export type NormalizedSourceObject = {
