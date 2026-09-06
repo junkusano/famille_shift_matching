@@ -106,7 +106,7 @@ const managerMenuGroups: MenuGroup[] = [
     { label: "ダッシュボード", href: "/portal/dashboard" }, { label: "イベント管理", href: "/portal/event-tasks" },
     { label: "イベントテンプレート管理", href: "/portal/event-template" }, { label: "走行距離指数", href: "/portal/driving_record" },
     { label: "組織アイコン設定", href: "/portal/orgIcons" }, { label: "電話帳", href: "/portal/phone" },
-    { label: "監査ログ", href: "/portal/audit_log" }, { label: "ナレッジ管理", href: "/portal/admin/knowledge", adminOnly: true }, { label: "お弁当アンケート【管理用】", href: "/portal/bento/admin" },
+    { label: "監査ログ", href: "/portal/audit_log" }, { label: "ナレッジ管理", href: "/portal/admin/knowledge", adminOnly: true }, { label: "ナレッジ活用自動化", href: "/portal/knowledge-automation" }, { label: "お弁当アンケート【管理用】", href: "/portal/bento/admin" },
     { label: "目標・研修【管理用】", href: "/portal/training-goals/manage" }, { label: "健康診断管理", href: "/portal/admin/health-check-results" }, { label: "日払い申請履歴", href: "/portal/user_advance_payment_history" },
     { label: "RPAテンプレ管理", href: "/portal/rpa_temp/list" }, { label: "RPA求人プリセット", href: "/portal/admin/rpa-job-presets" }, { label: "RPA Runner管理", href: "/portal/admin/rpa-runners" }, { label: "RPA Job定義", href: "/portal/admin/rpa-job-definitions" }, { label: "RPAリクエスト管理", href: "/portal/rpa_requests" },
     { label: "モニタリング「事業所より」設定", href: "/portal/admin/monitoring-office-notice" },
@@ -212,6 +212,7 @@ function LegacyMenu({ role }: { role: string | null }) {
           <li><Link href="/portal/shift-wish" className="text-blue-300 hover:underline">シフトWish</Link></li>
           <li><Link href="/portal/audit_log" className="text-blue-300 hover:underline">監査ログ</Link></li>
           {normalizedRole === "admin" && <li><Link href="/portal/admin/knowledge" className="text-blue-300 hover:underline">ナレッジ管理</Link></li>}
+          <li><Link href="/portal/knowledge-automation" className="text-blue-300 hover:underline">ナレッジ活用自動化</Link></li>
           <li>
             <Link
               href="/portal/expense-claims"
