@@ -365,26 +365,37 @@ export async function createWordPressBlogDraft(task: KnowledgeAutomationTask): P
   if (!research) {
     return { status: "skipped", message: "論点を裏づける公開中の外部情報が見つからなかったため、記事を作りませんでした。" };
   }
-  const categories = task.settings.wordpress_auto_category === false
+  const allCategories = task.settings.wordpress_auto_category === false
     ? []
     : (await listWordPressPostCategories()).filter((category) => category.slug !== "uncategorized");
+  const configuredRootSlug = typeof task.settings.wordpress_category_root_slug === "string"
+    ? task.settings.wordpress_category_root_slug.trim()
+    : "column";
+  const columnRoot = allCategories.find((category) => category.slug === configuredRootSlug || category.name === "コラム");
+  const columnChildren = columnRoot
+    ? allCategories.filter((category) => category.parent === columnRoot.id)
+    : [];
+  const categories = columnChildren.length > 0 ? columnChildren : allCategories;
   const article = await generateArticle(openai, task, seed, research, categories);
   const featuredImage = await prepareFeaturedImage(openai, task, article, filenameStem);
   if (task.settings.wordpress_featured_image !== false && !featuredImage) {
     throw new Error("アイキャッチを用意できなかったため、画像なしの記事は作成しませんでした。");
   }
-  const categoryId = article.category_id && categories.some((category) => category.id === article.category_id)
-    ? article.category_id
+  const selectedCategory = article.category_id
+    ? categories.find((category) => category.id === article.category_id) ?? null
     : null;
+  const categoryIds = selectedCategory
+    ? [...new Set([selectedCategory.parent, selectedCategory.id].filter((id) => id > 0))]
+    : [];
   const post = await createWordPressPostDraft({
     title: article.title, slug: filenameStem,
     content: articleHtml(article, research.sources), excerpt: article.excerpt,
     featuredMediaId: featuredImage?.id,
-    categoryIds: categoryId ? [categoryId] : undefined,
+    categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
   });
   return {
     status: "created",
-    message: `「${article.title}」をWordPressの下書きに追加しました。${featuredImage ? `アイキャッチは${featuredImage.source === "existing" ? "既存画像を再利用" : "新規生成"}しました。` : ""}${categoryId ? "カテゴリも設定しました。" : ""}`,
+    message: `「${article.title}」をWordPressの下書きに追加しました。${featuredImage ? `アイキャッチは${featuredImage.source === "existing" ? "既存画像を再利用" : "新規生成"}しました。` : ""}${categoryIds.length > 0 ? "コラムカテゴリも設定しました。" : ""}`,
     sourceId: seed.id, sourceTitle: seed.title, postId: post.id, postLink: post.link,
   };
 }

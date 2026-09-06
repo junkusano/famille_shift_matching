@@ -8,6 +8,7 @@ set
     'wordpress_reuse_media', true,
     'wordpress_auto_category', true,
     'wordpress_category_policy', 'existing-only',
+    'wordpress_category_root_slug', 'column',
     'wordpress_media_policy', 'reuse-then-generate',
     'openai_image_model', 'gpt-image-2'
   ),
