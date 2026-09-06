@@ -17,10 +17,6 @@
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/cron/analyzeAndAlert",
-      "schedule": "10 0,4,8 * * *"
-    },
-    {
       "path": "/api/cron/alert-check-excuse",
       "schedule": "9 18 * * *"
     },
