@@ -93,7 +93,7 @@ export function MoneyForwardIntegrationAdmin() {
     {message && <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">{message}</div>}
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div><h2 className="text-lg font-bold text-slate-900">Money Forwardクラウド会計</h2><p className="mt-1 text-sm text-slate-600">OAuth 2.0の読み取り接続。現在はtenant確認だけを行い、仕訳の書き込みは行いません。</p></div>
+        <div><h2 className="text-lg font-bold text-slate-900">Money Forwardクラウド会計</h2><p className="mt-1 text-sm text-slate-600">OAuth 2.0の読み取り接続。月次PL・BS推移をナレッジ化し、仕訳の書き込みは行いません。</p></div>
         <span className={`w-fit rounded-full px-3 py-1 text-sm font-semibold ${connected ? "bg-emerald-100 text-emerald-800" : connection?.status === "error" || connection?.status === "refresh_required" ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-700"}`}>{loading ? "確認中" : connected ? "接続済み" : connection?.status === "refresh_required" ? "再接続が必要" : "未接続"}</span>
       </div>
       {!configured && <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Vercelに MF_CLIENT_ID、MF_CLIENT_SECRET、MF_REDIRECT_URI、KNOWLEDGE_TOKEN_ENCRYPTION_KEY の設定が必要です。</div>}
@@ -116,4 +116,3 @@ export function MoneyForwardIntegrationAdmin() {
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"><p className="font-semibold">安全設計</p><ul className="mt-2 list-disc space-y-1 pl-5"><li>Client Secretと暗号鍵は環境変数のみ</li><li>OAuth tokenはAES-256-GCMで暗号化</li><li>tokenをブラウザ・APIレスポンス・ログへ出さない</li><li>財務情報はprivacy level 2 / internal_only</li></ul></div>
   </section>;
 }
-

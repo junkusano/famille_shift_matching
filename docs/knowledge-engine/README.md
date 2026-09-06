@@ -137,7 +137,7 @@ FAXをナレッジ対象には含めるが、汎用ナレッジテーブルにOC
 
 ## 8. Money Forward方針
 
-v0.1はOAuth接続、tenant確認、scope確認、token refresh、Dry Runまでとする。接続後は毎日7:15に接続先を確認する。PL、BS、月次推移は実装時点の公式OpenAPI定義で利用可能なendpointとscopeを確認してから有効化する。
+OAuth接続、tenant確認、scope確認、token refreshに加え、公式会計API v3から最新会計年度の月次PL・BS推移を読み取り専用で取得する。接続後は毎日7:15に差分確認し、仕訳明細を複製せず、財務サマリーと根拠となる集計指標だけを保存する。
 
 OAuth tokenはブラウザ、レスポンス、通常ログ、`knowledge_integrations` の平文カラムに出さない。第一候補はSupabase Vaultで、テーブルにはSecret IDのみ保存する。Vaultの安全な更新・取得RPCを実装前に検証する。
 

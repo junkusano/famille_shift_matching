@@ -14,6 +14,17 @@ function redirectResult(request: NextRequest, result: string) {
   return response;
 }
 
+function safeConnectionError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (/token request failed/i.test(message)) {
+    return "Money Forwardの認証情報を交換できませんでした。アプリのクライアント認証方式を確認してください。";
+  }
+  if (/tenant/i.test(message)) {
+    return "Money Forwardの事業者情報を取得できませんでした。事業者情報の参照権限を確認してください。";
+  }
+  return "Money Forwardとの接続を完了できませんでした。再接続してください。";
+}
+
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
@@ -71,7 +82,14 @@ export async function GET(request: NextRequest) {
     }).eq("source_key", "moneyforward-accounting");
     await supabaseAdmin.from("integration_oauth_states").update({ consumed_at: new Date().toISOString() }).eq("id", oauthState.id);
     return redirectResult(request, "connected");
-  } catch {
+  } catch (error) {
+    const errorMessage = safeConnectionError(error);
+    const failedAt = new Date().toISOString();
+    await supabaseAdmin.from("knowledge_sources").update({
+      last_error_at: failedAt,
+      last_error_code: "MONEYFORWARD_OAUTH_FAILED",
+      last_error_message: errorMessage,
+    }).eq("source_key", "moneyforward-accounting");
     await supabaseAdmin.from("integration_oauth_states").update({ consumed_at: new Date().toISOString() }).eq("id", oauthState.id);
     return redirectResult(request, "failed");
   }
