@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
     if ((requests?.length ?? 0) > 0) {
       const { data: reviewRows, error: reviewError } = await supabaseAdmin
         .from("wf_request")
-        .select("id,health_check_doctor_comment,health_check_company_opinion,health_check_occupational_physician_checked,health_check_occupational_physician_checked_at,health_check_occupational_physician_checked_by,health_check_admin_checked,health_check_admin_checked_at,health_check_admin_checked_by")
+        .select("id,health_check_doctor_comment,health_check_occupational_physician_checked,health_check_occupational_physician_checked_at,health_check_occupational_physician_checked_by,health_check_admin_checked,health_check_admin_checked_at,health_check_admin_checked_by")
         .in("id", (requests ?? []).map((row) => row.id));
       if (reviewError) {
         if (reviewError.code === "42703") reviewMetadataAvailable = false;
