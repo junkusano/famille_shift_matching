@@ -11609,6 +11609,7 @@ export type Database = {
           health_check_admin_checked_at: string | null
           health_check_admin_checked_by: string | null
           health_check_doctor_comment: string | null
+          health_check_company_opinion: string | null
           health_check_rejection_reason: string | null
           health_check_rejected_at: string | null
           health_check_rejected_by: string | null
@@ -11634,6 +11635,7 @@ export type Database = {
           health_check_admin_checked_at?: string | null
           health_check_admin_checked_by?: string | null
           health_check_doctor_comment?: string | null
+          health_check_company_opinion?: string | null
           health_check_rejection_reason?: string | null
           health_check_rejected_at?: string | null
           health_check_rejected_by?: string | null
@@ -11659,6 +11661,7 @@ export type Database = {
           health_check_admin_checked_at?: string | null
           health_check_admin_checked_by?: string | null
           health_check_doctor_comment?: string | null
+          health_check_company_opinion?: string | null
           health_check_rejection_reason?: string | null
           health_check_rejected_at?: string | null
           health_check_rejected_by?: string | null
