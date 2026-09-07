@@ -10,6 +10,34 @@ export class RpaTaimeeError extends Error {
   }
 }
 
+export async function requireRpaAuthenticatedUser(request?: Request): Promise<string> {
+  const authorization = request?.headers.get("authorization") ?? "";
+  const bearer = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
+  const authResult = bearer
+    ? await supabaseAdmin.auth.getUser(bearer)
+    : await (async () => {
+      const cookieStore = await cookies();
+      const auth = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            getAll() { return cookieStore.getAll(); },
+            setAll(cookiesToSet) {
+              try {
+                for (const { name, value, options } of cookiesToSet) cookieStore.set(name, value, options);
+              } catch { /* Read-only callers do not need to persist a refreshed cookie. */ }
+            },
+          },
+        },
+      );
+      return auth.auth.getUser();
+    })();
+  const { data, error } = authResult;
+  if (error || !data.user) throw new RpaTaimeeError("ログインしてください", 401);
+  return data.user.id;
+}
+
 export async function requireTaimeeRpaOperator(request?: Request): Promise<void> {
   const authorization = request?.headers.get("authorization") ?? "";
   const bearer = authorization.match(/^Bearer\s+(.+)$/i)?.[1];

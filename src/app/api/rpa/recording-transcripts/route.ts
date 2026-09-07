@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabase/service";
-import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
+import { isRpaTaimeeError, requireRpaAuthenticatedUser } from "@/lib/rpa/taimee";
 import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ function errorResponse(error: unknown) {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireTaimeeRpaOperator(request);
+    await requireRpaAuthenticatedUser(request);
     const clientId = request.nextUrl.searchParams.get("client_id")?.trim() ?? "";
     const clientName = request.nextUrl.searchParams.get("client_name")?.trim() ?? "";
     const select = "id, client_id, client_name, context_name, recorded_at, recorder_email, participants, transcript_status, transcript_raw";
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireTaimeeRpaOperator(request);
+    await requireRpaAuthenticatedUser(request);
     const body = await request.json().catch(() => null) as { transcript_ids?: unknown } | null;
     const transcriptIds = Array.isArray(body?.transcript_ids)
       ? [...new Set(body.transcript_ids.filter((id): id is string => typeof id === "string"))]
