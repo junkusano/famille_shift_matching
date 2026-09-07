@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+import { getAccessToken } from "@/lib/getAccessToken";
 import {
   getHealthCheckDate,
   getHealthCheckFiscalYear,
@@ -25,6 +27,28 @@ async function requireHealthCheckManager(req: NextRequest) {
   const { data: me, error: meError } = await supabaseAdmin.from("users").select("user_id,system_role").eq("auth_user_id", data.user.id).maybeSingle();
   if (meError || !me || !["admin", "manager"].includes((me.system_role ?? "").toLowerCase()) || me.user_id === "servicesuport") throw new Error("FORBIDDEN");
   return me;
+}
+
+async function notifyHealthCheckRejection(applicantUserId: string, requestId: string, reason: string) {
+  const { data: applicant, error } = await supabaseAdmin
+    .from("user_entry_united_view_single")
+    .select("user_id,channel_id,last_name_kanji,first_name_kanji")
+    .eq("user_id", applicantUserId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!applicant?.channel_id) return;
+  const name = `${applicant.last_name_kanji ?? ""} ${applicant.first_name_kanji ?? ""}`.trim() || applicantUserId;
+  const text =
+    `【人事労務・健康診断】健康診断結果が差し戻されました\n` +
+    `対象者：${name}\n` +
+    `理由：${reason}\n` +
+    `申請ID：${requestId}`;
+  try {
+    const accessToken = await getAccessToken();
+    await sendLWBotMessage(applicant.channel_id, text, accessToken);
+  } catch (notifyError) {
+    console.error("[health-check-admin] rejection notification failed", notifyError);
+  }
 }
 
 function failure(error: unknown) {
@@ -104,7 +128,7 @@ export async function PATCH(req: NextRequest) {
       const update = body.required
         ? { health_check_occupational_physician_required: true, health_check_occupational_physician_checked: false, health_check_occupational_physician_checked_at: null, health_check_occupational_physician_checked_by: null, updated_at: now }
         : { health_check_occupational_physician_required: false, health_check_occupational_physician_checked: true, health_check_occupational_physician_checked_at: now, health_check_occupational_physician_checked_by: actor.user_id, updated_at: now };
-      const { data: current, error: currentError } = await supabaseAdmin.from("wf_request").select("payload").eq("id", body.request_id).maybeSingle();
+      const { data: current, error: currentError } = await supabaseAdmin.from("wf_request").select("payload,applicant_user_id").eq("id", body.request_id).maybeSingle();
       if (currentError || !current) throw currentError ?? new Error("健診申請が見つかりません。");
       const currentPayload = current.payload && typeof current.payload === "object" && !Array.isArray(current.payload) ? current.payload as Record<string, unknown> : {};
       const { error } = await supabaseAdmin.from("wf_request").update({ ...update, payload: { ...currentPayload, health_check_occupational_physician_required: body.required } }).eq("id", body.request_id);
@@ -128,11 +152,14 @@ export async function PATCH(req: NextRequest) {
       if (!body.request_id || typeof body.rejection_reason !== "string" || body.rejection_reason.trim().length > 10000) return NextResponse.json({ ok: false, error: "差し戻し理由が不正です。" }, { status: 400 });
       const now = new Date().toISOString();
       const reason = body.rejection_reason.trim() || "健診結果の内容を確認してください。";
-      const { data: current, error: currentError } = await supabaseAdmin.from("wf_request").select("payload").eq("id", body.request_id).maybeSingle();
+      const { data: current, error: currentError } = await supabaseAdmin.from("wf_request").select("payload,applicant_user_id").eq("id", body.request_id).maybeSingle();
       if (currentError || !current) throw currentError ?? new Error("健診申請が見つかりません。");
       const currentPayload = current.payload && typeof current.payload === "object" && !Array.isArray(current.payload) ? current.payload as Record<string, unknown> : {};
       const { error } = await supabaseAdmin.from("wf_request").update({ status: "rejected", payload: { ...currentPayload, health_check_rejection_reason: reason, health_check_rejected_at: now, health_check_rejected_by: actor.user_id }, updated_at: now }).eq("id", body.request_id);
       if (error) throw error;
+      await notifyHealthCheckRejection(current.applicant_user_id, body.request_id, reason).catch((notifyError) => {
+        console.error("[health-check-admin] applicant notification lookup failed", notifyError);
+      });
       return NextResponse.json({ ok: true, status: "rejected", rejection_reason: reason, rejected_at: now, rejected_by: actor.user_id });
     }
     if (body.field === "doctor_comment") {
