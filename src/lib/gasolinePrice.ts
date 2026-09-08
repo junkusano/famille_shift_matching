@@ -6,6 +6,13 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 
 const RESULTS_URL = "https://www.enecho.meti.go.jp/statistics/petroleum_and_lpgas/pl007/results.html";
 const SOURCE_NAME = "資源エネルギー庁 石油製品価格調査";
+const OFFICIAL_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+  "Cache-Control": "no-cache",
+  Pragma: "no-cache",
+};
 
 function normalise(value: unknown): string {
   return String(value ?? "").replace(/[\s　]+/g, "").trim();
@@ -17,7 +24,7 @@ function numberValue(value: unknown): number | null {
 }
 
 async function getLatestWorkbookUrl(): Promise<string> {
-  const response = await fetch(RESULTS_URL, { cache: "no-store" });
+  const response = await fetch(RESULTS_URL, { cache: "no-store", headers: OFFICIAL_HEADERS });
   if (!response.ok) throw new Error(`資源エネルギー庁ページ取得失敗: HTTP ${response.status}`);
   const html = await response.text();
   const $ = load(html);
@@ -46,7 +53,9 @@ function extractAichiRegularPrice(workbook: XLSX.WorkBook): number {
       const regularIndex = headerRow.findIndex((cell) => normalise(cell).includes("レギュラー"));
       if (regularIndex < 0) continue;
 
-      for (const row of rows.slice(header.index + 1, header.index + 12)) {
+      // 都道府県別シートでは、見出しから愛知県まで十数行以上離れるため、
+      // 見出し直後の固定行数に限定せずシート末尾まで検索する。
+      for (const row of rows.slice(header.index + 1)) {
         if (!row.some((cell) => normalise(cell) === "愛知" || normalise(cell) === "愛知県")) continue;
         const direct = numberValue(row[regularIndex]);
         if (direct != null) return direct;
@@ -62,7 +71,14 @@ function extractAichiRegularPrice(workbook: XLSX.WorkBook): number {
 
 export async function syncLatestGasolinePrice(): Promise<{ price: number; sourceUrl: string }> {
   const sourceUrl = await getLatestWorkbookUrl();
-  const response = await fetch(sourceUrl, { cache: "no-store" });
+  const response = await fetch(sourceUrl, {
+    cache: "no-store",
+    headers: {
+      ...OFFICIAL_HEADERS,
+      Referer: RESULTS_URL,
+      Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,*/*;q=0.8",
+    },
+  });
   if (!response.ok) throw new Error(`資源エネルギー庁Excel取得失敗: HTTP ${response.status}`);
   const workbook = XLSX.read(await response.arrayBuffer(), { type: "array" });
   const price = extractAichiRegularPrice(workbook);
