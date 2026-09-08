@@ -23,6 +23,8 @@ type ManagerSummary = {
 
 type MonthlyGasolinePrice = {
   price_yen_per_liter: number | null;
+  prefecture?: string | null;
+  fuel_type?: string | null;
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -127,9 +129,7 @@ export default function ManagerDistanceIndexPage() {
     // 更新されていない環境でも取得できる既存列 fetched_at を基準にする。
     const { data: latestPrice, error: priceError } = await supabase
       .from("monthly_gasoline_prices")
-      .select("price_yen_per_liter")
-      .eq("prefecture", "愛知県")
-      .eq("fuel_type", "レギュラー")
+      .select("price_yen_per_liter, prefecture, fuel_type")
       .order("fetched_at", { ascending: false })
       .limit(1)
       .maybeSingle();
