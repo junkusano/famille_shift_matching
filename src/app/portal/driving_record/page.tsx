@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -19,6 +19,11 @@ type ManagerSummary = {
   monthlyValues: Record<string, number>;
   monthlySegmentCounts: Record<string, number>;
   total: number;
+};
+
+type MonthlyGasolinePrice = {
+  target_month: string;
+  price_yen_per_liter: number | null;
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -56,6 +61,7 @@ export default function ManagerDistanceIndexPage() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [priceByMonth, setPriceByMonth] = useState<Record<string, number>>({});
   const [updatingDistance, setUpdatingDistance] = useState(false);
 
   const monthKeys = useMemo(() => createRecentMonthKeys(4), []);
@@ -116,6 +122,19 @@ export default function ManagerDistanceIndexPage() {
 
     const typedRows = (data ?? []) as unknown as MonthlyDistanceRow[];
     setRows(typedRows);
+
+    // 単価は別テーブルに保存する。未登録時も距離画面自体は表示できるようにする。
+    const { data: prices } = await supabase
+      .from("monthly_gasoline_prices")
+      .select("target_month, price_yen_per_liter")
+      .in("target_month", monthKeys.map((monthKey) => `${monthKey}-01`));
+    const nextPriceByMonth: Record<string, number> = {};
+    for (const price of (prices ?? []) as MonthlyGasolinePrice[]) {
+      if (price.price_yen_per_liter != null) {
+        nextPriceByMonth[getMonthKey(price.target_month)] = Number(price.price_yen_per_liter);
+      }
+    }
+    setPriceByMonth(nextPriceByMonth);
 
     // migration適用前のDBでも画面表示できるよう、最終更新日時は
     // distance viewではなくCron実行ログから取得する。
@@ -233,6 +252,22 @@ export default function ManagerDistanceIndexPage() {
     [summaries]
   );
 
+  const monthlyAmountTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const monthKey of monthKeys) {
+      const price = priceByMonth[monthKey];
+      totals[monthKey] = price == null
+        ? 0
+        : summaries.reduce((sum, manager) => sum + (manager.monthlyValues[monthKey] ?? 0) * price, 0);
+    }
+    return totals;
+  }, [monthKeys, priceByMonth, summaries]);
+
+  const grandTotalAmount = useMemo(
+    () => Object.values(monthlyAmountTotals).reduce((sum, amount) => sum + amount, 0),
+    [monthlyAmountTotals],
+  );
+
   return (
     <main className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -316,9 +351,15 @@ export default function ManagerDistanceIndexPage() {
               </thead>
 
               <tbody>
-                {summaries.map((manager) => (
+                {summaries.map((manager) => {
+                  const managerAmount = monthKeys.reduce((sum, monthKey) => {
+                    const price = priceByMonth[monthKey];
+                    return sum + (price == null ? 0 : (manager.monthlyValues[monthKey] ?? 0) * price);
+                  }, 0);
+
+                  return <Fragment key={manager.userId}>
                   <tr
-                    key={manager.userId}
+                    key={`${manager.userId}-distance`}
                     className="border-b transition-colors hover:bg-muted/30"
                   >
                     <td className="sticky left-0 z-10 bg-card px-4 py-3 font-medium">
@@ -348,7 +389,28 @@ export default function ManagerDistanceIndexPage() {
                       {manager.total.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
                     </td>
                   </tr>
-                ))}
+                  <tr key={`${manager.userId}-amount`} className="border-b bg-amber-50/40 text-sm">
+                    <td className="sticky left-0 z-10 bg-amber-50/70 px-4 py-2 pl-8 text-xs font-medium text-muted-foreground">
+                      ガソリン代
+                    </td>
+                    {monthKeys.map((monthKey) => {
+                      const price = priceByMonth[monthKey];
+                      const segmentCount = manager.monthlySegmentCounts[monthKey] ?? 0;
+                      const amount = (manager.monthlyValues[monthKey] ?? 0) * (price ?? 0);
+                      return <td key={monthKey} className="px-4 py-2 text-right tabular-nums text-amber-900">
+                        {segmentCount === 0 ? "—" : price == null ? "単価未登録" : `${Math.round(amount).toLocaleString("ja-JP")} 円`}
+                      </td>;
+                    })}
+                    <td className="bg-amber-100/70 px-4 py-2 text-right font-semibold tabular-nums text-amber-900">
+                      {managerAmount === 0 && monthKeys.every((monthKey) => (manager.monthlySegmentCounts[monthKey] ?? 0) === 0)
+                        ? "—"
+                        : Object.keys(priceByMonth).length === 0
+                          ? "単価未登録"
+                          : `${Math.round(managerAmount).toLocaleString("ja-JP")} 円`}
+                    </td>
+                  </tr>
+                  </Fragment>;
+                })}
               </tbody>
 
               <tfoot>
@@ -370,6 +432,17 @@ export default function ManagerDistanceIndexPage() {
 
                   <td className="bg-muted/70 px-4 py-3 text-right tabular-nums">
                     {grandTotal.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
+                  </td>
+                </tr>
+                <tr className="bg-amber-50 font-semibold">
+                  <td className="sticky left-0 z-10 bg-amber-50 px-4 py-3">ガソリン代合計</td>
+                  {monthKeys.map((monthKey) => (
+                    <td key={monthKey} className="px-4 py-3 text-right tabular-nums text-amber-900">
+                      {priceByMonth[monthKey] == null ? "単価未登録" : `${Math.round(monthlyAmountTotals[monthKey]).toLocaleString("ja-JP")} 円`}
+                    </td>
+                  ))}
+                  <td className="bg-amber-100 px-4 py-3 text-right tabular-nums text-amber-900">
+                    {Object.keys(priceByMonth).length === 0 ? "単価未登録" : `${Math.round(grandTotalAmount).toLocaleString("ja-JP")} 円`}
                   </td>
                 </tr>
               </tfoot>
