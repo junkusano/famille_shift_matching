@@ -22,7 +22,6 @@ type ManagerSummary = {
 };
 
 type MonthlyGasolinePrice = {
-  price_date: string;
   price_yen_per_liter: number | null;
 };
 
@@ -124,15 +123,19 @@ export default function ManagerDistanceIndexPage() {
     setRows(typedRows);
 
     // 単価は別テーブルに保存する。未登録時も距離画面自体は表示できるようにする。
-    const { data: latestPrice } = await supabase
+    // price_date は後から追加された列のため、PostgREST のスキーマキャッシュが
+    // 更新されていない環境でも取得できる既存列 fetched_at を基準にする。
+    const { data: latestPrice, error: priceError } = await supabase
       .from("monthly_gasoline_prices")
-      .select("price_date, price_yen_per_liter")
+      .select("price_yen_per_liter")
       .eq("prefecture", "愛知県")
       .eq("fuel_type", "レギュラー")
-      .lte("price_date", new Date().toISOString().slice(0, 10))
-      .order("price_date", { ascending: false })
+      .order("fetched_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (priceError) {
+      console.error("[manager-distance-index] gasoline price load error", priceError);
+    }
     const nextPriceByMonth: Record<string, number> = {};
     const price = latestPrice as MonthlyGasolinePrice | null;
     if (price?.price_yen_per_liter != null) {
