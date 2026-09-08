@@ -22,7 +22,7 @@ type ManagerSummary = {
 };
 
 type MonthlyGasolinePrice = {
-  target_month: string;
+  price_date: string;
   price_yen_per_liter: number | null;
 };
 
@@ -124,14 +124,20 @@ export default function ManagerDistanceIndexPage() {
     setRows(typedRows);
 
     // 単価は別テーブルに保存する。未登録時も距離画面自体は表示できるようにする。
-    const { data: prices } = await supabase
+    const { data: latestPrice } = await supabase
       .from("monthly_gasoline_prices")
-      .select("target_month, price_yen_per_liter")
-      .in("target_month", monthKeys.map((monthKey) => `${monthKey}-01`));
+      .select("price_date, price_yen_per_liter")
+      .eq("prefecture", "愛知県")
+      .eq("fuel_type", "レギュラー")
+      .lte("price_date", new Date().toISOString().slice(0, 10))
+      .order("price_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
     const nextPriceByMonth: Record<string, number> = {};
-    for (const price of (prices ?? []) as MonthlyGasolinePrice[]) {
-      if (price.price_yen_per_liter != null) {
-        nextPriceByMonth[getMonthKey(price.target_month)] = Number(price.price_yen_per_liter);
+    const price = latestPrice as MonthlyGasolinePrice | null;
+    if (price?.price_yen_per_liter != null) {
+      for (const monthKey of monthKeys) {
+        nextPriceByMonth[monthKey] = Number(price.price_yen_per_liter);
       }
     }
     setPriceByMonth(nextPriceByMonth);

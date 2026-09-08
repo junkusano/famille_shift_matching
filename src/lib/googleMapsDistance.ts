@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { syncLatestGasolinePrice } from "@/lib/gasolinePrice";
 
 type DistanceResult = { distanceMeters: number; durationSeconds: number };
 type ShiftRow = {
@@ -129,6 +130,13 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
   let skippedByLimitCount = 0;
   const changedStaff = new Set<string>();
   try {
+    try {
+      const gasolinePrice = await syncLatestGasolinePrice();
+      console.info("[google-maps-distance] gasoline price synced", gasolinePrice);
+    } catch (error) {
+      // 公的価格の取得失敗で距離計算全体を止めない。直近保存価格を画面側で再利用する。
+      console.warn("[google-maps-distance] gasoline price sync failed", error);
+    }
     const from = new Date();
     from.setMonth(from.getMonth() - 12);
     const fromDate = from.toISOString().slice(0, 10);
