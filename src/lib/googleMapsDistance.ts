@@ -245,6 +245,35 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
     const staffWithSegments = new Set(
       (existingStaffSegments ?? []).map((row) => String(row.staff_user_id))
     );
+
+    // API呼び出し処理より先に、全対象ルートをDBへ登録する。
+    // これをしないと、実行時間上限に達した時点より後の職員・日付は
+    // セグメント自体が作られず、月間集計から欠落してしまう。
+    for (let offset = 0; offset < targets.length; offset += 500) {
+      const batch = targets.slice(offset, offset + 500).map((target) => {
+        const originHash = addressHash(target.origin);
+        const destinationHash = addressHash(target.destination);
+        return {
+          shift_id: target.shift.shift_id,
+          staff_user_id: target.staffId,
+          segment_date: target.shift.shift_start_date as string,
+          segment_kind: target.segmentKind,
+          origin_address: target.origin,
+          destination_address: target.destination,
+          origin_address_hash: originHash,
+          destination_address_hash: destinationHash,
+          status: "pending",
+          last_error: null,
+          updated_at: new Date().toISOString(),
+        };
+      });
+      if (!batch.length) continue;
+      const { error: seedError } = await supabaseAdmin
+        .from("manager_distance_segments")
+        .upsert(batch, { onConflict: "shift_id,staff_user_id,segment_kind" });
+      if (seedError) throw new Error(seedError.message);
+    }
+
     targets.sort((a, b) => {
       const aHasSegments = staffWithSegments.has(a.staffId) ? 1 : 0;
       const bHasSegments = staffWithSegments.has(b.staffId) ? 1 : 0;
