@@ -234,7 +234,21 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
     const previousMonthDate = new Date();
     previousMonthDate.setMonth(previousMonthDate.getMonth() - 1);
     const previousMonth = previousMonthDate.toISOString().slice(0, 7);
+    // まだセグメントが1件も作成されていない職員を優先する。
+    // 対象件数が多く、1回の実行が時間・API上限で途中終了しても、
+    // 先頭の職員だけが繰り返し処理される starvation を防ぐ。
+    const targetStaffIds = [...new Set(targets.map((target) => target.staffId))];
+    const { data: existingStaffSegments } = await supabaseAdmin
+      .from("manager_distance_segments")
+      .select("staff_user_id")
+      .in("staff_user_id", targetStaffIds.length ? targetStaffIds : ["__no_staff__"]);
+    const staffWithSegments = new Set(
+      (existingStaffSegments ?? []).map((row) => String(row.staff_user_id))
+    );
     targets.sort((a, b) => {
+      const aHasSegments = staffWithSegments.has(a.staffId) ? 1 : 0;
+      const bHasSegments = staffWithSegments.has(b.staffId) ? 1 : 0;
+      if (aHasSegments !== bHasSegments) return aHasSegments - bHasSegments;
       const aMonth = a.shift.shift_start_date?.slice(0, 7) ?? "";
       const bMonth = b.shift.shift_start_date?.slice(0, 7) ?? "";
       const priority = (month: string) => month === previousMonth ? 0 : month === currentMonth ? 1 : 2;
