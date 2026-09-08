@@ -115,6 +115,7 @@ export default function RpaRunnersPage() {
   }
 
   return <main className="mx-auto max-w-6xl space-y-6 p-4 text-gray-900">
+    <p><a className="text-blue-700 underline" href="/portal/admin/rpa-progress">途中経過・実行ログを見る</a></p>
     <header><h1 className="text-xl font-bold">RPA Runner管理</h1><p className="mt-1 text-sm text-gray-600">実行PCを登録し、Runnerへ疎通確認用ジョブを送信します。トークンはハッシュ化して保存され、再表示されません。</p><p className="mt-1 text-sm text-gray-600">定期実行予定は <a className="text-blue-700 underline" href="/portal/admin/rpa-job-definitions">RPA Job定義</a> で確認・設定します。タイミー勤務者フォローはJST 13:00・19:00を予定し、有効化するまで自動実行されません。</p></header>
     {message && <div className="rounded border bg-blue-50 p-3 text-sm">{message}</div>}
     <section className="rounded border bg-white p-4 shadow-sm"><h2 className="mb-3 font-semibold">Runner登録</h2><div className="grid gap-3 md:grid-cols-3">

@@ -1,3 +1,4 @@
+import {withApiProgress} from '@/lib/rpa-runner/apiProgress';
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, normalizePhone, nullableText, requireTaimeeRpaOperator, splitWorkerName, workMonth } from "@/lib/rpa/taimee";
@@ -31,7 +32,7 @@ async function hasExistingFormEntry(phone: string | null): Promise<boolean> {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     await requireTaimeeRpaOperator(request);
     const body = await request.json() as WorkerPayload;
@@ -93,3 +94,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "勤務者情報の登録に失敗しました" }, { status: 500 });
   }
 }
+
+export const POST = withApiProgress(handlePOST,'workers');

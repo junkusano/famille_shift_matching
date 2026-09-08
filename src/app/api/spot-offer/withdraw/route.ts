@@ -57,6 +57,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const {error: pauseError} = await supabaseAdmin.from('spot_offer_request_table').update({recruitment_paused:true}).eq('id',spotOffer.id);
+  if (pauseError) return NextResponse.json({ok:false,error:pauseError.message},{status:500});
 const requestDetails = {
   created_from: "/portal/roster/daily",
   command: "close_job",

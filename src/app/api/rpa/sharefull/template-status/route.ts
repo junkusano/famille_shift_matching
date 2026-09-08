@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
 import { enqueueSharefullPublicationJobsForTemplate } from "@/lib/spot-offer/enqueueSharefullPublicationJob";
+import { isSharefullSyncClient } from "@/lib/spot-sync/sharefullScope";
 
 const ALLOWED_STATUSES = new Set(["template_review", "ready_for_offer"]);
 
@@ -23,11 +24,11 @@ export async function POST(request: NextRequest) {
 
     const { data: template, error: lookupError } = await supabaseAdmin
       .from("spot_offer_template_unified")
-      .select("core_id, sharefull_template_id")
+      .select("core_id, kaipoke_cs_id, sharefull_template_id")
       .eq("core_id", coreId)
       .maybeSingle();
     if (lookupError) throw lookupError;
-    if (!template) return NextResponse.json({ error: "テンプレートが見つかりません" }, { status: 404 });
+    if (!template || !isSharefullSyncClient(template.kaipoke_cs_id)) return NextResponse.json({ error: "テンプレートが見つかりません" }, { status: 404 });
 
     const updatedAt = new Date().toISOString();
     const { error: updateError } = await supabaseAdmin

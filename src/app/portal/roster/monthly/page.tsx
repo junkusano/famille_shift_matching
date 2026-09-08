@@ -1,5 +1,7 @@
 //portal/roster/monthly/page.tsx
 'use client'
+import { spotApplicationLabel } from '@/lib/spot-sync/display';
+
 
 import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
@@ -81,6 +83,7 @@ type ShiftRow = {
 
 type MonthlySpotStatus = {
     status: string | null
+    applicant_source?: string | null; application_state?: string | null; application_conflict?: boolean;
     applicant_name: string | null
     applicant_sex: string | null
     applicant_control_url: string | null
@@ -442,7 +445,7 @@ export default function MonthlyRosterPage() {
 
         const { data, error } = await supabase
             .from('spot_offer_request_table')
-            .select('shift_id,status,applicant_name,applicant_sex,applicant_control_url')
+            .select('shift_id,status,applicant_name,applicant_sex,applicant_control_url,applicant_source,application_state,application_conflict')
             .in('shift_id', ids)
             .in('status', ['募集中', '確定'])
 
@@ -455,6 +458,7 @@ export default function MonthlyRosterPage() {
         for (const row of data ?? []) {
             next[String(row.shift_id)] = {
                 status: row.status ?? null,
+                applicant_source: row.applicant_source, application_state: row.application_state, application_conflict: row.application_conflict,
                 applicant_name: row.applicant_name ?? null,
                 applicant_sex: row.applicant_sex ?? null,
                 applicant_control_url: row.applicant_control_url ?? null,
@@ -1700,7 +1704,7 @@ if (
                                                             </span>
                                                         ) : spot?.status === '確定' ? (
                                                             <span className="inline-flex items-center gap-2 rounded border border-green-300 bg-green-50 px-2 text-sm font-medium text-green-700">
-                                                                <span>スポット確定：{spot.applicant_name ?? '応募者'}（{spot.applicant_sex ?? '性別未設定'}）</span>
+                                                                <span>{spotApplicationLabel(spot)}：{spot.applicant_name ?? '応募者'}（{spot.applicant_sex ?? '性別未設定'}）</span>
                                                                 {spot.applicant_control_url && (
                                                                     <a
                                                                         href={spot.applicant_control_url}

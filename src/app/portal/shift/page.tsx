@@ -71,6 +71,7 @@ type ShiftViewRow = {
     address: string | null;
     estimated_pay_amount: number | string | null;
     spot_offer_status: string | null;  // ★追加
+    applicant_source?: string | null; application_state?: string | null; application_conflict?: boolean;
     applicant_name: string | null;    // ★追加
     applicant_sex: string | null;    // ★追加
     applicant_control_url: string | null;    // ★追加
@@ -179,7 +180,7 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
         all.push(...(data as ShiftViewRow[]));
     }
 
-    const filtered = all.filter(
+    const filtered = all.filter(s => s.spot_offer_status !== "確定").filter(
         (s) => s.staff_01_user_id === "-" || (
             (s.level_sort_order ?? 9999999) < 4_500_000 && (s.level_sort_order ?? 0) !== 1_250_000
         )
@@ -225,6 +226,7 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
         require_doc_group: s.require_doc_group ?? null, // ★追加
         spot_offer_status: s.spot_offer_status ?? null,
         applicant_name: s.applicant_name ?? null,
+        applicant_source: s.applicant_source, application_state: s.application_state, application_conflict: s.application_conflict,
         applicant_sex: s.applicant_sex ?? null,
         applicant_control_url: s.applicant_control_url ?? null,
     }));
@@ -968,6 +970,7 @@ export default function ShiftPage() {
                     biko: s.biko ?? "",
                     spot_offer_status: s.spot_offer_status ?? null,
                     applicant_name: s.applicant_name ?? null,
+        applicant_source: s.applicant_source, application_state: s.application_state, application_conflict: s.application_conflict,
                     applicant_sex: s.applicant_sex ?? null,
                     applicant_control_url: s.applicant_control_url ?? null,
                     has_roster_error: Boolean(rosterIssue?.has_roster_error),

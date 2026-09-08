@@ -1,3 +1,4 @@
+import { reconcileSpotProviders } from '@/lib/spot-sync/reconcile';
 import { NextRequest, NextResponse } from "next/server";
 import { assertCronAuth } from "@/lib/cron/auth";
 import { runSpotOfferSyncCheck } from "@/lib/spot_offer/spot_offer_sync_check";
@@ -13,7 +14,9 @@ export async function GET(req: NextRequest) {
       dryRun: false,
     });
 
+    const providers = await reconcileSpotProviders();
     return NextResponse.json({
+      providers,
       ok: true,
       source: "spot-offer-sync-check",
       ...result,

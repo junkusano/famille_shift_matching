@@ -1,3 +1,4 @@
+import {withApiProgress} from '@/lib/rpa-runner/apiProgress';
 import { NextRequest, NextResponse } from "next/server";
 import { sendSms } from "@/lib/sms";
 import { supabaseAdmin } from "@/lib/supabase/service";
@@ -52,7 +53,7 @@ async function reserveLog(args: {
   throw error;
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     await requireTaimeeRpaOperator(request);
     const body = await request.json() as { work_date?: unknown; message_type?: unknown; workers?: unknown };
@@ -103,3 +104,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "SMS送信に失敗しました" }, { status: 500 });
   }
 }
+
+export const POST = withApiProgress(handlePOST,'sms');

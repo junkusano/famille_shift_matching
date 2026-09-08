@@ -1,5 +1,7 @@
 //components/roster/ShiftDialog.tsx
 'use client';
+import { spotApplicationLabel } from '@/lib/spot-sync/display';
+
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -68,6 +70,7 @@ type SpotOfferRequestTemplate = {
 };
 
 type SpotConfirmed = {
+    applicant_source?: string | null; application_state?: string | null; application_conflict?: boolean;
     applicant_name: string | null;
     applicant_sex: string | null;
     applicant_control_url: string | null;
@@ -404,6 +407,7 @@ export default function ShiftDialog({
         const { data } = await supabase
             .from('spot_offer_request_table')
             .select(`
+                applicant_source,application_state,application_conflict,
                 applicant_name,
                 applicant_sex,
                 applicant_control_url,
@@ -1033,7 +1037,7 @@ const saveShiftOnly = async () => {
 {spotConfirmed?.status === "確定" && (
     <div className="rounded border border-green-300 bg-green-50 p-3">
         <div className="text-xs text-gray-500">
-            スポット確定
+            {spotApplicationLabel(spotConfirmed)}
         </div>
 
         <div className="font-medium">

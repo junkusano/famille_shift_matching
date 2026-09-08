@@ -1,6 +1,7 @@
 //lib/spot_offer/spot_offer_sync_check.ts
 import { createClient } from "@supabase/supabase-js";
 import { createRpaRequestDetails } from "@/lib/spot_offer/createRpaRequestDetails";
+import { isSharefullSyncClient } from "@/lib/spot-sync/sharefullScope";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,21 +21,13 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
   let closeCount = 0;
   let alertCount = 0;
 
-  const today = new Date().toISOString().slice(0, 10);
-
-  const { data: spotOfferRequests, error } = await supabase
-    .from("spot_offer_request_table")
-    .select("*")
-    .in("status", ["募集中", "確定"])
-    .gte("shift_start_date", today)
-    .limit(200);
-
-  if (error) {
-    console.error(
-      "[spot-offer-sync-check] spot_offer_request_table fetch error",
-      error
-    );
-    throw error;
+  const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+  const spotOfferRequests: JsonRecord[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const {data,error} = await supabase.from("spot_offer_request_table").select("*").in("status", ["募集中", "確定"]).gte("shift_start_date", today).order("id").range(offset,offset+499);
+    if (error) throw error;
+    spotOfferRequests.push(...(data ?? []));
+    if (!data || data.length < 500) break;
   }
 
   console.log(
@@ -42,6 +35,12 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
   );
 
   for (const spotOfferRequest of spotOfferRequests ?? []) {
+    if (process.env.SPOT_PROVIDER_SYNC_ENABLED === 'true') {
+      const {data: ownApplications,error: applicationError} = await supabase.from('spot_offer_applications')
+        .select('provider').eq('request_id',spotOfferRequest.id).eq('provider','taimee').in('state',['applied','confirmed']).limit(1);
+      if (applicationError) throw applicationError;
+      if (ownApplications?.length) continue;
+    }
     const { data: shift, error: shiftError } = await supabase
       .from("shift")
       .select("*")
@@ -69,9 +68,7 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
           spotOfferRequest.shift_start_time
         );
 
-    if (!shouldCheckByTime) {
-      continue;
-    }
+
 
     if (!shift) {
       await createCloseRequest(spotOfferRequest, "shift_deleted", opts);
@@ -86,6 +83,8 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
       closeCount++;
       continue;
     }
+
+    if (!shouldCheckByTime) continue;
 
     const isDateChanged =
   spotOfferRequest.shift_start_date !== shift.shift_start_date;
@@ -308,13 +307,14 @@ async function handleTimeChangedRecreate(
   return "create_created";
 }
 
-async function createCloseRequest(
+export async function createCloseRequest(
   spotOfferRequest: JsonRecord,
   reason:
     | "shift_deleted"
     | "staff_confirmed"
     | "date_changed"
-    | "time_changed",
+    | "time_changed"
+    | "other_application",
   opts?: { dryRun?: boolean }
 ) {
 
@@ -330,7 +330,23 @@ async function createCloseRequest(
   return;
 }
 
+// タイミーの既存停止理由をシェアフルにも渡す（日付変更前の情報を保持）。
+if (process.env.SPOT_PROVIDER_SYNC_ENABLED === "true" && isSharefullSyncClient(spotOfferRequest["kaipoke_cs_id"]) && spotOfferRequest["sharefull_job_id"] && spotOfferRequest["sharefull_order_id"] && reason !== "other_application") {
+  const payload = {
+    spot_offer_request_id: spotOfferRequest["id"], sharefull_job_id: spotOfferRequest["sharefull_job_id"], sharefull_order_id: spotOfferRequest["sharefull_order_id"],
+    reason, original_shift_start_date: spotOfferRequest["shift_start_date"], original_shift_start_time: spotOfferRequest["shift_start_time"],
+    sync_operation_key: ["spot-sync","sharefull","close",spotOfferRequest["sharefull_order_id"],reason,spotOfferRequest["recruitment_revision"] ?? 0].join(":"),
+  };
+  const {error: sharefullError} = await supabase.from("rpa_runner_jobs").insert({job_type:"sharefull.close_spot_offer",status:"pending",payload});
+  if (sharefullError && sharefullError.code !== "23505") throw sharefullError;
+}
+const syncOperationKey = ["spot-sync", "taimee", "close", String(spotOfferRequest["taimee_job_id"]), reason, String(spotOfferRequest["recruitment_revision"] ?? 0)].join(":");
+if (!spotOfferRequest["taimee_job_id"]) return;
+const { data: duplicate, error: duplicateError } = await supabase.from("rpa_command_requests").select("id").eq("request_details->>sync_operation_key", syncOperationKey).limit(1);
+if (duplicateError) throw duplicateError;
+if (duplicate?.length) return;
 const payload = {
+  sync_operation_key: syncOperationKey,
   created_from: "/api/cron/spot-offer-sync-check",
 
   command: "close_job",
@@ -391,15 +407,15 @@ const payload = {
       reason,
       error,
     });
-    throw error;
+    if (error.code !== "23505") throw error;
   }
 }
 
-async function createOpenRequest(
+export async function createOpenRequest(
   shift: JsonRecord,
   opts?: { dryRun?: boolean },
   recreateMeta?: {
-    reason: "date_changed" | "time_changed";
+    reason: "date_changed" | "time_changed" | "application_cancelled";
     sourceCloseRequestId: string;
   }
 ) {
@@ -450,6 +466,7 @@ async function createOpenRequest(
 
 const details = {
   ...baseDetails,
+  ...(recreateMeta ? { sync_operation_key: `spot-sync:taimee:open:${recreateMeta.sourceCloseRequestId}` } : {}),
 
   // Cron側で求人再作成を識別するための情報
   command: "create_job",
@@ -505,7 +522,7 @@ const details = {
       request_details: details,
     });
 
-  if (rpaError) {
+  if (rpaError && rpaError.code !== "23505") {
     console.error("[spot-offer-sync-check] create job request insert error", {
       shift_id: shiftId,
       error: rpaError,
@@ -559,6 +576,7 @@ async function isManagerStaff(userId: unknown) {
 }
 
 async function shouldCloseTimeeByStaff(shift: JsonRecord) {
+  if (![shift["staff_01_user_id"], shift["staff_02_attend_flg"] === true ? null : shift["staff_02_user_id"], shift["staff_03_attend_flg"] === true ? null : shift["staff_03_user_id"]].some(id => typeof id === "string" && id.trim() && id !== "-")) return false;
   const staff01UserId = shift["staff_01_user_id"];
   const staff02UserId = shift["staff_02_user_id"];
   const staff03UserId = shift["staff_03_user_id"];

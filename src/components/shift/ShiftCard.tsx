@@ -1,5 +1,7 @@
 // components/shift/ShiftCard.tsx
 "use client";
+import { spotApplicationLabel } from '@/lib/spot-sync/display';
+
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1697,7 +1699,7 @@ if (!res.ok || json?.ok !== true) {
 
     {shift.spot_offer_status === "確定" && (
       <span className="ml-3 inline-flex flex-col rounded bg-yellow-100 px-2 py-1 text-xs text-black align-middle">
-        <span className="font-medium">スポット確定</span>
+        <span className="font-medium">{spotApplicationLabel(shift)}</span>
         <span>
           {shift.applicant_name ?? "—"}
           （{shift.applicant_sex ?? "—"}）

@@ -9305,6 +9305,13 @@ export type Database = {
           shift_start_time: string | null
           start_at: string | null
           status: string
+          sharefull_order_id: string | null
+          applicant_source: string | null
+          application_state: string | null
+          application_conflict: boolean
+          recruitment_paused: boolean
+          recruitment_revision: number
+          sharefull_sync_error: string | null
           sharefull_job_id: string | null
           sharefull_status: string | null
           taimee_job_id: string | null
@@ -9328,6 +9335,13 @@ export type Database = {
           shift_start_time?: string | null
           start_at?: string | null
           status?: string
+          sharefull_order_id?: string | null
+          applicant_source?: string | null
+          application_state?: string | null
+          application_conflict?: boolean
+          recruitment_paused?: boolean
+          recruitment_revision?: number
+          sharefull_sync_error?: string | null
           sharefull_job_id?: string | null
           sharefull_status?: string | null
           taimee_job_id?: string | null
@@ -9351,6 +9365,13 @@ export type Database = {
           shift_start_time?: string | null
           start_at?: string | null
           status?: string
+          sharefull_order_id?: string | null
+          applicant_source?: string | null
+          application_state?: string | null
+          application_conflict?: boolean
+          recruitment_paused?: boolean
+          recruitment_revision?: number
+          sharefull_sync_error?: string | null
           sharefull_job_id?: string | null
           sharefull_status?: string | null
           taimee_job_id?: string | null

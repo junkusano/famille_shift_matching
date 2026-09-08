@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
+import { isSharefullSyncClient } from "@/lib/spot-sync/sharefullScope";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,9 +11,9 @@ export async function POST(request: NextRequest) {
     const templateId = typeof body.sharefull_template_id === "string" ? body.sharefull_template_id.trim() : "";
     if (!coreId || !templateId || templateId === "428828") return NextResponse.json({ error: "IDが不正です" }, { status: 400 });
     const { data: existing, error: lookupError } = await supabaseAdmin
-      .from("spot_offer_template_unified").select("core_id").eq("core_id", coreId).maybeSingle();
+      .from("spot_offer_template_unified").select("core_id, kaipoke_cs_id").eq("core_id", coreId).maybeSingle();
     if (lookupError) throw lookupError;
-    if (!existing) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
+    if (!existing || !isSharefullSyncClient(existing.kaipoke_cs_id)) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
     const updatedAt = new Date().toISOString();
     const { error } = await supabaseAdmin.from("spot_offer_template_unified")
     .update({ sharefull_template_id: templateId, sharefull_template_status: "template_review", updated_at: updatedAt })

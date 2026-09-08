@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
+import { isSharefullSyncClient } from "@/lib/spot-sync/sharefullScope";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
       supabaseAdmin.from("env_variables").select("key_name,value").eq("group_key", "sukima"),
     ]);
     if (error || envError) throw error ?? envError;
-    if (!data) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
+    if (!data || !isSharefullSyncClient(data.kaipoke_cs_id)) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
     const values = Object.fromEntries((env ?? []).map((row) => [row.key_name, row.value ?? ""]));
     return NextResponse.json({ data: { ...data, env: {
       sukima_detail: String(values.sukima_detail ?? ""), sukima_automsg: String(values.sukima_automsg ?? ""),

@@ -1,3 +1,4 @@
+import { providerSyncEnabled } from '@/lib/spot-sync/reconcile';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { authenticateRunner, RpaRunnerAuthError } from '@/lib/rpa-runner/auth';
@@ -12,6 +13,15 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const body: unknown = await request.json();
     if (!UUID.test(id) || !isRecord(body) || !isRecord(body.result)) return NextResponse.json({ ok: false, error: 'Invalid request' }, { status: 400 });
     const runner = await authenticateRunner(request, body.runner_id);
+    if (providerSyncEnabled()) {
+      const {data: job,error: lookupError} = await supabaseAdmin.from('rpa_runner_jobs').select('job_type').eq('id',id).eq('claimed_runner_id',runner.runnerId).maybeSingle();
+      if (lookupError) throw lookupError;
+      if (job?.job_type.startsWith('sharefull.')) {
+        const {data: completed,error: completeError} = await supabaseAdmin.rpc('complete_sharefull_sync_job',{p_job_id:id,p_runner_id:runner.runnerId,p_result:body.result});
+        if (completeError) return NextResponse.json({ok:false,error:'Sharefull completion failed'},{status:500});
+        return NextResponse.json({ok:completed===true},{status:completed?200:409});
+      }
+    }
     const { data, error } = await supabaseAdmin
       .from('rpa_runner_jobs')
       .update({ status: 'completed', result: body.result, completed_at: new Date().toISOString() })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
+import { isSharefullSyncClient } from "@/lib/spot-sync/sharefullScope";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
     const { data: requests, error: requestError } = await supabaseAdmin
       .from("spot_offer_request_table")
       .select(
-        "id, core_id, shift_id, shift_start_date, shift_start_time, shift_end_time, unit_amount, commute_fee, status, taimee_job_id, sharefull_job_id, sharefull_status"
+        "id, core_id, kaipoke_cs_id, shift_id, shift_start_date, shift_start_time, shift_end_time, unit_amount, commute_fee, status, taimee_job_id, sharefull_job_id, sharefull_status"
       )
       .eq("status", "募集中")
       .not("taimee_job_id", "is", null)
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     if (requestError) throw requestError;
 
-    const rows = requests ?? [];
+    const rows = (requests ?? []).filter((row) => isSharefullSyncClient(row.kaipoke_cs_id));
     const coreIds = Array.from(
       new Set(rows.map((row) => row.core_id).filter((coreId): coreId is string => Boolean(coreId)))
     );

@@ -31,6 +31,9 @@ export interface SupabaseShiftRaw {
   address?: string | null;
   estimated_pay_amount?: number | null;
   spot_offer_status?: string | null;
+  applicant_source?: string | null;
+  application_state?: string | null;
+  application_conflict?: boolean;
   applicant_name?: string | null;
   applicant_sex?: string | null;
   applicant_control_url?: string | null;
@@ -76,6 +79,9 @@ export interface ShiftData {
   postal_code?: string | null;
   estimated_pay_amount?: number | null;
   spot_offer_status?: string | null;
+  applicant_source?: string | null;
+  application_state?: string | null;
+  application_conflict?: boolean;
   applicant_name?: string | null;
   applicant_sex?: string | null;
   applicant_control_url?: string | null;
