@@ -48,6 +48,11 @@ export type AutomationTemplate = {
 
 export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
   {
+    key: "system-diagnostics", label: "Vercel・Supabaseのエラー診断",
+    summary: "エラーとDB警告をコード・過去ナレッジに照合し、修正候補を保存します。",
+    input: { name: "Vercel・Supabaseのエラー診断", description: "本番ログとDB警告を確認し、影響する処理と修正候補を整理します。", task_type: "custom", trigger_type: "daily", schedule: { times: ["09:00"] }, destination: "none", approval_mode: "draft", condition_summary: "新規・増加した問題を整理。取得失敗を正常と判断しません。", settings: { operation: "system_diagnostics" }, is_enabled: false },
+  },
+  {
     key: "blog-rewrite", label: "ブログ記事の分析・リライト",
     summary: "読まれていない記事や古い記事を選び、公開記事の本文更新・反映確認まで実行します。",
     input: { name: "ブログ記事の分析・リライト", description: "アクセス分析と内容・更新日から改善対象を選び、既存記事をリライトして公開反映を確認します。", task_type: "custom", trigger_type: "daily", schedule: { times: ["10:00"] }, destination: "wordpress_post", approval_mode: "automatic", condition_summary: "閲覧低調・情報の古さ・説明不足を確認。計測欠損は閲覧ゼロと判断しません。", settings: { operation: "wordpress_blog_rewrite", analytics_lookback_days: 90, rewrite_cooldown_days: 30, max_posts_per_run: 1 }, is_enabled: false },

@@ -159,6 +159,7 @@ export interface KnowledgeConnector {
 }
 
 export type KnowledgeRunResult = {
+  hasMore: boolean;
   runId: string;
   sourceId: string;
   dryRun: boolean;

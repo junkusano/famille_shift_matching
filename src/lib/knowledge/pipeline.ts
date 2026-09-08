@@ -1,4 +1,5 @@
 import "server-only";
+import { createClient } from "@supabase/supabase-js";
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getKnowledgeConnector } from "@/lib/knowledge/connectors/registry";
@@ -28,8 +29,8 @@ function safeError(error: unknown) {
   return { code: "SYNC_FAILED", message: message.slice(0, 1_000) };
 }
 
-async function persistSourceObject(source: KnowledgeSource, object: NormalizedSourceObject) {
-  const { data: existing, error: existingError } = await supabaseAdmin
+async function persistSourceObject(db: typeof supabaseAdmin, source: KnowledgeSource, object: NormalizedSourceObject) {
+  const { data: existing, error: existingError } = await db
     .from("knowledge_source_objects")
     .select("id,source_revision,content_hash")
     .eq("source_id", source.id)
@@ -39,7 +40,7 @@ async function persistSourceObject(source: KnowledgeSource, object: NormalizedSo
   if (existingError) throw existingError;
 
   if (existing?.source_revision === object.sourceRevision && existing.content_hash === object.contentHash) {
-    const { error } = await supabaseAdmin
+    const { error } = await db
       .from("knowledge_source_objects")
       .update({
         object_type: object.objectType,
@@ -64,7 +65,7 @@ async function persistSourceObject(source: KnowledgeSource, object: NormalizedSo
   }
 
   if (existing) {
-    const { error } = await supabaseAdmin
+    const { error } = await db
       .from("knowledge_source_objects")
       .update({ is_current: false })
       .eq("id", existing.id);
@@ -92,7 +93,7 @@ async function persistSourceObject(source: KnowledgeSource, object: NormalizedSo
     supersedes_id: existing?.id ?? null,
     is_current: true,
   };
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await db
     .from("knowledge_source_objects")
     .insert(row)
     .select("id")
@@ -107,12 +108,13 @@ async function persistSourceObject(source: KnowledgeSource, object: NormalizedSo
 }
 
 async function persistKnowledge(
+  db: typeof supabaseAdmin,
   source: KnowledgeSource,
   proposal: ProposedKnowledge,
   sourceObjectIds: Map<string, string>,
   actorAuthUserId?: string
 ) {
-  const { data: existing, error: existingError } = await supabaseAdmin
+  const { data: existing, error: existingError } = await db
     .from("knowledge_items")
     .select("id,review_status,version")
     .eq("knowledge_key", proposal.knowledgeKey)
@@ -150,7 +152,7 @@ async function persistKnowledge(
   let itemId: string;
   let action: "created" | "updated";
   if (existing) {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await db
       .from("knowledge_items")
       .update(row)
       .eq("id", existing.id)
@@ -160,7 +162,7 @@ async function persistKnowledge(
     itemId = data.id as string;
     action = "updated";
   } else {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await db
       .from("knowledge_items")
       .insert({
         ...row,
@@ -184,7 +186,7 @@ async function persistKnowledge(
     }] : [];
   });
   if (evidenceRows.length) {
-    const { error } = await supabaseAdmin
+    const { error } = await db
       .from("knowledge_evidence_links")
       .upsert(evidenceRows, {
         onConflict: "knowledge_item_id,source_object_id,relation_type",
@@ -195,12 +197,12 @@ async function persistKnowledge(
   return { id: itemId, action };
 }
 
-async function persistCodeArtifact(sourceObjectId: string, object: NormalizedSourceObject) {
+async function persistCodeArtifact(db: typeof supabaseAdmin, sourceObjectId: string, object: NormalizedSourceObject) {
   if (object.objectType !== "github_file") return;
   const github = object.metadata.github;
   if (!github || typeof github !== "object") return;
   const data = github as Record<string, unknown>;
-  const { error } = await supabaseAdmin.from("knowledge_code_artifacts").upsert({
+  const { error } = await db.from("knowledge_code_artifacts").upsert({
     source_object_id: sourceObjectId,
     repository: data.repository,
     branch: data.branch,
@@ -222,8 +224,18 @@ async function persistCodeArtifact(sourceObjectId: string, object: NormalizedSou
 }
 
 export async function runKnowledgeSource(options: RunOptions): Promise<KnowledgeRunResult> {
+  const deadline = Date.now() + 120_000;
+  const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { persistSession: false },
+    global: { fetch: (input, init) => {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw new Error("同期の時間予算を超えました。保存済みの範囲から再試行します。");
+      const timeout = AbortSignal.timeout(Math.min(15_000, remaining));
+      return fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout });
+    } },
+  });
   const dryRun = options.jobType === "dry_run";
-  const { data: sourceData, error: sourceError } = await supabaseAdmin
+  const { data: sourceData, error: sourceError } = await db
     .from("knowledge_sources")
     .select("*")
     .eq("id", options.sourceId)
@@ -231,7 +243,7 @@ export async function runKnowledgeSource(options: RunOptions): Promise<Knowledge
   if (sourceError || !sourceData) throw new Error("情報源が見つかりません。");
   const source = sourceData as KnowledgeSource;
 
-  const { data: checkpointData, error: checkpointError } = await supabaseAdmin
+  const { data: checkpointData, error: checkpointError } = await db
     .from("knowledge_source_checkpoints")
     .select("cursor,cursor_version")
     .eq("source_id", source.id)
@@ -244,7 +256,7 @@ export async function runKnowledgeSource(options: RunOptions): Promise<Knowledge
   // runs. Release only expired leases so a terminated run cannot block every
   // subsequent manual or scheduled sync forever.
   const recoveryAt = new Date().toISOString();
-  const { error: recoveryError } = await supabaseAdmin
+  const { error: recoveryError } = await db
     .from("knowledge_sync_runs")
     .update({
       status: "failed",
@@ -258,7 +270,7 @@ export async function runKnowledgeSource(options: RunOptions): Promise<Knowledge
     .lt("lease_expires_at", recoveryAt);
   if (recoveryError) throw recoveryError;
 
-  const { data: run, error: runError } = await supabaseAdmin
+  const { data: run, error: runError } = await db
     .from("knowledge_sync_runs")
     .insert({
       source_id: source.id,
@@ -302,21 +314,27 @@ export async function runKnowledgeSource(options: RunOptions): Promise<Knowledge
       created = securedObjects.length + securedKnowledge.length;
     } else {
       for (const object of securedObjects) {
-        const persisted = await persistSourceObject(source, object);
+        const persisted = await persistSourceObject(db, source, object);
         sourceObjectIds.set(object.externalId, persisted.id);
-        await persistCodeArtifact(persisted.id, object);
+        await persistCodeArtifact(db, persisted.id, object);
         if (persisted.action === "created") created += 1;
         else if (persisted.action === "updated") updated += 1;
         else skipped += 1;
       }
       for (const proposal of securedKnowledge) {
-        const persisted = await persistKnowledge(source, proposal, sourceObjectIds, options.actorAuthUserId);
+        const persisted = await persistKnowledge(db, source, proposal, sourceObjectIds, options.actorAuthUserId);
         if (persisted.action === "created") created += 1;
         else if (persisted.action === "updated") updated += 1;
         else skipped += 1;
       }
 
-      const checkpointUpdate = await supabaseAdmin
+      if (source.connector_key === "github" && !result.hasMore && typeof result.nextCursor.lastCommitSha === "string") {
+        const { error } = await db.from("knowledge_source_objects").update({ is_current: false })
+          .eq("source_id", source.id).eq("object_type", "github_file").eq("is_current", true)
+          .neq("source_revision", result.nextCursor.lastCommitSha);
+        if (error) throw error;
+      }
+      const checkpointUpdate = await db
         .from("knowledge_source_checkpoints")
         .update({
           cursor: result.nextCursor,
@@ -334,7 +352,7 @@ export async function runKnowledgeSource(options: RunOptions): Promise<Knowledge
     const finishedAt = new Date().toISOString();
     const durationMs = Date.now() - startedAt;
     const processed = securedObjects.length + securedKnowledge.length;
-    await supabaseAdmin.from("knowledge_sync_runs").update({
+    const runSaved = await db.from("knowledge_sync_runs").update({
       status: "succeeded",
       processed,
       created_count: created,
@@ -342,21 +360,24 @@ export async function runKnowledgeSource(options: RunOptions): Promise<Knowledge
       skipped_count: skipped,
       summarized_count: securedKnowledge.length,
       cursor_after: result.nextCursor,
-      output_summary: { warnings: result.warnings, proposedCursor: result.nextCursor },
+      output_summary: { warnings: result.warnings, hasMore: result.hasMore, proposedCursor: result.nextCursor },
       finished_at: finishedAt,
       duration_ms: durationMs,
       lease_expires_at: null,
     }).eq("id", run.id);
-    await supabaseAdmin.from("knowledge_sources").update({
+    if (runSaved.error) throw runSaved.error;
+    const sourceSaved = await db.from("knowledge_sources").update({
       last_run_at: finishedAt,
       last_success_at: finishedAt,
       last_error_at: null,
       last_error_code: null,
       last_error_message: null,
-      next_run_at: calculateNextRunAt(source, new Date(finishedAt)),
+      next_run_at: result.hasMore ? finishedAt : calculateNextRunAt(source, new Date(finishedAt)),
     }).eq("id", source.id);
 
+    if (sourceSaved.error) throw sourceSaved.error;
     return {
+      hasMore: result.hasMore,
       runId: run.id as string,
       sourceId: source.id,
       dryRun,

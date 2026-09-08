@@ -29,10 +29,17 @@ export async function GET(request: NextRequest) {
     .limit(3);
   if (error) return NextResponse.json({ ok: false, error: "Source lookup failed" }, { status: 500 });
   const results = [];
+  const startedAt = Date.now();
   for (const source of sources ?? []) {
+    if (Date.now() - startedAt > 120_000) break;
     try {
-      const result = await runKnowledgeSource({ sourceId: source.id, jobType: "incremental", triggerType: "cron" });
-      results.push({ sourceId: source.id, ok: true, runId: result.runId, processed: result.processed });
+      // Continue small pages while there is room for another bounded run.
+      let hasMore = true;
+      while (hasMore && Date.now() - startedAt <= 120_000) {
+        const result = await runKnowledgeSource({ sourceId: source.id, jobType: "incremental", triggerType: "cron" });
+        results.push({ sourceId: source.id, ok: true, runId: result.runId, processed: result.processed, hasMore: result.hasMore });
+        hasMore = result.hasMore && result.processed > 0;
+      }
     } catch (runError) {
       results.push({ sourceId: source.id, ok: false, error: runError instanceof Error ? runError.message : "Sync failed" });
     }

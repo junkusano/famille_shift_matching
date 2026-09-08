@@ -7,17 +7,14 @@ import type { ConnectorResult, KnowledgeConnector, NormalizedSourceObject } from
 
 const configSchema = z.object({ repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/), branch: z.string().min(1).max(200) });
 const API = "https://api.github.com";
-const INITIAL_SCAN_FILE_LIMIT = 1_500;
+const SCAN_BATCH_SIZE = 25;
 
 type GitHubTreeItem = { path?: string; type?: string; sha?: string; size?: number };
-type GitHubFile = { filename: string; sha: string; status: string; patch?: string; additions?: number; deletions?: number };
-type GitHubCompare = { status: string; commits?: Array<{ sha: string; commit?: { message?: string; author?: { date?: string } } }>; files?: GitHubFile[] };
-
 function digest(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
-async function getGitHubToken() {
+async function getGitHubToken(signal: AbortSignal) {
   const appId = process.env.GITHUB_KNOWLEDGE_APP_ID;
   const privateKey = process.env.GITHUB_KNOWLEDGE_PRIVATE_KEY?.replace(/\\n/g, "\n");
   const installationId = process.env.GITHUB_KNOWLEDGE_INSTALLATION_ID;
@@ -39,6 +36,7 @@ async function getGitHubToken() {
     method: "POST",
     headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${jwt}`, "X-GitHub-Api-Version": "2022-11-28" },
     cache: "no-store",
+    signal,
   });
   if (!response.ok) throw new Error(`GitHub credential exchange failed (${response.status}).`);
   const body = await response.json() as { token?: string };
@@ -46,7 +44,7 @@ async function getGitHubToken() {
   return body.token;
 }
 
-async function githubFetch<T>(path: string, token: string | null): Promise<T> {
+async function githubFetch<T>(path: string, token: string | null, signal: AbortSignal): Promise<T> {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
@@ -55,6 +53,7 @@ async function githubFetch<T>(path: string, token: string | null): Promise<T> {
   const response = await fetch(`${API}${path}`, {
     headers,
     cache: "no-store",
+    signal,
   });
   if (!response.ok) {
     if (!token && response.status === 404) {
@@ -143,65 +142,47 @@ export const githubConnector: KnowledgeConnector = {
 
   async testConnection(ctx) {
     const config = configSchema.parse(ctx.source.config);
-    const token = await getGitHubToken();
-    const repo = await githubFetch<{ full_name: string; default_branch: string; private: boolean }>(`/repos/${config.repository}`, token);
+    const token = await getGitHubToken(ctx.signal);
+    const repo = await githubFetch<{ full_name: string; default_branch: string; private: boolean }>(`/repos/${config.repository}`, token, ctx.signal);
     return { ok: true, details: { repository: repo.full_name, defaultBranch: repo.default_branch, private: repo.private } };
   },
 
   async fetchDelta(ctx): Promise<ConnectorResult> {
     const config = configSchema.parse(ctx.source.config);
-    const token = await getGitHubToken();
-    const branch = await githubFetch<{ commit: { sha: string } }>(`/repos/${config.repository}/branches/${encodeURIComponent(config.branch)}`, token);
-    const headSha = branch.commit.sha;
-    const previousSha = typeof ctx.cursor.lastCommitSha === "string" ? ctx.cursor.lastCommitSha : null;
-    if (previousSha === headSha) return { objects: [], proposedKnowledge: [], nextCursor: { ...ctx.cursor, lastCheckedAt: new Date().toISOString() }, hasMore: false, warnings: [] };
-
-    let objects: NormalizedSourceObject[];
-    let commitMessages: string[] = [];
-    if (!previousSha) {
-      const commit = await githubFetch<{ tree: { sha: string } }>(`/repos/${config.repository}/git/commits/${headSha}`, token);
-      const tree = await githubFetch<{ tree?: GitHubTreeItem[]; truncated?: boolean }>(`/repos/${config.repository}/git/trees/${commit.tree.sha}?recursive=1`, token);
-      const eligibleItems = (tree.tree ?? []).filter((item) => item.type === "blob" && item.path && item.sha && isEligible(item.path));
-      objects = eligibleItems.slice(0, INITIAL_SCAN_FILE_LIMIT).map((item) => makeObject({ repository: config.repository, branch: config.branch, path: item.path!, commitSha: headSha, blobSha: item.sha! }));
-      const limited = eligibleItems.length > INITIAL_SCAN_FILE_LIMIT;
-      return {
-        objects,
-        proposedKnowledge: [],
-        nextCursor: { repository: config.repository, branch: config.branch, lastCommitSha: headSha, lastCheckedAt: new Date().toISOString() },
-        hasMore: false,
-        warnings: tree.truncated || limited
-          ? [`GitHub treeが大きいため、初回解析は${INITIAL_SCAN_FILE_LIMIT}ファイルまで索引化しました。`]
-          : [],
-      };
+    const token = await getGitHubToken(ctx.signal);
+    // Pin the snapshot until every page is committed, even if HEAD moves.
+    const sameSource = ctx.cursor.repository === config.repository && ctx.cursor.branch === config.branch;
+    const pendingSha = sameSource && typeof ctx.cursor.scanSha === "string" ? ctx.cursor.scanSha : null;
+    const headSha = pendingSha ?? (await githubFetch<{ commit: { sha: string } }>(
+      `/repos/${config.repository}/branches/${encodeURIComponent(config.branch)}`, token, ctx.signal
+    )).commit.sha;
+    if (!pendingSha && sameSource && ctx.cursor.scanVersion === 2 && ctx.cursor.lastCommitSha === headSha) {
+      return { objects: [], proposedKnowledge: [], nextCursor: { ...ctx.cursor }, hasMore: false, warnings: [] };
     }
-
-    const compare = await githubFetch<GitHubCompare>(`/repos/${config.repository}/compare/${previousSha}...${headSha}`, token);
-    if (compare.status === "diverged") throw new Error("GitHub history diverged. Admin review is required.");
-    const files = (compare.files ?? []).filter((file) => isEligible(file.filename));
-    objects = files.map((file) => makeObject({ repository: config.repository, branch: config.branch, path: file.filename, commitSha: headSha, blobSha: file.sha, patch: file.patch, status: file.status }));
-    commitMessages = (compare.commits ?? []).map((commit) => commit.commit?.message?.split("\n")[0] ?? commit.sha.slice(0, 8)).slice(-20);
-    const proposal = files.length ? [{
-      knowledgeKey: `github:${config.repository}:change:${headSha}`,
-      knowledgeType: "system_change",
-      title: `${config.repository} の変更 ${headSha.slice(0, 8)}`,
-      summary: `${files.length}ファイルが変更されました。${commitMessages.join(" / ")}`.slice(0, 20_000),
-      sourceUrl: `https://github.com/${config.repository}/compare/${previousSha}...${headSha}`,
-      category: "システム設計",
-      tags: ["GitHub", config.repository, "変更履歴"],
-      importance: 3 as const,
-      confidence: 0.7,
-      privacyLevel: 2 as const,
-      publishability: "internal_only" as const,
-      authorship: "source" as const,
-      evidenceExternalIds: files.map((file) => file.filename),
-      metadata: { repository: config.repository, branch: config.branch, fromSha: previousSha, toSha: headSha, commitMessages },
-    }] : [];
+    const commit = await githubFetch<{ tree: { sha: string } }>(`/repos/${config.repository}/git/commits/${headSha}`, token, ctx.signal);
+    const tree = await githubFetch<{ tree?: GitHubTreeItem[]; truncated?: boolean }>(`/repos/${config.repository}/git/trees/${commit.tree.sha}?recursive=1`, token, ctx.signal);
+    if (tree.truncated || !Array.isArray(tree.tree)) throw new Error("GitHubのファイル一覧を完全に取得できませんでした。進捗は更新しません。");
+    const files = tree.tree.filter(item => item.type === "blob" && item.path && item.sha && isEligible(item.path)).sort((a, b) => a.path! < b.path! ? -1 : a.path! > b.path! ? 1 : 0);
+    const offset = pendingSha && Number.isSafeInteger(ctx.cursor.scanOffset) && Number(ctx.cursor.scanOffset) >= 0 ? Number(ctx.cursor.scanOffset) : 0;
+    const batch = files.slice(offset, offset + SCAN_BATCH_SIZE);
+    const nextOffset = offset + batch.length;
+    const hasMore = nextOffset < files.length;
     return {
-      objects,
-      proposedKnowledge: proposal,
-      nextCursor: { repository: config.repository, branch: config.branch, lastCommitSha: headSha, lastCheckedAt: new Date().toISOString() },
-      hasMore: false,
-      warnings: [],
+      objects: batch.map(item => makeObject({ repository: config.repository, branch: config.branch, path: item.path!, commitSha: headSha, blobSha: item.sha! })),
+      proposedKnowledge: ctx.cursor.lastCommitSha && batch.length ? [{
+        knowledgeKey: `github:${config.repository}:snapshot:${headSha}:${offset}`,
+        knowledgeType: "system_change", title: `${config.repository} コード索引 ${headSha.slice(0, 8)}`,
+        summary: `${offset + 1}〜${nextOffset}件のファイル構成を確認しました。変更差分の断定ではありません。`,
+        sourceUrl: `https://github.com/${config.repository}/tree/${headSha}`,
+        category: "システム設計", tags: ["GitHub", config.repository, "コード索引"], importance: 3,
+        privacyLevel: 2, publishability: "internal_only", authorship: "source",
+        evidenceExternalIds: batch.map(item => item.path!), metadata: { repository: config.repository, commitSha: headSha },
+      }] : [],
+      nextCursor: { repository: config.repository, branch: config.branch, scanVersion: 2,
+        ...(hasMore ? { scanSha: headSha, scanOffset: nextOffset, scanTotal: files.length, lastCommitSha: ctx.cursor.lastCommitSha ?? null } : { lastCommitSha: headSha }),
+        lastCheckedAt: new Date().toISOString() },
+      hasMore,
+      warnings: hasMore ? [`コード同期 ${nextOffset}/${files.length}件。残りは次回に続きから同期します。`] : [],
     };
   },
 };

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { runSystemDiagnostics } from "@/lib/knowledge-automation/diagnostics";
 import { randomUUID } from "crypto";
 import { calculateAutomationNextRunAt } from "@/lib/knowledge-automation/scheduling";
 import type { KnowledgeAutomationTask } from "@/lib/knowledge-automation/types";
@@ -86,13 +87,15 @@ export async function runKnowledgeAutomationTask(input: {
 
   try {
     const isRewrite = task.settings.operation === "wordpress_blog_rewrite";
-    if ((!isRewrite && task.task_type !== "wordpress_blog") || task.destination !== "wordpress_post") {
+    const isDiagnostics = task.settings.operation === "system_diagnostics";
+    if (!isDiagnostics && ((!isRewrite && task.task_type !== "wordpress_blog") || task.destination !== "wordpress_post")) {
       throw new Error("この種類の自動化はまだ実行処理が登録されていません。");
     }
-    const result = isRewrite ? await rewriteWordPressBlog(task, run.id) : await createWordPressBlogDraft(task);
+    const result = isDiagnostics ? await runSystemDiagnostics(task) : isRewrite ? await rewriteWordPressBlog(task, run.id) : await createWordPressBlogDraft(task);
     const finishedAt = new Date().toISOString();
-    const status = (result.status === "created" || result.status === "updated") ? "succeeded" : "skipped";
-    await supabaseAdmin.from("knowledge_automation_runs").update({
+    const diagnosisFailed = "audit" in result && "failed" in result.audit && result.audit.failed === true;
+    const status = diagnosisFailed ? "failed" : (result.status === "created" || result.status === "updated") ? "succeeded" : "skipped";
+    const savedRun = await supabaseAdmin.from("knowledge_automation_runs").update({
       status,
       safety_result: "allowed",
       safety_findings: [],
@@ -107,13 +110,14 @@ export async function runKnowledgeAutomationTask(input: {
       finished_at: finishedAt,
       lease_expires_at: null,
     }).eq("id", run.id);
+    if (savedRun.error) throw new Error("実行結果を保存できませんでした。");
     await supabaseAdmin.from("knowledge_automation_tasks").update({
       ...(status === "succeeded" ? { last_success_at: finishedAt } : {}),
       last_result: result.message,
-      last_error_at: null,
-      last_error_message: null,
+      last_error_at: diagnosisFailed ? finishedAt : null,
+      last_error_message: diagnosisFailed ? result.message : null,
     }).eq("id", task.id);
-    return { ok: true, status, message: result.message, outputReference: result.postLink ?? null };
+    return { ok: !diagnosisFailed, status, message: result.message, outputReference: result.postLink ?? null };
   } catch (error) {
     const safe = safeError(error);
     const finishedAt = new Date().toISOString();

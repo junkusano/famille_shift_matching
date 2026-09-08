@@ -20,6 +20,8 @@ import type {
 } from "@/lib/knowledge-automation/types";
 import { supabase } from "@/lib/supabaseClient";
 
+type DiagnosticRun = { id: string; status: string; created_at: string; error_message?: string; output_summary?: { message?: string; note?: string; coverage?: Array<{provider: string; message: string}>; findings?: Array<{key: string; route: string; category: string; count: number; recommendation: string; codePaths: string[]}>; relatedKnowledge?: Array<{id: string; title: string; summary?: string}> } };
+
 const EMPTY_FORM: KnowledgeAutomationTaskInput = {
   name: "",
   description: "",
@@ -84,6 +86,8 @@ async function authHeaders() {
 
 export default function KnowledgeAutomationPage() {
   const { role, loading: roleLoading } = useRoleContext();
+  const [diagnosticRuns, setDiagnosticRuns] = useState<DiagnosticRun[]>([]);
+  const [reportTask, setReportTask] = useState<string | null>(null);
   const [tasks, setTasks] = useState<KnowledgeAutomationTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -163,6 +167,16 @@ export default function KnowledgeAutomationPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function showDiagnostics(task: KnowledgeAutomationTask) {
+    try {
+      const response = await fetch(`/api/knowledge-automation/tasks/${task.id}/runs`, { headers: await authHeaders(), cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "診断履歴を取得できませんでした。");
+      setDiagnosticRuns(body.runs ?? []);
+      setReportTask(task.name);
+    } catch (error) { setNotice({ kind: "error", text: error instanceof Error ? error.message : "取得に失敗しました。" }); }
   }
 
   async function toggle(task: KnowledgeAutomationTask) {
@@ -395,7 +409,9 @@ export default function KnowledgeAutomationPage() {
           {form.approval_mode === "automatic" && (
             <div className="mt-4 flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <AlertTriangle className="mt-0.5 shrink-0" size={18} aria-hidden />
-              {form.settings?.operation === "wordpress_blog_rewrite"
+              {form.settings?.operation === "system_diagnostics"
+                  ? "診断と修正候補の保存を自動実行します。結果は「診断結果を見る」で確認できます。"
+                  : form.settings?.operation === "wordpress_blog_rewrite"
                 ? "対象記事を分析し、既存の公開記事をリライトして反映・表示確認まで自動実行します。"
                 : form.task_type === "wordpress_blog"
                 ? "時刻になるとWordPressの記事作成・公開・表示確認まで自動実行します。"
@@ -451,7 +467,8 @@ export default function KnowledgeAutomationPage() {
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
                 <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700"><CheckCircle2 size={15} aria-hidden />安全チェック適用</div>
                 <div className="flex flex-wrap gap-2">
-                  {(task.task_type === "wordpress_blog" || task.settings.operation === "wordpress_blog_rewrite") && (
+                  {task.settings.operation === "system_diagnostics" && <button type="button" onClick={() => void showDiagnostics(task)} className="rounded-lg border px-4 py-2 text-sm">診断結果を見る</button>}
+                  {(task.task_type === "wordpress_blog" || task.settings.operation === "wordpress_blog_rewrite" || task.settings.operation === "system_diagnostics") && (
                     <button type="button" disabled={runningId === task.id} onClick={() => void runNow(task)} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
                       <Play size={15} aria-hidden />{runningId === task.id ? "実行中…" : "今すぐ実行"}
                     </button>
@@ -463,6 +480,20 @@ export default function KnowledgeAutomationPage() {
           ))}
         </div>
       </section>
-    </main>
+    {reportTask && <section className="mt-6 rounded-xl border bg-white p-5" aria-label="診断結果">
+        <div className="flex justify-between"><h2 className="font-bold">{reportTask}：診断結果</h2><button type="button" onClick={() => setReportTask(null)}>閉じる</button></div>
+        {!diagnosticRuns.length && <p className="mt-3">まだ実行履歴がありません。</p>}
+        {diagnosticRuns.map(run => <details key={run.id} className="mt-3 border-t pt-3" open={diagnosticRuns[0]?.id === run.id}>
+          <summary>{formatDate(run.created_at)} — {run.output_summary?.message ?? run.error_message ?? run.status}</summary>
+          {run.output_summary?.coverage?.map(item => <p key={item.provider} className="mt-2 text-sm">{item.provider}：{item.message}</p>)}
+          <p className="mt-2 text-sm text-slate-600">{run.output_summary?.note}</p>
+          <ul className="mt-3 space-y-3">{run.output_summary?.findings?.map(item => <li key={item.key} className="rounded border p-3 text-sm">
+            <strong>{item.route}：{item.category}（{item.count}件）</strong><p>{item.recommendation}</p>
+            {item.codePaths?.length > 0 && <p>関連コード：{item.codePaths.join("、")}</p>}
+          </li>)}</ul>
+          {run.output_summary?.relatedKnowledge?.map(item => <p key={item.id} className="mt-2 text-sm">関連ナレッジ：{item.summary ?? item.title}</p>)}
+        </details>)}
+      </section>}
+      </main>
   );
 }

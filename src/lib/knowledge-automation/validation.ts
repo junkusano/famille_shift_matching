@@ -26,6 +26,9 @@ export const knowledgeAutomationTaskInputSchema = z.object({
   settings: z.record(z.unknown()).optional().default({}),
   is_enabled: z.boolean(),
 }).superRefine((value, context) => {
+  if (value.settings.operation === "system_diagnostics" && (value.destination !== "none" || value.task_type !== "custom")) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["destination"], message: "システム診断は「その他の自動化」「保存のみ」で登録してください。" });
+  }
   if (value.trigger_type === "interval" && value.schedule.minutes === undefined) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["schedule", "minutes"], message: "確認間隔を選んでください。" });
   }
