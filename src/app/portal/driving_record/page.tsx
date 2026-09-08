@@ -124,16 +124,18 @@ export default function ManagerDistanceIndexPage() {
     const typedRows = (data ?? []) as unknown as MonthlyDistanceRow[];
     setRows(typedRows);
 
-    // 単価は別テーブルに保存する。未登録時も距離画面自体は表示できるようにする。
-    // price_date は後から追加された列のため、PostgREST のスキーマキャッシュが
-    // 更新されていない環境でも取得できる既存列 fetched_at を基準にする。
-    const { data: latestPrice, error: priceError } = await supabase
-      .from("monthly_gasoline_prices")
-      .select("price_yen_per_liter, prefecture, fuel_type")
-      .order("fetched_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (priceError) {
+    // 単価はサーバー側でService Roleにより取得する。RLSによりブラウザから
+    // 直接テーブルを読めない環境でも、manager/adminには表示する。
+    let latestPrice: MonthlyGasolinePrice | null = null;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const priceResponse = await fetch("/api/gasoline-price", {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      const priceBody = await priceResponse.json() as { price?: MonthlyGasolinePrice | null; error?: string };
+      if (!priceResponse.ok) throw new Error(priceBody.error ?? `HTTP ${priceResponse.status}`);
+      latestPrice = priceBody.price ?? null;
+    } catch (priceError) {
       console.error("[manager-distance-index] gasoline price load error", priceError);
     }
     const nextPriceByMonth: Record<string, number> = {};
