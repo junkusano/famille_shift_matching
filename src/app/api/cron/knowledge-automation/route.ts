@@ -5,7 +5,7 @@ import { runDueKnowledgeAutomations } from "@/lib/knowledge-automation/runner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 function isAuthorized(request: NextRequest) {
   const incoming = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];

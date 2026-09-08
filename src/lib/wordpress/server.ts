@@ -86,7 +86,7 @@ function errorMessageFor(status: number, code: string | null, fallback: string) 
   return fallback || "WordPress APIの呼び出しに失敗しました。";
 }
 
-async function wordpressFetch<T>(
+export async function wordpressFetch<T>(
   path: string,
   init: RequestInit = {}
 ): Promise<WordPressFetchResult<T>> {
@@ -230,7 +230,7 @@ function isPrivateIpv4(hostname: string) {
   );
 }
 
-function assertNoInternalReferenceLinks(content: string) {
+export function assertNoInternalReferenceLinks(content: string) {
   const hrefPattern = /href\s*=\s*["']([^"']+)["']/gi;
   for (const match of content.matchAll(hrefPattern)) {
     const rawUrl = match[1]?.trim();
@@ -456,7 +456,8 @@ export async function assertWordPressPostDraftAvailable(slug: string) {
   }
 }
 
-export async function createWordPressPostDraft(input: {
+export async function createWordPressPost(input: {
+  status?: "draft" | "publish";
   title: string;
   slug: string;
   content: string;
@@ -474,12 +475,12 @@ export async function createWordPressPostDraft(input: {
       slug: input.slug,
       content: input.content,
       excerpt: input.excerpt,
-      status: "draft",
+      status: input.status ?? "draft",
       ...(input.featuredMediaId ? { featured_media: input.featuredMediaId } : {}),
       ...(input.categoryIds?.length ? { categories: input.categoryIds } : {}),
     }),
   });
-  if (!isObject(data)) throw new WordPressApiError("WordPress下書きの作成応答が不正です。", 502);
+  if (!isObject(data)) throw new WordPressApiError("WordPress記事の作成応答が不正です。", 502);
   return pageSummary(data);
 }
 

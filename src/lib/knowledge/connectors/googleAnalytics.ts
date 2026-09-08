@@ -52,7 +52,7 @@ function reportRows(data: {
   }));
 }
 
-async function createAnalyticsClient(secretName: string) {
+export async function createAnalyticsClient(secretName: string) {
   const { data, error } = await supabaseAdmin.rpc("read_secret", { secret_name: secretName });
   if (error || typeof data !== "string") {
     throw new Error("Google認証情報を取得できませんでした。");

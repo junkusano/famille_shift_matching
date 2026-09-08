@@ -48,6 +48,11 @@ export type AutomationTemplate = {
 
 export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
   {
+    key: "blog-rewrite", label: "ブログ記事の分析・リライト",
+    summary: "読まれていない記事や古い記事を選び、公開記事の本文更新・反映確認まで実行します。",
+    input: { name: "ブログ記事の分析・リライト", description: "アクセス分析と内容・更新日から改善対象を選び、既存記事をリライトして公開反映を確認します。", task_type: "custom", trigger_type: "daily", schedule: { times: ["10:00"] }, destination: "wordpress_post", approval_mode: "automatic", condition_summary: "閲覧低調・情報の古さ・説明不足を確認。計測欠損は閲覧ゼロと判断しません。", settings: { operation: "wordpress_blog_rewrite", analytics_lookback_days: 90, rewrite_cooldown_days: 30, max_posts_per_run: 1 }, is_enabled: false },
+  },
+  {
     key: "weather",
     label: "台風・大雪のお知らせ",
     summary: "サービスエリアへの影響を確認し、LINE WORKS掲示板の文案を作ります。",
@@ -125,8 +130,8 @@ export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
   },
   {
     key: "blog",
-    label: "ブログ記事の自動下書き",
-    summary: "草野ナレッジを最優先し、1日3回WordPressに下書きを作ります。",
+    label: "ブログ記事の自動作成",
+    summary: "1日3回記事を作成します。承認方法が自動実行なら公開まで、それ以外は下書きを保存します。",
     input: {
       name: "ブログ記事を1日3回作成",
       description: "草野ナレッジ、社内情報、RSSの順に根拠を確認して記事を作ります。",

@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { calculateAutomationNextRunAt } from "@/lib/knowledge-automation/scheduling";
 import type { KnowledgeAutomationTask } from "@/lib/knowledge-automation/types";
+import { rewriteWordPressBlog } from "@/lib/knowledge-automation/wordpressRewrite";
 import { createWordPressBlogDraft } from "@/lib/knowledge-automation/wordpressBlog";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { WordPressApiError } from "@/lib/wordpress/server";
@@ -46,7 +47,9 @@ export async function runKnowledgeAutomationTask(input: {
 
   const now = new Date();
   const scheduledFor = input.scheduledFor ?? task.next_run_at;
-  const idempotencyKey = input.triggerSource === "schedule" && scheduledFor
+  const isDailyRewrite = task.settings.operation === "wordpress_blog_rewrite";
+  const rewriteDay = new Date(now.getTime() + 9 * 60 * 60_000).toISOString().slice(0, 10);
+  const idempotencyKey = isDailyRewrite ? `rewrite:${rewriteDay}` : input.triggerSource === "schedule" && scheduledFor
     ? `schedule:${scheduledFor}`
     : `${input.triggerSource}:${randomUUID()}`;
   const { data: run, error: insertError } = await supabaseAdmin
@@ -60,11 +63,14 @@ export async function runKnowledgeAutomationTask(input: {
       input_summary: { taskType: task.task_type, destination: task.destination },
       claimed_at: now.toISOString(),
       started_at: now.toISOString(),
-      lease_expires_at: new Date(now.getTime() + 10 * 60_000).toISOString(),
+      lease_expires_at: new Date(now.getTime() + 15 * 60_000).toISOString(),
     })
     .select("id")
     .single();
   if (insertError?.code === "23505") {
+    if (isDailyRewrite && input.triggerSource === "schedule") {
+      await supabaseAdmin.from("knowledge_automation_tasks").update({next_run_at: calculateAutomationNextRunAt(task.trigger_type, task.schedule, task.is_enabled, now)}).eq("id", task.id);
+    }
     return { ok: true, status: "skipped" as const, message: "同じ予定分はすでに実行済みです。" };
   }
   if (insertError || !run) throw new Error("実行履歴を開始できませんでした。");
@@ -79,20 +85,22 @@ export async function runKnowledgeAutomationTask(input: {
   }
 
   try {
-    if (task.task_type !== "wordpress_blog" || task.destination !== "wordpress_post") {
+    const isRewrite = task.settings.operation === "wordpress_blog_rewrite";
+    if ((!isRewrite && task.task_type !== "wordpress_blog") || task.destination !== "wordpress_post") {
       throw new Error("この種類の自動化はまだ実行処理が登録されていません。");
     }
-    const result = await createWordPressBlogDraft(task);
+    const result = isRewrite ? await rewriteWordPressBlog(task, run.id) : await createWordPressBlogDraft(task);
     const finishedAt = new Date().toISOString();
-    const status = result.status === "created" ? "succeeded" : "skipped";
+    const status = (result.status === "created" || result.status === "updated") ? "succeeded" : "skipped";
     await supabaseAdmin.from("knowledge_automation_runs").update({
       status,
       safety_result: "allowed",
       safety_findings: [],
       output_summary: {
+        ...("audit" in result ? result.audit : {}),
         message: result.message,
-        sourceId: result.sourceId ?? null,
-        sourceTitle: result.sourceTitle ?? null,
+        sourceId: "sourceId" in result ? result.sourceId ?? null : null,
+        sourceTitle: "sourceTitle" in result ? result.sourceTitle ?? null : null,
         postId: result.postId ?? null,
       },
       output_reference: result.postLink ?? null,
@@ -141,7 +149,10 @@ export async function runDueKnowledgeAutomations(now = new Date()) {
     .limit(3);
   if (error) throw new Error("実行予定の自動化を取得できませんでした。");
   const results = [];
+  const batchStartedAt = Date.now();
   for (const task of data ?? []) {
+    // Leave remaining due tasks for the next cron invocation after a long AI job.
+    if (results.length > 0 && Date.now() - batchStartedAt > 30_000) break;
     results.push({
       taskId: task.id,
       ...await runKnowledgeAutomationTask({

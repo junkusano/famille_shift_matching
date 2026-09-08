@@ -395,8 +395,10 @@ export default function KnowledgeAutomationPage() {
           {form.approval_mode === "automatic" && (
             <div className="mt-4 flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <AlertTriangle className="mt-0.5 shrink-0" size={18} aria-hidden />
-              {form.task_type === "wordpress_blog"
-                ? "時刻になるとWordPressへ自動で下書きを作ります。公開はWordPressで内容を確認してから行ってください。"
+              {form.settings?.operation === "wordpress_blog_rewrite"
+                ? "対象記事を分析し、既存の公開記事をリライトして反映・表示確認まで自動実行します。"
+                : form.task_type === "wordpress_blog"
+                ? "時刻になるとWordPressの記事作成・公開・表示確認まで自動実行します。"
                 : "条件一致後に自動で反映します。最初は停止状態または「人の確認後に実行」での試行をおすすめします。"}
             </div>
           )}
@@ -449,7 +451,7 @@ export default function KnowledgeAutomationPage() {
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
                 <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700"><CheckCircle2 size={15} aria-hidden />安全チェック適用</div>
                 <div className="flex flex-wrap gap-2">
-                  {task.task_type === "wordpress_blog" && (
+                  {(task.task_type === "wordpress_blog" || task.settings.operation === "wordpress_blog_rewrite") && (
                     <button type="button" disabled={runningId === task.id} onClick={() => void runNow(task)} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
                       <Play size={15} aria-hidden />{runningId === task.id ? "実行中…" : "今すぐ実行"}
                     </button>

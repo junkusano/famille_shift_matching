@@ -1,6 +1,7 @@
 import "server-only";
 
 import OpenAI from "openai";
+import { verifyPublishedBlogPost } from "@/lib/wordpress/blogPosts";
 import { z } from "zod";
 import { runKnowledgeSource } from "@/lib/knowledge/pipeline";
 import type { KnowledgeAutomationTask } from "@/lib/knowledge-automation/types";
@@ -8,7 +9,7 @@ import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import {
   assertWordPressPostDraftAvailable,
-  createWordPressPostDraft,
+  createWordPressPost,
   findWordPressFeaturedImage,
   listWordPressPostCategories,
   uploadWordPressMedia,
@@ -246,7 +247,7 @@ async function generateArticle(
     model: OPENAI_PROFILES.heavy.model,
     reasoning: { effort: responsesReasoningEffort(OPENAI_PROFILES.heavy.reasoning) },
     store: false,
-    max_output_tokens: 6_000,
+    max_output_tokens: 16_000,
     instructions: [
       "あなたはファミーユグループ代表の経営コラムを編集する、日本語の論説編集者です。",
       "ゴールは外部ニュースの要約ではなく、外部の変化を起点に、現場経営から生まれた一つの独自主張を読者が理解し、考えたくなる記事にすることです。",
@@ -292,6 +293,7 @@ async function generateArticle(
       },
     },
   });
+  if (response.status === "incomplete") throw new Error("記事生成が途中で終了しました。次回の実行で再生成します。");
   if (!response.output_text?.trim()) throw new Error("記事生成の応答が空でした。");
   const article = articleSchema.parse(JSON.parse(response.output_text));
   assertArticleQuality(article, research);
@@ -356,7 +358,7 @@ export async function createWordPressBlogDraft(task: KnowledgeAutomationTask): P
     return { status: "skipped", message: refreshed.warnings[0] ?? consentMessage ?? "未使用の具体的な記事候補がありません。監視先だけでは記事を作りません。" };
   }
   if (!process.env.OPENAI_API_KEY) throw new Error("OpenAIの接続設定がありません。");
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 240_000, maxRetries: 0 });
   const date = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" })
     .format(new Date()).replaceAll("/", "");
   const filenameStem = `smart-ai-${date}-${seed.id.slice(0, 8)}`;
@@ -387,15 +389,22 @@ export async function createWordPressBlogDraft(task: KnowledgeAutomationTask): P
   const categoryIds = selectedCategory
     ? [...new Set([selectedCategory.parent, selectedCategory.id].filter((id) => id > 0))]
     : [];
-  const post = await createWordPressPostDraft({
+  const content = articleHtml(article, research.sources);
+  const publish = task.approval_mode === "automatic";
+  const post = await createWordPressPost({
+    status: publish ? "publish" : "draft",
     title: article.title, slug: filenameStem,
-    content: articleHtml(article, research.sources), excerpt: article.excerpt,
+    content, excerpt: article.excerpt,
     featuredMediaId: featuredImage?.id,
     categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
   });
+  if (publish) {
+    if (post.status !== "publish") throw new Error("記事が公開状態で保存されませんでした。");
+    await verifyPublishedBlogPost(post, content);
+  }
   return {
     status: "created",
-    message: `「${article.title}」をWordPressの下書きに追加しました。${featuredImage ? `アイキャッチは${featuredImage.source === "existing" ? "既存画像を再利用" : "新規生成"}しました。` : ""}${categoryIds.length > 0 ? "コラムカテゴリも設定しました。" : ""}`,
+    message: `「${article.title}」をWordPress${publish ? "に公開し、表示を確認しました" : "の下書きに追加しました"}。${featuredImage ? `アイキャッチは${featuredImage.source === "existing" ? "既存画像を再利用" : "新規生成"}しました。` : ""}${categoryIds.length > 0 ? "コラムカテゴリも設定しました。" : ""}`,
     sourceId: seed.id, sourceTitle: seed.title, postId: post.id, postLink: post.link,
   };
 }
