@@ -7,6 +7,7 @@ import type {
   MonitoringFaxTarget,
   MonitoringServiceType,
   MonitoringSourceGoal,
+  MonitoringTeamContact,
   MonitoringVisitRecord,
 } from "@/types/monitoring";
 import { detectMonitoringServiceType, monitoringContactWarnings } from "./core";
@@ -150,6 +151,70 @@ async function loadPreviousMonitorings(
   );
 }
 
+async function loadMonitoringTeamContacts(orgId: string): Promise<MonitoringTeamContact[]> {
+  if (!orgId) return [];
+
+  const { data: directMemberRows, error: directMemberError } = await supabaseAdmin
+    .from("users")
+    .select("user_id")
+    .eq("org_unit_id", orgId);
+  if (directMemberError) throw directMemberError;
+
+  const directMemberIds = (directMemberRows ?? [])
+    .map((row) => text(row.user_id))
+    .filter(Boolean);
+  const [teamExceptionResult, directExceptionResult] = await Promise.all([
+    supabaseAdmin
+      .from("user_org_exception")
+      .select("user_id,org_mgr_phone")
+      .eq("orgunitid", orgId),
+    directMemberIds.length > 0
+      ? supabaseAdmin
+          .from("user_org_exception")
+          .select("user_id,orgunitid")
+          .in("user_id", directMemberIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (teamExceptionResult.error) throw teamExceptionResult.error;
+  if (directExceptionResult.error) throw directExceptionResult.error;
+
+  const teamExceptionRows = (teamExceptionResult.data ?? []) as UnknownRecord[];
+  const directExceptionRows = (directExceptionResult.data ?? []) as UnknownRecord[];
+  const directMembersWithoutOtherTeamException = directMemberIds.filter((userId) =>
+    !directExceptionRows.some((row) => text(row.user_id) === userId && text(row.orgunitid) !== orgId),
+  );
+  const memberIds = Array.from(
+    new Set([
+      ...directMembersWithoutOtherTeamException,
+      ...teamExceptionRows.map((row) => text(row.user_id)).filter(Boolean),
+    ]),
+  );
+  if (memberIds.length === 0) return [];
+
+  const { data: memberRows, error: memberError } = await supabaseAdmin
+    .from("user_entry_united_view_single")
+    .select("user_id,last_name_kanji,first_name_kanji,system_role,position_id,status")
+    .in("user_id", memberIds);
+  if (memberError) throw memberError;
+
+  const phoneByUserId = new Map(
+    teamExceptionRows.map((row) => [text(row.user_id), nullableText(row.org_mgr_phone)]),
+  );
+  const serviceManagerPositionId = "39d94ef1-dff3-4cb0-8add-05e3e24812dd";
+  return ((memberRows ?? []) as UnknownRecord[])
+    .filter((row) => {
+      const role = text(row.system_role).toLowerCase();
+      const positionId = text(row.position_id);
+      return text(row.status) !== "removed_from_lineworks_kaipoke" &&
+        (role === "manager" || positionId === serviceManagerPositionId);
+    })
+    .map((row) => {
+      const name = `${text(row.last_name_kanji)}${text(row.first_name_kanji)}`;
+      return { name, phone: phoneByUserId.get(text(row.user_id)) ?? null };
+    })
+    .filter((contact) => contact.name && contact.name !== "草野淳")
+    .sort((a, b) => a.name.localeCompare(b.name, "ja"));
+}
 export async function loadMonitoringContext(params: {
   clientInfoId: string;
   periodStart: string;
@@ -270,16 +335,8 @@ export async function loadMonitoringContext(params: {
     };
   }
 
-  let officeName = "ファミーユヘルパーサービス愛知";
-  const orgId = text(client.asigned_org);
-  if (orgId) {
-    const { data: orgRow } = await supabaseAdmin
-      .from("orgs")
-      .select("orgunitname")
-      .eq("orgunitid", orgId)
-      .maybeSingle();
-    officeName = text(asRecord(orgRow)?.orgunitname) || officeName;
-  }
+  const teamContacts = await loadMonitoringTeamContacts(text(client.asigned_org));
+  const officeName = "ファミーユヘルパーサービス愛知";
 
   const monthlyNotice = serviceTypeDetected
     ? await getMonitoringMonthlyNotice({ serviceType: serviceTypeDetected, periodEnd })
@@ -372,6 +429,7 @@ export async function loadMonitoringContext(params: {
     visit_records: evidenceRecords,
     previous_monitorings: previousMonitorings,
     fax_target: faxTarget,
+    team_contacts: teamContacts,
     office_name: officeName,
     office_notice: officeNotice,
     warnings,

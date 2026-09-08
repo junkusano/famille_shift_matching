@@ -95,6 +95,11 @@ export type MonitoringFaxTarget = {
   fax_number: string | null;
 };
 
+export type MonitoringTeamContact = {
+  name: string;
+  phone: string | null;
+};
+
 export type MonitoringContext = {
   client: Record<string, unknown>;
   service_type_detected: MonitoringServiceType | null;
@@ -104,6 +109,7 @@ export type MonitoringContext = {
   visit_records: MonitoringVisitRecord[];
   previous_monitorings: Array<Record<string, unknown>>;
   fax_target: MonitoringFaxTarget;
+  team_contacts?: MonitoringTeamContact[];
   office_name: string | null;
   office_notice: string;
   warnings: string[];

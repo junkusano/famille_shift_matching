@@ -90,9 +90,10 @@ export async function POST(request: NextRequest, { params }: Context) {
       context: {
         client_name: clientName,
         care_level: String(insurance.care_level ?? ""),
-        office_name: context.office_name ?? "",
+        office_name: "ファミーユヘルパーサービス愛知",
         destination_office: context.fax_target.office_name ?? "",
         care_manager_name: context.fax_target.contact_name ?? context.fax_target.office_name ?? "",
+        team_contacts: context.team_contacts,
       },
     };
 

@@ -7,7 +7,6 @@ import puppeteer from "puppeteer-core";
 import type {
   MonitoringGoal,
   MonitoringRecord,
-  MonitoringServiceType,
 } from "@/types/monitoring";
 import {
   MONITORING_ACHIEVEMENT_LABELS,
@@ -21,6 +20,7 @@ type PdfContext = {
   office_name: string;
   destination_office: string;
   care_manager_name: string;
+  team_contacts?: Array<{ name: string; phone: string | null }>;
 };
 
 export type MonitoringPdfSnapshot = {
@@ -93,15 +93,15 @@ async function chromiumExecutablePath(): Promise<string> {
   return chromium.executablePath();
 }
 
-function sharedStyles(fontCss: string, serviceType: MonitoringServiceType): string {
+function sharedStyles(fontCss: string): string {
   return `${fontCss}
-    @page { size: A4 ${serviceType === "care_insurance" ? "landscape" : "portrait"}; margin: 10mm; }
+    @page { size: A4 portrait; margin: 7mm; }
     * { box-sizing: border-box; }
-    body { margin: 0; color: #111827; font-family: MonitoringJP, sans-serif; font-size: 10.5px; line-height: 1.55; }
-    h1 { margin: 0 0 8px; text-align: center; font-size: 20px; letter-spacing: .12em; }
-    h2 { margin: 12px 0 5px; font-size: 13px; }
-    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-    th, td { border: 1px solid #374151; padding: 5px 6px; vertical-align: top; overflow-wrap: anywhere; }
+    body { margin: 0; color: #111827; font-family: MonitoringJP, sans-serif; font-size: 9.5px; line-height: 1.45; }
+    h1 { margin: 0 0 6px; text-align: center; font-size: 18px; letter-spacing: .1em; }
+    h2 { margin: 9px 0 4px; font-size: 12px; }
+    table { width: 100%; max-width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { border: 1px solid #374151; padding: 4px 5px; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
     th { background: #f3f4f6; font-weight: 700; text-align: center; }
     .meta { display: flex; justify-content: space-between; margin-bottom: 4px; }
     .section { margin-top: 7px; }
@@ -112,7 +112,8 @@ function sharedStyles(fontCss: string, serviceType: MonitoringServiceType): stri
     .notice { white-space: pre-wrap; min-height: 45px; }
     .footer { margin-top: 10px; border-top: 1px solid #9ca3af; padding-top: 5px; color: #4b5563; font-size: 9px; }
     .summary { white-space: pre-wrap; }
-    .compact td, .compact th { padding: 4px 5px; }
+    .compact td, .compact th { padding: 3px 4px; }
+    .care-header { font-size: 8.5px; }
   `;
 }
 
@@ -123,7 +124,7 @@ function careInsuranceBody(snapshot: MonitoringPdfSnapshot): string {
       MONITORING_SERVICE_LABELS[monitoring.service_type],
     )}</span><span>評価日 ${escapeHtml(monitoring.evaluation_date)}</span></div>
     <h1>モニタリングシート</h1>
-    <table class="compact">
+    <table class="compact care-header">
       <tr><th>利用者名</th><td>${escapeHtml(context.client_name)} 様</td><th>要介護度等</th><td>${escapeHtml(
         context.care_level,
       )}</td><th>事業者名</th><td>${escapeHtml(context.office_name)}</td></tr>
@@ -168,6 +169,9 @@ function careInsuranceBody(snapshot: MonitoringPdfSnapshot): string {
 
 function disabilityBody(snapshot: MonitoringPdfSnapshot): string {
   const { monitoring, goals, context } = snapshot;
+  const teamContactText = (context.team_contacts ?? [])
+    .map((contact) => `${escapeHtml(contact.name)}　TEL: ${escapeHtml(contact.phone ?? "電話番号未登録")}`)
+    .join("<br />") || "担当者未登録";
   const assistanceGoals = goals
     .map(
       (goal) => `${goal.goal_type === "long_term" ? "長期" : "短期"}：${goal.goal_text}`,
@@ -190,6 +194,7 @@ function disabilityBody(snapshot: MonitoringPdfSnapshot): string {
     <h1>モニタリングメモ</h1>
     <table>
       <tr><th class="label">事業所名</th><td>${escapeHtml(context.office_name)}</td></tr>
+      <tr><th>担当者・電話番号</th><td>${teamContactText}</td></tr>
       <tr><th>サービス実施期間</th><td>${escapeHtml(
         formatMonitoringPeriod(monitoring.period_start, monitoring.period_end),
       )}</td></tr>
@@ -208,10 +213,7 @@ export async function buildMonitoringHtml(snapshot: MonitoringPdfSnapshot): Prom
     snapshot.monitoring.service_type === "care_insurance"
       ? careInsuranceBody(snapshot)
       : disabilityBody(snapshot);
-  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"/><style>${sharedStyles(
-    fontCss,
-    snapshot.monitoring.service_type,
-  )}</style></head><body>${body}<div class="footer">サービス提供責任者が内容を確認した確定版です。PDF作成日時：${escapeHtml(
+  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"/><style>${sharedStyles(fontCss)}</style></head><body>${body}<div class="footer">サービス提供責任者が内容を確認した確定版です。PDF作成日時：${escapeHtml(
     new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }),
   )}</div></body></html>`;
 }
@@ -228,10 +230,10 @@ export async function renderMonitoringPdf(snapshot: MonitoringPdfSnapshot): Prom
     await page.setContent(await buildMonitoringHtml(snapshot), { waitUntil: "load" });
     const bytes = await page.pdf({
       format: "A4",
-      landscape: snapshot.monitoring.service_type === "care_insurance",
+      landscape: false,
       printBackground: true,
       preferCSSPageSize: true,
-      margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
+      margin: { top: "7mm", right: "7mm", bottom: "7mm", left: "7mm" },
     });
     return Buffer.from(bytes);
   } catch (cause) {
