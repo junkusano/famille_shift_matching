@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { knowledgeApi } from "@/components/knowledge/api";
+import { KnowledgeDiffsAdmin } from "@/components/knowledge/KnowledgeDiffsAdmin";
 import type { KnowledgeItem, KnowledgeSource } from "@/lib/knowledge/types";
 
 type ItemResponse = { ok: true; items: KnowledgeItem[]; total: number; page?: number; perPage?: number };
@@ -240,6 +241,7 @@ export function KnowledgeItemsAdmin() {
 
   return (
     <section className="space-y-4">
+      <KnowledgeDiffsAdmin />
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
           <label className="flex-1 text-sm font-medium text-slate-700">キーワード

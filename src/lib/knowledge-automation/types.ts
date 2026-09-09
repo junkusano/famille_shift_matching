@@ -4,10 +4,11 @@ export const AUTOMATION_TASK_TYPES = [
   "lesson_reminder",
   "billing_review",
   "wordpress_blog",
+  "knowledge_diff",
   "custom",
 ] as const;
 
-export const AUTOMATION_TRIGGER_TYPES = ["interval", "daily", "monthly", "event", "manual"] as const;
+export const AUTOMATION_TRIGGER_TYPES = ["interval", "daily", "weekly", "monthly", "event", "manual"] as const;
 
 export const AUTOMATION_DESTINATIONS = [
   "lineworks_board",
@@ -29,6 +30,7 @@ export type AutomationApprovalMode = (typeof AUTOMATION_APPROVAL_MODES)[number];
 export type AutomationSchedule = {
   minutes?: number;
   times?: string[];
+  dayOfWeek?: number;
   day?: number;
   time?: string;
   eventKey?: string;
