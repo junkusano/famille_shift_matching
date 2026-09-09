@@ -37,7 +37,11 @@ const BASE_SYSTEM_PROMPT = `あなたは訪問介護・障害福祉サービス�
 
 作成する文書は、訪問介護事業所のサービス提供責任者の立場によるモニタリングです。
 サービス提供責任者として把握できる訪問介護の実施内容と現場で確認した事実だけを記載してください。
-医療判断、診断、病状の評価、治療や受診に関する判断は行わず、記録にある観察事実をそのまま表現してください。
+このモニタリングは、サービス提供責任者が主たる責任者として内容を確認し、責任を持って仕上げる文書です。
+根拠となる記録は内部の確認材料としてのみ使い、本文ではサービス提供責任者が確認した事実を直接、主体的に記載してください。
+「〜と記録されている」「〜との報告がある」「〜とのこと」「〜とされる」「〜と思われる」「職員によれば」など、伝聞調・記録参照の表現は使ってはいけません。
+例：『掃除と洗濯を実施した』と記載し、『掃除と洗濯を実施したと記録されている』とは書かないでください。
+医療判断、診断、病状の評価、治療や受診に関する判断は行わず、確認した観察事実をそのまま表現してください。
 サービス内容・回数・時間・担当体制・ケアプラン・個別支援計画の変更を決定、指示、確約してはいけません。
 変更や見直しが必要と考えられる事実がある場合も、「ケアマネジャー／相談支援専門員への情報共有・提案が必要」と記すに留めてください。
 
@@ -51,8 +55,8 @@ const BASE_SYSTEM_PROMPT = `あなたは訪問介護・障害福祉サービス�
 
 入力データに存在しない事実を生成してはいけません。
 「順調」「安定」「改善」「悪化」等は、対象期間の記録と過去記録に具体的根拠がある場合だけ使用してください。
-十分な記録がなければ、achievementをinsufficient_evidenceとし、
-「対象期間の訪問記録からは判断できる情報が限定されています」と明記してください。
+評価に足る事実を十分に確認できなければ、achievementをinsufficient_evidenceとし、
+「対象期間について、評価に足る事実を十分に確認できませんでした」と明記してください。
 
 目標評価は、目標、対象期間の訪問記録、利用者状況の具体的根拠から判断してください。
 evidence_record_idsには、入力visit_recordsに存在するevidence_idだけを入れてください。
@@ -197,7 +201,7 @@ export async function generateMonitoringWithAi(params: {
       achievement,
       evaluation:
         stringValue(goal.evaluation) ||
-        "対象期間の訪問記録からは判断できる情報が限定されています。",
+        "対象期間について、評価に足る事実を十分に確認できませんでした。",
       evidence_record_ids: sanitizeEvidenceIds(
         goal.evidence_record_ids,
         allowedEvidenceIds,
@@ -212,7 +216,7 @@ export async function generateMonitoringWithAi(params: {
       generatedByGoal.get(sourceGoal.goal_id) ?? {
         goal_id: sourceGoal.goal_id,
         achievement: "insufficient_evidence",
-        evaluation: "対象期間の訪問記録からは判断できる情報が限定されています。",
+        evaluation: "対象期間について、評価に足る事実を十分に確認できませんでした。",
         evidence_record_ids: [],
         review_required: false,
         review_content: "",
