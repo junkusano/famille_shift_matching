@@ -111,6 +111,12 @@ export function KnowledgeItemsAdmin() {
   const [message, setMessage] = useState("");
   const [query, setQuery] = useState("");
   const [sourceId, setSourceId] = useState("");
+  const [knowledgeType, setKnowledgeType] = useState("");
+  const [category, setCategory] = useState("");
+  const [conceptLevel, setConceptLevel] = useState("");
+  const [importance, setImportance] = useState("");
+  const [stability, setStability] = useState("");
+  const [confidentiality, setConfidentiality] = useState("");
   const [reviewStatus, setReviewStatus] = useState("");
   const [privacyLevel, setPrivacyLevel] = useState("");
   const [total, setTotal] = useState(0);
@@ -142,6 +148,12 @@ export function KnowledgeItemsAdmin() {
       } else {
         const params = new URLSearchParams({ page: String(page), perPage: "30" });
         if (sourceId) params.set("source_id", sourceId);
+        if (knowledgeType) params.set("knowledge_type", knowledgeType);
+        if (category) params.set("category", category);
+        if (conceptLevel) params.set("concept_level", conceptLevel);
+        if (importance) params.set("importance", importance);
+        if (stability) params.set("stability", stability);
+        if (confidentiality) params.set("confidentiality", confidentiality);
         if (reviewStatus) params.set("review_status", reviewStatus);
         if (privacyLevel) params.set("privacy_level", privacyLevel);
         const response = await knowledgeApi<ItemResponse>(`/api/admin/knowledge/items?${params}`);
@@ -273,7 +285,7 @@ export function KnowledgeItemsAdmin() {
             {loading ? <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-500">読み込み中…</td></tr> : items.length === 0 ? <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-500">該当するナレッジはありません。</td></tr> : items.map((item) => (
               <tr key={item.id} className="align-top hover:bg-slate-50">
                 <td className="whitespace-nowrap px-4 py-3 text-slate-500">{formatDate(item.updated_at)}</td>
-                <td className="max-w-xl px-4 py-3"><p className="font-semibold text-slate-900">{item.title}</p><p className="mt-1 line-clamp-2 text-slate-600">{item.summary}</p><div className="mt-2 flex flex-wrap gap-1">{item.tags.slice(0, 5).map((tag) => <span key={tag} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{tag}</span>)}</div></td>
+                <td className="max-w-xl px-4 py-3"><p className="font-semibold text-slate-900">{item.title}</p><p className="mt-1 line-clamp-2 text-slate-600">{item.summary}</p><div className="mt-2 flex flex-wrap gap-1">{(Array.isArray(item.tags) ? item.tags : []).slice(0, 5).map((tag) => <span key={tag} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{tag}</span>)}</div></td>
                 <td className="px-4 py-3"><p>{item.knowledge_type}</p><p className="text-xs text-slate-500">{item.category || "—"}</p></td>
                 <td className="px-4 py-3"><p>Level {item.concept_level ?? "—"}</p><p className="text-xs text-slate-500">重要度 {item.importance}</p></td>
                 <td className="px-4 py-3"><p>{item.stability ?? "—"}</p><p className="text-xs text-slate-500">{item.confidentiality ?? "—"}</p></td>
@@ -296,7 +308,7 @@ export function KnowledgeItemsAdmin() {
             <div className="grid gap-3 rounded-lg bg-slate-50 p-3 md:grid-cols-3"><div>種別：{detailItem.knowledge_type}</div><div>概念レベル：{detailItem.concept_level ?? "—"}</div><div>重要度：{detailItem.importance}</div><div>安定性：{detailItem.stability ?? "—"}</div><div>機密区分：{detailItem.confidentiality ?? "—"}</div><div>最終検証：{formatDate(detailItem.last_verified_at)}</div></div>
             <div><h3 className="font-semibold">要約</h3><p className="mt-1 whitespace-pre-wrap text-slate-700">{detailItem.summary}</p></div>
             <div><h3 className="font-semibold">詳細</h3><p className="mt-1 whitespace-pre-wrap text-slate-700">{detailItem.content || "—"}</p></div>
-            <div><h3 className="font-semibold">出典</h3><ul className="mt-1 list-disc space-y-1 pl-5 text-slate-700">{detailItem.source_references.filter((value): value is string => typeof value === "string").map((reference) => <li key={reference}>{reference}</li>)}</ul></div>
+            <div><h3 className="font-semibold">出典</h3><ul className="mt-1 list-disc space-y-1 pl-5 text-slate-700">{(Array.isArray(detailItem.source_references) ? detailItem.source_references : []).filter((value): value is string => typeof value === "string").map((reference) => <li key={reference}>{reference}</li>)}</ul></div>
             <div><h3 className="font-semibold">関連ナレッジ</h3><ul className="mt-1 list-disc space-y-1 pl-5 text-slate-700">{[...detailRelations.outgoing.map((relation) => relation.to), ...detailRelations.incoming.map((relation) => relation.from)].filter(Boolean).map((relation) => <li key={relation!.id}>{relation!.title}</li>)}</ul></div>
             <div><h3 className="font-semibold">更新履歴</h3><ul className="mt-1 space-y-1 text-slate-700">{detailHistory.map((entry) => <li key={entry.id}>v{entry.version} · {entry.is_current ? "現行" : "旧版"} · {entry.review_status} · {formatDate(entry.updated_at)}</li>)}</ul></div>
           </div>}
