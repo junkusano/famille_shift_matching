@@ -78,6 +78,9 @@ export default function TaimeeJobSettingsPage() {
     string | null
   >(null);
 
+  const [creatingAfternoon, setCreatingAfternoon] =
+    useState(false);
+
   const [errorMessage, setErrorMessage] =
     useState("");
 
@@ -236,6 +239,59 @@ export default function TaimeeJobSettingsPage() {
       );
     } finally {
       setSavingId(null);
+    }
+  }
+
+  async function createAfternoonSetting(
+    setting: TaimeeJobSetting
+  ) {
+    setCreatingAfternoon(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const response = await fetch(
+        "/api/admin/taimee-job-settings",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            source_id: setting.id,
+            work_start_time: "14:00",
+            work_end_time: "15:00",
+          }),
+        }
+      );
+
+      const result = (await response.json()) as ApiResponse;
+
+      if (!response.ok || !result.ok) {
+        throw new Error(
+          result.detail
+            ? `${result.message ?? "午後枠の作成に失敗しました。"} ${result.detail}`
+            : result.message ?? "午後枠の作成に失敗しました。"
+        );
+      }
+
+      await loadSettings();
+      setSuccessMessage(
+        "無資格タイミー（午後）を14:00〜15:00で作成しました。"
+      );
+    } catch (error) {
+      console.error(
+        "[taimee-job-settings-page] afternoon create failed",
+        error
+      );
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "午後枠の作成に失敗しました。"
+      );
+    } finally {
+      setCreatingAfternoon(false);
     }
   }
 
@@ -607,18 +663,41 @@ export default function TaimeeJobSettingsPage() {
                         : "未更新"}
                     </p>
 
-                    <button
-                      type="button"
-                      disabled={isSaving}
-                      onClick={() =>
-                        void saveSetting(setting)
-                      }
-                      className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                    >
-                      {isSaving
-                        ? "保存中..."
-                        : "この設定を保存"}
-                    </button>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      {setting.setting_key === "unqualified_taimee" &&
+                        !settings.some(
+                          (item) =>
+                            item.setting_key === "unqualified_taimee_pm"
+                        ) && (
+                          <button
+                            type="button"
+                            disabled={
+                              isSaving || creatingAfternoon
+                            }
+                            onClick={() =>
+                              void createAfternoonSetting(setting)
+                            }
+                            className="rounded-lg border border-indigo-600 px-5 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                          >
+                            {creatingAfternoon
+                              ? "午後枠を作成中..."
+                              : "午後枠（14:00〜15:00）を追加"}
+                          </button>
+                        )}
+
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() =>
+                          void saveSetting(setting)
+                        }
+                        className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                      >
+                        {isSaving
+                          ? "保存中..."
+                          : "この設定を保存"}
+                      </button>
+                    </div>
                   </div>
                 </section>
               );

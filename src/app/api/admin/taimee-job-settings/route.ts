@@ -18,6 +18,12 @@ type UpdateRequestBody = {
   is_enabled?: unknown;
 };
 
+type CreateAfternoonRequestBody = {
+  source_id?: unknown;
+  work_start_time?: unknown;
+  work_end_time?: unknown;
+};
+
 const SELECT_COLUMNS = `
   id,
   setting_key,
@@ -139,6 +145,162 @@ export async function GET() {
         ok: false,
         message:
           "タイミー求人設定の取得中にエラーが発生しました。",
+      },
+      500
+    );
+  }
+}
+
+/**
+ * 既存設定を複製して午後枠を追加する。
+ * 午前枠を上書きせず、求人設定とCron用スケジュールを同時に作成する。
+ */
+export async function POST(req: NextRequest) {
+  let createdSettingId: string | null = null;
+
+  try {
+    let body: CreateAfternoonRequestBody;
+
+    try {
+      body = (await req.json()) as CreateAfternoonRequestBody;
+    } catch {
+      return json(
+        { ok: false, message: "リクエストのJSONが正しくありません。" },
+        400
+      );
+    }
+
+    const sourceId =
+      typeof body.source_id === "string" ? body.source_id.trim() : "";
+
+    if (!isUuid(sourceId)) {
+      return json(
+        { ok: false, message: "複製元の設定IDが正しくありません。" },
+        400
+      );
+    }
+
+    const workStartTime = normalizeTime(body.work_start_time);
+    const workEndTime = normalizeTime(body.work_end_time);
+
+    if (!workStartTime || !workEndTime || workStartTime >= workEndTime) {
+      return json(
+        {
+          ok: false,
+          message: "午後枠の勤務時間が正しくありません。",
+        },
+        400
+      );
+    }
+
+    const { data: source, error: sourceError } = await supabaseAdmin
+      .from("taimee_job_settings")
+      .select(SELECT_COLUMNS)
+      .eq("id", sourceId)
+      .maybeSingle();
+
+    if (sourceError) {
+      throw new Error(`複製元設定の取得に失敗しました: ${sourceError.message}`);
+    }
+
+    if (!source) {
+      return json(
+        { ok: false, message: "複製元の設定が見つかりません。" },
+        404
+      );
+    }
+
+    if (source.setting_key !== "unqualified_taimee") {
+      return json(
+        { ok: false, message: "午後枠の複製対象は無資格タイミーのみです。" },
+        400
+      );
+    }
+
+    const settingKey = `${source.setting_key}_pm`;
+    const settingName = `${source.setting_name}（午後）`;
+
+    const { data: existing } = await supabaseAdmin
+      .from("taimee_job_settings")
+      .select("id")
+      .eq("setting_key", settingKey)
+      .maybeSingle();
+
+    if (existing) {
+      return json(
+        { ok: false, message: "無資格タイミー（午後）は既に登録されています。" },
+        409
+      );
+    }
+
+    const { data: createdSetting, error: insertSettingError } =
+      await supabaseAdmin
+        .from("taimee_job_settings")
+        .insert({
+          setting_key: settingKey,
+          setting_name: settingName,
+          offer_id: source.offer_id,
+          work_weekday: source.work_weekday,
+          work_start_time: workStartTime,
+          work_end_time: workEndTime,
+          open_weekday: source.open_weekday,
+          open_time: source.open_time,
+          hourly_wage: source.hourly_wage,
+          headcount: source.headcount,
+          environment: source.environment,
+          is_enabled: source.is_enabled,
+        })
+        .select(SELECT_COLUMNS)
+        .single();
+
+    if (insertSettingError || !createdSetting) {
+      throw new Error(
+        `午後用設定の作成に失敗しました: ${insertSettingError?.message ?? "作成結果がありません。"}`
+      );
+    }
+
+    createdSettingId = createdSetting.id;
+
+    const { error: insertScheduleError } = await supabaseAdmin
+      .from("taimee_job_schedules")
+      .insert({
+        job_setting_id: createdSetting.id,
+        schedule_name: settingName,
+        open_weekday: source.open_weekday,
+        open_time: source.open_time,
+        work_weekday: source.work_weekday,
+        is_enabled: source.is_enabled,
+      });
+
+    if (insertScheduleError) {
+      await supabaseAdmin
+        .from("taimee_job_settings")
+        .delete()
+        .eq("id", createdSetting.id);
+      createdSettingId = null;
+      throw new Error(`午後用スケジュールの作成に失敗しました: ${insertScheduleError.message}`);
+    }
+
+    return json({
+      ok: true,
+      message: "無資格タイミー（午後）を作成しました。",
+      setting: createdSetting,
+    }, 201);
+  } catch (error) {
+    if (createdSettingId) {
+      await supabaseAdmin
+        .from("taimee_job_settings")
+        .delete()
+        .eq("id", createdSettingId);
+    }
+
+    console.error("[taimee-job-settings] POST unexpected error", error);
+
+    return json(
+      {
+        ok: false,
+        message: "午後用タイミー求人設定の作成中にエラーが発生しました。",
+        detail: error instanceof Error ? error.message : undefined,
       },
       500
     );
