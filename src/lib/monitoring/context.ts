@@ -10,7 +10,7 @@ import type {
   MonitoringTeamContact,
   MonitoringVisitRecord,
 } from "@/types/monitoring";
-import { detectMonitoringServiceType, monitoringContactWarnings } from "./core";
+import { cleanMonitoringGoalText, detectMonitoringServiceType, monitoringContactWarnings } from "./core";
 import { getMonitoringMonthlyNotice } from "./notices";
 import { loadMonitoringSignedPlan } from "./signed-plan";
 
@@ -101,7 +101,7 @@ async function loadGoals(planId: string | null): Promise<MonitoringSourceGoal[]>
       goal_id: longId,
       parent_goal_id: null,
       goal_type: "long_term",
-      goal_text: text(longGoal.goal_text),
+      goal_text: cleanMonitoringGoalText(text(longGoal.goal_text)),
       evaluation_start: nullableText(longGoal.goal_start_date),
       evaluation_end: nullableText(longGoal.goal_end_date),
     });
@@ -112,7 +112,7 @@ async function loadGoals(planId: string | null): Promise<MonitoringSourceGoal[]>
         goal_id: text(shortGoal.plan_short_term_goal_id),
         parent_goal_id: longId,
         goal_type: "short_term",
-        goal_text: text(shortGoal.goal_text),
+        goal_text: cleanMonitoringGoalText(text(shortGoal.goal_text)),
         evaluation_start: nullableText(shortGoal.goal_start_date),
         evaluation_end: nullableText(shortGoal.goal_end_date),
       });

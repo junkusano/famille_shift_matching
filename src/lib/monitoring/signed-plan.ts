@@ -6,6 +6,7 @@ import {
 } from "@/lib/cs-docs-reprocess";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import type { MonitoringSignedPlan } from "@/types/monitoring";
+import { cleanMonitoringGoalText } from "./core";
 
 type CsDocRow = {
   id: string;
@@ -109,7 +110,7 @@ function toSignedPlan(row: CsDocRow): MonitoringSignedPlan {
     client_request: combinedHope || personHope,
     family_request: combinedHope ? "" : familyHope,
     issues: extractField(sourceText, ISSUES),
-    assistance_goal: extractField(sourceText, ASSISTANCE_GOAL),
+    assistance_goal: cleanMonitoringGoalText(extractField(sourceText, ASSISTANCE_GOAL)),
     ocr_ready: Boolean(sourceText),
     summary_ready: Boolean(text(row.summary)),
   };

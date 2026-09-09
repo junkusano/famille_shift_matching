@@ -88,6 +88,13 @@ export function effectiveOfficeNotice(individual: unknown, monthly: unknown): st
   return typeof monthly === "string" ? monthly : "";
 }
 
+/** OCRで目標の末尾につながったサービス時間・回数の帳票欄を除く。 */
+export function cleanMonitoringGoalText(value: string): string {
+  const serviceField = /[■□☑☐]\s*(?:身体(?:介護)?|家事(?:援助)?|重訪|重度訪問介護|通院|乗降|同行|行動援護)\s*(?:[（(]\s*伴(?:う|ず)\s*[）)])?\s*(?:[0-9０-９]+(?:[.．][0-9０-９]+)?\s*)?(?:時間|回数)/;
+  const index = value.search(serviceField);
+  return index < 0 ? value : value.slice(0, index).trimEnd();
+}
+
 export function buildMonitoringPdfFilename(params: {
   clientName: unknown;
   periodEnd: string;
