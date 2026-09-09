@@ -27,6 +27,10 @@ export type KnowledgeSyncJobType =
   | "rebuild_summary"
   | "oauth_test";
 
+export type KnowledgeStability = "core" | "slow_change" | "changing";
+export type KnowledgeConfidentiality = "public" | "internal" | "restricted";
+export type KnowledgeProcessingStatus = "generated" | "reviewed" | "applied" | "review_required";
+
 export type KnowledgeItem = {
   id: string;
   knowledge_key: string;
@@ -43,6 +47,14 @@ export type KnowledgeItem = {
   category: string | null;
   tags: string[];
   importance: number;
+  concept_level: 1 | 2 | 3 | 4 | null;
+  stability: KnowledgeStability | null;
+  confidentiality: KnowledgeConfidentiality | null;
+  source_references: unknown[];
+  last_verified_at: string | null;
+  processing_status: KnowledgeProcessingStatus;
+  generation_model: string | null;
+  important_changes: unknown[];
   confidence: number | null;
   related_departments: string[];
   related_services: string[];
@@ -172,3 +184,4 @@ export type KnowledgeRunResult = {
   cursorAfter: Record<string, unknown>;
   warnings: string[];
 };
+

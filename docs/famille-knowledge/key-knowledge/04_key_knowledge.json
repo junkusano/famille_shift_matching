@@ -1,0 +1,815 @@
+[
+  {
+    "key": "famille-knowledge-layered-architecture",
+    "title": "ファミーユナレッジの階層設計",
+    "category": "ファミーユナレッジ",
+    "concept_level": 1,
+    "summary": "原本、原本索引、確定指標、再利用可能なナレッジを分け、通常のOutputは圧縮済みナレッジから始める。",
+    "detail": "原本を新しい知識庫へ丸ごと複製せず、所在・版・ハッシュ・根拠を索引化する。そこから何度も使う事実、判断、教訓、傾向だけを知識として昇格する。通常のAI利用はキーナレッジと週次中間ナレッジを起点にし、根拠不足時だけ一次情報へ降りる。テーブル名やconnectorは変わり得るが、原本分離、根拠追跡、公開可否の分離は変えない。",
+    "source_type": "repository_docs_and_schema",
+    "source_reference": [
+      "docs/knowledge-engine/README.md",
+      "docs/knowledge-engine/sync-contracts.md",
+      "supabase/migrations/202609051200_knowledge_engine_v01.sql"
+    ],
+    "importance": 5,
+    "stability": "core",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "human-review-and-publication-boundary",
+      "privacy-first-source-boundary",
+      "code-change-to-design-knowledge"
+    ]
+  },
+  {
+    "key": "human-review-and-publication-boundary",
+    "title": "人が最終判断と公開承認を担う",
+    "category": "AI活用方針",
+    "concept_level": 1,
+    "summary": "AIの候補・要約と、確認済み事実・公開承認を分離し、人が最終判断する。",
+    "detail": "AI生成直後の内容は候補であり、確定的な社内回答や公開情報には使わない。review、verification、privacy、publishability、承認者・日時を分け、公開には全条件を満たすことを求める。承認画面や担当者は変わり得るが、AIだけで公開を確定しない原則は維持する。",
+    "source_type": "repository_docs_and_types",
+    "source_reference": [
+      "docs/knowledge-engine/README.md",
+      "src/lib/knowledge/types.ts"
+    ],
+    "importance": 5,
+    "stability": "core",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "famille-knowledge-layered-architecture",
+      "responsible-information-publishing",
+      "privacy-first-source-boundary"
+    ]
+  },
+  {
+    "key": "privacy-first-source-boundary",
+    "title": "プライバシーを先に判定し、原文を広げない",
+    "category": "情報ガバナンス",
+    "concept_level": 1,
+    "summary": "個人情報・機微情報を含む原本は、要約やAI利用より先に機密区分と公開可否を判定する。",
+    "detail": "FAX、利用者様記録、Voice、応募者情報、社内会話は横断コピーしない。個人情報を検知した候補は安全な抜粋を削除し、never_publishにする。FAXは常にrestricted、Voiceの秘密録音は録音者本人以外の一覧・二次利用から除外する。検知ルールや権限実装は変わり得るが、個人情報を公開ナレッジや外部AIの材料にしない。",
+    "source_type": "repository_code_and_schema",
+    "source_reference": [
+      "src/lib/knowledge/privacy.ts",
+      "docs/knowledge-engine/README.md",
+      "famille-voice54/supabase/migrations/20260829100000_add_recording_transcript_secret_mode.sql"
+    ],
+    "importance": 5,
+    "stability": "core",
+    "confidentiality": "restricted",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "fax-restricted-knowledge-boundary",
+      "famille-voice-contextual-transcription",
+      "human-review-and-publication-boundary"
+    ]
+  },
+  {
+    "key": "kusano-thought-log-editorial-source",
+    "title": "草野思考ログを経営・編集の原材料として扱う",
+    "category": "経営思想・情報発信",
+    "concept_level": 2,
+    "summary": "外部情報をファミーユ固有の判断へつなぐ、内部の思考原本である。",
+    "detail": "テーマ、会話要約、主張、背景、関連ナレッジを持つ思考ログを、行の版とハッシュで差分管理する。公開時は原文をそのまま出さず、確認可能な事実とファミーユの見解を分けて人が編集する。Sheet項目と記事化基準は変わり得るが、独自の問題意識を発信・判断へ結びつける役割は維持する。",
+    "source_type": "connector_and_source_config",
+    "source_reference": [
+      "src/lib/knowledge/connectors/googleSheets.ts",
+      "supabase/migrations/202609051200_knowledge_engine_v01.sql"
+    ],
+    "importance": 4,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "responsible-information-publishing",
+      "famille-knowledge-layered-architecture"
+    ]
+  },
+  {
+    "key": "role-based-lesson-reminders",
+    "title": "教訓リマインド：実例を一日4回届け、行動を変える",
+    "category": "組織文化・業務改善",
+    "concept_level": 3,
+    "summary": "実際のトラブル・苦情と利用者様への影響を役割別に伝え、一日4回のBot配信で、組織の学びと再発防止を日常業務へ埋め込む。",
+    "detail": "教訓リマインドは、起きたトラブル・苦情を抽象化しすぎず、利用者様・関係者への影響までストレートに記した実例を、ヘルパー、全マネジャー、マネジャー、総務、採用などの役割に応じて一日4回Botが自動配信する仕組みである。失敗を個人の記憶に閉じず、実例を繰り返し参照できる組織の記憶へ変える。原文には個人情報・機微情報が含まれ得るため、配信先は業務上必要な内部権限に限定し、キーナレッジや外部AIには原文を複製しない。キーナレッジへ昇格するのは、匿名化した一般原則、再発防止の仕組み、根拠へのアクセス境界だけである。配信時刻・対象役割・文面は変更され得るが、実例から学びを日常へ埋め込む役割は維持する。",
+    "source_type": "user_provided_operational_description_and_source_config",
+    "source_reference": [
+      "user instruction 2026-09-09",
+      "supabase/migrations/202609051200_knowledge_engine_v01.sql",
+      "src/lib/knowledge/connectors/googleSheets.ts"
+    ],
+    "importance": 5,
+    "stability": "core",
+    "confidentiality": "restricted",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "privacy-first-source-boundary",
+      "human-review-and-publication-boundary",
+      "ownership-leadership-principle",
+      "behavior-change-through-system-design",
+      "visit-record-and-team-performance"
+    ],
+    "evidence_status": "user_verified_sheet_rows_pending_read"
+  },
+  {
+    "key": "myfamille-operational-hub",
+    "title": "MyFamilleを運営情報のハブにする",
+    "category": "MyFamille",
+    "concept_level": 2,
+    "summary": "記録、実績、シフト、モニタリング、採用、RPA、FAXを権限つきでつなぐ業務基盤である。",
+    "detail": "業務データを個別ツールに閉じず、画面、API、RPAの共通基盤にする。ナレッジ化するのは集計条件を明示した事実・傾向であり、利用者様・職員ごとの業務データは既存権限の範囲に残す。機能構成やテーブルは変わり得るが、他の仕組みの連携先として運営情報をつなぐ役割は維持する。",
+    "source_type": "repository_code_and_docs",
+    "source_reference": [
+      "docs/knowledge-engine/README.md",
+      "src/app/portal",
+      "src/app/api/rpa"
+    ],
+    "importance": 5,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "rpa-runner-controlled-execution",
+      "famille-voice-contextual-transcription",
+      "visit-record-and-team-performance"
+    ]
+  },
+  {
+    "key": "famille-voice-contextual-transcription",
+    "title": "ファミーユVoiceは文脈付きの音声記録である",
+    "category": "ファミーユVoice",
+    "concept_level": 2,
+    "summary": "音声を文字起こしし、利用者様、打合せ種別、参加者、日時とともに業務文脈つきで保存する。",
+    "detail": "訪問、モニタリング、担当者会議、ご家族・ケアマネジャーとの会話、社内会議などをcontextとして持たせる。参加者ラベルと対象の利用者様をひも付け、文字起こしを単体メモで終わらせず必要な経緯を探せる記録にする。文字起こしモデルや選択肢は変わり得るが、文脈を持つ業務記録として扱い、秘密録音を本人だけに制限することは維持する。",
+    "source_type": "voice_app_code_and_schema",
+    "source_reference": [
+      "famille-voice54/constants/recording-options.ts",
+      "famille-voice54/types/local-recording.ts",
+      "famille-voice54/supabase/migrations/20260823000000_create_recording_transcripts.sql",
+      "src/lib/recording-transcripts.ts"
+    ],
+    "importance": 5,
+    "stability": "slow_change",
+    "confidentiality": "restricted",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "privacy-first-source-boundary",
+      "myfamille-operational-hub"
+    ]
+  },
+  {
+    "key": "rpa-runner-controlled-execution",
+    "title": "RPAとRPA Runnerは実行場所を分ける",
+    "category": "RPA",
+    "concept_level": 2,
+    "summary": "ブラウザ拡張の画面操作、ローカルRunnerの実行、MyFamilleのジョブ・進捗管理を分ける。",
+    "detail": "対象サービスの画面操作は拡張機能が担い、RunnerはMyFamilleから受け取ったジョブをローカルで実行して進捗を返す。自動化の個別ログはキーナレッジにせず、再利用できる制約、確認点、失敗時の扱いだけを残す。対象サービスとハンドラは変わり得るが、実行と指示・進捗を分離して追跡可能にする役割は維持する。",
+    "source_type": "rpa_repositories",
+    "source_reference": [
+      "famille-rpa/README.md",
+      "famille-rpa-runner/README.md",
+      "famille-rpa-runner/src/runner.ts",
+      "famille-rpa-runner/src/jobs/executeJob.ts"
+    ],
+    "importance": 4,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "myfamille-operational-hub",
+      "recruitment-and-spot-workflow",
+      "code-change-to-design-knowledge"
+    ]
+  },
+  {
+    "key": "visit-record-and-team-performance",
+    "title": "訪問記録とチームスコアは期限・協働を可視化する",
+    "category": "訪問介護事業運営",
+    "concept_level": 3,
+    "summary": "訪問記録の完結性と、チーム単位の実績・期限遵守を可視化して改善につなげる。",
+    "detail": "訪問記録の未完了・期限を確認し、リマインドとチームスコアで状況を早めに把握する。個人別点数や利用者様別記録を公開・横断AIの材料にはせず、チームで記録を後回しにしない運用原則を残す。スコア計算式、対象指標、期限は変わり得る。",
+    "source_type": "repository_schema_and_code",
+    "source_reference": [
+      "supabase/migrations/202608091900_team_performance_score_scheme.sql",
+      "supabase/migrations/202608091743_visit_record_deadline_and_reminder.sql",
+      "src/lib/shift/shift_record_check.ts"
+    ],
+    "importance": 4,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "role-based-lesson-reminders",
+      "shifco-self-coordination"
+    ]
+  },
+  {
+    "key": "shifco-self-coordination",
+    "title": "シフ子／シフ子Connectによる内外連動のシフト充足",
+    "category": "シフ子Connect・チーム運営",
+    "concept_level": 2,
+    "summary": "社内シフト「シフ子」と外部募集「タイミー」を連動し、必要なサービスを止めずに充足へつなぐ。",
+    "detail": "シフ子では公開シフトからヘルパーが自ら取得する。担当が決まらない枠は定めた時点でタイミーへ募集し、どちらかで担当が決まればもう一方の募集を止める。ローカル実装ではシフトWishも確認でき、希望と必要なサービスをマネジャーの調整へつなぐ。連携先、募集開始条件、対象サービスは変わり得るが、社内外の力を接続して必要なサービスを継続する役割は維持する。個人別のシフト詳細は含めない。",
+    "source_type": "repository_code_and_user_provided_visual",
+    "source_reference": [
+      "src/app/portal/shift-coordinate/page.tsx",
+      "src/components/shift-coordinate-performance-test/ShiftCoordinatePerformanceTestClient.tsx",
+      "supabase/migrations/202608171600_regular_shift_requests.sql",
+      "G:/共有ドライブ/バックオフィス共有ドライブ/デザイン素材/ファミーユ素材/シフ子コネクト始動！_横_202608.png",
+      "LINE WORKS board article 4090000000184687222 (user-provided URL; body pending read)"
+    ],
+    "importance": 4,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "visit-record-and-team-performance",
+      "recruitment-and-spot-workflow",
+      "myfamille-operational-hub",
+      "famille-breakthrough-process",
+      "manager-as-team-capacity-builder"
+    ]
+  },
+  {
+    "key": "recruitment-and-spot-workflow",
+    "title": "採用・スポット稼働は重複を避け人が送信を確認する",
+    "category": "採用",
+    "concept_level": 3,
+    "summary": "候補抽出・進捗管理を自動化し、応募者への連絡や求人公開は状態確認と人の判断を前提にする。",
+    "detail": "タイミー候補、SMS、再応募、Sharefull求人掲載では、登録済み、対象外、送信済み、失敗を区別する。応募者の氏名、電話番号、書類本文をキーナレッジに含めない。対象条件、文面、外部サービスは変わり得るが、重複・誤送信を防ぎ人が確認することは維持する。",
+    "source_type": "repository_code_and_schema",
+    "source_reference": [
+      "src/lib/taimee/applicantMatching.ts",
+      "src/lib/spot-sync/policy.ts",
+      "supabase/migrations/202608151800_reentry_recruitment.sql",
+      "famille-rpa/src/sidepanel/taimee.ts"
+    ],
+    "importance": 4,
+    "stability": "changing",
+    "confidentiality": "restricted",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "rpa-runner-controlled-execution",
+      "shifco-self-coordination"
+    ]
+  },
+  {
+    "key": "deterministic-financial-metrics-first",
+    "title": "財務は確定指標を先に作り、AIは説明に使う",
+    "category": "記録・請求",
+    "concept_level": 2,
+    "summary": "請求、会計、実績は決定的な計算で確定し、AIは確定値の説明と確認観点に使う。",
+    "detail": "請求管理表、Money Forward、MyFamille実績を、期間と集計条件つきの確定指標として結合する。AIに数値計算や集計条件の解釈を任せず、月次サマリーの説明・判断補助に限定する。指標定義、会計連携、締め時期は変わり得るが、数字をAIの推測で作らない原則は維持する。",
+    "source_type": "repository_docs_and_connectors",
+    "source_reference": [
+      "docs/knowledge-engine/README.md",
+      "src/lib/knowledge/connectors/moneyforward.ts",
+      "supabase/migrations/202609051200_knowledge_engine_v01.sql"
+    ],
+    "importance": 4,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "famille-knowledge-layered-architecture",
+      "web-analytics-for-content-improvement"
+    ]
+  },
+  {
+    "key": "code-change-to-design-knowledge",
+    "title": "変更履歴から再利用可能な設計判断だけを抽出する",
+    "category": "システム設計思想",
+    "concept_level": 3,
+    "summary": "コード全文ではなく、重要な仕様変更・制約・設計判断を根拠パスと差分に結びつける。",
+    "detail": "通常は設計要約を参照し、疑義がある時だけ該当ファイル・commit・近傍コードへ掘り下げる。秘密情報、依存物、生成物、バイナリ、lockfileを解析対象外にする。対象リポジトリや解析方法は変わり得るが、差分中心・根拠追跡・全文再保存をしない方針は維持する。",
+    "source_type": "repository_docs_and_local_git",
+    "source_reference": [
+      "docs/knowledge-engine/sync-contracts.md",
+      "famille_shift_matching local git history",
+      "famille-rpa local repository",
+      "famille-rpa-runner local repository"
+    ],
+    "importance": 4,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "famille-knowledge-layered-architecture",
+      "rpa-runner-controlled-execution"
+    ]
+  },
+  {
+    "key": "responsible-information-publishing",
+    "title": "情報発信は根拠・見解・公開安全性を分ける",
+    "category": "情報発信",
+    "concept_level": 2,
+    "summary": "外部情報、ファミーユの見解、公開可否を分け、確認済みの価値ある内容だけを届ける。",
+    "detail": "RSSや草野思考を材料にし、公開可能な事実と見解を分ける。WordPress連携では下書き・公開・検証を扱うが、公開自動化の可否は別ポリシーとして管理する。承認モードや記事テンプレートは変わり得るが、根拠・見解・公開判断を分けることは維持する。",
+    "source_type": "repository_docs_and_code",
+    "source_reference": [
+      "docs/knowledge-automation/blog-automation.md",
+      "src/lib/knowledge-automation/wordpressBlog.ts",
+      "docs/knowledge-engine/README.md"
+    ],
+    "importance": 4,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "human-review-and-publication-boundary",
+      "kusano-thought-log-editorial-source",
+      "web-analytics-for-content-improvement"
+    ]
+  },
+  {
+    "key": "safety-and-inclusion-information-delivery",
+    "title": "災害・余暇支援情報は確認して必要な相手へ届ける",
+    "category": "災害対応・障害者余暇支援",
+    "concept_level": 3,
+    "summary": "時間性の高い外部情報を、安全や地域参加に役立つ場合に確認して掲示・案内する。",
+    "detail": "災害・気象と障害のある方の地域参加につながるイベントは、記事量産の材料ではなく、利用者様の安全や暮らしに役立つ場合に届ける。個別イベントや当日の気象はキーナレッジにせず、週次中間ナレッジに置く。情報源、対象地域、配信条件は変わり得る。",
+    "source_type": "repository_routes_and_types",
+    "source_reference": [
+      "src/types/eventTasks.ts",
+      "src/app/api/event-tasks",
+      "src/lib/alert_add/event_task_check.ts",
+      "src/lib/knowledge-automation/catalog.ts"
+    ],
+    "importance": 3,
+    "stability": "changing",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "responsible-information-publishing"
+    ]
+  },
+  {
+    "key": "web-analytics-for-content-improvement",
+    "title": "Web分析は個人追跡でなく改善仮説の材料にする",
+    "category": "LLMO・GEO",
+    "concept_level": 3,
+    "summary": "Google AnalyticsとMicrosoft Clarityの集計傾向を、情報設計・記事テーマ・導線改善に使う。",
+    "detail": "表示回数や行動をそのまま目的にせず、読者が必要な情報にたどり着けているかを考える材料にする。個人を特定しない週次傾向だけを要約し、個別セッションや録画をキーナレッジにしない。指標、計測設定、対象ページは変わり得る。",
+    "source_type": "repository_migrations_and_docs",
+    "source_reference": [
+      "supabase/migrations/202609061800_add_web_analytics_knowledge_sources.sql",
+      "docs/knowledge-engine/README.md"
+    ],
+    "importance": 3,
+    "stability": "changing",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "responsible-information-publishing",
+      "famille-knowledge-layered-architecture"
+    ]
+  },
+  {
+    "key": "fax-restricted-knowledge-boundary",
+    "title": "FAXは内部索引から一般化できる教訓だけを扱う",
+    "category": "FAX・内部限定ナレッジ",
+    "concept_level": 3,
+    "summary": "FAXのOCR全文や個別文書を複製せず、匿名化できる一般教訓・傾向だけを再利用する。",
+    "detail": "元文書は既存FAX画面と既存権限で確認し、Knowledge Engineでは文書ID、種別、日時、原本リンクにとどめる。公開用要約は作成しない。文書分類や索引UIは変わり得るが、原文を複製せずnever_publishとする境界は維持する。",
+    "source_type": "repository_docs_code_and_gas",
+    "source_reference": [
+      "docs/knowledge-engine/README.md",
+      "src/lib/knowledge/privacy.ts",
+      "G:/マイドライブ/GAS/FAXTransfer/コード.js",
+      "G:/マイドライブ/GAS/cm_fax_receiver/コード.js"
+    ],
+    "importance": 5,
+    "stability": "core",
+    "confidentiality": "restricted",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "privacy-first-source-boundary",
+      "role-based-lesson-reminders"
+    ]
+  },
+  {
+    "key": "corporate-creed-kokoro-no-ishizue",
+    "title": "「心の礎」を組織の行動基盤として扱う",
+    "category": "組織文化・経営思想",
+    "concept_level": 1,
+    "summary": "ファミーユの行動指針「心の礎」を、個別制度より上位にある組織の判断基盤として参照する。",
+    "detail": "ユーザーが「心の礎」は基本思想に入っていると明示した。公開サイトには行動指針への導線があることを確認したが、指針本文の完全な読み取りは今回の対象外である。そのため具体的な文言や行動規範を推測して固定しない。今後は公式本文を根拠として取り込み、採用、マネジャー育成、問題解決、情報発信との関係を版管理する。",
+    "source_type": "user_provided_public_reference",
+    "source_reference": [
+      "https://shi-on.net/about-us/",
+      "https://www.shi-on.net/column/20240831001",
+      "user instruction 2026-09-09"
+    ],
+    "importance": 5,
+    "stability": "core",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "ownership-leadership-principle",
+      "process-improvement-over-person-blame",
+      "compliance-as-growth-foundation"
+    ],
+    "evidence_status": "official_text_pending_read"
+  },
+  {
+    "key": "ownership-leadership-principle",
+    "title": "上位者に求めるOwnership",
+    "category": "組織文化・マネジャー育成",
+    "concept_level": 1,
+    "summary": "上位者が課題を自分ごととして引き受け、仕組みとチームを前へ進めるための基本姿勢である。",
+    "detail": "ユーザーは、教訓リマインドのForマネジャーとFor全マネジャーに自身の信条が多く入り、とくにOwnershipが繰り返し語られていると説明した。これは個人を責める責任論でなく、上位者が待ちの姿勢にとどまらず課題の解決と再発防止を担う判断軸として保持する。具体表現・例外・通知対象は原本確認後に追加する。",
+    "source_type": "user_provided_google_sheet_reference",
+    "source_reference": [
+      "https://docs.google.com/spreadsheets/d/1qlPIJXZikm_M4beGY_DxQYxAJHfdwUcLCP9YcA72QP4/edit",
+      "lesson-reminders source configuration",
+      "user instruction 2026-09-09"
+    ],
+    "importance": 5,
+    "stability": "core",
+    "confidentiality": "restricted",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "corporate-creed-kokoro-no-ishizue",
+      "manager-as-team-capacity-builder",
+      "process-improvement-over-person-blame"
+    ],
+    "evidence_status": "sheet_rows_pending_read"
+  },
+  {
+    "key": "process-improvement-over-person-blame",
+    "title": "人を責めず、プロセスを改善する問題解決",
+    "category": "経営思想・組織文化",
+    "concept_level": 1,
+    "summary": "問題が起きたとき、自己や他者への非難に留まらず、再発しにくい手順・情報・仕組みを改善する。",
+    "detail": "公開コラムでは、問題を人への攻撃にせず、プロセスを改善する考え方を職場づくりとマネジャーの成長に結び付けている。事象、影響、原因仮説、変更した仕組み、検証結果を分けて扱い、誰かの属性や感情の記録を一般論として再利用しない。具体案件の解決方法はLevel 4の一次情報に残す。",
+    "source_type": "public_wordpress_article",
+    "source_reference": [
+      "https://www.shi-on.net/column/20240831036",
+      "https://www.shi-on.net/column/20240831021"
+    ],
+    "importance": 5,
+    "stability": "core",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "corporate-creed-kokoro-no-ishizue",
+      "ownership-leadership-principle",
+      "rpa-runner-controlled-execution",
+      "role-based-lesson-reminders"
+    ],
+    "evidence_status": "verified_public"
+  },
+  {
+    "key": "compliance-as-growth-foundation",
+    "title": "法令遵守を成長の土台として扱う",
+    "category": "情報ガバナンス・事業運営",
+    "concept_level": 1,
+    "summary": "事業の拡大や業務改善は、法令遵守と安全な運用の土台の上に置く。",
+    "detail": "ユーザーは、LINE WORKSの古い資料が、ファミーユが早期から法令遵守に正面から取り組んできた経緯を示すと説明した。成長施策や自動化を法令・個人情報・記録の要件から切り離さない原則だけを保存する。掲示本文を未読のため、当時の具体的制度、判断、事例、現行性は記載しない。",
+    "source_type": "user_provided_lineworks_reference",
+    "source_reference": [
+      "https://board.worksmobile.com/main/article/4090000000101349856",
+      "user instruction 2026-09-09"
+    ],
+    "importance": 5,
+    "stability": "core",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "privacy-first-source-boundary",
+      "human-review-and-publication-boundary",
+      "paperless-location-independent-office"
+    ],
+    "evidence_status": "board_body_pending_read"
+  },
+  {
+    "key": "famille-breakthrough-process",
+    "title": "Famille Breakthrough Process（FBP）",
+    "category": "採用・定着・事業成長",
+    "concept_level": 2,
+    "summary": "人が集まり、育ち、定着することで、訪問介護の事業成長を持続させるための統合的な仕組みである。",
+    "detail": "提供資料では、FBPを訪問介護の採用という難題を解決したプロセスとし、報酬水準、働きやすさ・休みやすさ、安心して働ける環境、成長を促す仕組み、がんばりへのねぎらいを相互に支える柱として示している。各柱が採用だけでなく育成・定着・安定したサービス提供につながる構造を保持する。賃金額、休暇日数、特典内容、外部サービスは変動情報として別管理にする。",
+    "source_type": "user_provided_visual_and_reference",
+    "source_reference": [
+      "G:/共有ドライブ/バックオフィス共有ドライブ/デザイン素材/ファミーユ素材/ファミーユが選ばれる理由(FBP)_202607.png",
+      "G:/共有ドライブ/バックオフィス共有ドライブ/デザイン素材/ファミーユ素材/FBP広告①_202607.pdf",
+      "G:/共有ドライブ/バックオフィス共有ドライブ/デザイン素材/ファミーユ素材/FBP広告②_202607.pdf",
+      "G:/共有ドライブ/バックオフィス共有ドライブ/デザイン素材/ファミーユ素材/FBP広告③_202608.pdf",
+      "G:/共有ドライブ/バックオフィス共有ドライブ/デザイン素材/ファミーユ素材/FBP広告④_202608.pdf",
+      "LINE WORKS board article 4090000000183486073 (user-provided URL; body pending read)"
+    ],
+    "importance": 5,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "manager-as-team-capacity-builder",
+      "team-capacity-linked-evaluation",
+      "shifco-self-coordination",
+      "helper-service-4-operating-model",
+      "career-growth-through-manager-experience"
+    ],
+    "evidence_status": "visual_verified_board_body_pending_read"
+  },
+  {
+    "key": "manager-as-team-capacity-builder",
+    "title": "マネジャーは自分で埋める人から、チームで埋められる仕組みをつくる人へ",
+    "category": "チーム運営・マネジャー育成",
+    "concept_level": 2,
+    "summary": "マネジャーは自分だけでシフトを埋めるのでなく、人材・情報・手順を整え、チーム全体で安定したサービス提供を実現する。",
+    "detail": "提供資料では、担当が決まらないときに、シフ子・タイミーでの募集、過去に入ったヘルパーへの声かけ、チームへの発信、新規エントリー者への打診を行い、それでも決まらない場合に初めて自ら入る流れを示している。同時に、基本情報、駐車・待ち合わせ、備考、初めての人でも迷わない手順を整え、「他の人でも入れる情報」にする。個々の穴埋めでなく、再現可能な提供体制とヘルパーの継続活躍を育てる。",
+    "source_type": "user_provided_visual",
+    "source_reference": [
+      "G:/共有ドライブ/バックオフィス共有ドライブ/デザイン素材/ファミーユ素材/マネジャーの役割が変わった_202608.png"
+    ],
+    "importance": 5,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "ownership-leadership-principle",
+      "shifco-self-coordination",
+      "visit-record-and-team-performance",
+      "team-capacity-linked-evaluation",
+      "famille-breakthrough-process"
+    ],
+    "evidence_status": "visual_verified"
+  },
+  {
+    "key": "team-capacity-linked-evaluation",
+    "title": "チームの提供力を育てる評価・報酬の考え方",
+    "category": "チーム運営・評価",
+    "concept_level": 3,
+    "summary": "マネジャーの評価は本人の稼働だけでなく、チーム・エリアが安定してサービスを提供できる力を育てたかに結び付ける。",
+    "detail": "提供資料は、チーム・エリアの管理スパン、スタッフ育成、新規利用者の獲得、仕組みの整備・改善を評価・報酬へつなげる考え方を示す。サービス時間、実績記録、訪問記録をチームで整える運用も示す。金額表、足切り、減額、点数、適用日などの制度値は変更頻度が高くrestrictedな運用データに分ける。",
+    "source_type": "user_provided_visual_and_repository",
+    "source_reference": [
+      "G:/共有ドライブ/バックオフィス共有ドライブ/デザイン素材/ファミーユ素材/マネジャーの報酬体系連動_202608.png",
+      "supabase/migrations/202608091900_team_performance_score_scheme.sql",
+      "supabase/migrations/202608091743_visit_record_deadline_and_reminder.sql"
+    ],
+    "importance": 4,
+    "stability": "changing",
+    "confidentiality": "restricted",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "manager-as-team-capacity-builder",
+      "visit-record-and-team-performance",
+      "famille-breakthrough-process",
+      "career-growth-through-manager-experience"
+    ],
+    "evidence_status": "visual_and_code_verified"
+  },
+  {
+    "key": "helper-service-4-operating-model",
+    "title": "ヘルパーサービス4.0：情報・記録・連絡を仕組み化して現場へ返す",
+    "category": "DX・訪問介護事業運営",
+    "concept_level": 2,
+    "summary": "記録、書類、連絡、シフトなどの間接業務をつなぎ、現場が利用者様への支援に集中しやすい運営モデルである。",
+    "detail": "公開コラムでは、キャンセル時のシフト・連絡、FAXや電子サイン文書のOCRと関連付け、打合せ録音の文字起こし・要約、シフ子によるシフト取得を、間接業務を仕組み化する例として示している。これらは一つの製品仕様でなく、情報を再利用可能にしてマネジャーの時間を利用者様の支援と品質へ戻す考え方として保持する。各機能の稼働可否と保管方法は別管理にする。",
+    "source_type": "public_wordpress_article_and_user_provided_visual",
+    "source_reference": [
+      "https://www.shi-on.net/column/20240831202",
+      "G:/共有ドライブ/バックオフィス共有ドライブ/デザイン素材/ファミーユ素材/ヘルパーサービス４.0 全体像.pdf"
+    ],
+    "importance": 4,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "famille-knowledge-layered-architecture",
+      "famille-voice-contextual-transcription",
+      "fax-restricted-knowledge-boundary",
+      "shifco-self-coordination",
+      "rpa-runner-controlled-execution"
+    ],
+    "evidence_status": "public_article_verified"
+  },
+  {
+    "key": "paperless-location-independent-office",
+    "title": "「行かない事務」：紙と場所への依存を減らす",
+    "category": "DX・間接業務",
+    "concept_level": 2,
+    "summary": "記録・申請・連絡を安全にデータ化し、必要な人が必要な場所で業務を完結できるようにする。",
+    "detail": "公開資料では、紙・手書き・現金に依存する作業を減らし、仕事の履歴とデータを安全かつ場所を問わずに保存・確認・共有する方向が示されている。単なる出社削減でなく、現場と事務の間の待ち・転記・所在不明を減らし、法令遵守と情報安全を満たす運営として扱う。ツール、承認手順、対象帳票は変わり得る。",
+    "source_type": "public_wordpress_article",
+    "source_reference": [
+      "https://www.shi-on.net/column/20240831035",
+      "https://www.shi-on.net/column/20240831001"
+    ],
+    "importance": 4,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "helper-service-4-operating-model",
+      "compliance-as-growth-foundation",
+      "myfamille-operational-hub",
+      "fax-restricted-knowledge-boundary"
+    ],
+    "evidence_status": "verified_public"
+  },
+  {
+    "key": "office-relocation-as-service-area-design",
+    "title": "事業所移転をサービス提供体制の再設計として扱う",
+    "category": "事業運営・組織成長",
+    "concept_level": 2,
+    "summary": "移転は住所変更に留めず、サービスエリア、チームの連携、利用者様への継続提供を整える経営判断として扱う。",
+    "detail": "ユーザーは事業所移転の意義を重要なキー候補として示した。公開コラム一覧と会社沿革には、移転・事業統合・サービスエリアの変化が記録されている。拠点を変えるときに人員、情報、関係機関、サービス継続、組織統合を一体で設計するという判断軸に限定する。住所、時期、理由、運用詳細は現行案内で都度確認する。",
+    "source_type": "public_site_and_user_provided_reference",
+    "source_reference": [
+      "https://www.shi-on.net/corporate",
+      "https://www.shi-on.net/column/cat0002",
+      "https://shi-on.net/20240831200-2/",
+      "user instruction 2026-09-09"
+    ],
+    "importance": 3,
+    "stability": "changing",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "paperless-location-independent-office",
+      "manager-as-team-capacity-builder",
+      "famille-breakthrough-process"
+    ],
+    "evidence_status": "public_index_verified_specific_article_pending_read"
+  },
+  {
+    "key": "career-growth-through-manager-experience",
+    "title": "個人の成長を、チームと利用者様の安心につなげるキャリア観",
+    "category": "採用・キャリア",
+    "concept_level": 2,
+    "summary": "マネジャー経験を通じて人・数字・仕組みに関わり、個人の成長をチームの提供力と利用者様の安心へつなげる。",
+    "detail": "提供資料では、成長企業に属すること、マネジャー経験を積むこと、技術変化に対応することを、個人の将来とチーム・利用者様の安心につなげている。昇進や報酬だけを目的にせず、チームで記録・情報を整え、一人に負担を集中させない組織能力を育てるキャリア観を残す。報酬額、技術の具体例、採用訴求は変わり得る。",
+    "source_type": "user_provided_visual",
+    "source_reference": [
+      "G:/共有ドライブ/バックオフィス共有ドライブ/デザイン素材/ファミーユ素材/キャリア提案_202608.png"
+    ],
+    "importance": 4,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "manager-as-team-capacity-builder",
+      "team-capacity-linked-evaluation",
+      "famille-breakthrough-process",
+      "ownership-leadership-principle"
+    ],
+    "evidence_status": "visual_verified"
+  },
+  {
+    "key": "daily-pay-as-financial-flexibility",
+    "title": "日払い制度は変動条件を伴う運用知として分ける",
+    "category": "採用・労務運用",
+    "concept_level": 3,
+    "summary": "日ごとの業務・記録・申請確認を条件として、給与の受取り時期を柔軟にする制度である。",
+    "detail": "提供資料には、当日の業務をまとめ、申請・確認を経て当日中の振込を行い、控除は後日の給与支給で精算する運用が示されている。この制度は採用・定着に関わり得るが、締切、対象、控除、支払額、適用条件は頻繁に変わり、個人の給与情報にも近い。キーナレッジでは柔軟な受取りを支える確認・精算の仕組みだけを保持し、制度条件は公開前の現行確認を必須とする。",
+    "source_type": "user_provided_visual",
+    "source_reference": [
+      "G:/共有ドライブ/バックオフィス共有ドライブ/デザイン素材/ファミーユ素材/日払い説明①.jpg"
+    ],
+    "importance": 2,
+    "stability": "changing",
+    "confidentiality": "restricted",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "famille-breakthrough-process",
+      "deterministic-financial-metrics-first",
+      "responsible-information-publishing"
+    ],
+    "evidence_status": "visual_verified"
+  },
+  {
+    "key": "growth-through-structural-problem-solving",
+    "title": "人手不足を仕組みの改善で乗り越える成長の軌跡",
+    "category": "経営思想・事業成長",
+    "concept_level": 2,
+    "summary": "採用難を一時的な根性論で埋めず、採用・定着・標準化・DXを積み重ねて提供力を伸ばす。",
+    "detail": "ユーザーは、人不足という困難から爆発的な成長へ至った軌跡を示す複数コラムを重要候補として提示した。今回、各記事の本文は未読のため、数値、時期、個別施策、因果関係を確定しない。FBP、行かない事務、ヘルパーサービス4.0、マネジャー運営を、採用難に対して組織の再現性を高める関連要素として参照する。歴史的な経緯は原典ごとに版管理し、現行施策と混同しない。",
+    "source_type": "user_provided_public_references",
+    "source_reference": [
+      "https://shi-on.net/20240831195-2/",
+      "https://shi-on.net/20240831196-2/",
+      "https://shi-on.net/20240831197-2/",
+      "https://shi-on.net/20240831202-2/",
+      "https://www.shi-on.net/column"
+    ],
+    "importance": 4,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "famille-breakthrough-process",
+      "helper-service-4-operating-model",
+      "paperless-location-independent-office",
+      "manager-as-team-capacity-builder"
+    ],
+    "evidence_status": "article_bodies_pending_read"
+  },
+  {
+    "key": "helper-service-2-foundation",
+    "title": "ヘルパーサービス2.0：徹底したペーパーレスとホワイトな人事制度",
+    "category": "DX・人事・事業成長",
+    "concept_level": 2,
+    "summary": "紙をなくして情報を安全に扱える状態をつくり、働きやすく公正な人事制度と結び付けて、事業を拡大できる土台をつくる。",
+    "detail": "ヘルパーサービス2.0の基礎は、ペーパーレスの徹底とホワイトな人事制度である。紙をなくすことで、記録・申請・情報共有を場所に縛られず行えるようになり、リモートワークと大きな事業所への統合を可能にする。統合による運営規模の拡大は、よりよい報酬水準へつながる構造として捉える。ただし、個々の賃金・休暇・評価値は変動するため、キーには制度の思想と因果の構造を残し、数値や適用条件は中間ナレッジで管理する。他事業所が成長の前に紙・情報・人事運用でつまずきやすいことに対する、ファミーユの基礎的な解答である。",
+    "source_type": "user_provided_operational_description_and_public_references",
+    "source_reference": [
+      "user instruction 2026-09-09",
+      "https://www.shi-on.net/column/20240831035",
+      "https://www.shi-on.net/column/20240831001"
+    ],
+    "importance": 5,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "paperless-location-independent-office",
+      "deterministic-financial-metrics-first",
+      "large-scale-operating-model",
+      "famille-breakthrough-process",
+      "helper-service-3-data-automation"
+    ],
+    "evidence_status": "user_verified_public_details_partially_verified"
+  },
+  {
+    "key": "large-scale-operating-model",
+    "title": "事業所の大型化を、提供力と報酬を高める必須命題として扱う",
+    "category": "事業運営・組織成長",
+    "concept_level": 1,
+    "summary": "ペーパーレスとリモート運営を基盤に、事業所を統合・大型化して提供力と報酬を高める。",
+    "detail": "ユーザーは、ペーパーレスがリモートワークを可能にし、大きな事業所への統合を実現し、それが報酬向上につながったと説明した。今後も事業所の大型化は必須命題と位置付ける。キーには、規模を目的化せず、安定したサービス提供、情報の共有、人材育成、働きやすさ、報酬原資を同時に高める運営モデルとして残す。統合先、時期、人数、報酬額、サービスエリアは変動情報であり、現行案内と一次資料で確認する。",
+    "source_type": "user_provided_operational_description_and_public_site",
+    "source_reference": [
+      "user instruction 2026-09-09",
+      "https://www.shi-on.net/corporate",
+      "https://www.shi-on.net/column/cat0002"
+    ],
+    "importance": 5,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "helper-service-2-foundation",
+      "office-relocation-as-service-area-design",
+      "manager-as-team-capacity-builder",
+      "team-capacity-linked-evaluation"
+    ],
+    "evidence_status": "user_verified_public_history_partially_verified"
+  },
+  {
+    "key": "helper-service-3-data-automation",
+    "title": "ヘルパーサービス3.0：集まったデータを二次活用し、作業を自動化する",
+    "category": "DX・業務自動化",
+    "concept_level": 2,
+    "summary": "ペーパーレスで蓄積したデータを二次活用し、間接業務を自動化して現場へ時間と判断材料を返す。",
+    "detail": "ヘルパーサービス3.0は、2.0で紙からデータへ変えた情報を二次活用し、RPA、Bot、連携、定型処理の自動化へ進める重要な段階である。データを貯めるだけで終えず、確認・転記・通知・照合などの繰り返し作業を安全に仕組みへ移す。ユーザーは、現場レベルでは現在も実質的に3.0の動きが続いていると説明している。機能ごとの現行稼働状況は別管理にし、個人情報を含む原文を自動化・外部AIの材料として無制限に広げない。",
+    "source_type": "user_provided_operational_description_and_repository",
+    "source_reference": [
+      "user instruction 2026-09-09",
+      "famille-rpa/README.md",
+      "famille-rpa-runner/README.md",
+      "src/app/api/rpa"
+    ],
+    "importance": 5,
+    "stability": "slow_change",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "helper-service-2-foundation",
+      "helper-service-4-operating-model",
+      "rpa-runner-controlled-execution",
+      "famille-knowledge-layered-architecture"
+    ],
+    "evidence_status": "user_verified_repository_partially_verified"
+  },
+  {
+    "key": "behavior-change-through-system-design",
+    "title": "仕組み化でCan／Must／Wantに届かせ、行動を変える",
+    "category": "経営思想・組織設計",
+    "concept_level": 1,
+    "summary": "スローガンや注意喚起だけに頼らず、できる状態、すべき状態、やりたい状態をそろえる仕組みで行動を変える。",
+    "detail": "ファミーユの仕組み化は、注意を促すだけで行動が変わるとは考えない。必要な情報、選びやすい導線、役割、期限、確認、評価、支援を設計し、Can（できる）、Must（すべき）、Want（やりたい）に届く状態をつくる。教訓リマインドは実例を届ける重要な仕組みだが、それ単体では完結せず、訪問記録、シフト、マネジャー運営、評価、RPAなどの業務設計と結び付いて初めて再現性を持つ。具体的な評価・通知・ツールは変更され得るが、人の善意だけに依存せず行動可能な環境をつくる原則はcoreである。",
+    "source_type": "user_provided_operational_description_and_repository",
+    "source_reference": [
+      "user instruction 2026-09-09",
+      "supabase/migrations/202608091743_visit_record_deadline_and_reminder.sql",
+      "supabase/migrations/202608091900_team_performance_score_scheme.sql"
+    ],
+    "importance": 5,
+    "stability": "core",
+    "confidentiality": "internal",
+    "last_verified_at": "2026-09-09",
+    "related_keys": [
+      "role-based-lesson-reminders",
+      "process-improvement-over-person-blame",
+      "manager-as-team-capacity-builder",
+      "visit-record-and-team-performance",
+      "helper-service-3-data-automation"
+    ],
+    "evidence_status": "user_verified_repository_partially_verified"
+  }
+]

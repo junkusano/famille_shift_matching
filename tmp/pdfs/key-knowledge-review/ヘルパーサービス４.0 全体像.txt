@@ -1,0 +1,5 @@
+Myfamille システム全体像
+Myfamilleﾎﾟｰﾀﾙ
+Node.js+Vercell
+DB：Supabase
+ラインワークスカイポケ利用者情報社員情報連携制度・おしらせ利用者情報社員情報シフト・訪問記録勤怠（パート）請求処理ｱﾌﾟﾘ連携GmailAPI+GASDigiSignAPI+BotRPARPA秒速FaxタイミーChatGPTAbbyOCRAPIShi-on.netMFｸﾗｳﾄﾞ機能集約ペーパーレス－＞ちらばったアプリを連携・機能集約＋新しい機能新機能
