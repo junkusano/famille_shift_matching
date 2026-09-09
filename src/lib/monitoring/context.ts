@@ -227,8 +227,9 @@ export async function loadMonitoringContext(params: {
   clientInfoId: string;
   periodStart: string;
   periodEnd: string;
+  evaluationDate?: string;
 }): Promise<MonitoringContext> {
-  const { clientInfoId, periodStart, periodEnd } = params;
+  const { clientInfoId, periodStart, periodEnd, evaluationDate } = params;
   const { data: clientRow, error: clientError } = await supabaseAdmin
     .from("cs_kaipoke_info")
     .select(
@@ -367,7 +368,10 @@ export async function loadMonitoringContext(params: {
   const officeName = "ファミーユヘルパーサービス愛知";
 
   const monthlyNotice = serviceTypeDetected
-    ? await getMonitoringMonthlyNotice({ serviceType: serviceTypeDetected, periodEnd })
+    ? await getMonitoringMonthlyNotice({
+        serviceType: serviceTypeDetected,
+        evaluationDate: evaluationDate || periodEnd,
+      })
     : null;
   const officeNotice = text(monthlyNotice?.body);
 

@@ -86,7 +86,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "評価日を指定してください" }, { status: 400 });
     }
 
-    const initialContext = await loadMonitoringContext({ clientInfoId, periodStart, periodEnd });
+    const initialContext = await loadMonitoringContext({
+      clientInfoId,
+      periodStart,
+      periodEnd,
+      evaluationDate,
+    });
     const { token } = await getUserFromBearer(request);
     if (!token) throw new Error("署名済みプランの準備に必要な認証情報を取得できません");
     await prepareMonitoringSignedPlan({
@@ -94,7 +99,12 @@ export async function POST(request: NextRequest) {
       periodEnd,
       accessToken: token,
     });
-    const context = await loadMonitoringContext({ clientInfoId, periodStart, periodEnd });
+    const context = await loadMonitoringContext({
+      clientInfoId,
+      periodStart,
+      periodEnd,
+      evaluationDate,
+    });
     const requestedType = body.service_type;
     const serviceType = isServiceType(requestedType)
       ? requestedType

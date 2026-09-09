@@ -39,6 +39,7 @@ export async function POST(request: NextRequest, { params }: Context) {
       clientInfoId: monitoring.client_info_id,
       periodStart: monitoring.period_start,
       periodEnd: monitoring.period_end,
+      evaluationDate: monitoring.evaluation_date,
     });
     const target = context.fax_target;
     if (!target.fax_number) {
