@@ -1,0 +1,14 @@
+.codex
+.git
+.next
+.pnpm-store
+.tmp.driveupload
+.vercel
+.vscode
+node_modules
+output
+tests
+tmp
+ドキュメントの原本
+.env*
+*.tsbuildinfo
