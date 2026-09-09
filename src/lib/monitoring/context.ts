@@ -376,8 +376,7 @@ export async function loadMonitoringContext(params: {
   const officeNotice = text(monthlyNotice?.body);
 
   const warnings: string[] = [];
-  if (!assessmentResult.data) warnings.push("対象期間以前のアセスメントがありません");
-  if (!plan) warnings.push("対象期間に有効なプランがありません");
+  if (!plan && !signedPlan) warnings.push("対象期間に有効なプランがありません");
   if (goals.length === 0) warnings.push("長期／短期目標がありません");
   if (evidenceRecords.length === 0) warnings.push("対象期間の訪問記録がありません");
   const hasRegisteredContact = Boolean(

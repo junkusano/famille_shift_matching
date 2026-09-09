@@ -317,7 +317,6 @@ export async function processMonitoringBulkItem(params: {
   if (!signedPlan) reasons.push("署名済みプランがありません");
   if (signedPlan && !signedPlan.ocr_ready) reasons.push("署名済みプランをテキスト化できません");
   if (signedPlan && !signedPlan.summary_ready) reasons.push("署名済みプランを要約できません");
-  if (!context.assessment) reasons.push("対象期間以前のアセスメントがありません");
   if (context.service_type_detected === "care_insurance" && context.goals.length === 0) reasons.push("援助目標を取得できません");
   if (context.visit_records.length === 0) reasons.push("対象月の訪問内容を確認できません");
   if (!context.service_type_detected) reasons.push("サービス種別を判定できません");

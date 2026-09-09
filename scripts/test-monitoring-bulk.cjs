@@ -58,6 +58,11 @@ async function scenario(options = {}) {
   const success = await scenario();
   assert.equal(success.result?.status, 'sent', success.error?.stack);
   assert.equal(success.calls.filter(c => c.fax).length, 1);
+  const migrated = await scenario({ context: { assessment: null, plan: null } });
+  assert.equal(migrated.result?.status, 'sent', migrated.error?.stack);
+  assert.equal(migrated.calls.filter(c => c.fax).length, 1);
+  assert.ok(!migrated.calls.some(c => c.table === 'event_tasks'));
+  assert.equal(migrated.calls.find(c => c.table === 'client_monitorings' && c.action === 'insert').value.assessment_id, null);
   const uncertain = await scenario({ faxError: true });
   assert.ok(uncertain.error);
   assert.equal(uncertain.calls.filter(c => c.fax).length, 1);
