@@ -29,6 +29,206 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_playbooks: {
+        Row: {
+          allowed_actions: Json
+          approver_scope: string
+          category: string
+          confirmation_mode: string
+          context_message_limit: number
+          context_minutes: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          execution_mode: string
+          id: string
+          instructions: string
+          is_enabled: boolean
+          is_locked: boolean
+          locked_reason: string | null
+          name: string
+          room_scope: string
+          session_ttl_minutes: number
+          situation: string
+          sort_order: number
+          trigger_examples: Json
+          trigger_mode: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          allowed_actions?: Json
+          approver_scope?: string
+          category: string
+          confirmation_mode?: string
+          context_message_limit?: number
+          context_minutes?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          execution_mode?: string
+          id?: string
+          instructions: string
+          is_enabled?: boolean
+          is_locked?: boolean
+          locked_reason?: string | null
+          name: string
+          room_scope?: string
+          session_ttl_minutes?: number
+          situation: string
+          sort_order?: number
+          trigger_examples?: Json
+          trigger_mode?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          allowed_actions?: Json
+          approver_scope?: string
+          category?: string
+          confirmation_mode?: string
+          context_message_limit?: number
+          context_minutes?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          execution_mode?: string
+          id?: string
+          instructions?: string
+          is_enabled?: boolean
+          is_locked?: boolean
+          locked_reason?: string | null
+          name?: string
+          room_scope?: string
+          session_ttl_minutes?: number
+          situation?: string
+          sort_order?: number
+          trigger_examples?: Json
+          trigger_mode?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      agent_runs: {
+        Row: {
+          action_name: string | null
+          created_at: string
+          decision_summary: Json
+          error_code: string | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          input_summary: Json
+          output_summary: Json
+          playbook_id: string | null
+          session_id: string | null
+          started_at: string
+          status: string
+          trigger_source: string
+        }
+        Insert: {
+          action_name?: string | null
+          created_at?: string
+          decision_summary?: Json
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          input_summary?: Json
+          output_summary?: Json
+          playbook_id?: string | null
+          session_id?: string | null
+          started_at?: string
+          status?: string
+          trigger_source: string
+        }
+        Update: {
+          action_name?: string | null
+          created_at?: string
+          decision_summary?: Json
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          input_summary?: Json
+          output_summary?: Json
+          playbook_id?: string | null
+          session_id?: string | null
+          started_at?: string
+          status?: string
+          trigger_source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_playbook_id_fkey"
+            columns: ["playbook_id"]
+            isOneToOne: false
+            referencedRelation: "agent_playbooks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_runs_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_sessions: {
+        Row: {
+          channel_id: string
+          completed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          pending_action: Json | null
+          playbook_id: string | null
+          requester_lw_userid: string | null
+          source_message_ids: Json
+          state: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          channel_id: string
+          completed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          pending_action?: Json | null
+          playbook_id?: string | null
+          requester_lw_userid?: string | null
+          source_message_ids?: Json
+          state?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string
+          completed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          pending_action?: Json | null
+          playbook_id?: string | null
+          requester_lw_userid?: string | null
+          source_message_ids?: Json
+          state?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_sessions_playbook_id_fkey"
+            columns: ["playbook_id"]
+            isOneToOne: false
+            referencedRelation: "agent_playbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alert_log: {
         Row: {
           assigned_org_id: string | null
@@ -5725,6 +5925,39 @@ export type Database = {
         }
         Relationships: []
       }
+      integration_oauth_states: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          initiated_by: string
+          provider: string
+          return_path: string | null
+          state_hash: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          initiated_by: string
+          provider: string
+          return_path?: string | null
+          state_hash: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          initiated_by?: string
+          provider?: string
+          return_path?: string | null
+          state_hash?: string
+        }
+        Relationships: []
+      }
       jisseki_forms: {
         Row: {
           created_at: string | null
@@ -5775,6 +6008,974 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      knowledge_automation_runs: {
+        Row: {
+          claimed_at: string | null
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          idempotency_key: string
+          input_summary: Json
+          lease_expires_at: string | null
+          output_reference: string | null
+          output_summary: Json
+          safety_findings: Json
+          safety_result: string | null
+          scheduled_for: string | null
+          started_at: string | null
+          status: string
+          task_id: string
+          trigger_source: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          idempotency_key: string
+          input_summary?: Json
+          lease_expires_at?: string | null
+          output_reference?: string | null
+          output_summary?: Json
+          safety_findings?: Json
+          safety_result?: string | null
+          scheduled_for?: string | null
+          started_at?: string | null
+          status?: string
+          task_id: string
+          trigger_source?: string
+        }
+        Update: {
+          claimed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          idempotency_key?: string
+          input_summary?: Json
+          lease_expires_at?: string | null
+          output_reference?: string | null
+          output_summary?: Json
+          safety_findings?: Json
+          safety_result?: string | null
+          scheduled_for?: string | null
+          started_at?: string | null
+          status?: string
+          task_id?: string
+          trigger_source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_automation_runs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_automation_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_automation_tasks: {
+        Row: {
+          approval_mode: string
+          compliance_filter_enabled: boolean
+          condition_summary: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          destination: string
+          id: string
+          is_enabled: boolean
+          last_error_at: string | null
+          last_error_message: string | null
+          last_result: string | null
+          last_run_at: string | null
+          last_success_at: string | null
+          name: string
+          next_run_at: string | null
+          privacy_filter_enabled: boolean
+          safety_policy_version: string
+          schedule: Json
+          settings: Json
+          task_type: string
+          timezone: string
+          trigger_type: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          approval_mode?: string
+          compliance_filter_enabled?: boolean
+          condition_summary?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          destination: string
+          id?: string
+          is_enabled?: boolean
+          last_error_at?: string | null
+          last_error_message?: string | null
+          last_result?: string | null
+          last_run_at?: string | null
+          last_success_at?: string | null
+          name: string
+          next_run_at?: string | null
+          privacy_filter_enabled?: boolean
+          safety_policy_version?: string
+          schedule?: Json
+          settings?: Json
+          task_type: string
+          timezone?: string
+          trigger_type: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          approval_mode?: string
+          compliance_filter_enabled?: boolean
+          condition_summary?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          destination?: string
+          id?: string
+          is_enabled?: boolean
+          last_error_at?: string | null
+          last_error_message?: string | null
+          last_result?: string | null
+          last_run_at?: string | null
+          last_success_at?: string | null
+          name?: string
+          next_run_at?: string | null
+          privacy_filter_enabled?: boolean
+          safety_policy_version?: string
+          schedule?: Json
+          settings?: Json
+          task_type?: string
+          timezone?: string
+          trigger_type?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      knowledge_code_artifacts: {
+        Row: {
+          analysis_confidence: number | null
+          architectural_role: string | null
+          branch: string
+          commit_sha: string
+          component: string | null
+          created_at: string
+          feature: string | null
+          file_url: string
+          id: string
+          knowledge_item_id: string | null
+          language: string | null
+          last_analyzed_at: string
+          manually_verified: boolean
+          path: string
+          related_api_routes: string[]
+          related_tables: string[]
+          repository: string
+          security_relevance: string[]
+          source_object_id: string
+          summary: string
+          updated_at: string
+        }
+        Insert: {
+          analysis_confidence?: number | null
+          architectural_role?: string | null
+          branch: string
+          commit_sha: string
+          component?: string | null
+          created_at?: string
+          feature?: string | null
+          file_url: string
+          id?: string
+          knowledge_item_id?: string | null
+          language?: string | null
+          last_analyzed_at: string
+          manually_verified?: boolean
+          path: string
+          related_api_routes?: string[]
+          related_tables?: string[]
+          repository: string
+          security_relevance?: string[]
+          source_object_id: string
+          summary: string
+          updated_at?: string
+        }
+        Update: {
+          analysis_confidence?: number | null
+          architectural_role?: string | null
+          branch?: string
+          commit_sha?: string
+          component?: string | null
+          created_at?: string
+          feature?: string | null
+          file_url?: string
+          id?: string
+          knowledge_item_id?: string | null
+          language?: string | null
+          last_analyzed_at?: string
+          manually_verified?: boolean
+          path?: string
+          related_api_routes?: string[]
+          related_tables?: string[]
+          repository?: string
+          security_relevance?: string[]
+          source_object_id?: string
+          summary?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_code_artifacts_knowledge_item_id_fkey"
+            columns: ["knowledge_item_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_code_artifacts_source_object_id_fkey"
+            columns: ["source_object_id"]
+            isOneToOne: true
+            referencedRelation: "knowledge_source_objects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_evidence_links: {
+        Row: {
+          cited_location: Json
+          confidence: number | null
+          created_at: string
+          evidence_note: string | null
+          id: string
+          knowledge_item_id: string
+          relation_type: string
+          source_object_id: string
+        }
+        Insert: {
+          cited_location?: Json
+          confidence?: number | null
+          created_at?: string
+          evidence_note?: string | null
+          id?: string
+          knowledge_item_id: string
+          relation_type?: string
+          source_object_id: string
+        }
+        Update: {
+          cited_location?: Json
+          confidence?: number | null
+          created_at?: string
+          evidence_note?: string | null
+          id?: string
+          knowledge_item_id?: string
+          relation_type?: string
+          source_object_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_evidence_links_knowledge_item_id_fkey"
+            columns: ["knowledge_item_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_evidence_links_source_object_id_fkey"
+            columns: ["source_object_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_source_objects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_integrations: {
+        Row: {
+          access_token_encrypted: string | null
+          access_token_secret_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          last_connected_at: string | null
+          last_error_at: string | null
+          last_error_code: string | null
+          last_error_message: string | null
+          last_refreshed_at: string | null
+          last_tested_at: string | null
+          metadata: Json
+          provider: string
+          provider_account_id: string | null
+          provider_account_name: string | null
+          refresh_token_encrypted: string | null
+          refresh_token_secret_id: string | null
+          scopes: string[]
+          status: string
+          token_expires_at: string | null
+          token_storage: string
+          updated_at: string
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          access_token_secret_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_connected_at?: string | null
+          last_error_at?: string | null
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_refreshed_at?: string | null
+          last_tested_at?: string | null
+          metadata?: Json
+          provider: string
+          provider_account_id?: string | null
+          provider_account_name?: string | null
+          refresh_token_encrypted?: string | null
+          refresh_token_secret_id?: string | null
+          scopes?: string[]
+          status?: string
+          token_expires_at?: string | null
+          token_storage?: string
+          updated_at?: string
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          access_token_secret_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_connected_at?: string | null
+          last_error_at?: string | null
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_refreshed_at?: string | null
+          last_tested_at?: string | null
+          metadata?: Json
+          provider?: string
+          provider_account_id?: string | null
+          provider_account_name?: string | null
+          refresh_token_encrypted?: string | null
+          refresh_token_secret_id?: string | null
+          scopes?: string[]
+          status?: string
+          token_expires_at?: string | null
+          token_storage?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      knowledge_items: {
+        Row: {
+          allowed_audiences: string[]
+          approved_at: string | null
+          approved_by: string | null
+          authorship: string
+          category: string | null
+          concept_level: number | null
+          confidence: number | null
+          confidentiality: string | null
+          contains_personal_data: boolean
+          content: string | null
+          created_at: string
+          created_by: string | null
+          drive_url: string | null
+          generation_model: string | null
+          id: string
+          importance: number
+          important_changes: Json
+          is_current: boolean
+          knowledge_key: string
+          knowledge_type: string
+          last_verified_at: string | null
+          metadata: Json
+          occurred_at: string | null
+          parent_knowledge_id: string | null
+          period_end: string | null
+          period_start: string | null
+          primary_source_id: string | null
+          privacy_level: number
+          processing_status: string
+          public_summary: string | null
+          publishability: string
+          redaction_status: string
+          related_departments: string[]
+          related_people: Json
+          related_services: string[]
+          review_status: string
+          source_references: Json
+          source_url: string | null
+          stability: string | null
+          summary: string
+          supersedes_id: string | null
+          tags: string[]
+          title: string
+          updated_at: string
+          verification_status: string
+          version: number
+        }
+        Insert: {
+          allowed_audiences?: string[]
+          approved_at?: string | null
+          approved_by?: string | null
+          authorship?: string
+          category?: string | null
+          concept_level?: number | null
+          confidence?: number | null
+          confidentiality?: string | null
+          contains_personal_data?: boolean
+          content?: string | null
+          created_at?: string
+          created_by?: string | null
+          drive_url?: string | null
+          generation_model?: string | null
+          id?: string
+          importance?: number
+          important_changes?: Json
+          is_current?: boolean
+          knowledge_key: string
+          knowledge_type: string
+          last_verified_at?: string | null
+          metadata?: Json
+          occurred_at?: string | null
+          parent_knowledge_id?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          primary_source_id?: string | null
+          privacy_level?: number
+          processing_status?: string
+          public_summary?: string | null
+          publishability?: string
+          redaction_status?: string
+          related_departments?: string[]
+          related_people?: Json
+          related_services?: string[]
+          review_status?: string
+          source_references?: Json
+          source_url?: string | null
+          stability?: string | null
+          summary: string
+          supersedes_id?: string | null
+          tags?: string[]
+          title: string
+          updated_at?: string
+          verification_status?: string
+          version?: number
+        }
+        Update: {
+          allowed_audiences?: string[]
+          approved_at?: string | null
+          approved_by?: string | null
+          authorship?: string
+          category?: string | null
+          concept_level?: number | null
+          confidence?: number | null
+          confidentiality?: string | null
+          contains_personal_data?: boolean
+          content?: string | null
+          created_at?: string
+          created_by?: string | null
+          drive_url?: string | null
+          generation_model?: string | null
+          id?: string
+          importance?: number
+          important_changes?: Json
+          is_current?: boolean
+          knowledge_key?: string
+          knowledge_type?: string
+          last_verified_at?: string | null
+          metadata?: Json
+          occurred_at?: string | null
+          parent_knowledge_id?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          primary_source_id?: string | null
+          privacy_level?: number
+          processing_status?: string
+          public_summary?: string | null
+          publishability?: string
+          redaction_status?: string
+          related_departments?: string[]
+          related_people?: Json
+          related_services?: string[]
+          review_status?: string
+          source_references?: Json
+          source_url?: string | null
+          stability?: string | null
+          summary?: string
+          supersedes_id?: string | null
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          verification_status?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_items_parent_knowledge_id_fkey"
+            columns: ["parent_knowledge_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_items_primary_source_id_fkey"
+            columns: ["primary_source_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_items_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_metric_snapshots: {
+        Row: {
+          calculation_version: string
+          created_at: string
+          dedupe_key: string
+          department: string | null
+          dimensions: Json
+          id: string
+          metric_key: string
+          period_end: string
+          period_start: string
+          privacy_level: number
+          service: string | null
+          source_object_id: string
+          unit: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          calculation_version: string
+          created_at?: string
+          dedupe_key: string
+          department?: string | null
+          dimensions?: Json
+          id?: string
+          metric_key: string
+          period_end: string
+          period_start: string
+          privacy_level?: number
+          service?: string | null
+          source_object_id: string
+          unit: string
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          calculation_version?: string
+          created_at?: string
+          dedupe_key?: string
+          department?: string | null
+          dimensions?: Json
+          id?: string
+          metric_key?: string
+          period_end?: string
+          period_start?: string
+          privacy_level?: number
+          service?: string | null
+          source_object_id?: string
+          unit?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_metric_snapshots_source_object_id_fkey"
+            columns: ["source_object_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_source_objects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_relations: {
+        Row: {
+          authorship: string
+          confidence: number | null
+          created_at: string
+          from_knowledge_id: string
+          id: string
+          manually_verified: boolean
+          metadata: Json
+          relation_type: string
+          to_knowledge_id: string
+        }
+        Insert: {
+          authorship?: string
+          confidence?: number | null
+          created_at?: string
+          from_knowledge_id: string
+          id?: string
+          manually_verified?: boolean
+          metadata?: Json
+          relation_type: string
+          to_knowledge_id: string
+        }
+        Update: {
+          authorship?: string
+          confidence?: number | null
+          created_at?: string
+          from_knowledge_id?: string
+          id?: string
+          manually_verified?: boolean
+          metadata?: Json
+          relation_type?: string
+          to_knowledge_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_relations_from_knowledge_id_fkey"
+            columns: ["from_knowledge_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_relations_to_knowledge_id_fkey"
+            columns: ["to_knowledge_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_source_checkpoints: {
+        Row: {
+          cursor: Json
+          cursor_version: number
+          last_object_at: string | null
+          last_success_at: string | null
+          source_id: string
+          updated_at: string
+        }
+        Insert: {
+          cursor?: Json
+          cursor_version?: number
+          last_object_at?: string | null
+          last_success_at?: string | null
+          source_id: string
+          updated_at?: string
+        }
+        Update: {
+          cursor?: Json
+          cursor_version?: number
+          last_object_at?: string | null
+          last_success_at?: string | null
+          source_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_source_checkpoints_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: true
+            referencedRelation: "knowledge_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_source_objects: {
+        Row: {
+          contains_personal_data: boolean
+          content_hash: string
+          created_at: string
+          drive_url: string | null
+          external_id: string
+          first_seen_at: string
+          id: string
+          is_current: boolean
+          last_seen_at: string
+          locator: Json
+          metadata: Json
+          object_type: string
+          occurred_at: string | null
+          period_end: string | null
+          period_start: string | null
+          privacy_level: number
+          processing_status: string
+          publishability: string
+          safe_excerpt: string | null
+          source_id: string
+          source_revision: string
+          source_url: string | null
+          supersedes_id: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          contains_personal_data?: boolean
+          content_hash: string
+          created_at?: string
+          drive_url?: string | null
+          external_id: string
+          first_seen_at?: string
+          id?: string
+          is_current?: boolean
+          last_seen_at?: string
+          locator?: Json
+          metadata?: Json
+          object_type: string
+          occurred_at?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          privacy_level: number
+          processing_status?: string
+          publishability: string
+          safe_excerpt?: string | null
+          source_id: string
+          source_revision?: string
+          source_url?: string | null
+          supersedes_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contains_personal_data?: boolean
+          content_hash?: string
+          created_at?: string
+          drive_url?: string | null
+          external_id?: string
+          first_seen_at?: string
+          id?: string
+          is_current?: boolean
+          last_seen_at?: string
+          locator?: Json
+          metadata?: Json
+          object_type?: string
+          occurred_at?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          privacy_level?: number
+          processing_status?: string
+          publishability?: string
+          safe_excerpt?: string | null
+          source_id?: string
+          source_revision?: string
+          source_url?: string | null
+          supersedes_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_source_objects_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_source_objects_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_source_objects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_sources: {
+        Row: {
+          config: Json
+          connector_key: string
+          created_at: string
+          created_by: string | null
+          default_category: string | null
+          default_privacy_level: number
+          default_publishability: string
+          description: string | null
+          drive_url: string | null
+          enabled: boolean
+          id: string
+          integration_id: string | null
+          last_error_at: string | null
+          last_error_code: string | null
+          last_error_message: string | null
+          last_run_at: string | null
+          last_success_at: string | null
+          name: string
+          next_run_at: string | null
+          schedule: Json
+          source_key: string
+          source_type: string
+          source_url: string | null
+          sync_frequency: string
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          connector_key: string
+          created_at?: string
+          created_by?: string | null
+          default_category?: string | null
+          default_privacy_level?: number
+          default_publishability?: string
+          description?: string | null
+          drive_url?: string | null
+          enabled?: boolean
+          id?: string
+          integration_id?: string | null
+          last_error_at?: string | null
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_run_at?: string | null
+          last_success_at?: string | null
+          name: string
+          next_run_at?: string | null
+          schedule?: Json
+          source_key: string
+          source_type: string
+          source_url?: string | null
+          sync_frequency?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          connector_key?: string
+          created_at?: string
+          created_by?: string | null
+          default_category?: string | null
+          default_privacy_level?: number
+          default_publishability?: string
+          description?: string | null
+          drive_url?: string | null
+          enabled?: boolean
+          id?: string
+          integration_id?: string | null
+          last_error_at?: string | null
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_run_at?: string | null
+          last_success_at?: string | null
+          name?: string
+          next_run_at?: string | null
+          schedule?: Json
+          source_key?: string
+          source_type?: string
+          source_url?: string | null
+          sync_frequency?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_sources_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_sync_runs: {
+        Row: {
+          checkpoint_version_before: number
+          created_at: string
+          created_count: number
+          cursor_after: Json | null
+          cursor_before: Json
+          dry_run: boolean
+          duration_ms: number | null
+          error_code: string | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          input_summary: Json
+          job_type: string
+          lease_expires_at: string | null
+          lock_token: string
+          output_summary: Json
+          processed: number
+          skipped_count: number
+          source_id: string
+          started_at: string | null
+          started_by: string | null
+          status: string
+          summarized_count: number
+          trigger_type: string
+          updated_count: number
+        }
+        Insert: {
+          checkpoint_version_before?: number
+          created_at?: string
+          created_count?: number
+          cursor_after?: Json | null
+          cursor_before?: Json
+          dry_run?: boolean
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          input_summary?: Json
+          job_type: string
+          lease_expires_at?: string | null
+          lock_token?: string
+          output_summary?: Json
+          processed?: number
+          skipped_count?: number
+          source_id: string
+          started_at?: string | null
+          started_by?: string | null
+          status?: string
+          summarized_count?: number
+          trigger_type: string
+          updated_count?: number
+        }
+        Update: {
+          checkpoint_version_before?: number
+          created_at?: string
+          created_count?: number
+          cursor_after?: Json | null
+          cursor_before?: Json
+          dry_run?: boolean
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          input_summary?: Json
+          job_type?: string
+          lease_expires_at?: string | null
+          lock_token?: string
+          output_summary?: Json
+          processed?: number
+          skipped_count?: number
+          source_id?: string
+          started_at?: string | null
+          started_by?: string | null
+          status?: string
+          summarized_count?: number
+          trigger_type?: string
+          updated_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_sync_runs_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_sources"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       levels: {
         Row: {
@@ -6140,6 +7341,54 @@ export type Database = {
           period_end?: string
           period_start?: string
           service_type?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      monthly_gasoline_prices: {
+        Row: {
+          created_at: string
+          fetched_at: string
+          fuel_type: string
+          id: string
+          observed_at: string | null
+          prefecture: string
+          price_basis: string
+          price_date: string
+          price_yen_per_liter: number
+          source_name: string
+          source_url: string | null
+          target_month: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fetched_at?: string
+          fuel_type?: string
+          id?: string
+          observed_at?: string | null
+          prefecture?: string
+          price_basis?: string
+          price_date: string
+          price_yen_per_liter: number
+          source_name?: string
+          source_url?: string | null
+          target_month: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fetched_at?: string
+          fuel_type?: string
+          id?: string
+          observed_at?: string | null
+          prefecture?: string
+          price_basis?: string
+          price_date?: string
+          price_yen_per_liter?: number
+          source_name?: string
+          source_url?: string | null
+          target_month?: string
           updated_at?: string
         }
         Relationships: []
@@ -8347,6 +9596,63 @@ export type Database = {
         }
         Relationships: []
       }
+      rpa_progress_events: {
+        Row: {
+          attempt: number
+          code: string
+          data: Json
+          event_id: string
+          job_id: string | null
+          occurred_at: string
+          received_at: string
+          run_id: string
+          runner_id: string | null
+          source: string
+          version: string
+        }
+        Insert: {
+          attempt: number
+          code: string
+          data?: Json
+          event_id: string
+          job_id?: string | null
+          occurred_at: string
+          received_at?: string
+          run_id: string
+          runner_id?: string | null
+          source: string
+          version: string
+        }
+        Update: {
+          attempt?: number
+          code?: string
+          data?: Json
+          event_id?: string
+          job_id?: string | null
+          occurred_at?: string
+          received_at?: string
+          run_id?: string
+          runner_id?: string | null
+          source?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rpa_progress_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "rpa_runner_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rpa_progress_events_runner_id_fkey"
+            columns: ["runner_id"]
+            isOneToOne: false
+            referencedRelation: "rpa_runners"
+            referencedColumns: ["runner_id"]
+          },
+        ]
+      }
       rpa_runner_alerts: {
         Row: {
           created_at: string
@@ -9299,21 +10605,14 @@ export type Database = {
           end_at: string | null
           id: string
           kaipoke_cs_id: string | null
+          sharefull_job_id: string | null
+          sharefull_status: string | null
           shift_end_time: string | null
           shift_id: number | null
           shift_start_date: string | null
           shift_start_time: string | null
           start_at: string | null
           status: string
-          sharefull_order_id: string | null
-          applicant_source: string | null
-          application_state: string | null
-          application_conflict: boolean
-          recruitment_paused: boolean
-          recruitment_revision: number
-          sharefull_sync_error: string | null
-          sharefull_job_id: string | null
-          sharefull_status: string | null
           taimee_job_id: string | null
           template_title: string | null
           unit_amount: number | null
@@ -9329,21 +10628,14 @@ export type Database = {
           end_at?: string | null
           id?: string
           kaipoke_cs_id?: string | null
+          sharefull_job_id?: string | null
+          sharefull_status?: string | null
           shift_end_time?: string | null
           shift_id?: number | null
           shift_start_date?: string | null
           shift_start_time?: string | null
           start_at?: string | null
           status?: string
-          sharefull_order_id?: string | null
-          applicant_source?: string | null
-          application_state?: string | null
-          application_conflict?: boolean
-          recruitment_paused?: boolean
-          recruitment_revision?: number
-          sharefull_sync_error?: string | null
-          sharefull_job_id?: string | null
-          sharefull_status?: string | null
           taimee_job_id?: string | null
           template_title?: string | null
           unit_amount?: number | null
@@ -9359,21 +10651,14 @@ export type Database = {
           end_at?: string | null
           id?: string
           kaipoke_cs_id?: string | null
+          sharefull_job_id?: string | null
+          sharefull_status?: string | null
           shift_end_time?: string | null
           shift_id?: number | null
           shift_start_date?: string | null
           shift_start_time?: string | null
           start_at?: string | null
           status?: string
-          sharefull_order_id?: string | null
-          applicant_source?: string | null
-          application_state?: string | null
-          application_conflict?: boolean
-          recruitment_paused?: boolean
-          recruitment_revision?: number
-          sharefull_sync_error?: string | null
-          sharefull_job_id?: string | null
-          sharefull_status?: string | null
           taimee_job_id?: string | null
           template_title?: string | null
           unit_amount?: number | null
@@ -11630,11 +12915,6 @@ export type Database = {
           health_check_admin_checked_at: string | null
           health_check_admin_checked_by: string | null
           health_check_doctor_comment: string | null
-          health_check_company_opinion: string | null
-          health_check_rejection_reason: string | null
-          health_check_rejected_at: string | null
-          health_check_rejected_by: string | null
-          health_check_occupational_physician_required: boolean
           health_check_occupational_physician_checked: boolean
           health_check_occupational_physician_checked_at: string | null
           health_check_occupational_physician_checked_by: string | null
@@ -11656,11 +12936,6 @@ export type Database = {
           health_check_admin_checked_at?: string | null
           health_check_admin_checked_by?: string | null
           health_check_doctor_comment?: string | null
-          health_check_company_opinion?: string | null
-          health_check_rejection_reason?: string | null
-          health_check_rejected_at?: string | null
-          health_check_rejected_by?: string | null
-          health_check_occupational_physician_required?: boolean
           health_check_occupational_physician_checked?: boolean
           health_check_occupational_physician_checked_at?: string | null
           health_check_occupational_physician_checked_by?: string | null
@@ -11682,11 +12957,6 @@ export type Database = {
           health_check_admin_checked_at?: string | null
           health_check_admin_checked_by?: string | null
           health_check_doctor_comment?: string | null
-          health_check_company_opinion?: string | null
-          health_check_rejection_reason?: string | null
-          health_check_rejected_at?: string | null
-          health_check_rejected_by?: string | null
-          health_check_occupational_physician_required?: boolean
           health_check_occupational_physician_checked?: boolean
           health_check_occupational_physician_checked_at?: string | null
           health_check_occupational_physician_checked_by?: string | null
@@ -14959,6 +16229,14 @@ export type Database = {
           udt_name: string
         }[]
       }
+      import_key_knowledge_revision: {
+        Args: { p_item: Json }
+        Returns: {
+          action: string
+          knowledge_item_id: string
+          revision: number
+        }[]
+      }
       increment_office_pattern: {
         Args: {
           p_doc_type_id: number
@@ -15027,6 +16305,7 @@ export type Database = {
         Args: { p_cs_id: string; p_month: string }
         Returns: number
       }
+      prune_rpa_progress_events: { Args: never; Returns: undefined }
       read_secret: { Args: { secret_name: string }; Returns: string }
       rebuild_staff_monthly_stats: {
         Args: { p_from?: string; p_to?: string }
@@ -15246,12 +16525,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -15275,11 +16554,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -15300,11 +16579,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -15325,11 +16604,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -15342,11 +16621,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

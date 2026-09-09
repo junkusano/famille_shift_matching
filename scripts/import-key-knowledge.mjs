@@ -2,7 +2,8 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { loadEnvConfig } from "@next/env";
+import nextEnv from "@next/env";
+const { loadEnvConfig } = nextEnv;
 import { createClient } from "@supabase/supabase-js";
 
 const DEFAULT_FILE = "docs/famille-knowledge/key-knowledge/04_key_knowledge.json";

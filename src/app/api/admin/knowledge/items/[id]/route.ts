@@ -21,7 +21,15 @@ export async function GET(request: NextRequest, context: Context) {
     .maybeSingle();
   if (error) return NextResponse.json({ ok: false, error: "ナレッジを取得できませんでした。" }, { status: 500 });
   if (!data) return NextResponse.json({ ok: false, error: "ナレッジが見つかりません。" }, { status: 404 });
-  return NextResponse.json({ ok: true, item: data });
+  const [historyResult, outgoingResult, incomingResult] = await Promise.all([
+    supabaseAdmin.from("knowledge_items").select("id,knowledge_key,title,summary,version,is_current,review_status,updated_at,last_verified_at").eq("knowledge_key", data.knowledge_key).order("version", { ascending: false }),
+    supabaseAdmin.from("knowledge_relations").select("relation_type,to:knowledge_items!knowledge_relations_to_knowledge_id_fkey(id,knowledge_key,title)").eq("from_knowledge_id", id),
+    supabaseAdmin.from("knowledge_relations").select("relation_type,from:knowledge_items!knowledge_relations_from_knowledge_id_fkey(id,knowledge_key,title)").eq("to_knowledge_id", id),
+  ]);
+  if (historyResult.error || outgoingResult.error || incomingResult.error) {
+    return NextResponse.json({ ok: false, error: "ナレッジ詳細の関連情報を取得できませんでした。" }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true, item: data, history: historyResult.data ?? [], relations: { outgoing: outgoingResult.data ?? [], incoming: incomingResult.data ?? [] } });
 }
 
 export async function PATCH(request: NextRequest, context: Context) {

@@ -11,6 +11,9 @@ import type { KnowledgeItem, KnowledgeSource } from "@/lib/knowledge/types";
 
 type ItemResponse = { ok: true; items: KnowledgeItem[]; total: number; page?: number; perPage?: number };
 type SourceResponse = { ok: true; sources: KnowledgeSource[] };
+type DetailHistory = { id: string; title: string; summary: string; version: number; is_current: boolean; review_status: string; updated_at: string; last_verified_at: string | null };
+type DetailRelation = { relation_type: string; to?: { id: string; knowledge_key: string; title: string } | null; from?: { id: string; knowledge_key: string; title: string } | null };
+type ItemDetailResponse = { ok: true; item: KnowledgeItem; history: DetailHistory[]; relations: { outgoing: DetailRelation[]; incoming: DetailRelation[] } };
 
 type FormState = {
   knowledge_type: string;
@@ -113,6 +116,10 @@ export function KnowledgeItemsAdmin() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailItem, setDetailItem] = useState<KnowledgeItem | null>(null);
+  const [detailHistory, setDetailHistory] = useState<DetailHistory[]>([]);
+  const [detailRelations, setDetailRelations] = useState<{ outgoing: DetailRelation[]; incoming: DetailRelation[] }>({ outgoing: [], incoming: [] });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
 
@@ -147,7 +154,7 @@ export function KnowledgeItemsAdmin() {
     } finally {
       setLoading(false);
     }
-  }, [page, privacyLevel, query, reviewStatus, sourceId]);
+  }, [category, conceptLevel, confidentiality, importance, knowledgeType, page, privacyLevel, query, reviewStatus, sourceId, stability]);
 
   useEffect(() => { void loadSources().catch(() => undefined); }, [loadSources]);
   useEffect(() => { void loadItems(); }, [loadItems]);
@@ -172,6 +179,19 @@ export function KnowledgeItemsAdmin() {
     setEditingId(item.id);
     setForm(itemToForm(item));
     setEditorOpen(true);
+  }
+
+  async function openDetail(item: KnowledgeItem) {
+    setMessage("");
+    try {
+      const response = await knowledgeApi<ItemDetailResponse>("/api/admin/knowledge/items/" + item.id);
+      setDetailItem(response.item);
+      setDetailHistory(response.history);
+      setDetailRelations(response.relations);
+      setDetailOpen(true);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "詳細の読み込みに失敗しました。");
+    }
   }
 
   async function save() {
@@ -216,6 +236,24 @@ export function KnowledgeItemsAdmin() {
           <label className="text-sm font-medium text-slate-700">情報源
             <select value={sourceId} onChange={(event) => { setSourceId(event.target.value); setPage(1); }} className="mt-1 block min-w-52 rounded-md border border-slate-300 bg-white px-3 py-2"><option value="">すべて</option>{sources.map((source) => <option key={source.id} value={source.id}>{source.name}</option>)}</select>
           </label>
+          <label className="text-sm font-medium text-slate-700">種別
+            <select value={knowledgeType} onChange={(event) => { setKnowledgeType(event.target.value); setPage(1); }} className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2"><option value="">すべて</option><option value="raw">raw</option><option value="key">key</option><option value="intermediate">intermediate</option><option value="delta">delta</option></select>
+          </label>
+          <label className="text-sm font-medium text-slate-700">カテゴリ
+            <Input className="mt-1 w-40" value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} placeholder="すべて" />
+          </label>
+          <label className="text-sm font-medium text-slate-700">概念レベル
+            <select value={conceptLevel} onChange={(event) => { setConceptLevel(event.target.value); setPage(1); }} className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2"><option value="">すべて</option><option value="1">1 原則</option><option value="2">2 体系</option><option value="3">3 運用</option><option value="4">4 勘所</option></select>
+          </label>
+          <label className="text-sm font-medium text-slate-700">重要度
+            <select value={importance} onChange={(event) => { setImportance(event.target.value); setPage(1); }} className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2"><option value="">すべて</option><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select>
+          </label>
+          <label className="text-sm font-medium text-slate-700">安定性
+            <select value={stability} onChange={(event) => { setStability(event.target.value); setPage(1); }} className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2"><option value="">すべて</option><option value="core">core</option><option value="slow_change">slow_change</option><option value="changing">changing</option></select>
+          </label>
+          <label className="text-sm font-medium text-slate-700">機密区分
+            <select value={confidentiality} onChange={(event) => { setConfidentiality(event.target.value); setPage(1); }} className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2"><option value="">すべて</option><option value="public">public</option><option value="internal">internal</option><option value="restricted">restricted</option></select>
+          </label>
           <label className="text-sm font-medium text-slate-700">確認状態
             <select value={reviewStatus} onChange={(event) => { setReviewStatus(event.target.value); setPage(1); }} className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2"><option value="">すべて</option><option value="draft">下書き</option><option value="needs_review">要確認</option><option value="approved">承認済み</option><option value="rejected">却下</option><option value="superseded">旧版</option></select>
           </label>
@@ -229,18 +267,20 @@ export function KnowledgeItemsAdmin() {
       {message && <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">{message}</div>}
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full min-w-[1000px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase text-slate-600"><tr><th className="px-4 py-3">更新日時</th><th className="px-4 py-3">タイトル・要約</th><th className="px-4 py-3">種類</th><th className="px-4 py-3">情報源</th><th className="px-4 py-3">安全性</th><th className="px-4 py-3">確認</th><th className="px-4 py-3">操作</th></tr></thead>
+        <table className="w-full min-w-[1300px] text-left text-sm">
+          <thead className="bg-slate-50 text-xs uppercase text-slate-600"><tr><th className="px-4 py-3">更新日時</th><th className="px-4 py-3">タイトル・要約</th><th className="px-4 py-3">種類・カテゴリ</th><th className="px-4 py-3">概念・重要度</th><th className="px-4 py-3">安定性・機密</th><th className="px-4 py-3">情報源</th><th className="px-4 py-3">安全性</th><th className="px-4 py-3">確認</th><th className="px-4 py-3">操作</th></tr></thead>
           <tbody className="divide-y divide-slate-100">
-            {loading ? <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500">読み込み中…</td></tr> : items.length === 0 ? <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500">該当するナレッジはありません。</td></tr> : items.map((item) => (
+            {loading ? <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-500">読み込み中…</td></tr> : items.length === 0 ? <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-500">該当するナレッジはありません。</td></tr> : items.map((item) => (
               <tr key={item.id} className="align-top hover:bg-slate-50">
                 <td className="whitespace-nowrap px-4 py-3 text-slate-500">{formatDate(item.updated_at)}</td>
                 <td className="max-w-xl px-4 py-3"><p className="font-semibold text-slate-900">{item.title}</p><p className="mt-1 line-clamp-2 text-slate-600">{item.summary}</p><div className="mt-2 flex flex-wrap gap-1">{item.tags.slice(0, 5).map((tag) => <span key={tag} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{tag}</span>)}</div></td>
                 <td className="px-4 py-3"><p>{item.knowledge_type}</p><p className="text-xs text-slate-500">{item.category || "—"}</p></td>
+                <td className="px-4 py-3"><p>Level {item.concept_level ?? "—"}</p><p className="text-xs text-slate-500">重要度 {item.importance}</p></td>
+                <td className="px-4 py-3"><p>{item.stability ?? "—"}</p><p className="text-xs text-slate-500">{item.confidentiality ?? "—"}</p></td>
                 <td className="px-4 py-3">{item.primary_source?.name ?? "手動"}</td>
                 <td className="px-4 py-3"><p>Level {item.privacy_level}</p><span className={`mt-1 inline-block rounded px-2 py-0.5 text-xs ${statusClass(item.publishability)}`}>{item.publishability}</span></td>
                 <td className="px-4 py-3"><span className={`rounded px-2 py-1 text-xs ${statusClass(item.review_status)}`}>{item.review_status}</span><p className="mt-1 text-xs text-slate-500">{item.verification_status}</p></td>
-                <td className="px-4 py-3"><div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => openEdit(item)}><Pencil size={14} className="mr-1" />編集</Button>{item.source_url && <a href={item.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center rounded border px-2 text-slate-600"><ExternalLink size={14} /></a>}</div></td>
+                <td className="px-4 py-3"><div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void openDetail(item)}>詳細</Button><Button size="sm" variant="outline" onClick={() => openEdit(item)}><Pencil size={14} className="mr-1" />編集</Button>{item.source_url && <a href={item.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center rounded border px-2 text-slate-600"><ExternalLink size={14} /></a>}</div></td>
               </tr>
             ))}
           </tbody>
@@ -248,6 +288,21 @@ export function KnowledgeItemsAdmin() {
       </div>
 
       {!query.trim() && <div className="flex items-center justify-between text-sm text-slate-600"><span>{total}件</span><div className="flex items-center gap-2"><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>前へ</Button><span>{page} / {pageCount}</span><Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((value) => value + 1)}>次へ</Button></div></div>}
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+          <DialogHeader><DialogTitle>{detailItem?.title ?? "ナレッジ詳細"}</DialogTitle><DialogDescription>根拠・関連・履歴を確認できます。</DialogDescription></DialogHeader>
+          {detailItem && <div className="space-y-4 text-sm">
+            <div className="grid gap-3 rounded-lg bg-slate-50 p-3 md:grid-cols-3"><div>種別：{detailItem.knowledge_type}</div><div>概念レベル：{detailItem.concept_level ?? "—"}</div><div>重要度：{detailItem.importance}</div><div>安定性：{detailItem.stability ?? "—"}</div><div>機密区分：{detailItem.confidentiality ?? "—"}</div><div>最終検証：{formatDate(detailItem.last_verified_at)}</div></div>
+            <div><h3 className="font-semibold">要約</h3><p className="mt-1 whitespace-pre-wrap text-slate-700">{detailItem.summary}</p></div>
+            <div><h3 className="font-semibold">詳細</h3><p className="mt-1 whitespace-pre-wrap text-slate-700">{detailItem.content || "—"}</p></div>
+            <div><h3 className="font-semibold">出典</h3><ul className="mt-1 list-disc space-y-1 pl-5 text-slate-700">{detailItem.source_references.filter((value): value is string => typeof value === "string").map((reference) => <li key={reference}>{reference}</li>)}</ul></div>
+            <div><h3 className="font-semibold">関連ナレッジ</h3><ul className="mt-1 list-disc space-y-1 pl-5 text-slate-700">{[...detailRelations.outgoing.map((relation) => relation.to), ...detailRelations.incoming.map((relation) => relation.from)].filter(Boolean).map((relation) => <li key={relation!.id}>{relation!.title}</li>)}</ul></div>
+            <div><h3 className="font-semibold">更新履歴</h3><ul className="mt-1 space-y-1 text-slate-700">{detailHistory.map((entry) => <li key={entry.id}>v{entry.version} · {entry.is_current ? "現行" : "旧版"} · {entry.review_status} · {formatDate(entry.updated_at)}</li>)}</ul></div>
+          </div>}
+          <DialogFooter><Button type="button" onClick={() => setDetailOpen(false)}>閉じる</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
@@ -282,4 +337,3 @@ export function KnowledgeItemsAdmin() {
     </section>
   );
 }
-

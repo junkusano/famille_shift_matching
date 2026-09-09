@@ -65,6 +65,7 @@ declare
   metadata_value jsonb;
   item_id uuid;
   item_version integer;
+  had_existing boolean := false;
 begin
   if coalesce(nullif(btrim(p_item ->> 'knowledge_key'), ''), '') = '' then
     raise exception 'knowledge_key is required';
@@ -99,7 +100,9 @@ begin
      and is_current = true
    for update;
 
-  if found and coalesce(existing.metadata ->> 'key_knowledge_fingerprint', '') = fingerprint then
+  had_existing := found;
+
+  if had_existing and coalesce(existing.metadata ->> 'key_knowledge_fingerprint', '') = fingerprint then
     return query select existing.id, 'skipped'::text, existing.version;
     return;
   end if;
@@ -185,4 +188,3 @@ revoke all on function public.import_key_knowledge_revision(jsonb) from public, 
 grant execute on function public.import_key_knowledge_revision(jsonb) to service_role;
 
 commit;
-
