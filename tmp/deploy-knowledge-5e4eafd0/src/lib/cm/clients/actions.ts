@@ -1,0 +1,119 @@
+// =============================================================
+// src/lib/cm/clients/actions.ts
+// 利用者関連 Server Actions（Client Componentから呼び出し可能）
+//
+// セキュリティ:
+//   全アクションで requireCmSession(token) による認証を必須実施。
+//   - クライアントから渡された access_token を検証（認証）
+//   - 操作ログにユーザーIDを記録（監査証跡）
+//   - 検索値は cmSanitizeForOrFilter でサニタイズ済み
+// =============================================================
+
+"use server";
+
+import { supabaseAdmin } from "@/lib/supabase/service";
+import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
+import { cmSanitizeForOrFilter } from "@/lib/cm/supabase/sanitizeFilterValue";
+import { withAuditLog } from "@/lib/cm/audit/withAuditLog";
+import { CM_OP_LOG_CLIENT_SEARCH } from "@/constants/cm/operationLogActions";
+
+const logger = createLogger("lib/cm/clients/actions");
+
+// =============================================================
+// Types
+// =============================================================
+
+export type ClientSearchResult = {
+  id: string;
+  kaipoke_cs_id: string | null;
+  name: string;
+  kana: string | null;
+  birth_date: string | null;
+  is_active: boolean;
+};
+
+export type ActionResult<T = void> = {
+  ok: true;
+  data?: T;
+} | {
+  ok: false;
+  error: string;
+};
+
+// =============================================================
+// 利用者検索（Client Componentから呼び出し可能）
+// =============================================================
+
+export async function searchClients(
+  params: {
+    search: string;
+    status?: "active" | "inactive" | "all";
+    limit?: number;
+  },
+  token: string,
+): Promise<ActionResult<ClientSearchResult[]>> {
+  try {
+    // 認証・認可チェック
+    const auth = await requireCmSession(token);
+
+    return withAuditLog(
+      {
+        auth,
+        action: CM_OP_LOG_CLIENT_SEARCH,
+        resourceType: "client",
+        metadata: { search: params.search, status: params.status },
+      },
+      async () => {
+        const { search, status = "active", limit = 50 } = params;
+
+        if (!search.trim()) {
+          return { ok: true, data: [] } as ActionResult<ClientSearchResult[]>;
+        }
+
+        logger.info("利用者検索開始", { search, status, userId: auth.userId });
+
+        let query = supabaseAdmin
+          .from("cm_kaipoke_info")
+          .select("id, kaipoke_cs_id, name, kana, birth_date, is_active")
+          .limit(limit);
+
+        // ステータスフィルター
+        if (status === "active") {
+          query = query.eq("is_active", true);
+        } else if (status === "inactive") {
+          query = query.eq("is_active", false);
+        }
+
+        // 検索条件（名前、カナ、カイポケID）
+        // PostgREST フィルター構文インジェクション防止のためサニタイズ
+        const sanitized = cmSanitizeForOrFilter(search);
+        if (!sanitized) {
+          return { ok: true, data: [] } as ActionResult<ClientSearchResult[]>;
+        }
+        const searchTerm = `%${sanitized}%`;
+        query = query.or(`name.ilike.${searchTerm},kana.ilike.${searchTerm},kaipoke_cs_id.ilike.${searchTerm}`);
+
+        // ソート
+        query = query.order("kana", { ascending: true, nullsFirst: false });
+
+        const { data, error } = await query;
+
+        if (error) {
+          logger.error("検索エラー", { error: error.message });
+          return { ok: false, error: "検索に失敗しました" };
+        }
+
+        logger.info("利用者検索完了", { count: data?.length ?? 0, userId: auth.userId });
+
+        return { ok: true, data: (data ?? []) as ClientSearchResult[] };
+      },
+    );
+  } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
+    logger.error("予期せぬエラー", error as Error);
+    return { ok: false, error: "サーバーエラーが発生しました" };
+  }
+}

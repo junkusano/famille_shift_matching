@@ -1,0 +1,107 @@
+Vercel CLI 59.7.0 (Node.js 22.14.0)
+Retrieving project…
+> Environment Variables found for junkusanos-projects/famille-shift-matching [302ms]
+
+ name                                                       value                       type      environments                        created     
+ GITHUB_KNOWLEDGE_PRIVATE_KEY                               Hidden                      Secret    Production                          2d ago      
+ GITHUB_KNOWLEDGE_INSTALLATION_ID                           Hidden                      Secret    Production                          2d ago      
+ GITHUB_KNOWLEDGE_APP_ID                                    Hidden                      Secret    Production                          2d ago      
+ KNOWLEDGE_TOKEN_ENCRYPTION_KEY                             Hidden                      Secret    Production                          3d ago      
+ MF_CLIENT_SECRET                                           Hidden                      Secret    Production                          3d ago      
+ MF_CLIENT_ID                                               eyJ2IjoidjIiLCJjIj…         Config    Production                          3d ago      
+ MF_REDIRECT_URI                                            eyJ2IjoidjIiLCJjIj…         Config    Production                          3d ago      
+ WORDPRESS_API_URL                                          Hidden                      Secret    Production                          5d ago      
+ WORDPRESS_USERNAME                                         Hidden                      Secret    Production                          5d ago      
+ WORDPRESS_APP_PASSWORD                                     Hidden                      Secret    Production                          5d ago      
+ SHAREFULL_AUTO_POST_ENABLED                                eyJ2IjoidjIiLCJjIj…         Config    Production                          5d ago      
+ GOOGLE_MAPS_API_KEY                                        eyJ2IjoidjIiLCJjIj…         Config    Production, Preview                 11d ago     
+ CS_DOCS_GAS_GATEWAY_URL                                    eyJ2IjoidjIiLCJjIj…         Config    Production                          13d ago     
+ Name                                                       Hidden                      Secret    Preview, Production                 18d ago     
+ Value                                                      Hidden                      Secret    Preview, Production                 18d ago     
+ Environment                                                Hidden                      Secret    Preview, Production                 18d ago     
+ SMS_BUSINESS_NAME                                          Hidden                      Secret    Preview, Production                 25d ago     
+ SMS_MAIN_PHONE                                             Hidden                      Secret    Production, Preview                 25d ago     
+ NEXT_PUBLIC_SMS_BUSINESS_NAME                              Hidden                      Secret    Preview, Production                 25d ago     
+ NEXT_PUBLIC_SMS_MAIN_PHONE                                 Hidden                      Secret    Preview, Production                 25d ago     
+ GOOGLE_MAPS_GEOCODING_API_KEY                              Hidden                      Secret    Preview, Production                 26d ago     
+ OPENAI_REASONING_CRITICAL                                  Hidden                      Secret    Preview, Production                 31d ago     
+ OPENAI_MODEL_LIGHT                                         Hidden                      Secret    Preview, Production                 31d ago     
+ OPENAI_MODEL_STANDARD                                      Hidden                      Secret    Preview, Production                 31d ago     
+ OPENAI_MODEL_HEAVY                                         Hidden                      Secret    Preview, Production                 31d ago     
+ OPENAI_MODEL_CRITICAL                                      Hidden                      Secret    Preview, Production                 31d ago     
+ OPENAI_REASONING_LIGHT                                     Hidden                      Secret    Preview, Production                 31d ago     
+ OPENAI_REASONING_STANDARD                                  Hidden                      Secret    Preview, Production                 31d ago     
+ OPENAI_REASONING_HEAVY                                     Hidden                      Secret    Preview, Production                 31d ago     
+ FAXIMO_RESULT_EMAIL                                        Hidden                      Secret    Preview, Production                 52d ago     
+ FAXIMO_LOGIN_PASSWORD                                      Hidden                      Secret    Preview, Production                 52d ago     
+ FAXIMO_LOGIN_ID                                            Hidden                      Secret    Preview, Production                 52d ago     
+ GOOGLE_DRIVE_MEAL_COST_FOLDER_ID                           Hidden                      Secret    Preview, Production                 56d ago     
+ GOOGLE_CALENDAR_REFRESH_TOKEN                              Hidden                      Secret    Preview, Production                 57d ago     
+ GOOGLE_CALENDAR_OAUTH_SETUP_SECRET                         Hidden                      Secret    Production, Preview                 57d ago     
+ GOOGLE_CALENDAR_ACCOUNT                                    Hidden                      Secret    Preview, Production                 57d ago     
+ GOOGLE_CALENDAR_CLIENT_ID                                  Hidden                      Secret    Preview, Production                 57d ago     
+ GOOGLE_CALENDAR_CLIENT_SECRET                              Hidden                      Secret    Preview, Production                 57d ago     
+ GOOGLE_CALENDAR_REDIRECT_URI                               Hidden                      Secret    Preview, Production                 57d ago     
+ AUTO_RPA_APPROVER_AUTH_USER_ID                             Hidden                      Secret    Production, Preview                 67d ago     
+ AUTO_RPA_REQUESTER_AUTH_USER_ID                            Hidden                      Secret    Production, Preview                 67d ago     
+ PLAN_PDF_BUCKET                                            Hidden                      Secret    Production, Preview                 134d ago    
+ DISABLE_RPA                                                eyJ2IjoidjIiLCJjIj…         Config    Production, Preview, Development    148d ago    
+ GOOGLE_PRIVATE_KEY                                         eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    149d ago    
+ GOOGLE_CLIENT_EMAIL                                        eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    149d ago    
+ DIALOGFLOW_PROJECT_ID                                      eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    149d ago    
+ DIALOGFLOW_AGENT_ID                                        eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    149d ago    
+ DIALOGFLOW_LOCATION                                        eyJ2IjoidjIiLCJjIj…         Config    Production, Preview, Development    149d ago    
+ DIALOGFLOW_LANGUAGE_CODE                                   eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    149d ago    
+ DIALOGFLOW_WEBHOOK_SECRET                                  eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    150d ago    
+ DIGISIGNER_API_BASE_URL                                    eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    153d ago    
+ DIGISIGNER_CALLBACK_DOCUMENT_SIGNED_URL                    eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    153d ago    
+ DIGISIGNER_CALLBACK_SIGNATURE_REQUEST_COMPLETED_URL        eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    153d ago    
+ DIGISIGNER_API_KEY                                         eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    153d ago    
+ NEXT_PUBLIC_APP_URL                                        eyJ2IjoidjIiLCJjIj…         Config    Production                          162d ago    
+ DISABILITY_CHECK_TEST_KAIPOKE_CS_ID                        eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    217d ago    
+ LINEWORKS_BOT_NO                                           eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    249d ago    
+ ABBYY_APPLICATION_ID                                       eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    277d ago    
+ ABBYY_API_KEY                                              eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    277d ago    
+ ABBYY_END_POINT                                            eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    277d ago    
+ KAIPOKE_RPA_CRON_USER_ID                                   eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    282d ago    
+ INTERNAL_BASE_URL                                          eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    299d ago    
+ CRON_SECRET                                                eyJ2IjoidjIiLCJjIj…         Config    Production, Preview, Development    327d ago    
+ TWILIO_FROM                                                eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    358d ago    
+ TWILIO_MESSAGING_SERVICE_SID                               eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    358d ago    
+ TWILIO_API_KEY_SID                                         eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    358d ago    
+ TWILIO_API_KEY_SECRET                                      eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    358d ago    
+ TWILIO_ACCOUNT_SID                                         eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    358d ago    
+ NPM_CONFIG_FETCH_RETRIES                                   eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    382d ago    
+ NPM_CONFIG_FETCH_RETRY_FACTOR                              eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    382d ago    
+ NPM_CONFIG_FETCH_RETRY_MINTIMEOUT                          eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    382d ago    
+ NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT                          eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    382d ago    
+ OPENAI_API_KEY                                             eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    431d ago    
+ SUPABASE_SERVICE_ROLE_KEY                                  eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    442d ago    
+ NEXT_PUBLIC_LINEWORKS_DOMAIN_ID                            eyJ2IjoidjIiLCJjIj…         Config    Production, Preview, Development    443d ago    
+ BASE_URL                                                   eyJ2IjoidjIiLCJjIj…         Config    Production, Preview, Development    444d ago    
+ LINEWORKS_DOMAIN_ID                                        eyJ2IjoidjIiLCJjIj…         Config    Production, Preview, Development    445d ago    
+ LINEWORKS_CLIENT_SECRET                                    eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    445d ago    
+ LINEWORKS_PRIVATE_KEY                                      eyJ2IjoidjIiLCJjIj…         Config    Production, Preview, Development    446d ago    
+ LINEWORKS_SERVICE_ACCOUNT                                  eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    446d ago    
+ LINEWORKS_CLIENT_ID                                        eyJ2IjoidjIiLCJjIj…         Config    Production, Preview, Development    446d ago    
+ SMTP_SEND_MAIL                                             eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    447d ago    
+ SMTP_USER                                                  eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    447d ago    
+ SMTP_SERVER                                                eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    447d ago    
+ GOOGLE_SERVICE_ACCOUNT_KEY                                 eyJ2IjoidjIiLCJjIj…         Config    Production, Preview, Development    459d ago    
+ NEXT_PUBLIC_GOOGLE_CLIENT_ID                               eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    459d ago    
+ GOOGLE_CLIENT_ID                                           eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    459d ago    
+ GOOGLE_CLIENT_SECRET                                       eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    459d ago    
+ SMTP_PASSWORD                                              eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    460d ago    
+ RECRUIT_CONTACT_EMAIL                                      eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    462d ago    
+ GMAIL_USER                                                 eyJ2IjoidjIiLCJjIj…         Config    Development, Preview, Production    463d ago    
+ GMAIL_PASS                                                 eyJ2IjoidjIiLCJjIj…         Config    Production, Preview, Development    463d ago    
+ NEXT_PUBLIC_SUPABASE_URL                                   eyJ2IjoidjIiLCJjIj…         Config    Production, Preview, Development    463d ago    
+ NEXT_PUBLIC_SUPABASE_ANON_KEY                              eyJ2IjoidjIiLCJjIj…         Config    Production, Preview, Development    463d ago    
+
+Next steps:
+- Add an Environment Variable:
+  vercel env add
+- Remove an Environment Variable:
+  vercel env rm
+- Pull Development Environment Variables into .env.local:
+  vercel env pull

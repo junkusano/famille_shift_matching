@@ -1,0 +1,288 @@
+/* =============================================================
+   src/styles/cm-styles/plaud/common.module.css
+   Plaud管理画面 共通スタイル
+   ============================================================= */
+
+/* =============================================================
+   ローディング
+   ============================================================= */
+
+.loadingContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 12px;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+  color: #6366f1;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loadingMessage {
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* =============================================================
+   エラー
+   ============================================================= */
+
+.errorContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 16px;
+}
+
+.errorText {
+  color: #dc2626;
+  font-size: 14px;
+  text-align: center;
+}
+
+.retryButton {
+  padding: 8px 16px;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #475569;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.retryButton:hover {
+  background-color: #e2e8f0;
+}
+
+/* =============================================================
+   空状態
+   ============================================================= */
+
+.emptyContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  gap: 16px;
+}
+
+.emptyIcon {
+  color: #cbd5e1;
+}
+
+.emptyText {
+  color: #94a3b8;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* =============================================================
+   ステータスバッジ
+   ============================================================= */
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.statusDescription {
+  margin-left: 4px;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+/* =============================================================
+   ページネーション
+   ============================================================= */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.paginationButton {
+  padding: 8px 16px;
+  background-color: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #475569;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.paginationButton:hover:not(:disabled) {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.paginationButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.paginationInfo {
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* =============================================================
+   確認ダイアログ
+   ============================================================= */
+
+.dialogOverlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialogContent {
+  background-color: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.dialogTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 12px 0;
+}
+
+.dialogMessage {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0 0 24px 0;
+  line-height: 1.6;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.dialogCancelButton {
+  padding: 8px 16px;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #475569;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dialogCancelButton:hover {
+  background-color: #e2e8f0;
+}
+
+.dialogConfirmButton {
+  padding: 8px 16px;
+  background-color: #6366f1;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dialogConfirmButton:hover {
+  background-color: #4f46e5;
+}
+
+.dialogConfirmButtonDestructive {
+  background-color: #dc2626;
+}
+
+.dialogConfirmButtonDestructive:hover {
+  background-color: #b91c1c;
+}
+
+/* =============================================================
+   自動リサイズテキストエリア
+   ============================================================= */
+
+.autoResizeTextarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: none;
+  overflow-y: auto;
+  transition: border-color 0.2s;
+}
+
+.autoResizeTextarea:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.autoResizeTextarea:disabled {
+  background-color: #f8fafc;
+  color: #94a3b8;
+}
+
+/* =============================================================
+   コピーボタン
+   ============================================================= */
+
+.copyButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #475569;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.copyButton:hover {
+  background-color: #e2e8f0;
+}
+
+.copyButtonCopied {
+  background-color: #d1fae5;
+  border-color: #a7f3d0;
+  color: #047857;
+}

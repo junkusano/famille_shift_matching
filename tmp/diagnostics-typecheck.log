@@ -1,0 +1,6 @@
+
+> famille_shift_matching@0.1.0 typecheck
+> tsc --noEmit
+
+src/app/portal/knowledge-automation/page.tsx(172,18): error TS6133: 'showDiagnostics' is declared but its value is never read.
+src/lib/gasolinePrice.ts(3,23): error TS2307: Cannot find module 'xlsx' or its corresponding type declarations.

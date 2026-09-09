@@ -1,0 +1,710 @@
+/* =============================================================
+   styles/cm-styles/components/auditDashboard.module.css
+   監査ダッシュボード (CmAuditDashboard) のスタイル定義
+   ============================================================= */
+
+/* ===== レイアウト ===== */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ===== ヘッダー ===== */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.headerLeft h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.headerIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background-color: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.headerIcon svg {
+  width: 16px;
+  height: 16px;
+  color: #fff;
+}
+
+.headerDescription {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin: 4px 0 0 42px;
+}
+
+/* ===== 期間セレクター ===== */
+
+.periodSelector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.periodButton {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: transparent;
+  color: #64748b;
+}
+
+.periodButton:hover {
+  color: #334155;
+  background: #f8fafc;
+}
+
+.periodButtonActive {
+  background: #1e293b;
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* ===== カード共通 ===== */
+
+.card {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+}
+
+/* ===== ナビゲーションカード ===== */
+
+.navGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.navCard {
+  composes: card;
+  position: relative;
+  overflow: hidden;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+  display: block;
+  color: inherit;
+}
+
+.navCard:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
+  transform: translateY(-2px);
+}
+
+.navCardAccent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  border-radius: 16px 16px 0 0;
+}
+
+.navCardBody {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.navCardContent {
+  flex: 1;
+}
+
+.navCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.navCardIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.navCardIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.navCardLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.navCardDescription {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.navCardStat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.navCardStatValue {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.navCardStatLabel {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.navCardArrow {
+  color: #cbd5e1;
+  transition: color 0.15s;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.navCard:hover .navCardArrow {
+  color: #64748b;
+}
+
+/* ===== サマリーカード ===== */
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.summaryCard {
+  composes: card;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: box-shadow 0.15s;
+}
+
+.summaryCard:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
+}
+
+.summaryIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.summaryIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.summaryLabel {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+  letter-spacing: 0.02em;
+}
+
+.summaryValue {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 2px;
+  letter-spacing: -0.01em;
+}
+
+.summarySub {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+/* ===== チャートセクション ===== */
+
+.chartRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+.chartCard {
+  composes: card;
+  padding: 20px;
+}
+
+/* ===== セクションタイトル ===== */
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.sectionRight {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+/* ===== チャート凡例 ===== */
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.75rem;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ===== カテゴリ内訳リスト ===== */
+
+.categoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.categoryItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+}
+
+.categoryItemLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.categoryDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.categoryName {
+  color: #475569;
+}
+
+.categoryValue {
+  font-weight: 600;
+  color: #334155;
+}
+
+/* ===== 2カラムセクション ===== */
+
+.twoColRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* ===== ユーザーテーブル ===== */
+
+.userTableHint {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: -8px 0 12px;
+}
+
+.userTableHint svg {
+  width: 12px;
+  height: 12px;
+}
+
+.userTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.userTable th {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #94a3b8;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+  letter-spacing: 0.02em;
+}
+
+.userTable th:first-child {
+  text-align: left;
+}
+
+.userTable th:not(:first-child) {
+  text-align: right;
+}
+
+.userTable td {
+  padding: 10px 0;
+  border-bottom: 1px solid #f8fafc;
+}
+
+.userTable td:not(:first-child) {
+  text-align: right;
+}
+
+.userTable tr:last-child td {
+  border-bottom: none;
+}
+
+.userRow {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.userRow:hover {
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.userCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.userAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.userRow:hover .userAvatar {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.userName {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+}
+
+.userOps {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.userViews {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.userChanges {
+  font-size: 0.875rem;
+}
+
+.userTime {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-family: monospace;
+}
+
+/* ===== 重要操作リスト ===== */
+
+.importantList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.importantItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+  color: inherit;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+
+.importantItem:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  transform: translateY(-1px);
+}
+
+.importantDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.importantTime {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-family: monospace;
+  width: 44px;
+  flex-shrink: 0;
+}
+
+.importantContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.importantAction {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.importantTarget {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-left: 8px;
+}
+
+.importantUser {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.importantArrow {
+  color: #cbd5e1;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.importantItem:hover .importantArrow {
+  color: #64748b;
+}
+
+/* ===== ヒートマップ ===== */
+
+.heatmapWrap {
+  overflow-x: auto;
+}
+
+.heatmapInner {
+  min-width: 560px;
+}
+
+.heatmapHourLabels {
+  display: flex;
+  gap: 1px;
+  margin-bottom: 2px;
+  padding-left: 28px;
+}
+
+.heatmapHourLabel {
+  flex: 1;
+  text-align: center;
+  font-size: 9px;
+  color: #94a3b8;
+}
+
+.heatmapRow {
+  display: flex;
+  gap: 1px;
+  margin-bottom: 1px;
+  align-items: center;
+}
+
+.heatmapDayLabel {
+  width: 24px;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+  text-align: right;
+  padding-right: 4px;
+  flex-shrink: 0;
+}
+
+.heatmapCellWrap {
+  flex: 1;
+}
+
+.heatmapCell {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  font-size: 9px;
+  transition: all 0.1s;
+  cursor: default;
+}
+
+.heatmapCell:hover {
+  outline: 2px solid #60a5fa;
+  outline-offset: 1px;
+}
+
+/* ===== ヒートマップ凡例 ===== */
+
+.heatmapLegend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-left: 28px;
+}
+
+.heatmapLegendLabel {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.heatmapLegendSwatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+}
+
+/* ===== カスタムツールチップ ===== */
+
+.tooltip {
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border: 1px solid #334155;
+}
+
+.tooltipLabel {
+  font-weight: 500;
+  color: #cbd5e1;
+  margin-bottom: 4px;
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tooltipDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.tooltipName {
+  color: #94a3b8;
+}
+
+.tooltipValue {
+  font-weight: 500;
+  color: #fff;
+}
+
+/* ===== フッター ===== */
+
+.footer {
+  text-align: center;
+  padding-top: 8px;
+}
+
+.footerText {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+/* ===== リンクスタイル ===== */
+
+.linkButton {
+  font-size: 0.75rem;
+  color: #3b82f6;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: color 0.15s;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.linkButton:hover {
+  color: #1d4ed8;
+}
+
+.linkButton svg {
+  width: 12px;
+  height: 12px;
+}

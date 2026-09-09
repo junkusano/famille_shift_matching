@@ -1,0 +1,1193 @@
+// src/components/roster/RosterBoardDaily.tsx
+"use client";
+
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import type {
+    RosterDailyView,
+    RosterShiftCard,
+    RosterShiftDialogData,
+    RosterStaff,
+} from "@/types/roster";
+import ShiftDialog from "@/components/roster/ShiftDialog";
+import { useRouter, useSearchParams } from "next/navigation";
+//import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { supabase } from "@/lib/supabaseClient";
+
+
+declare global {
+    interface Window { __monthlyUrlAlerted?: boolean }
+}
+
+// ===== タイムライン設定 =====
+const MINUTES_IN_DAY = 24 * 60;
+const SNAP_MIN = 5; // 5分刻み
+const PX_PER_MIN = 2; // 1分=2px（横幅）
+const ROW_HEIGHT = 60; // ✅ 高さを56に変更
+const NAME_COL_WIDTH = 112; // 氏名列を少し広げ視認性UP
+const HEADER_H = 40; // 時間ヘッダー高さ
+const MIN_DURATION_MIN = 10; // 最小長さ（分）
+const CARD_VPAD = 4; // カードの上下余白（縦位置調整）
+
+
+// ===== ユーティリティ =====
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+const snapMin = (m: number) => Math.round(m / SNAP_MIN) * SNAP_MIN;
+const toHHmm = (m: number) => {
+    const mm = clamp(Math.round(m), 0, MINUTES_IN_DAY);
+    const h = Math.floor(mm / 60);
+    const r = mm % 60;
+    return `${String(h).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+};
+const hhmmToMin = (t: string) => {
+    const [h = "0", m = "0"] = t.split(":");
+    return parseInt(h, 10) * 60 + parseInt(m, 10);
+};
+const leftPx = (start: string) => clamp(hhmmToMin(start), 0, MINUTES_IN_DAY) * PX_PER_MIN;
+const widthPx = (start: string, end: string) => {
+    const w = clamp(hhmmToMin(end) - hhmmToMin(start), MIN_DURATION_MIN, MINUTES_IN_DAY) * PX_PER_MIN;
+    return Math.max(2, w);
+};
+const TIMELINE_WIDTH = MINUTES_IN_DAY * PX_PER_MIN;
+
+const isoToJstHHmm = (
+  value: string,
+): string => {
+  if (!value) return "";
+
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(parsedDate);
+};
+
+const getGoogleEventTimeForDate = (
+  event: GoogleCalendarEvent,
+  targetDate: string,
+) => {
+  const dayStart = new Date(
+    `${targetDate}T00:00:00+09:00`,
+  );
+
+  const nextDayStart = new Date(dayStart);
+  nextDayStart.setDate(
+    nextDayStart.getDate() + 1,
+  );
+
+  const originalStart = new Date(
+    event.start_at,
+  );
+
+  const originalEnd = new Date(
+    event.end_at,
+  );
+
+  const clippedStart =
+    originalStart < dayStart
+      ? dayStart
+      : originalStart;
+
+  const clippedEnd =
+    originalEnd > nextDayStart
+      ? nextDayStart
+      : originalEnd;
+
+  return {
+    start: isoToJstHHmm(
+      clippedStart.toISOString(),
+    ),
+    end:
+      clippedEnd.getTime() ===
+      nextDayStart.getTime()
+        ? "24:00"
+        : isoToJstHHmm(
+            clippedEnd.toISOString(),
+          ),
+  };
+};
+
+// ✅ 表示用 hh:mm（秒ありの文字列でも5桁に丸める）
+const dispHHmm = (t: string) => {
+    if (!t) return "";
+    const m = t.match(/^(\d{1,2}):(\d{2})/);
+    return m ? `${m[1].padStart(2, "0")}:${m[2]}` : t.slice(0, 5);
+};
+
+function parseCardCompositeId(id: string) {
+    const idx = id.lastIndexOf("_");
+    if (idx < 0) return { shiftId: Number(id), staffId: "" };
+    return { shiftId: Number(id.slice(0, idx)), staffId: id.slice(idx + 1) };
+}
+
+type GoogleCalendarEvent = {
+  id: string;
+  user_id: string;
+  title: string | null;
+  start_at: string;
+  end_at: string;
+  is_all_day: boolean;
+};
+
+// ===== Props =====
+type Props = {
+  date: string;
+  initialView: RosterDailyView;
+  googleCalendarEvents?: GoogleCalendarEvent[];
+  deletable?: boolean;
+};
+
+// ===== DnD State =====
+type DragMode = "move" | "resizeEnd";
+interface DragState {
+    mode: DragMode;
+    cardId: string;
+    // 固定情報
+    origStartMin: number;
+    origEndMin: number;
+    origRowIdx: number;
+    pointerStartX: number;
+    pointerStartY: number;
+    grabOffsetMin: number;    // つかんだ横位置（分）
+    // ゴースト（可変）
+    ghostStartMin: number;
+    ghostEndMin: number;
+    ghostRowIdx: number;
+    srcStaffId: string;       // ★ 触り始めたカードの元担当
+}
+
+export default function RosterBoardDaily({
+  date,
+  initialView,
+  googleCalendarEvents = [],
+  deletable = false,
+}: Props) {
+
+    // ====== ルーティング（日付遷移） ======
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    //const supabase = useMemo(() => createClientComponentClient(), []);
+    const go = (d: string) => {
+        const params = new URLSearchParams(searchParams?.toString());
+        params.set("date", d);
+        router.push(`/portal/roster/daily?${params.toString()}`);
+    };
+    const toJstYYYYMMDD = (dt: Date) =>
+        new Intl.DateTimeFormat("sv-SE", {
+            timeZone: "Asia/Tokyo",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+        }).format(dt);
+    const prevDay = () => {
+        const base = new Date(`${date}T00:00:00+09:00`);
+        base.setDate(base.getDate() - 1);
+        go(toJstYYYYMMDD(base));
+    };
+    const nextDay = () => {
+        const base = new Date(`${date}T00:00:00+09:00`);
+        base.setDate(base.getDate() + 1);
+        go(toJstYYYYMMDD(base));
+    };
+    const onPickDate: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+        if (e.target.value) go(e.target.value);
+    };
+
+    // ✅ 月文字列（YYYY-MM）と月初（YYYY-MM-01）
+    const monthStr = useMemo(() => date?.slice(0, 7) ?? "", [date]);
+    const monthFirst = useMemo(() => (monthStr ? `${monthStr}-01` : date), [monthStr, date]);
+
+    // ====== 表示データ（カードはドラッグ反映のため state に） ======
+    const [cards, setCards] = useState<RosterShiftCard[]>(initialView.shifts);
+
+    const [selectedShift, setSelectedShift] = useState<RosterShiftDialogData | null>(null);
+    const [dialogOpen, setDialogOpen] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadRpaStatus = async () => {
+            const baseCards = initialView.shifts;
+
+            const shiftIds = Array.from(
+                new Set(
+                    baseCards
+                        .map((c) => parseCardCompositeId(c.id).shiftId)
+                        .filter((id) => Number.isFinite(id))
+                )
+            );
+
+            if (shiftIds.length === 0) {
+                setCards(baseCards);
+                return;
+            }
+
+            const { data, error } = await supabase
+                .from("spot_offer_request_table")
+                .select("shift_id, status")
+                .in("shift_id", shiftIds);
+
+            if (error) {
+                console.error("RPA状態取得エラー:", error);
+                setCards(baseCards);
+                return;
+            }
+
+            type SpotOfferRequestStatusRow = {
+                shift_id: number | string;
+                status: string | null;
+            };
+
+            const statusMap = new Map(
+                ((data ?? []) as SpotOfferRequestStatusRow[]).map((row) => [
+                    Number(row.shift_id),
+                    row.status ?? null,
+                ])
+            );
+
+            const nextCards = baseCards.map((c) => {
+                const { shiftId } = parseCardCompositeId(c.id);
+
+                return {
+                    ...c,
+                    spot_status: statusMap.get(shiftId) ?? null,
+                };
+            });
+
+            if (!cancelled) {
+                setCards(nextCards);
+            }
+        };
+
+        void loadRpaStatus();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [initialView.shifts, date]);
+
+    // チーム（org名）一覧（orgunitname を期待）
+    const allTeams = useMemo(() => {
+        const s = new Set<string>();
+        initialView.staff.forEach((st) => st.team && s.add(st.team));
+        return Array.from(s).sort((a, b) => a.localeCompare(b, "ja"));
+    }, [initialView.staff]);
+
+    const [teamFilterOpen, setTeamFilterOpen] = useState(false);
+    const [selectedTeams, setSelectedTeams] = useState<string[]>(() => allTeams);
+    useEffect(() => {
+        // 候補リストが更新されたら、既存選択と突き合わせてクリーニング。
+        setSelectedTeams((prev) => {
+            if (prev.length === 0) return prev;      // クリア = 全表示 を維持
+            return prev.filter((t) => allTeams.includes(t));
+        });
+    }, [allTeams]);
+
+    // sort（文字列数値）を取得
+    const getRosterSort = (st: RosterStaff): string => {
+        const rs = (st as unknown as { roster_sort?: string }).roster_sort;
+        return rs ?? "9999";
+    };
+
+    const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
+
+    const handleDelete = async (cardId: string) => {
+        const { shiftId } = parseCardCompositeId(cardId);
+        if (!confirm('このシフトを削除します。よろしいですか？')) return;
+
+        setDeletingIds(prev => new Set(prev).add(shiftId));
+
+        try {
+            const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
+            if (sessErr) console.warn("[roster] getSession error", sessErr);
+            const token = sessionData.session?.access_token ?? null;
+
+            const res = await fetch('/api/shifts', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                // cookie fallback も効くように明示（同一オリジンなら通常不要だが保険）
+                credentials: 'same-origin',
+                body: JSON.stringify({ ids: [String(shiftId)] }),
+            });
+
+            if (!res.ok) {
+                const msg = await res.text().catch(() => '');
+                alert(`削除に失敗しました\n${msg}`);
+                setDeletingIds(prev => { const n = new Set(prev); n.delete(shiftId); return n; });
+                return;
+            }
+
+            setCards(prev => prev.filter(c => parseCardCompositeId(c.id).shiftId !== shiftId));
+        } catch (e) {
+            console.error(e);
+            alert('削除時にエラーが発生しました');
+            setDeletingIds(prev => { const n = new Set(prev); n.delete(shiftId); return n; });
+        }
+    };
+
+    const openShiftDialog = (card: RosterShiftCard) => {
+        if (!card.dialog) return;
+        setSelectedShift(card.dialog);
+        setDialogOpen(true);
+    };
+
+    const handleDialogSaved = (next: RosterShiftDialogData) => {
+        setSelectedShift(next);
+
+        setCards((prev) =>
+            prev.map((c) => {
+                if (c.dialog?.shift_id !== next.shift_id) return c;
+
+                let nextStaffId = c.staff_id;
+                if (c.staff_slot === 1) nextStaffId = String(next.staff_id_1 ?? "");
+                if (c.staff_slot === 2) nextStaffId = String(next.staff_id_2 ?? "");
+                if (c.staff_slot === 3) nextStaffId = String(next.staff_id_3 ?? "");
+
+                return {
+                    ...c,
+                    staff_id: nextStaffId,
+                    start_at: next.start_at,
+                    end_at: next.end_at,
+                    service_code: next.service_code,
+                    service_name: next.service_name,
+                    client_name: next.client_name,
+                    dialog: next,
+                };
+            })
+        );
+    };
+
+    // 並び順：roster_sort → 氏名
+    const displayStaff: RosterStaff[] = useMemo(() => {
+  const sorted = [...initialView.staff].sort((a, b) => {
+    const ra = getRosterSort(a);
+    const rb = getRosterSort(b);
+
+    if (ra !== rb) {
+      return ra.localeCompare(rb, "ja", {
+        numeric: true,
+        sensitivity: "base",
+      });
+    }
+
+    return a.name.localeCompare(b.name, "ja");
+  });
+
+return sorted.filter((st) => {
+  // 選択がない場合は全員表示
+  if (selectedTeams.length === 0) {
+    return true;
+  }
+
+  const isManagerFilterSelected =
+    selectedTeams.includes("ヘルパーマネージャー") ||
+    selectedTeams.includes("ヘルパーマネジャー");
+
+  // ヘルパーマネージャーだけを選択した場合
+  if (
+    isManagerFilterSelected &&
+    selectedTeams.length === 1
+  ) {
+    return (
+      st.system_role === "manager" ||
+      st.system_role === "admin"
+    );
+  }
+
+  // 通常のチームに所属している人を表示
+  const isSelectedTeam =
+    !!st.team && selectedTeams.includes(st.team);
+
+  // ヘルパーマネージャーと通常チームを同時選択した場合
+  const isManagerOrAdmin =
+    isManagerFilterSelected &&
+    (
+      st.system_role === "manager" ||
+      st.system_role === "admin"
+    );
+
+  return isSelectedTeam || isManagerOrAdmin;
+});
+}, [initialView.staff, selectedTeams]);
+
+    const serviceOptions = useMemo(() => {
+        const map = new Map<string, string>();
+        cards.forEach((c) => {
+            const code = c.dialog?.service_code ?? c.service_code ?? '';
+            const name = c.dialog?.service_name ?? c.service_name ?? '';
+            if (code) {
+                map.set(code, name ? `${name} (${code})` : code);
+            }
+        });
+
+        return Array.from(map.entries())
+            .map(([value, label]) => ({ value, label }))
+            .sort((a, b) => a.label.localeCompare(b.label, 'ja'));
+    }, [cards]);
+
+    const rowIndexByStaff = useMemo(() => {
+  const m = new Map<string, number>();
+
+  displayStaff.forEach((st, i) => {
+    m.set(st.id, i);
+  });
+
+  return m;
+}, [displayStaff]);
+
+console.log(
+  "[Google予定ID確認]",
+  googleCalendarEvents.map((event) => ({
+    eventUserId: event.user_id,
+    staffExists: rowIndexByStaff.has(event.user_id),
+  })),
+);
+    // ====== スクロール制御 ======
+    const rightScrollRef = useRef<HTMLDivElement>(null);   // 横スクロール（時間）
+    const outerScrollRef = useRef<HTMLDivElement>(null);   // ★ 縦スクロールを与えるコンテナ
+
+    // ====== 時間ヘッダーの目盛 ======
+    const hours = useMemo(() => {
+        const arr: { label: string; left: number }[] = [];
+        for (let h = 0; h <= 24; h++) {
+            arr.push({ label: `${String(h).padStart(2, "0")}:00`, left: h * 60 * PX_PER_MIN });
+        }
+        return arr;
+    }, []);
+
+    // ====== DnD ======
+    const [drag, setDrag] = useState<DragState | null>(null);
+
+    const autoScrollOuterIfNearEdge = (clientY: number) => {
+        const sc = outerScrollRef.current;
+        if (!sc) return;
+        const rect = sc.getBoundingClientRect();
+        const margin = 40;
+        const speed = 24;
+        if (clientY < rect.top + margin) sc.scrollTop -= speed;
+        else if (clientY > rect.bottom - margin) sc.scrollTop += speed;
+    };
+
+    const minuteFromClientX = (clientX: number) => {
+        const sc = rightScrollRef.current;
+        if (!sc) return 0;
+        const rect = sc.getBoundingClientRect();
+        const x = clientX - rect.left + sc.scrollLeft;
+        return clamp(x / PX_PER_MIN, 0, MINUTES_IN_DAY);
+    };
+
+    const rowIdxFromDeltaY = (deltaY: number, origRowIdx: number) => {
+        const dRows = Math.round(deltaY / ROW_HEIGHT);
+        return clamp(origRowIdx + dRows, 0, Math.max(0, displayStaff.length - 1));
+    };
+
+    // 既存 onCardMouseDownMove / ResizeEnd 内でセット
+    const onCardMouseDownMove = (e: React.MouseEvent, card: RosterShiftCard) => {
+        const target = e.target as HTMLElement | null;
+        if (target && target.closest('a')) return; // リンク操作時はドラッグ開始しない
+        e.preventDefault();
+        const rowIdx = rowIndexByStaff.get(card.staff_id) ?? 0;
+        const s = hhmmToMin(dispHHmm(card.start_at));
+        const en = hhmmToMin(dispHHmm(card.end_at));
+        
+        const pointerMin = minuteFromClientX(e.clientX);
+        const grabOffsetMin = clamp(pointerMin - s, 0, en - s);
+        setDrag({
+            mode: "move",
+            cardId: card.id,
+            origStartMin: s,
+            origEndMin: en,
+            origRowIdx: rowIdx,
+            pointerStartX: e.clientX,
+            pointerStartY: e.clientY,
+            grabOffsetMin,
+            ghostStartMin: s,
+            ghostEndMin: en,
+            ghostRowIdx: rowIdx,
+            srcStaffId: card.staff_id,
+        });
+    };
+
+    const onCardMouseDownResizeEnd = (e: React.MouseEvent, card: RosterShiftCard) => {
+        const target = e.target as HTMLElement | null;
+        if (target && target.closest('a')) return; // 念のため
+        e.preventDefault();
+        e.stopPropagation();
+        const rowIdx = rowIndexByStaff.get(card.staff_id) ?? 0;
+        const s = hhmmToMin(dispHHmm(card.start_at));
+        const en = hhmmToMin(dispHHmm(card.end_at));
+        setDrag({
+            mode: "resizeEnd",
+            cardId: card.id,
+            origStartMin: s,
+            origEndMin: en,
+            origRowIdx: rowIdx,
+            pointerStartX: e.clientX,
+            pointerStartY: e.clientY,
+            grabOffsetMin: 0,
+            ghostStartMin: s,
+            ghostEndMin: en,
+            ghostRowIdx: rowIdx,
+            srcStaffId: card.staff_id,
+        });
+    };
+
+    useEffect(() => {
+        function onMove(ev: MouseEvent) {
+            if (!drag) return;
+
+            if (drag.mode === "move") {
+                const pointerMin = minuteFromClientX(ev.clientX);
+                const newStartRaw = pointerMin - drag.grabOffsetMin;
+                const dur = drag.origEndMin - drag.origStartMin;
+                const newStart = snapMin(clamp(newStartRaw, 0, MINUTES_IN_DAY - MIN_DURATION_MIN));
+                const newEnd = clamp(newStart + dur, newStart + MIN_DURATION_MIN, MINUTES_IN_DAY);
+                const newRowIdx = rowIdxFromDeltaY(ev.clientY - drag.pointerStartY, drag.origRowIdx);
+                setDrag((d) => (d ? { ...d, ghostStartMin: newStart, ghostEndMin: newEnd, ghostRowIdx: newRowIdx } : d));
+            } else if (drag.mode === "resizeEnd") {
+                const pointerMin = minuteFromClientX(ev.clientX);
+                const newEnd = snapMin(clamp(pointerMin, drag.origStartMin + MIN_DURATION_MIN, MINUTES_IN_DAY));
+                setDrag((d) => (d ? { ...d, ghostEndMin: newEnd, ghostRowIdx: d.origRowIdx } : d));
+            }
+
+            // 横自動スクロール（右列）
+            const sc = rightScrollRef.current;
+            if (sc) {
+                const rect = sc.getBoundingClientRect();
+                const margin = 40;
+                const speed = 24;
+                if (ev.clientX < rect.left + margin) sc.scrollLeft -= speed;
+                else if (ev.clientX > rect.right - margin) sc.scrollLeft += speed;
+            }
+
+            // ★ 縦は外側コンテナで自動スクロール
+            autoScrollOuterIfNearEdge(ev.clientY);
+        }
+
+        // mouseup 時のPATCHに src_staff_id を追加
+        function onUp() {
+            if (!drag) return;
+            const { cardId, ghostStartMin, ghostEndMin, ghostRowIdx, srcStaffId } = drag;
+            const { shiftId } = parseCardCompositeId(cardId);
+            const targetStaff = displayStaff[ghostRowIdx];
+            if (!targetStaff) { setDrag(null); return; }
+            const start_at = toHHmm(ghostStartMin);
+            const end_at = toHHmm(ghostEndMin);
+            const staff_id = targetStaff.id;    // ← dst
+
+            setCards((prev) =>
+                prev.map((c) => (c.id === cardId ? { ...c, id: `${shiftId}_${staff_id}`, staff_id, start_at, end_at } : c))
+            );
+
+            (async () => {
+                try {
+                    //const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
+                    //f (sessErr) console.warn("[roster] getSession error", sessErr);
+
+                    //const token = sessionData.session?.access_token ?? null;
+                    //console.log("[roster] token?", token ? "yes" : "no");
+
+                    const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
+                    if (sessErr) console.warn("[roster] getSession error", sessErr);
+                    const token = sessionData.session?.access_token ?? null;
+                    console.log("[roster] token?", token ? "yes" : "no");
+
+                    await fetch(`/api/roster/shifts/${shiftId}`, {
+                        method: "PATCH",
+                        headers: {
+                            "Content-Type": "application/json",
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
+                        body: JSON.stringify({ src_staff_id: srcStaffId, staff_id, start_at, end_at, date }),
+                    });
+
+                    /*
+                    if (!res.ok) {
+                        const msg = await res.text().catch(() => "");
+                        console.error("[roster] PATCH failed", res.status, msg);
+                    } else {
+                        console.log("[roster] PATCH ok");
+                    }
+                        */
+                } catch (err) {
+                    console.error("[PATCH] roster shift update failed", err);
+                }
+            })();
+
+            setDrag(null);
+        }
+
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+        return () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+        };
+    }, [drag, displayStaff, date]);
+
+    // ====== スタイル ======
+    const MAX_H_MULTIPLIER = 10; // ← 4〜5倍にしたいときは 4 or 5 を指定
+    const gridStyle: React.CSSProperties = {
+        display: "grid",
+        gridTemplateColumns: `${NAME_COL_WIDTH}px 1fr`,
+        border: "1px solid #e5e7eb",
+        borderRadius: 8,
+        position: "relative",
+        overflowX: "hidden",
+        overflowY: "auto",
+        maxHeight: `calc((1000vh - 140px) * ${MAX_H_MULTIPLIER})`, // ★ 縦を拡張
+    };
+    const leftColStyle: React.CSSProperties = {
+        position: "relative",
+        borderRight: "1px solid #e5e7eb",
+        background: "#fff",
+    };
+    const rightColStyle: React.CSSProperties = {
+        position: "relative",
+        overflowX: "auto",
+        overflowY: "visible", // ★ 縦は外側で管理するため visible
+        background: "#fff",
+    };
+    const headerNameStyle: React.CSSProperties = {
+        position: "sticky",
+        top: 0,
+        zIndex: 3,
+        background: "#fff",
+        borderBottom: "1px solid #e5e7eb",
+        height: HEADER_H,
+        display: "flex",
+        alignItems: "center",
+        padding: "0 8px",
+        fontWeight: 600,
+        fontSize: 12,
+    };
+    const headerTimeWrap: React.CSSProperties = {
+        position: "sticky",
+        top: 0,
+        zIndex: 3,
+        background: "#fff",
+        borderBottom: "1px solid #e5e7eb",
+    };
+    const timeTicksStyle: React.CSSProperties = {
+        position: "relative",
+        height: HEADER_H,
+        minWidth: TIMELINE_WIDTH,
+    };
+    const timeGridStyle: React.CSSProperties = {
+        position: "relative",
+        minWidth: TIMELINE_WIDTH,
+        background: "repeating-linear-gradient(to right, #f3f4f6 0, #f3f4f6 1px, transparent 1px, transparent 120px)",
+    };
+    const nameRowStyle: React.CSSProperties = {
+        display: "flex",
+        alignItems: "center",
+        padding: "0 8px",
+        height: ROW_HEIGHT,
+        borderBottom: "1px solid #f1f5f9",
+        background: "#fff",
+        fontSize: 12,
+    };
+    // ★ 盤面は“行数ぶんの高さ”のみ。ヘッダー分は加算しない
+    const boardHeight = displayStaff.length * ROW_HEIGHT;
+    const staffRowBgStyle = (rowIdx: number): React.CSSProperties => ({
+        position: "absolute",
+        top: rowIdx * ROW_HEIGHT,
+        left: 0,
+        right: 0,
+        height: ROW_HEIGHT,
+        borderBottom: "1px solid #f1f5f9",
+    });
+
+    const getGenderBorder = (c: RosterShiftCard): string => {
+        if (c.female_flg === true && c.male_flg === false) {
+            return "2px solid #ef4444"; // 女性希望 → 赤
+        }
+        if (c.male_flg === true && c.female_flg === false) {
+            return "2px solid #3b82f6"; // 男性希望 → 青
+        }
+        if (c.male_flg === true && c.female_flg === true) {
+            return "2px solid #111827"; // 男女問わず → 黒
+        }
+        return "1px solid rgba(59, 130, 246, 0.55)"; // fallback
+    };
+    const cardStyle = (c: RosterShiftCard): React.CSSProperties => {
+        const rowIdx = rowIndexByStaff.get(c.staff_id);
+        // ★ カードのtopに HEADER_H を二重加算しない
+        const topPx = rowIdx != null ? rowIdx * ROW_HEIGHT + CARD_VPAD : CARD_VPAD;
+
+        const bg =
+            c.staff_slot === 2
+                ? "rgba(134, 239, 172, 0.45)"   // 薄い緑
+                : c.staff_slot === 3
+                    ? "rgba(216, 180, 254, 0.45)" // 薄い紫
+                    : "rgba(59, 130, 246, 0.28)"; // 既存の青
+
+        const bd = getGenderBorder(c);
+
+        return {
+    position: "absolute",
+    top: topPx,
+    left: leftPx(dispHHmm(c.start_at)),
+    width: widthPx(dispHHmm(c.start_at), dispHHmm(c.end_at)),
+    height: ROW_HEIGHT - CARD_VPAD * 2,
+    borderRadius: 6,
+    background: bg,
+    border: bd,
+    mixBlendMode: "multiply",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    padding: "4px 8px",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+    cursor: "grab",
+    userSelect: "none",
+    lineHeight: 1.15,
+    gap: 2,
+
+    // Googleカレンダーよりシフトを前面にする
+    zIndex: 2,
+};
+    };
+    const googleEventStyle = (
+  event: GoogleCalendarEvent,
+): React.CSSProperties => {
+  const rowIdx =
+    rowIndexByStaff.get(event.user_id);
+
+  const eventTime =
+  event.is_all_day
+    ? {
+        start: "00:00",
+        end: "24:00",
+      }
+    : getGoogleEventTimeForDate(
+        event,
+        date,
+      );
+
+  const googleEventHeight = 32;
+const googleEventBottomMargin = 3;
+
+const topPx =
+  rowIdx != null
+    ? rowIdx * ROW_HEIGHT +
+      ROW_HEIGHT -
+      googleEventHeight -
+      googleEventBottomMargin
+    : ROW_HEIGHT -
+      googleEventHeight -
+      googleEventBottomMargin;
+
+  return {
+  position: "absolute",
+  top: topPx,
+  left: leftPx(eventTime.start),
+  width: widthPx(
+    eventTime.start,
+    eventTime.end,
+  ),
+
+  // 高さを約2倍に変更
+  height: googleEventHeight,
+  minWidth: 4,
+
+  borderRadius: 4,
+
+  // オレンジ色
+  border: "1px solid rgba(234, 88, 12, 0.85)",
+  background: "rgba(251, 146, 60, 0.55)",
+
+  color: "#7c2d12",
+  padding: "2px 5px",
+  fontSize: 11,
+  fontWeight: 600,
+  lineHeight: "14px",
+
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+
+  cursor: "default",
+  userSelect: "none",
+
+  // 後ろのシフトを見えるようにする
+  opacity: 0.72,
+
+  // Googleカレンダーはシフトより背面
+  zIndex: 1,
+
+  // Google予定自体はクリック可能
+  pointerEvents: "auto",
+
+  boxSizing: "border-box",
+};
+};
+
+    const resizeHandleStyle: React.CSSProperties = {
+        position: "absolute",
+        right: 0,
+        top: 0,
+        width: 6,
+        height: "100%",
+        cursor: "e-resize",
+        background: "rgba(0,0,0,0.08)",
+    };
+    const ghostStyle = (d: DragState): React.CSSProperties => ({
+        position: "absolute",
+        // ★ ゴーストも HEADER_H を足さない
+        top: d.ghostRowIdx * ROW_HEIGHT + CARD_VPAD,
+        left: d.ghostStartMin * PX_PER_MIN,
+        width: (d.ghostEndMin - d.ghostStartMin) * PX_PER_MIN,
+        height: ROW_HEIGHT - CARD_VPAD * 2,
+        borderRadius: 6,
+        background: "rgba(147,197,253,0.35)",
+        border: "1px dashed #60A5FA",
+        pointerEvents: "none",
+        zIndex: 4,
+    });
+
+    // ====== UI ======
+    return (
+        <>
+            <div className="p-2 space-y-2">
+                {/* ヘッダー（シンプル） */}
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                        <button onClick={prevDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">前日</button>
+                        <input type="date" className="px-2 py-1 rounded border text-sm" value={date} onChange={onPickDate} />
+                        <button onClick={nextDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">翌日</button>
+                    </div>
+                    <div className="flex items-center gap-2">
+{/* チームフィルタ（ポップアップ） */}
+<div className="relative">
+  <button
+    type="button"
+    onClick={() => setTeamFilterOpen((v) => !v)}
+    className="px-2 py-1 rounded border hover:bg-gray-50 text-sm"
+    title="チーム（org）で絞り込み"
+  >
+    チーム
+  </button>
+
+  {teamFilterOpen && (
+    <div
+      className="absolute right-0 mt-1 w-64 max-h-72 overflow-auto rounded-md border bg-white shadow-lg z-50 p-2"
+      onMouseLeave={() => setTeamFilterOpen(false)}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-gray-500">
+          チームで絞り込み
+        </span>
+
+        <div className="space-x-2">
+          <button
+            type="button"
+            className="text-xs text-blue-600 hover:underline"
+            onClick={() => setSelectedTeams(allTeams)}
+          >
+            全選択
+          </button>
+
+          <button
+            type="button"
+            className="text-xs text-blue-600 hover:underline"
+            onClick={() => setSelectedTeams([])}
+          >
+            全解除
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        {allTeams.length === 0 ? (
+          <div className="text-xs text-gray-400">
+            （チーム情報なし）
+          </div>
+        ) : (
+          allTeams.map((t) => (
+            <label
+              key={t}
+              className="flex items-center gap-2 text-sm"
+            >
+              <input
+                type="checkbox"
+                checked={selectedTeams.includes(t)}
+                onChange={(e) => {
+                  setSelectedTeams((prev) =>
+                    e.target.checked
+                      ? [...new Set([...prev, t])]
+                      : prev.filter((x) => x !== t)
+                  );
+                }}
+              />
+
+              <span className="truncate" title={t}>
+                {t}
+              </span>
+            </label>
+          ))
+        )}
+      </div>
+    </div>
+  )}
+</div>
+
+                        {/* 右上「メニュー」ボタンは不要のため削除 */}
+                    </div>
+                </div>
+
+<div className="flex items-center gap-4 px-1 text-xs text-gray-600">
+  <div className="flex items-center gap-1">
+    <span
+      className="inline-block h-3 w-6 rounded border border-blue-400 bg-blue-100"
+    />
+    <span>マイファミーユのシフト</span>
+  </div>
+
+  <div className="flex items-center gap-1">
+    <span
+      className="inline-block h-3 w-6 rounded border border-gray-500 bg-gray-200"
+    />
+    <span>
+      Google予定・参照専用
+    </span>
+  </div>
+</div>
+
+{/* 盤面 */}
+<div style={gridStyle} ref={outerScrollRef}>
+                    {/* 左：氏名列 */}
+                    <div style={leftColStyle}>
+                        <div style={headerNameStyle}>スタッフ</div>
+                        <div style={{ position: "relative" }}>
+                            {displayStaff.map((st) => (
+                                <div key={st.id} style={nameRowStyle} title={st.name}>
+                                    {/* ✅ スタッフ詳細（シフトビュー）へのリンク */}
+                                    <a
+                                        href={`/portal/shift-view?user_id=${encodeURIComponent(st.id)}&date=${encodeURIComponent(monthFirst)}&per=50&page=1`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="truncate text-blue-700 hover:underline text-[17px]"
+                                    >
+                                        {st.name}
+                                    </a>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* 右：タイムライン（横スクロールのみ、時間ヘッダー固定） */}
+                    <div style={rightColStyle} ref={rightScrollRef}>
+                        <div style={headerTimeWrap}>
+                            <div style={timeTicksStyle}>
+                                {hours.map((h) => (
+                                    <div key={h.label} style={{ position: "absolute", left: h.left, top: 0, height: HEADER_H, width: 1, background: "#e5e7eb" }} />
+                                ))}
+                                {hours.map((h) => (
+                                    <div key={`${h.label}-text`} style={{ position: "absolute", left: h.left + 4, top: 10, fontSize: 12, color: "#6b7280" }}>{h.label}</div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 盤面：高さは行数ぶんのみ（ヘッダーは別DOM） */}
+                        <div style={{ position: "relative", minWidth: TIMELINE_WIDTH, height: boardHeight }}>
+                            {/* 背景グリッド */}
+                            <div style={{ ...timeGridStyle, position: "absolute", inset: 0 }} />
+
+                            {/* 行罫線 */}
+                            {displayStaff.map((_, idx) => (
+                                <div key={idx} style={staffRowBgStyle(idx)} />
+                            ))}
+
+ {/* MyFamilleのシフトカード */}
+{cards.map((c) => {
+  const rowIdx = rowIndexByStaff.get(c.staff_id);
+
+  if (rowIdx == null) {
+    return null;
+  }
+
+  return (
+    <div
+      key={c.id}
+      style={cardStyle(c)}
+      title={[
+        `${dispHHmm(c.start_at)}-${dispHHmm(c.end_at)}`,
+        `${c.client_name}：${c.service_code ?? c.service_name ?? ""}`,
+      ].join("\n")}
+      onMouseDown={(e) => onCardMouseDownMove(e, c)}
+    >
+      <div className="text-[15px] font-semibold">
+        {dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}
+      </div>
+
+      <button
+        type="button"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          openShiftDialog(c);
+        }}
+        className={`text-[17px] truncate hover:underline text-left ${
+          c.has_roster_error
+            ? "font-semibold text-red-600 hover:text-red-700"
+            : "text-blue-700"
+        }`}
+      >
+        {c.client_name}：{c.service_code ?? ""}
+      </button>
+
+      {c.spot_status === "募集中" && (
+        <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[9px] font-bold text-gray-900 shadow">
+          T
+        </div>
+      )}
+
+      {c.spot_status === "確定" && (
+        <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-300 text-[9px] font-bold text-black shadow">
+          T
+        </div>
+      )}
+
+      {c.dsp_short ? (
+        <div
+          style={{
+            position: "absolute",
+            right: 1,
+            bottom: 1,
+            minWidth: 22,
+            height: 22,
+            padding: "0 4px",
+            borderRadius: 9999,
+            border: "1px solid #9ca3af",
+            background: "rgba(255,255,255,0.92)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            fontWeight: 700,
+            lineHeight: 1,
+            color: "#374151",
+            pointerEvents: "none",
+          }}
+        >
+          {c.dsp_short}
+        </div>
+      ) : null}
+
+      <div
+        style={resizeHandleStyle}
+        onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)}
+      />
+
+      {deletable && (
+        <button
+          type="button"
+          aria-label="削除"
+          title="削除"
+          onMouseDown={(e) => {
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleDelete(c.id);
+          }}
+          disabled={deletingIds.has(
+            parseCardCompositeId(c.id).shiftId,
+          )}
+          className={[
+            "absolute -top-2 -right-2 h-6 w-6 rounded-full border",
+            "bg-red-600 text-white text-sm leading-6 text-center",
+            "shadow hover:bg-red-700 focus:outline-none focus:ring focus:ring-red-300",
+            "disabled:cursor-not-allowed disabled:opacity-50",
+          ].join(" ")}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+})}
+
+{/* Googleカレンダー予定・参照専用 */}
+{googleCalendarEvents.map((event) => {
+  const rowIdx = rowIndexByStaff.get(event.user_id);
+
+  if (rowIdx == null) {
+    return null;
+  }
+
+  const eventTime = getGoogleEventTimeForDate(
+    event,
+    date,
+  );
+
+  const displayTitle =
+  event.title?.trim() ||
+  (event.is_all_day
+    ? "終日予定"
+    : "予定あり");
+
+  return (
+    <div
+  key={`google-${event.id}`}
+  style={googleEventStyle(event)}
+  title={[
+    "Googleカレンダー予定",
+    `${eventTime.start}-${eventTime.end}`,
+    displayTitle,
+    "編集はGoogleカレンダーで行ってください",
+  ].join("\n")}
+  onClick={(e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    alert(
+      [
+        "Googleカレンダーから同期された予定です。",
+        "",
+        `${eventTime.start}-${eventTime.end}`,
+        displayTitle,
+        "",
+        "編集はGoogleカレンダーで行ってください。",
+      ].join("\n"),
+    );
+  }}
+>
+  {displayTitle}
+</div>
+  );
+})}
+
+
+{/* ゴースト */}
+{drag && <div style={ghostStyle(drag)} />}
+                        </div>
+                    </div>
+                </div>
+            </div >
+            <ShiftDialog
+                open={dialogOpen}
+                onClose={() => setDialogOpen(false)}
+                shift={selectedShift}
+                staffOptions={displayStaff}
+                serviceOptions={serviceOptions}
+                onSaved={handleDialogSaved}
+            />
+        </>
+    );
+}

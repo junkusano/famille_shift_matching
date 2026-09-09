@@ -1,0 +1,629 @@
+/*styles/globals.css */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* ===============================
+   基本カラー・フォント・テーマ
+================================= */
+
+body {
+  font-family: system-ui, sans-serif;
+}
+
+/* ===============================
+   カスタムカラーとロゴ色
+================================= */
+.bg-famille {
+  background-color: #f5fcf7;
+}
+.text-famille {
+  color: #6cbf63;
+}
+
+/* ===============================
+   ボタン系（classNameで指定する想定）
+================================= */
+.button {
+  display: inline-flex;    /* ← ここをflex or inline-flexに！ */
+  align-items: center;     /* ← アイコンとテキストの中央揃え */
+  justify-content: center; /* ← 中央寄せ */
+  text-align: center;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  transition: all 0.2s;
+  line-height: 1.5;
+  text-decoration: none;
+  width: fit-content;
+  min-width: 200px;
+}
+.button-primary {
+  background-color: #16a34a; /* Tailwind green-600 */
+  color: #fff;
+}
+.button-primary:hover {
+  background-color: #15803d; /* Tailwind green-700 */
+}
+.button-secondary {
+  background-color: #fff;
+  color: #16a34a;
+  border: 2px solid #16a34a;
+}
+.button-secondary:hover {
+  background-color: #f0fdf4; /* Tailwind green-50 */
+}
+.button-muted {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+.button-muted:hover {
+  background-color: #e5e7eb;
+}
+
+/* Tailwindスタイルでの補足（w-full → sm:w-auto） */
+@media (min-width: 640px) {
+  .button {
+    width: auto;
+  }
+}
+
+/* ===============================
+   フォーム系コンポーネント用追加CSS
+================================= */
+
+/* 入力ボックス汎用 */
+.input-field,
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="number"],
+input[type="password"],
+select {
+  @apply w-full border rounded p-2;
+}
+
+/* テキストエリア */
+textarea {
+  @apply w-full border rounded p-2;
+}
+
+/* === その他希望テキストエリアのラベル === */
+.workstyle-other-label {
+  display: block;
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 500;
+  color: #374151;       /* Tailwind gray-700 */
+}
+
+/* === 広めのテキストエリア共通スタイル === */
+textarea.textarea-wide {
+  @apply border rounded p-2 resize;
+  width: 100%;
+  max-width: 100%;
+  min-width: 100%;
+}
+
+@media (min-width: 768px) {
+  textarea.textarea-wide {
+    width: 300%;
+    max-width: none;
+  }
+}
+/* ファイルアップロード */
+input[type="file"] {
+  @apply w-full border rounded p-2 bg-white;
+}
+
+/* エラーメッセージ・注意書き */
+.text-error {
+  color: #dc2626;
+}
+.text-note {
+  @apply text-xs text-gray-600 mt-1;
+}
+
+/* セクション間スペース */
+.section {
+  @apply space-y-6 mb-8;
+}
+
+.top-nav {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.9rem;
+  color: #444;
+  z-index: 10;
+}
+
+.top-nav-link {
+  color: #1d4ed8; /* 青系 */
+  text-decoration: none;
+  font-weight: 500;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.top-nav-link:hover {
+  background-color: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.user-email {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* アラートメッセージ内の HTMLリンク用 */
+.alert-html a {
+  @apply underline;
+  color: #2563eb;       /* blue-600 相当 */
+}
+
+.alert-html a:visited {
+  color: #7c3aed;       /* purple-600 相当 */
+}
+
+.alert-html a:hover {
+  @apply underline;
+  opacity: 0.9;
+}
+
+
+/* =========================================
+   アセスメント画面
+   カイポケ帳票風レイアウト
+========================================= */
+
+.assessment-page {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  background: #ffffff;
+  color: #222222;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "Yu Gothic",
+    "YuGothic",
+    "Hiragino Kaku Gothic ProN",
+    Meiryo,
+    sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.assessment-page *,
+.assessment-page *::before,
+.assessment-page *::after {
+  box-sizing: border-box;
+}
+
+/* 画面上部 */
+.assessment-header {
+  border-top: 3px solid #f4a300;
+  border-bottom: 1px solid #cfcfcf;
+  padding: 10px 12px 8px;
+  margin-bottom: 12px;
+}
+
+.assessment-header__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #333333;
+}
+
+.assessment-header__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 6px;
+  color: #555555;
+  font-size: 12px;
+}
+
+/* 左ナビ + 本文 */
+.assessment-layout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+/* PDF左側の見出しメニューに近づける */
+.assessment-sidebar {
+  position: sticky;
+  top: 12px;
+  border: 1px solid #d8d8d8;
+  background: #ffffff;
+}
+
+.assessment-sidebar__title {
+  padding: 8px 10px;
+  border-bottom: 1px solid #d8d8d8;
+  background: #f5f5f5;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.assessment-sidebar__item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid #e4e4e4;
+  background: #ffffff;
+  color: #333333;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.assessment-sidebar__item:hover {
+  background: #fff8df;
+}
+
+.assessment-sidebar__item.is-active {
+  background: #fff1b8;
+  border-left: 4px solid #f4a300;
+  padding-left: 6px;
+  font-weight: 700;
+}
+
+/* 本文 */
+.assessment-content {
+  min-width: 0;
+}
+
+/* 各シート */
+.assessment-sheet {
+  margin-bottom: 18px;
+  border: 1px solid #bfbfbf;
+  background: #ffffff;
+  break-inside: avoid;
+}
+
+.assessment-sheet__title {
+  margin: 0;
+  padding: 6px 9px;
+  border-bottom: 1px solid #9f9f9f;
+  background: #f1f1f1;
+  color: #111111;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.assessment-sheet__description {
+  padding: 5px 9px;
+  border-bottom: 1px solid #d7d7d7;
+  color: #555555;
+  font-size: 11px;
+}
+
+/* カード型ではなく表組みにする */
+.assessment-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.assessment-table th,
+.assessment-table td {
+  border-right: 1px solid #cfcfcf;
+  border-bottom: 1px solid #cfcfcf;
+  padding: 5px 6px;
+  vertical-align: middle;
+}
+
+.assessment-table tr:last-child th,
+.assessment-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.assessment-table th:last-child,
+.assessment-table td:last-child {
+  border-right: 0;
+}
+
+.assessment-table__label {
+  width: 190px;
+  background: #fafafa;
+  font-weight: 600;
+  color: #222222;
+  text-align: left;
+}
+
+.assessment-table__field {
+  background: #ffffff;
+}
+
+.assessment-table__note {
+  width: 220px;
+  background: #fffef7;
+}
+
+/* 入力欄 */
+.assessment-page input[type="text"],
+.assessment-page input[type="email"],
+.assessment-page input[type="tel"],
+.assessment-page input[type="number"],
+.assessment-page input[type="date"],
+.assessment-page select,
+.assessment-page textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #9e9e9e;
+  border-radius: 0;
+  background: #ffffff;
+  color: #111111;
+  padding: 4px 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: none;
+}
+
+.assessment-page input[type="text"],
+.assessment-page input[type="email"],
+.assessment-page input[type="tel"],
+.assessment-page input[type="number"],
+.assessment-page input[type="date"],
+.assessment-page select {
+  min-height: 30px;
+}
+
+.assessment-page textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.assessment-page input:focus,
+.assessment-page select:focus,
+.assessment-page textarea:focus {
+  outline: 2px solid rgba(244, 163, 0, 0.3);
+  border-color: #d89200;
+}
+
+/* ラジオボタン */
+.assessment-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.assessment-radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.assessment-radio-option input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #2675d8;
+}
+
+/* チェック済み・AI入力済み表示 */
+.assessment-generated {
+  position: relative;
+}
+
+.assessment-generated::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2784dd;
+}
+
+/* 特記事項 */
+.assessment-special-note {
+  padding: 7px;
+  background: #fffdf3;
+}
+
+.assessment-special-note__label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+/* ボタン行 */
+.assessment-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 9px 12px;
+  border-top: 1px solid #cfcfcf;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.assessment-action-button {
+  min-width: 110px;
+  border: 1px solid #c88800;
+  border-radius: 2px;
+  padding: 7px 14px;
+  background: #ffc928;
+  color: #222222;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.assessment-action-button:hover {
+  background: #ffbd00;
+}
+
+.assessment-action-button--secondary {
+  border-color: #a6a6a6;
+  background: #f5f5f5;
+}
+
+.assessment-action-button--secondary:hover {
+  background: #e9e9e9;
+}
+
+/* スマートフォン */
+@media (max-width: 767px) {
+  .assessment-page {
+    font-size: 14px;
+  }
+
+  .assessment-layout {
+    display: block;
+  }
+
+  .assessment-sidebar {
+    position: static;
+    display: flex;
+    overflow-x: auto;
+    margin-bottom: 10px;
+    border: 0;
+    border-bottom: 1px solid #d0d0d0;
+  }
+
+  .assessment-sidebar__title {
+    display: none;
+  }
+
+  .assessment-sidebar__item {
+    width: auto;
+    flex: 0 0 auto;
+    border: 1px solid #d0d0d0;
+    border-right: 0;
+    white-space: nowrap;
+  }
+
+  .assessment-sidebar__item:last-child {
+    border-right: 1px solid #d0d0d0;
+  }
+
+  .assessment-table,
+  .assessment-table tbody,
+  .assessment-table tr,
+  .assessment-table th,
+  .assessment-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .assessment-table__label,
+  .assessment-table__note {
+    width: 100%;
+  }
+
+  .assessment-table__label {
+    border-right: 0 !important;
+    background: #f3f3f3;
+  }
+
+  .assessment-table__field,
+  .assessment-table__note {
+    border-right: 0 !important;
+  }
+
+  .assessment-radio-group {
+    gap: 8px 14px;
+  }
+
+  .assessment-actions {
+    justify-content: stretch;
+  }
+
+  .assessment-action-button {
+    flex: 1;
+    min-width: 0;
+  }
+}

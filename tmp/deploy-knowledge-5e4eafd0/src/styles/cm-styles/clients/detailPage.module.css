@@ -1,0 +1,10 @@
+/* =============================================================
+   src/styles/cm-styles/clients/detailPage.module.css
+   利用者詳細ページスタイル
+   ============================================================= */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}

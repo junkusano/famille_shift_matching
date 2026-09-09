@@ -1,0 +1,369 @@
+/* =============================================================
+   src/styles/cm-styles/clients/insuranceTab.module.css
+   利用者詳細 - 被保険者証情報タブスタイル
+   ============================================================= */
+
+/* =============================================================
+   レイアウト
+   ============================================================= */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* =============================================================
+   空状態
+   ============================================================= */
+
+.emptyCard {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+  padding: 32px;
+}
+
+.emptyText {
+  text-align: center;
+  color: #64748b;
+}
+
+/* =============================================================
+   件数
+   ============================================================= */
+
+.countText {
+  font-size: 14px;
+  color: #475569;
+}
+
+.countNumber {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* =============================================================
+   保険証カード
+   ============================================================= */
+
+.insuranceCard {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid;
+  overflow: hidden;
+}
+
+.insuranceCardValid {
+  composes: insuranceCard;
+  border-left-color: #22c55e;
+}
+
+.insuranceCardFuture {
+  composes: insuranceCard;
+  border-left-color: #3b82f6;
+}
+
+.insuranceCardExpired {
+  composes: insuranceCard;
+  border-left-color: #cbd5e1;
+}
+
+/* =============================================================
+   カードヘッダー行
+   ============================================================= */
+
+.cardHeader {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #475569;
+}
+
+/* =============================================================
+   カードデータ行
+   ============================================================= */
+
+.cardData {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  padding: 12px 16px;
+  align-items: center;
+}
+
+/* =============================================================
+   ステータスバッジ
+   ============================================================= */
+
+.statusBadge {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  color: #fff;
+}
+
+.statusBadgeValid {
+  composes: statusBadge;
+  background-color: #22c55e;
+}
+
+.statusBadgeFuture {
+  composes: statusBadge;
+  background-color: #3b82f6;
+}
+
+.statusBadgeExpired {
+  composes: statusBadge;
+  background-color: #94a3b8;
+}
+
+/* =============================================================
+   セルスタイル
+   ============================================================= */
+
+.cellText {
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.cellTextSub {
+  color: #64748b;
+}
+
+.cellMono {
+  font-size: 14px;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  color: #1e293b;
+}
+
+.cellEmpty {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.careLevelBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* =============================================================
+   詳細ボタン
+   ============================================================= */
+
+.toggleButton {
+  width: 100%;
+  padding: 8px 16px;
+  background-color: #f8fafc;
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #475569;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.toggleButton:hover {
+  background-color: #f1f5f9;
+}
+
+.toggleIcon {
+  width: 16px;
+  height: 16px;
+}
+
+/* =============================================================
+   展開コンテンツ
+   ============================================================= */
+
+.expandedContent {
+  border-top: 2px solid #cbd5e1;
+  background-color: #f8fafc;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* =============================================================
+   サブセクション共通
+   ============================================================= */
+
+.subSection {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.subSectionHeaderBlue {
+  background-color: #2563eb;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subSectionHeaderGreen {
+  background-color: #16a34a;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subSectionHeaderAmber {
+  background-color: #f59e0b;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subSectionIcon {
+  width: 16px;
+  height: 16px;
+  color: #fff;
+}
+
+.subSectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.subSectionBody {
+  padding: 16px;
+}
+
+.subSectionList {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* =============================================================
+   認定詳細グリッド
+   ============================================================= */
+
+.certGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .certGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.certLabel {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.certValue {
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.certValueMono {
+  composes: certValue;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+}
+
+/* =============================================================
+   事業所行
+   ============================================================= */
+
+.officeRow {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  padding: 12px;
+  border-radius: 4px;
+  border: 1px solid;
+}
+
+@media (min-width: 768px) {
+  .officeRow {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+.officeRowPrimary {
+  composes: officeRow;
+  background-color: #f0fdf4;
+  border-color: #86efac;
+}
+
+.officeRowDefault {
+  composes: officeRow;
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+/* =============================================================
+   給付制限行
+   ============================================================= */
+
+.benefitRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 12px;
+  background-color: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 4px;
+}
+
+.benefitLabel {
+  font-size: 12px;
+  color: #b45309;
+  margin-bottom: 4px;
+}
+
+.benefitValue {
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.benefitValueBold {
+  composes: benefitValue;
+  font-weight: 600;
+}
+
+/* =============================================================
+   border付きサブセクション
+   ============================================================= */
+
+.subSectionBorderAmber {
+  composes: subSection;
+  border: 1px solid #fbbf24;
+}
+
+.subSectionBorderSlate {
+  composes: subSection;
+  border: 1px solid #cbd5e1;
+}

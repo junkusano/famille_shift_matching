@@ -47,24 +47,24 @@ export const OPENAI_PROFILES: Readonly<
     ),
   },
   standard: {
-    model: resolveModel(process.env.OPENAI_MODEL_STANDARD, "gpt-5.6-terra"),
+    model: resolveModel(process.env.OPENAI_MODEL_STANDARD, "gpt-5.6-luna"),
     reasoning: resolveReasoningEffort(
       process.env.OPENAI_REASONING_STANDARD,
-      "medium",
+      "low",
     ),
   },
   heavy: {
-    model: resolveModel(process.env.OPENAI_MODEL_HEAVY, "gpt-5.6-sol"),
+    model: resolveModel(process.env.OPENAI_MODEL_HEAVY, "gpt-5.6-terra"),
     reasoning: resolveReasoningEffort(
       process.env.OPENAI_REASONING_HEAVY,
-      "high",
+      "medium",
     ),
   },
   critical: {
-    model: resolveModel(process.env.OPENAI_MODEL_CRITICAL, "gpt-5.6-sol"),
+    model: resolveModel(process.env.OPENAI_MODEL_CRITICAL, "gpt-5.6-terra"),
     reasoning: resolveReasoningEffort(
       process.env.OPENAI_REASONING_CRITICAL,
-      "xhigh",
+      "medium",
     ),
   },
 };

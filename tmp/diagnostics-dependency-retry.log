@@ -1,0 +1,14 @@
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'famille_shift_matching@0.1.0',
+npm warn EBADENGINE   required: { node: '24.x' },
+npm warn EBADENGINE   current: { node: 'v22.14.0', npm: '10.9.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@sparticuz/chromium@147.0.2',
+npm warn EBADENGINE   required: { node: '>=22.17.0' },
+npm warn EBADENGINE   current: { node: 'v22.14.0', npm: '10.9.2' }
+npm warn EBADENGINE }
+npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 5 packages, removed 2 packages, and changed 170 packages in 3m

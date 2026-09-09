@@ -1,0 +1,304 @@
+/* =============================================================
+   src/styles/cm-styles/contracts/plaudSelect.module.css
+   契約紐付け用 録音選択モーダルスタイル
+   ============================================================= */
+
+/* =============================================================
+   オーバーレイ
+   ============================================================= */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 24px;
+}
+
+/* =============================================================
+   モーダル
+   ============================================================= */
+
+.modal {
+  background-color: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* =============================================================
+   ヘッダー
+   ============================================================= */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.closeButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background-color: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.closeButton:hover {
+  background-color: #f1f5f9;
+  color: #1e293b;
+}
+
+/* =============================================================
+   録音一覧
+   ============================================================= */
+
+.recordingList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.recordingItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+
+.recordingItem:hover {
+  background-color: #f8fafc;
+}
+
+.recordingItemSelected {
+  background-color: #eff6ff;
+}
+
+.recordingItemSelected:hover {
+  background-color: #dbeafe;
+}
+
+/* ラジオ風インジケーター */
+.radioIndicator {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.radioIndicatorSelected {
+  border-color: #2563eb;
+  background-color: #2563eb;
+}
+
+.radioInner {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #fff;
+}
+
+/* 録音情報 */
+.recordingInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.recordingTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recordingMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.recordingDate {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.recordingUuid {
+  font-size: 11px;
+  color: #94a3b8;
+  font-family: monospace;
+}
+
+/* ステータスバッジ */
+.statusBadge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* =============================================================
+   空状態・ローディング・エラー
+   ============================================================= */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 24px;
+  color: #94a3b8;
+}
+
+.emptyIcon {
+  color: #cbd5e1;
+}
+
+.emptyText {
+  font-size: 14px;
+  text-align: center;
+}
+
+.loadingState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 24px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.errorState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: #dc2626;
+  font-size: 14px;
+}
+
+/* =============================================================
+   フッター
+   ============================================================= */
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  gap: 12px;
+}
+
+.footerLeft {
+  flex: 1;
+}
+
+.footerButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.unlinkButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #dc2626;
+  background-color: transparent;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.unlinkButton:hover {
+  background-color: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.cancelButton {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  background-color: transparent;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancelButton:hover {
+  background-color: #f8fafc;
+  color: #475569;
+}
+
+.confirmButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background-color: #2563eb;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.confirmButton:hover {
+  background-color: #1d4ed8;
+}
+
+.confirmButton:disabled {
+  background-color: #93c5fd;
+  cursor: not-allowed;
+}

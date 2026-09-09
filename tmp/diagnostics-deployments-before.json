@@ -1,0 +1,628 @@
+{
+  "contextName": "junkusanos-projects",
+  "deployments": [
+    {
+      "url": "famille-shift-matching-ewp5vef9h-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "BUILDING",
+      "target": null,
+      "createdAt": 1788843895450,
+      "buildingAt": 1788843896671,
+      "ready": 1788843896671,
+      "creator": {
+        "uid": "FqBk5NV2eHKx516oTk5aPbMN",
+        "username": "junkusano"
+      },
+      "meta": {
+        "githubCommitAuthorName": "junkusano",
+        "githubCommitAuthorEmail": "junkusano@shi-on.net",
+        "githubCommitMessage": "Fix resumable knowledge sync and add system diagnostics automation",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "5e4eafd01a9e8b5570b12b9dc989ca4d8144a516",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "githubRepoOwnerType": "User",
+        "githubCommitRepoId": "994487207",
+        "githubRepoId": "994487207",
+        "githubRepoVisibility": "public",
+        "githubHost": "github.com",
+        "githubCommitAuthorLogin": "junkusano",
+        "githubCommitVerification": "unverified",
+        "repoPushedAt": "1788843891000",
+        "branchAlias": "famille-shift-matching-git-master-junkusanos-projects.vercel.app"
+      }
+    },
+    {
+      "url": "famille-shift-matching-p8npc0slm-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": "production",
+      "createdAt": 1788842331932,
+      "buildingAt": 1788842333365,
+      "ready": 1788842559709,
+      "creator": {
+        "uid": "BpmTWoBIl9MeukpmRc0FqPTy",
+        "username": "servicesuport-3291"
+      },
+      "meta": {
+        "githubCommitAuthorName": "nammasuda-png",
+        "githubCommitAuthorEmail": "nammasuda@shi-on.net",
+        "githubCommitMessage": "ガソリン代表示5",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "d42bad4945498f2a5a6177d70b9480d8ed71650c",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "lambdaRuntimeStats": "{\"nodejs\":9}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-o8jktzpga-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": null,
+      "createdAt": 1788842324654,
+      "buildingAt": 1788842325980,
+      "ready": 1788842447670,
+      "creator": {
+        "uid": "FqBk5NV2eHKx516oTk5aPbMN",
+        "username": "junkusano"
+      },
+      "meta": {
+        "githubCommitAuthorName": "nammasuda-png",
+        "githubCommitAuthorEmail": "nammasuda@shi-on.net",
+        "githubCommitMessage": "ガソリン代表示5",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "d42bad4945498f2a5a6177d70b9480d8ed71650c",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "githubRepoOwnerType": "User",
+        "githubCommitRepoId": "994487207",
+        "githubRepoId": "994487207",
+        "githubRepoVisibility": "public",
+        "githubHost": "github.com",
+        "githubCommitAuthorLogin": "nammasuda-png",
+        "githubCommitVerification": "unverified",
+        "repoPushedAt": "1788842320000",
+        "branchAlias": "famille-shift-matching-git-master-junkusanos-projects.vercel.app",
+        "lambdaRuntimeStats": "{\"nodejs\":9}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-ka1wpie4g-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": "production",
+      "createdAt": 1788841774302,
+      "buildingAt": 1788841775849,
+      "ready": 1788842004017,
+      "creator": {
+        "uid": "BpmTWoBIl9MeukpmRc0FqPTy",
+        "username": "servicesuport-3291"
+      },
+      "meta": {
+        "githubCommitAuthorName": "nammasuda-png",
+        "githubCommitAuthorEmail": "nammasuda@shi-on.net",
+        "githubCommitMessage": "ガソリン代表示4",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "d00b480dd42f43f5a396765dd2d55f14bf9e2661",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "lambdaRuntimeStats": "{\"nodejs\":9}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-bg6qqpdtx-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": "production",
+      "createdAt": 1788841192588,
+      "buildingAt": 1788841193741,
+      "ready": 1788841419717,
+      "creator": {
+        "uid": "BpmTWoBIl9MeukpmRc0FqPTy",
+        "username": "servicesuport-3291"
+      },
+      "meta": {
+        "githubCommitAuthorName": "nammasuda-png",
+        "githubCommitAuthorEmail": "nammasuda@shi-on.net",
+        "githubCommitMessage": "ガソリン代表示4",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "d00b480dd42f43f5a396765dd2d55f14bf9e2661",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "lambdaRuntimeStats": "{\"nodejs\":9}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-lw7kl8pd1-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": null,
+      "createdAt": 1788841182876,
+      "buildingAt": 1788841184159,
+      "ready": 1788841323933,
+      "creator": {
+        "uid": "FqBk5NV2eHKx516oTk5aPbMN",
+        "username": "junkusano"
+      },
+      "meta": {
+        "githubCommitAuthorName": "nammasuda-png",
+        "githubCommitAuthorEmail": "nammasuda@shi-on.net",
+        "githubCommitMessage": "ガソリン代表示4",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "d00b480dd42f43f5a396765dd2d55f14bf9e2661",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "githubRepoOwnerType": "User",
+        "githubCommitRepoId": "994487207",
+        "githubRepoId": "994487207",
+        "githubRepoVisibility": "public",
+        "githubHost": "github.com",
+        "githubCommitAuthorLogin": "nammasuda-png",
+        "githubCommitVerification": "unverified",
+        "repoPushedAt": "1788841178000",
+        "branchAlias": "famille-shift-matching-git-master-junkusanos-projects.vercel.app",
+        "lambdaRuntimeStats": "{\"nodejs\":9}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-k9y2v0z8v-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": "production",
+      "createdAt": 1788839171249,
+      "buildingAt": 1788839172649,
+      "ready": 1788839376476,
+      "creator": {
+        "uid": "FqBk5NV2eHKx516oTk5aPbMN",
+        "username": "junkusano"
+      },
+      "meta": {
+        "githubCommitAuthorName": "junkusano",
+        "githubCommitAuthorEmail": "junkusano@shi-on.net",
+        "githubCommitMessage": "Synchronize Sharefull recruitment through RPA",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "7aa716b65d0388e3c75ba1bd504a6233042fb2e9",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "githubRepoOwnerType": "User",
+        "githubCommitRepoId": "994487207",
+        "githubRepoId": "994487207",
+        "githubRepoVisibility": "public",
+        "githubHost": "github.com",
+        "githubCommitAuthorLogin": "junkusano",
+        "repoPushedAt": "1788838839000",
+        "branchAlias": "famille-shift-matching-git-master-junkusanos-projects.vercel.app",
+        "lambdaRuntimeStats": "{\"nodejs\":9}",
+        "action": "promote",
+        "originalDeploymentId": "dpl_DoG6qXzXJqAU3S4XqaXEZw5wNy28",
+        "githubCommitVerification": "unverified"
+      }
+    },
+    {
+      "url": "famille-shift-matching-22pfnxbub-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": null,
+      "createdAt": 1788838844011,
+      "buildingAt": 1788838845516,
+      "ready": 1788838997471,
+      "creator": {
+        "uid": "FqBk5NV2eHKx516oTk5aPbMN",
+        "username": "junkusano"
+      },
+      "meta": {
+        "githubCommitAuthorName": "junkusano",
+        "githubCommitAuthorEmail": "junkusano@shi-on.net",
+        "githubCommitMessage": "Synchronize Sharefull recruitment through RPA",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "7aa716b65d0388e3c75ba1bd504a6233042fb2e9",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "githubRepoOwnerType": "User",
+        "githubCommitRepoId": "994487207",
+        "githubRepoId": "994487207",
+        "githubRepoVisibility": "public",
+        "githubHost": "github.com",
+        "githubCommitAuthorLogin": "junkusano",
+        "githubCommitVerification": "unverified",
+        "repoPushedAt": "1788838839000",
+        "branchAlias": "famille-shift-matching-git-master-junkusanos-projects.vercel.app",
+        "lambdaRuntimeStats": "{\"nodejs\":9}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-17bnm041k-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": "production",
+      "createdAt": 1788837080432,
+      "buildingAt": 1788837081611,
+      "ready": 1788837312552,
+      "creator": {
+        "uid": "BpmTWoBIl9MeukpmRc0FqPTy",
+        "username": "servicesuport-3291"
+      },
+      "meta": {
+        "githubCommitAuthorName": "nammasuda-png",
+        "githubCommitAuthorEmail": "nammasuda@shi-on.net",
+        "githubCommitMessage": "ガソリン代表示",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "f1d8bd85e59d9a525fd1134fae479bc680ebeb25",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "lambdaRuntimeStats": "{\"nodejs\":9}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-6wjq9av3x-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": "production",
+      "createdAt": 1788836418272,
+      "buildingAt": 1788836419590,
+      "ready": 1788836649093,
+      "creator": {
+        "uid": "BpmTWoBIl9MeukpmRc0FqPTy",
+        "username": "servicesuport-3291"
+      },
+      "meta": {
+        "githubCommitAuthorName": "nammasuda-png",
+        "githubCommitAuthorEmail": "nammasuda@shi-on.net",
+        "githubCommitMessage": "ガソリン代表示",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "f1d8bd85e59d9a525fd1134fae479bc680ebeb25",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "lambdaRuntimeStats": "{\"nodejs\":9}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-d86vwktwe-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": null,
+      "createdAt": 1788836412708,
+      "buildingAt": 1788836414166,
+      "ready": 1788836576299,
+      "creator": {
+        "uid": "FqBk5NV2eHKx516oTk5aPbMN",
+        "username": "junkusano"
+      },
+      "meta": {
+        "githubCommitAuthorName": "nammasuda-png",
+        "githubCommitAuthorEmail": "nammasuda@shi-on.net",
+        "githubCommitMessage": "ガソリン代表示",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "f1d8bd85e59d9a525fd1134fae479bc680ebeb25",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "githubRepoOwnerType": "User",
+        "githubCommitRepoId": "994487207",
+        "githubRepoId": "994487207",
+        "githubRepoVisibility": "public",
+        "githubHost": "github.com",
+        "githubCommitAuthorLogin": "nammasuda-png",
+        "githubCommitVerification": "unverified",
+        "repoPushedAt": "1788836408000",
+        "branchAlias": "famille-shift-matching-git-master-junkusanos-projects.vercel.app",
+        "lambdaRuntimeStats": "{\"nodejs\":9}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-aaet32qnr-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": "production",
+      "createdAt": 1788835486415,
+      "buildingAt": 1788835487665,
+      "ready": 1788835749536,
+      "creator": {
+        "uid": "BpmTWoBIl9MeukpmRc0FqPTy",
+        "username": "servicesuport-3291"
+      },
+      "meta": {
+        "githubCommitAuthorName": "nammasuda-png",
+        "githubCommitAuthorEmail": "nammasuda@shi-on.net",
+        "githubCommitMessage": "ガソリン代表示２",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "b2a5fd5cda2321b4fbdc608e4194da55bfe8c3ec",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "gitDirty": "1",
+        "lambdaRuntimeStats": "{\"nodejs\":9}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-qdpz3ar6v-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "ERROR",
+      "target": "production",
+      "createdAt": 1788834668720,
+      "buildingAt": 1788834669825,
+      "ready": 1788834688955,
+      "creator": {
+        "uid": "BpmTWoBIl9MeukpmRc0FqPTy",
+        "username": "servicesuport-3291"
+      },
+      "meta": {
+        "githubCommitAuthorName": "nammasuda-png",
+        "githubCommitAuthorEmail": "nammasuda@shi-on.net",
+        "githubCommitMessage": "ガソリン代表示２",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "b2a5fd5cda2321b4fbdc608e4194da55bfe8c3ec",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching"
+      }
+    },
+    {
+      "url": "famille-shift-matching-4qbxw4e1a-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "ERROR",
+      "target": null,
+      "createdAt": 1788834659815,
+      "buildingAt": 1788834661440,
+      "ready": 1788834687632,
+      "creator": {
+        "uid": "FqBk5NV2eHKx516oTk5aPbMN",
+        "username": "junkusano"
+      },
+      "meta": {
+        "githubCommitAuthorName": "nammasuda-png",
+        "githubCommitAuthorEmail": "nammasuda@shi-on.net",
+        "githubCommitMessage": "ガソリン代表示２",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "b2a5fd5cda2321b4fbdc608e4194da55bfe8c3ec",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "githubRepoOwnerType": "User",
+        "githubCommitRepoId": "994487207",
+        "githubRepoId": "994487207",
+        "githubRepoVisibility": "public",
+        "githubHost": "github.com",
+        "githubCommitAuthorLogin": "nammasuda-png",
+        "githubCommitVerification": "unverified",
+        "repoPushedAt": "1788834655000",
+        "branchAlias": "famille-shift-matching-git-master-junkusanos-projects.vercel.app"
+      }
+    },
+    {
+      "url": "famille-shift-matching-izq9ddrwc-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": "production",
+      "createdAt": 1788833430386,
+      "buildingAt": 1788833432868,
+      "ready": 1788833632828,
+      "creator": {
+        "uid": "FqBk5NV2eHKx516oTk5aPbMN",
+        "username": "junkusano"
+      },
+      "meta": {
+        "githubCommitAuthorName": "junkusano",
+        "githubCommitAuthorEmail": "junkusano@shi-on.net",
+        "githubCommitMessage": "ブログ自動化で公開とリライトを完了まで実行",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "e909860567cb328e0999427ed6442b2270d86720",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "githubRepoOwnerType": "User",
+        "githubCommitRepoId": "994487207",
+        "githubRepoId": "994487207",
+        "githubRepoVisibility": "public",
+        "githubHost": "github.com",
+        "githubCommitAuthorLogin": "junkusano",
+        "repoPushedAt": "1788833231000",
+        "branchAlias": "famille-shift-matching-git-master-junkusanos-projects.vercel.app",
+        "lambdaRuntimeStats": "{\"nodejs\":9}",
+        "action": "promote",
+        "originalDeploymentId": "dpl_Eni6An2e6j9e66Z3LQzAkyEPEdZ1",
+        "githubCommitVerification": "unverified"
+      }
+    },
+    {
+      "url": "famille-shift-matching-2q76stw2k-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": null,
+      "createdAt": 1788833235466,
+      "buildingAt": 1788833236873,
+      "ready": 1788833351890,
+      "creator": {
+        "uid": "FqBk5NV2eHKx516oTk5aPbMN",
+        "username": "junkusano"
+      },
+      "meta": {
+        "githubCommitAuthorName": "junkusano",
+        "githubCommitAuthorEmail": "junkusano@shi-on.net",
+        "githubCommitMessage": "ブログ自動化で公開とリライトを完了まで実行",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "e909860567cb328e0999427ed6442b2270d86720",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "githubRepoOwnerType": "User",
+        "githubCommitRepoId": "994487207",
+        "githubRepoId": "994487207",
+        "githubRepoVisibility": "public",
+        "githubHost": "github.com",
+        "githubCommitAuthorLogin": "junkusano",
+        "githubCommitVerification": "unverified",
+        "repoPushedAt": "1788833231000",
+        "branchAlias": "famille-shift-matching-git-master-junkusanos-projects.vercel.app",
+        "lambdaRuntimeStats": "{\"nodejs\":9}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-qchsf2j3b-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": "production",
+      "createdAt": 1788833171331,
+      "buildingAt": 1788833172486,
+      "ready": 1788833397626,
+      "creator": {
+        "uid": "BpmTWoBIl9MeukpmRc0FqPTy",
+        "username": "servicesuport-3291"
+      },
+      "meta": {
+        "githubCommitAuthorName": "nammasuda-png",
+        "githubCommitAuthorEmail": "nammasuda@shi-on.net",
+        "githubCommitMessage": "ガソリン代表示",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "9933198c295b5a4ce02371b968100b25b675e76a",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "lambdaRuntimeStats": "{\"nodejs\":8}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-cg98g0g07-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": null,
+      "createdAt": 1788833156292,
+      "buildingAt": 1788833157698,
+      "ready": 1788833296638,
+      "creator": {
+        "uid": "FqBk5NV2eHKx516oTk5aPbMN",
+        "username": "junkusano"
+      },
+      "meta": {
+        "githubCommitAuthorName": "nammasuda-png",
+        "githubCommitAuthorEmail": "nammasuda@shi-on.net",
+        "githubCommitMessage": "ガソリン代表示",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "9933198c295b5a4ce02371b968100b25b675e76a",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "githubRepoOwnerType": "User",
+        "githubCommitRepoId": "994487207",
+        "githubRepoId": "994487207",
+        "githubRepoVisibility": "public",
+        "githubHost": "github.com",
+        "githubCommitAuthorLogin": "nammasuda-png",
+        "githubCommitVerification": "unverified",
+        "repoPushedAt": "1788833151000",
+        "branchAlias": "famille-shift-matching-git-master-junkusanos-projects.vercel.app",
+        "lambdaRuntimeStats": "{\"nodejs\":8}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-id0lldefg-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": "production",
+      "createdAt": 1788832370476,
+      "buildingAt": 1788832371698,
+      "ready": 1788832504785,
+      "creator": {
+        "uid": "FqBk5NV2eHKx516oTk5aPbMN",
+        "username": "junkusano"
+      },
+      "meta": {
+        "githubCommitAuthorName": "junkusano",
+        "githubCommitAuthorEmail": "junkusano@shi-on.net",
+        "githubCommitMessage": "install famille-knowledge engin take13",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "327b24cd71e8f53ccf0ecbcd448ea541e9f0a911",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "gitDirty": "1",
+        "gitRootDirectory": "node_modules/.cache/blog-automation-release-20260908",
+        "actor": "codex",
+        "lambdaRuntimeStats": "{\"nodejs\":9}"
+      }
+    },
+    {
+      "url": "famille-shift-matching-i0lcype3t-junkusanos-projects.vercel.app",
+      "name": "famille-shift-matching",
+      "state": "READY",
+      "target": "production",
+      "createdAt": 1788832015208,
+      "buildingAt": 1788832016421,
+      "ready": 1788832133475,
+      "creator": {
+        "uid": "FqBk5NV2eHKx516oTk5aPbMN",
+        "username": "junkusano"
+      },
+      "meta": {
+        "githubCommitAuthorName": "junkusano",
+        "githubCommitAuthorEmail": "junkusano@shi-on.net",
+        "githubCommitMessage": "install famille-knowledge engin take13",
+        "githubCommitOrg": "junkusano",
+        "githubCommitRef": "master",
+        "githubCommitRepo": "famille_shift_matching",
+        "githubCommitSha": "327b24cd71e8f53ccf0ecbcd448ea541e9f0a911",
+        "githubDeployment": "1",
+        "githubOrg": "junkusano",
+        "githubRepo": "famille_shift_matching",
+        "gitDirty": "1",
+        "gitRootDirectory": "node_modules/.cache/blog-automation-release-20260908",
+        "actor": "codex",
+        "lambdaRuntimeStats": "{\"nodejs\":8}"
+      }
+    }
+  ],
+  "pagination": {
+    "count": 20,
+    "next": 1788832015208,
+    "prev": 1788843895450
+  }
+}

@@ -1,0 +1,244 @@
+//lib/supabase/analyzeDigisignRequest.ts
+// Supabase の rpa_command_requests に LINE WORKS 添付PDFを流し込む
+import { supabaseAdmin as supabase } from "@/lib/supabase/service";
+
+/** msg_lw_log の行 */
+export type MsgRow = {
+  id: number;
+  timestamp: string | null;
+  user_id: string;
+  channel_id: string;
+  file_id: string | null;
+  status: number | null;
+};
+
+/** RPA に渡す request_details の型（JSONB） */
+export type RequestDetails = {
+  source: "lineworks_channel_pdf";
+  channel_id: string;
+  message_id: string;
+  uploader_user_id: string;
+  file_url: string;
+  file_mime: string;       // application/pdf を想定
+  uploaded_at: string | null;
+  file_id?: string | null;
+  download_url?: string | null;
+};
+
+/** rpa_command_requests への Insert 形 */
+export type RpaInsertRow = {
+  template_id: string;
+  requester_id: string;
+  status: "approved";
+  request_details: RequestDetails;
+};
+
+export type DispatchResult = { inserted: number; skipped: number };
+
+/** 既定値・テーブル名 */
+const DEFAULT_CHANNEL_ID = "a134fad8-e459-4ea3-169d-be6f5c0a6aad";
+const DEFAULT_TEMPLATE_ID = "5c623c6e-c99e-4455-8e50-68ffd92aa77a";
+const CAREMGR_TEMPLATE_ID = "8c953c74-17ac-409d-86bb-30807c044a80";
+
+const TEMPLATE_BY_CHANNEL: Record<string, string> = {
+  // ケアマネ用チャンネル → ケアマネ用テンプレ
+  "fe94ddd0-f600-cc3b-b6f4-73f05019f0a2": CAREMGR_TEMPLATE_ID,
+};
+
+const MESSAGES_TABLE = "msg_lw_log";
+const RPA_TABLE = "rpa_command_requests";
+
+/** LINE WORKS ファイルダウンロード URL 生成 */
+const LW_BOT_NO = process.env.LW_BOT_NO ?? "6807751";
+const worksFileDownloadUrl = (botNo: string, channelId: string, fileId: string) =>
+  `https://www.worksapis.com/v1.0/bots/${botNo}/channels/${channelId}/files/${fileId}`;
+
+/** 既存リクエスト（重複検知用）の最小型 */
+type ExistingReq = { request_details: { message_id?: string | null } };
+
+/** users 解決用の最小型 */
+type UserAuthRow = { auth_user_id?: string | null };
+
+/**
+ * 指定チャンネル（未指定なら既定＋ケアマネ）の msg_lw_log（status=0 かつ file_id あり）をスキャンし、
+ * users.lw_userid → users.auth_user_id を解決して RPA リクエストをまとめて投入。
+ * - Insert 成功: msg_lw_log.status = 2（処理済）
+ * - 既存重複:     msg_lw_log.status = 9（重複）
+ * - requester 不明: msg_lw_log.status = 1（保留）
+ */
+export async function dispatchLineworksPdfToRPA(input?: {
+  channelId?: string;
+  templateId?: string;     // 指定時は全行このテンプレで上書き
+  since?: string;          // ISO8601
+  until?: string;          // ISO8601
+  pageSize?: number;
+}): Promise<DispatchResult> {
+  // スキャン対象チャンネルを決定（未指定時は既定＋ケアマネを同時に見る）
+  const channelsToScan = input?.channelId
+    ? [input.channelId]
+    : [DEFAULT_CHANNEL_ID, ...Object.keys(TEMPLATE_BY_CHANNEL)];
+
+  // デフォルト: 直近24時間
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const since = input?.since ?? oneDayAgo;
+  const until = input?.until ?? now.toISOString();
+  const pageSize = input?.pageSize ?? 5000;
+
+  // 未処理(status=0) & 添付あり(file_id IS NOT NULL) & 対象チャンネル群 & 期間内
+  const { data, error } = await supabase
+    .from(MESSAGES_TABLE)
+    .select("id,timestamp,user_id,channel_id,file_id,status")
+    .in("channel_id", channelsToScan)
+    .not("file_id", "is", null)
+    .eq("status", 0)
+    .gte("timestamp", since)
+    .lte("timestamp", until)
+    .limit(pageSize);
+
+  if (error) throw new Error(`select ${MESSAGES_TABLE} failed: ${error.message}`);
+  const rows = (data ?? []) as MsgRow[];
+
+  console.log(
+    "[DISPATCH] fetched rows:",
+    rows.length,
+    "channels:",
+    channelsToScan.join(","),
+    "win:",
+    since,
+    "→",
+    until
+  );
+
+  if (rows.length === 0) return { inserted: 0, skipped: 0 };
+
+  const payloads: RpaInsertRow[] = [];
+  const insertedIds: number[] = [];
+  const holdIds: number[] = []; // requester 不明などで一旦 保留=1
+  const dupIds: number[] = [];  // 既存重複を検出した id
+
+  // 既存 rpa_command_requests の重複検知（message_id ベース）
+  const msgIds = rows.map((r) => String(r.id));
+
+  const { data: existingData, error: existErr } = await supabase
+    .from(RPA_TABLE)
+    .select("request_details")
+    .in("request_details->>message_id", msgIds);
+
+  if (existErr) throw new Error(`select ${RPA_TABLE} for dup check failed: ${existErr.message}`);
+
+  const existing = (existingData ?? []) as ExistingReq[];
+  const existingMsgIdSet = new Set<string>(
+    existing
+      .map((e) => e.request_details?.message_id ?? null)
+      .filter((v): v is string => typeof v === "string")
+  );
+
+  console.log("[DISPATCH] dup-check universe:", msgIds.length, "existing:", existingMsgIdSet.size);
+
+  for (const r of rows) {
+    // 添付なし（念のため）
+    if (!r.file_id) {
+      console.log("[SKIP] file_id missing for msg:", r.id);
+      holdIds.push(r.id);
+      continue;
+    }
+
+    // 既存重複
+    if (existingMsgIdSet.has(String(r.id))) {
+      console.log("[DUP] message_id exists:", r.id);
+      dupIds.push(r.id);
+      continue;
+    }
+
+    // requester_id を users から解決
+    const { data: userRow, error: userErr } = await supabase
+      .from("users")
+      .select("auth_user_id")
+      .eq("lw_userid", r.user_id)
+      .maybeSingle();
+    if (userErr) throw new Error(`select users failed: ${userErr.message}`);
+
+    const u = (userRow ?? {}) as UserAuthRow;
+    const requester =
+      typeof u.auth_user_id === "string" && u.auth_user_id.length > 0
+        ? u.auth_user_id
+        : undefined;
+
+    if (!requester) {
+      console.log("[HOLD] requester not found for lw_userid:", r.user_id, "msg:", r.id);
+      holdIds.push(r.id); // requester 不明 → 保留
+      continue;
+    }
+
+    const fileUrl = worksFileDownloadUrl(LW_BOT_NO, r.channel_id, r.file_id);
+
+    // 行ごとにテンプレートIDを決定（input.templateId > チャンネル別マップ > 既定）
+    const tplForRow =
+      input?.templateId ??
+      TEMPLATE_BY_CHANNEL[r.channel_id] ??
+      DEFAULT_TEMPLATE_ID;
+
+    payloads.push({
+      template_id: tplForRow,
+      requester_id: requester,
+      status: "approved",
+      request_details: {
+        source: "lineworks_channel_pdf",
+        channel_id: r.channel_id,
+        message_id: String(r.id),
+        uploader_user_id: r.user_id,
+        file_url: fileUrl,
+        file_mime: "application/pdf",
+        uploaded_at: r.timestamp,
+        file_id: r.file_id,
+        download_url: fileUrl,
+      },
+    });
+
+    console.log("[PAYLOAD] push msg:", r.id, "requester:", requester, "tpl:", tplForRow);
+  }
+
+  // まとめて Insert
+  if (payloads.length > 0) {
+    console.log("[INSERT] count:", payloads.length);
+    const { error: insErr } = await supabase.from(RPA_TABLE).insert(payloads);
+    if (insErr) {
+      console.error("[INSERT] error:", insErr);
+      throw new Error(`insert ${RPA_TABLE} failed: ${insErr.message}`);
+    }
+
+    insertedIds.push(...payloads.map((p) => Number(p.request_details.message_id)));
+    console.log("[INSERT] ok. ids:", insertedIds);
+  }
+
+  // status 更新
+  if (insertedIds.length > 0) {
+    await supabase.from(MESSAGES_TABLE).update({ status: 2 }).in("id", insertedIds);
+  }
+  if (dupIds.length > 0) {
+    await supabase.from(MESSAGES_TABLE).update({ status: 9 }).in("id", dupIds);
+  }
+  if (holdIds.length > 0) {
+    await supabase.from(MESSAGES_TABLE).update({ status: 1 }).in("id", holdIds);
+  }
+
+  console.log("[STATUS] processed:", insertedIds.length, "dup:", dupIds.length, "hold:", holdIds.length);
+
+  return { inserted: insertedIds.length, skipped: holdIds.length };
+}
+
+/** ケアマネ用のショートカット（channelId / templateId を自動セット） */
+export async function dispatchCareManagerDigisign(input?: {
+  since?: string;
+  until?: string;
+  pageSize?: number;
+}): Promise<DispatchResult> {
+  return dispatchLineworksPdfToRPA({
+    channelId: "fe94ddd0-f600-cc3b-b6f4-73f05019f0a2",
+    templateId: CAREMGR_TEMPLATE_ID,
+    since: input?.since,
+    until: input?.until,
+    pageSize: input?.pageSize,
+  });
+}

@@ -1,0 +1,81 @@
+/* =============================================================
+   src/styles/cm-styles/clients/basicInfoTab.module.css
+   利用者詳細 - 基本情報タブスタイル
+   ============================================================= */
+
+/* =============================================================
+   レイアウト
+   ============================================================= */
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+/* =============================================================
+   定義リスト
+   ============================================================= */
+
+.definitionList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* =============================================================
+   住所行
+   ============================================================= */
+
+.addressLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.addressValue {
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.mapLink {
+  margin-left: 8px;
+  color: #2563eb;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.mapLink:hover {
+  color: #1d4ed8;
+}
+
+.mapIcon {
+  width: 12px;
+  height: 12px;
+}
+
+/* =============================================================
+   備考
+   ============================================================= */
+
+.remarks {
+  font-size: 14px;
+  color: #1e293b;
+  white-space: pre-wrap;
+}

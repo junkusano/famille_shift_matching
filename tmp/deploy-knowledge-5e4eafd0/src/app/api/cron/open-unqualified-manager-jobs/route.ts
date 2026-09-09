@@ -1,0 +1,538 @@
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/service";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+const CRON_REQUESTER_ID =
+  "7ed354ed-5363-4721-a056-e58c39f8f9d7";
+
+const CRON_APPROVER_ID =
+  "7ed354ed-5363-4721-a056-e58c39f8f9d7";
+
+const JOB_SETTING_KEY = "unqualified_manager";
+
+type TaimeeJobSetting = {
+  id: string;
+  setting_key: string;
+  setting_name: string;
+  offer_id: string;
+  work_weekday: number;
+  work_start_time: string;
+  work_end_time: string;
+  open_weekday: number;
+  open_time: string;
+  hourly_wage: number;
+  headcount: number;
+  environment: string;
+  is_enabled: boolean;
+};
+
+async function getJobSetting(): Promise<TaimeeJobSetting> {
+  const { data, error } = await supabaseAdmin
+    .from("taimee_job_settings")
+    .select(
+      `
+        id,
+        setting_key,
+        setting_name,
+        offer_id,
+        work_weekday,
+        work_start_time,
+        work_end_time,
+        open_weekday,
+        open_time,
+        hourly_wage,
+        headcount,
+        environment,
+        is_enabled
+      `
+    )
+    .eq("setting_key", JOB_SETTING_KEY)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `タイミー求人設定の取得に失敗しました: ${error.message}`
+    );
+  }
+
+  if (!data) {
+    throw new Error(
+      `タイミー求人設定が見つかりません: ${JOB_SETTING_KEY}`
+    );
+  }
+
+  return data as TaimeeJobSetting;
+}
+
+/**
+ * RPAリクエスト内で使用する識別子
+ *
+ * PAD側では、この値で通常のタイミー募集と切り分けます。
+ */
+const ACTION = "create_taimee_job";
+const COMMAND = "create_job";
+
+/**
+ * このCron APIの識別子
+ */
+const CREATED_FROM =
+  "/api/cron/open-unqualified-manager-jobs";
+
+/**
+ * JSONレスポンス
+ */
+function json(body: unknown, status = 200) {
+  return NextResponse.json(body, { status });
+}
+
+/**
+ * YYYY-MM-DD形式に変換します。
+ *
+ * UTC日時から日付を切り出すのではなく、
+ * 日本時間として受け取った年月日を明示的に組み立てます。
+ */
+function formatDate(
+  year: number,
+  month: number,
+  day: number
+): string {
+  return [
+    String(year).padStart(4, "0"),
+    String(month).padStart(2, "0"),
+    String(day).padStart(2, "0"),
+  ].join("-");
+}
+
+/**
+ * 現在の日本時間を取得します。
+ */
+function getNowJstParts() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+    weekday: "short",
+  }).formatToParts(new Date());
+
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value])
+  );
+
+  const weekdayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+    second: Number(values.second),
+    weekday: weekdayMap[values.weekday] ?? -1,
+  };
+}
+
+/**
+ * 日付に指定日数を加算します。
+ *
+ * UTCの正午を基準にすることで、
+ * タイムゾーン境界による日付ずれを避けます。
+ */
+function addDaysToDate(
+  year: number,
+  month: number,
+  day: number,
+  daysToAdd: number
+) {
+  const date = new Date(
+    Date.UTC(year, month - 1, day + daysToAdd, 12, 0, 0)
+  );
+
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+}
+
+/**
+ * Cron実行日に対する次回開催日を返します。
+ *
+ * 月曜日に実行:
+ *   3日後の木曜日
+ *
+ * 木曜日に実行:
+ *   4日後の月曜日
+ */
+function getNextEventDate() {
+  const nowJst = getNowJstParts();
+
+  let daysToAdd: number;
+
+if (nowJst.weekday === 1) {
+  // 月曜日 → 同じ週の木曜日
+  daysToAdd = 3;
+} else if (nowJst.weekday === 4) {
+  // 木曜日 → 翌週の月曜日
+  daysToAdd = 4;
+} else {
+  return {
+    ok: false,
+    reason: "not_target_weekday",
+    nowJst,
+  };
+}
+
+  const nextDate = addDaysToDate(
+    nowJst.year,
+    nowJst.month,
+    nowJst.day,
+    daysToAdd
+  );
+
+  return {
+    ok: true as const,
+    nowJst,
+    shiftStartDate: formatDate(
+      nextDate.year,
+      nextDate.month,
+      nextDate.day
+    ),
+  };
+}
+
+/**
+ * Cron認証
+ *
+ * Vercel Cronは、CRON_SECRETが設定されている場合、
+ * Authorization: Bearer <CRON_SECRET>
+ * を付与して呼び出します。
+ *
+ * 開発環境ではCRON_SECRET未設定でも実行可能です。
+ */
+function isAuthorized(req: NextRequest): boolean {
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!cronSecret) {
+    return process.env.NODE_ENV !== "production";
+  }
+
+  const authorization = req.headers.get("authorization");
+
+  return authorization === `Bearer ${cronSecret}`;
+}
+
+/**
+ * request_details内の文字列をPostgRESTのJSON検索で使うため、
+ * ダブルクォートなどを安全にします。
+ */
+
+
+/**
+ * 同一開催日のリクエストが既に存在するか確認します。
+ *
+ * failedは重複判定から除外します。
+ */
+async function findExistingRequest(
+  shiftStartDate: string,
+  setting: TaimeeJobSetting
+) {
+  const { data, error } = await supabaseAdmin
+    .from("rpa_command_requests")
+    .select(
+      "id, status, created_at, request_details"
+    )
+    .eq(
+      "template_id",
+      setting.offer_id
+    )
+    .in(
+      "status",
+      ["pending", "processing", "done"]
+    )
+    .contains("request_details", {
+      action: ACTION,
+      shift_start_date: shiftStartDate,
+      shift_start_time: setting.work_start_time,
+      shift_end_time: setting.work_end_time,
+    })
+    .order("created_at", {
+      ascending: false,
+    })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `既存RPAリクエストの確認に失敗しました: ${error.message}`
+    );
+  }
+
+  return data;
+}
+
+/**
+ * RPAリクエストを作成します。
+ */
+async function createRpaRequest(
+  shiftStartDate: string,
+  setting: TaimeeJobSetting
+) {
+  const requestedAt = new Date().toISOString();
+
+  const requestDetails = {
+    action: ACTION,
+    command: COMMAND,
+
+    job_setting_id: setting.id,
+    job_setting_key: setting.setting_key,
+
+    target_date: shiftStartDate,
+    shift_start_date: shiftStartDate,
+    shift_start_time: setting.work_start_time,
+    shift_end_time: setting.work_end_time,
+
+    hourly_wage: setting.hourly_wage,
+    headcount: setting.headcount,
+
+    template_name: setting.setting_name,
+    execution_mode: setting.environment,
+
+    requester_user_id: "junkusano",
+    created_from: CREATED_FROM,
+    requested_at: requestedAt,
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from("rpa_command_requests")
+    .insert({
+      template_id: setting.offer_id,
+      requester_id: CRON_REQUESTER_ID,
+      approver_id: CRON_APPROVER_ID,
+      status: "approved",
+      approved_at: requestedAt,
+      request_details: requestDetails,
+    })
+    .select(
+      `
+        id,
+        status,
+        created_at,
+        template_id,
+        requester_id,
+        approver_id,
+        request_details
+      `
+    )
+    .single();
+
+  if (error) {
+    throw new Error(
+      `RPAリクエストの作成に失敗しました: ${error.message}`
+    );
+  }
+
+  return data;
+}
+
+/**
+ * Cron本体
+ */
+async function handler(req: NextRequest) {
+  const startedAt = new Date().toISOString();
+
+  console.info("[open-unqualified-manager-jobs] start", {
+    startedAt,
+  });
+
+  try {
+    if (!isAuthorized(req)) {
+  console.warn(
+    "[open-unqualified-manager-jobs] unauthorized"
+  );
+
+  return json(
+    {
+      ok: false,
+      message: "Unauthorized",
+    },
+    401
+  );
+}
+
+const setting = await getJobSetting();
+
+if (!setting.is_enabled) {
+  console.info(
+    "[open-unqualified-manager-jobs] disabled",
+    {
+      settingKey: setting.setting_key,
+    }
+  );
+
+  return json({
+    ok: true,
+    skipped: true,
+    reason: "setting_disabled",
+    message:
+      "無資格マネージャー求人設定が無効のため、処理をスキップしました。",
+  });
+}
+
+const nextEvent = getNextEventDate();
+    /**
+     * vercel.jsonでは月・木のみ実行しますが、
+     * 手動実行や設定ミスに備えてAPI側でも曜日を確認します。
+     */
+    if (!nextEvent.ok) {
+      console.info(
+        "[open-unqualified-manager-jobs] skipped",
+        {
+          reason: nextEvent.reason,
+          nowJst: nextEvent.nowJst,
+        }
+      );
+
+      return json({
+        ok: true,
+        skipped: true,
+        reason: nextEvent.reason,
+        message:
+          "本日は対象曜日ではないため、処理をスキップしました。",
+        now_jst: nextEvent.nowJst,
+      });
+    }
+
+    const { nowJst, shiftStartDate } = nextEvent;
+
+    console.info(
+  "[open-unqualified-manager-jobs] target",
+  {
+    nowJst,
+    settingId: setting.id,
+    settingKey: setting.setting_key,
+    shiftStartDate,
+    shiftStartTime: setting.work_start_time,
+    shiftEndTime: setting.work_end_time,
+    hourlyWage: setting.hourly_wage,
+    headcount: setting.headcount,
+    executionMode: setting.environment,
+  }
+);
+    /**
+     * 重複登録防止
+     */
+    const existingRequest =
+  await findExistingRequest(
+    shiftStartDate,
+    setting
+  );
+
+    if (existingRequest) {
+      console.info(
+        "[open-unqualified-manager-jobs] duplicate skipped",
+        {
+          existingRequestId:
+            existingRequest.id,
+          existingStatus:
+            existingRequest.status,
+          shiftStartDate,
+        }
+      );
+
+      return json({
+        ok: true,
+        skipped: true,
+        reason: "already_exists",
+        message:
+          "同じ開催日のRPAリクエストが既に存在するため、作成をスキップしました。",
+        target: {
+  setting_key: setting.setting_key,
+  shift_start_date: shiftStartDate,
+  shift_start_time: setting.work_start_time,
+  shift_end_time: setting.work_end_time,
+  hourly_wage: setting.hourly_wage,
+  headcount: setting.headcount,
+},
+        existing_request: {
+          id: existingRequest.id,
+          status: existingRequest.status,
+          created_at:
+            existingRequest.created_at,
+        },
+      });
+    }
+
+    const createdRequest =
+  await createRpaRequest(
+    shiftStartDate,
+    setting
+  );
+
+    console.info(
+      "[open-unqualified-manager-jobs] created",
+      {
+        requestId: createdRequest.id,
+        status: createdRequest.status,
+        shiftStartDate,
+      }
+    );
+
+    return json({
+      ok: true,
+      skipped: false,
+      message:
+        "タイミー募集用のRPAリクエストを作成しました。",
+      request: createdRequest,
+      target: {
+  setting_id: setting.id,
+  setting_key: setting.setting_key,
+  setting_name: setting.setting_name,
+  shift_start_date: shiftStartDate,
+  shift_start_time: setting.work_start_time,
+  shift_end_time: setting.work_end_time,
+  hourly_wage: setting.hourly_wage,
+  headcount: setting.headcount,
+  execution_mode: setting.environment,
+},
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "不明なエラーが発生しました。";
+
+    console.error(
+      "[open-unqualified-manager-jobs] failed",
+      error
+    );
+
+    return json(
+      {
+        ok: false,
+        message,
+        started_at: startedAt,
+        failed_at: new Date().toISOString(),
+      },
+      500
+    );
+  }
+}
+
+export async function GET(req: NextRequest) {
+  return handler(req);
+}

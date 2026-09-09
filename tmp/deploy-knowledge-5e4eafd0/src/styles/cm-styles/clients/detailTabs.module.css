@@ -1,0 +1,60 @@
+/* =============================================================
+   src/styles/cm-styles/clients/detailTabs.module.css
+   利用者詳細 - タブナビゲーションスタイル
+   ============================================================= */
+
+.tabContainer {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.tabNav {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+/* =============================================================
+   タブボタン共通
+   ============================================================= */
+
+.tabButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.tabButtonActive {
+  composes: tabButton;
+  border-bottom-color: #2563eb;
+  color: #2563eb;
+}
+
+.tabButtonDisabled {
+  composes: tabButton;
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.tabButtonDefault {
+  composes: tabButton;
+  color: #475569;
+}
+
+.tabButtonDefault:hover {
+  color: #1e293b;
+  border-bottom-color: #cbd5e1;
+}
+
+.tabIcon {
+  width: 16px;
+  height: 16px;
+}

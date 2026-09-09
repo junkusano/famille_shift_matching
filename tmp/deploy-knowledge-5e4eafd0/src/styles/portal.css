@@ -1,0 +1,547 @@
+/*styles/portal.css */
+/* 全体レイアウト */
+.portal-container {
+    display: flex;
+    min-height: 100vh;
+}
+
+.left-menu {
+    min-height: 100vh;
+}
+
+/* サイドメニュー（PC） */
+.left-menu {
+    width: 250px;
+    /* 統一、あなたが安定していた値 */
+    background-color: #1e293b;
+    /* ネイビー系 */
+    color: white;
+    padding: 1rem;
+    flex-shrink: 0;
+    /* 左メニューの幅を固定し、縮まないようにする */
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    height: auto;
+    min-height: 100vh;
+    /* 保険として残す */
+    padding-bottom: 4rem;
+}
+
+.left-menu .user-info {
+    padding: 20px;
+    background-color: #34495e;
+    line-height: 1.5;
+    /* 行間の調整 */
+    font-size: 16px;
+    /* フォントサイズの調整 */
+    text-transform: none;
+    /* 文字が斜めに見える場合は変換を取り除く */
+    writing-mode: horizontal-tb;
+    /* 文字の向きの設定 */
+}
+
+.left-menu .menu-item {
+    padding: 15px;
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.left-menu .menu-item:hover {
+    background-color: #16a085;
+}
+
+.left-menu .logout {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    cursor: pointer;
+}
+
+/* メインコンテンツ */
+.content {
+    flex-grow: 1;
+    /* 左メニューの隣で残りの幅を取る */
+    padding: 2rem;
+    /*
+    overflow-y: auto;
+    height: 95%;
+    */
+    min-width: 0;
+    /* ← 超重要 */
+}
+
+.content--assessment {
+    padding: 12px;
+    background: #f5f5f5;
+}
+
+.user-profile {
+    text-align: center;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
+}
+
+/* 顔写真のスタイル */
+.user-avatar {
+    width: 128px;
+    /* 画像サイズを適切に設定 */
+    height: 128px;
+    border-radius: 50%;
+    /* 丸い画像 */
+    object-fit: cover;
+    /* 画像のアスペクト比を保ちながらコンテナに収める */
+    margin-bottom: 10px;
+}
+
+/* メニュー（スマホ） */
+.menu {
+    display: none;
+    flex-direction: column;
+    position: fixed;
+    /* ← absoluteからfixedへ */
+    top: 0;
+    left: 0;
+    bottom: 0;
+    /* ← heightではなく上下を固定 */
+    width: 250px;
+    background-color: #2c3e50;
+    color: white;
+    padding-top: 60px;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease-in-out;
+
+    height: 100dvh;
+    /* iOS対策。100vhより安全 */
+    overflow-y: auto;
+    /* ← 内部スクロールを許可 */
+    -webkit-overflow-scrolling: touch;
+    /* ← スクロール慣性 */
+    padding-bottom: 5rem;
+    /* ← 下のボタン類が隠れないよう余白 */
+}
+
+.menu.open {
+    transform: translateX(0);
+}
+
+.hamburger {
+    font-size: 30px;
+    cursor: pointer;
+    color: #2c3e50;
+    padding: 10px;
+    background-color: #fff;
+    border: none;
+    display: block;
+    z-index: 200;
+}
+
+.btn-save {
+    background-color: #ff6347;
+    /* オレンジ色 */
+    color: white;
+    font-weight: bold;
+    padding: 10px 20px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-save:hover {
+    background-color: #ff4500;
+    /* ホバー時の色変更 */
+}
+
+.btn-delete {
+    background-color: #d9534f;
+    /* 赤色 */
+    color: white;
+    font-weight: bold;
+    padding: 10px 20px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-delete:hover {
+    background-color: #c9302c;
+    /* ホバー時の色変更 */
+}
+
+/* スマホ用メニュー */
+@media (max-width: 768px) {
+    .filter-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        background-color: red;
+        gap: 1rem;
+    }
+
+    .filter-grid>div {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .filter-grid select {
+        width: 100%;
+        height: auto;
+        min-height: 5rem;
+        padding: 0.5rem;
+        font-size: 14px;
+    }
+
+    .filter-grid .col-span-3 {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .filter-grid .col-span-3 button {
+        width: 100%;
+    }
+
+    .content {
+        padding: 1rem;
+    }
+
+    .dialog-content {
+        margin-left: 3em;
+        margin-right: auto;
+        max-width: 95vw;
+        position: relative;
+        z-index: 9999 !important;
+    }
+
+    .left-menu {
+        display: none;
+    }
+
+    .menu.open {
+        display: flex;
+    }
+
+    .hamburger {
+        display: block;
+    }
+
+    .menu {
+        padding-left: 3rem;
+    }
+
+    /* 明示的に選択した新しいスマホUIだけに適用するアプリ風の枠組み。 */
+    .mobile-app-ui {
+        width: 100%;
+        overflow-x: clip;
+    }
+
+    .mobile-app-ui .mobile-app-main {
+        min-height: 100dvh;
+        padding-top: calc(3.5rem + env(safe-area-inset-top));
+        /* Bottom Navigation (64px) + 余裕 (24px) を共通で確保する。 */
+        padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+    }
+
+    /* Drawerはヘッダー・本文・フッターを分離し、本文だけをスクロールさせる。 */
+    .mobile-navigation-drawer {
+        display: flex;
+        padding: 0;
+        overflow: hidden;
+    }
+
+    .mobile-drawer-header {
+        display: flex;
+        min-height: calc(3.75rem + env(safe-area-inset-top));
+        flex: none;
+        align-items: end;
+        justify-content: space-between;
+        padding: env(safe-area-inset-top) 0.75rem 0.5rem 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .mobile-navigation-drawer .hamburger {
+        display: flex;
+        width: 44px;
+        height: 44px;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border-radius: 9999px;
+    }
+
+    .mobile-drawer-scroll {
+        min-height: 0;
+        flex: 1 1 auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .mobile-drawer-scroll > div {
+        min-height: 100%;
+        height: auto;
+    }
+
+    .mobile-drawer-footer {
+        flex: none;
+        padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+        border-top: 1px solid rgba(255, 255, 255, 0.15);
+        background: #2c3e50;
+    }
+
+    .mobile-app-ui .mobile-app-drawer {
+        z-index: 40;
+        bottom: calc(4rem + env(safe-area-inset-bottom));
+        width: min(20rem, calc(100vw - 2rem));
+        height: auto;
+        box-shadow: 12px 0 28px rgba(15, 23, 42, 0.3);
+    }
+
+    .mobile-app-overlay {
+        bottom: calc(4rem + env(safe-area-inset-bottom));
+    }
+}
+
+/* PCではメニューを表示、ハンバーガーを非表示 */
+@media (min-width: 768px) {
+    .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .hamburger {
+        display: none;
+    }
+
+    .menu {
+        display: none !important;
+    }
+}
+
+
+/* === Finder（候補帯）の固定幅 === */
+.finder-fixed {
+    width: 360px;
+    /* スマホ幅 */
+    max-width: 360px;
+    margin-left: auto;
+    /* 中央寄せ */
+    margin-right: auto;
+}
+
+@media (min-width: 768px) {
+    .finder-fixed {
+        width: 980px;
+        /* PC幅（必要なら好みで 960/1024 に調整） */
+        max-width: 980px;
+    }
+}
+
+/* === 横スクロール帯（候補カード専用：nowrap 版）=== */
+.shift-rail {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    /* ← ここがスクロール発生源 */
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable both-edges;
+}
+
+.shift-rail__inner {
+    white-space: nowrap;
+    /* ← 折り返さない */
+}
+
+.shift-rail__item {
+    display: inline-block;
+    /* ← 横に並べる */
+    vertical-align: top;
+    width: 280px;
+    /* ← 1カード幅を固定 */
+    margin-right: 0.75rem;
+    /* gap相当 */
+    white-space: normal;
+    /* 子要素は折返しOKに戻す */
+}
+
+/* 念のため、カード本体がはみ出さない保険 */
+.shift-rail__item>* {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.content {
+    min-width: 0;
+}
+
+.alert-count-red {
+    color: red;
+    font-weight: bold;
+}
+
+:root {
+    --sidebar-w: 250px;
+}
+
+/* 左メニューは width:250px 固定なので一致させる:contentReference[oaicite:1]{index=1} */
+
+/* PCのみ適用 */
+@media (min-width: 768px) {
+
+    /* 全画面オーバーレイを左メニューぶん避ける（背景/クリック領域用） */
+    .overlay-avoid-sidebar {
+        padding-left: var(--sidebar-w);
+    }
+
+    /* モーダル本体を右へオフセット（中央寄せ解除の代替として margin-left を付与） */
+    .modal-avoid-sidebar {
+        margin-left: var(--sidebar-w);
+        margin-right: auto;
+    }
+}
+
+/* 左メニュー折りたたみ（PC） */
+.portal-collapsed .left-menu {
+    display: none;
+}
+
+/* .portal-collapsed .portal-container .flex-1 {
+     余白があれば詰める
+} */
+
+/* 左端ホットゾーン（モバイル） — 最終版 */
+.edge-hotzone {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 14px;
+    /* 視認しやすい白い細帯（必要なら 8-12px に調整） */
+    height: 100dvh;
+    /* iOSのアドレスバー対策。100vh より安全 */
+    background: #fff;
+    border: none;
+    z-index: 120;
+    /* .menu(100) と overlay(90) の上に置く */
+    display: none;
+    /* PCでは非表示 */
+    -webkit-tap-highlight-color: transparent;
+    /* iOSの青いハイライト無効化 */
+    touch-action: manipulation;
+    /* ダブルタップズーム誤作動を抑制 */
+}
+
+@media (max-width: 768px) {
+    .edge-hotzone {
+        display: block;
+    }
+}
+
+/* === 左端ホットゾーン（サイズ＆色を変えやすく） === */
+:root {
+    --edge-width: 20px;
+    /* ← 一文字ぶんの目安。必要なら 36px/44px に */
+    /*--edge-color: #fff;      /* 既定色 */
+    --edge-color: #fb923c;
+    /*ファミーユカラー*/
+}
+
+.edge-hotzone {
+    width: var(--edge-width);
+    background: var(--edge-color);
+}
+
+/* 色バリエ（お好みでクラスを足すだけ） 
+/*.edge-hotzone--white  { --edge-color: #ffffff; }
+.edge-hotzone--navy   { --edge-color: #0f172a; } 
+.edge-hotzone--sky    { --edge-color: #38bdf8; } 
+.edge-hotzone--orange { --edge-color: #fb923c; } 
+*/
+
+/* （任意）メニュー開いてる時はホットゾーンを消して、オーバーレイ全面タップで閉じられるように */
+.portal-container[data-menu-open="true"] .edge-hotzone {
+    display: none;
+}
+
+/* =========================
+   印刷時：帳票（print-only）以外を非表示
+   ========================= */
+@page {
+    size: A4;
+    margin: 6mm;
+}
+
+@media print {
+
+    /* まず全部隠す（ポータル共通の上部アラート等も含めて） */
+    body * {
+        visibility: hidden !important;
+    }
+
+    .print-only,
+    .print-only * {
+        visibility: visible !important;
+    }
+
+    /* absolute をやめる */
+    .print-only {
+        position: static !important;
+        width: 100% !important;
+    }
+
+    /* 保険：ポータルUIは強制的に消す */
+    .left-menu,
+    .menu,
+    .hamburger,
+    .edge-hotzone,
+    .no-print {
+        display: none !important;
+    }
+}
+
+@media print {
+
+    /* サイドメニュー・モバイルメニュー系は印刷不要 */
+    .left-menu,
+    .edge-hotzone,
+    nav.menu,
+    .hamburger,
+    footer {
+        display: none !important;
+    }
+
+    /* ★これが本命：印刷が真っ白になる原因の定番（transform/fixed/overflow）を無効化 */
+    html,
+    body {
+        height: auto !important;
+        overflow: visible !important;
+    }
+
+    .portal-container,
+    .portal-container * {
+        transform: none !important;
+        filter: none !important;
+    }
+
+    /* fixed overlay/メニューが万一残っていても印刷に出さない */
+    .fixed {
+        position: static !important;
+    }
+
+    /* 印刷時に横スクロール・クリップされないように */
+    main {
+        overflow: visible !important;
+    }
+
+    /* 色が薄すぎる場合の保険（真っ白対策というより視認性） */
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}

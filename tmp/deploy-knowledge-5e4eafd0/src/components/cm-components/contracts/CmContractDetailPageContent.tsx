@@ -1,0 +1,274 @@
+// =============================================================
+// src/components/cm-components/contracts/CmContractDetailPageContent.tsx
+// 契約詳細 - メインコンテンツ
+//
+// 変更履歴:
+//   2026-02-06: v2マイグレーション
+//     - SigningStatusBadge: 'sent' → 'signing' に変更
+//     - 書類テーブル: signing_url列削除 → 署名者一覧(signers)を表示
+//     - 同意情報: proxy_name等 → signer_typeに応じた代筆者/代理人表示
+//     - 紙契約: unsigned/signed GDrive URL 表示
+// =============================================================
+
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  FileText,
+  Mic,
+  ExternalLink,
+  ShieldCheck,
+} from 'lucide-react';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
+import { cmFormatDate, cmFormatDateTime } from '@/lib/cm/utils';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
+import { getContractDetail } from '@/lib/cm/contracts/getContractDetail';
+import type {
+  CmContractDetailData,
+  CmContractStatus,
+} from '@/types/cm/contract';
+import {
+  CM_CONTRACT_STATUS_LABELS,
+  CM_CONTRACT_STATUS_COLORS,
+  CM_CONTRACT_TYPE_LABELS,
+} from '@/types/cm/contract';
+import { InfoRow } from './InfoRow';
+import { SigningStatusBadge } from './SigningStatusBadge';
+import { SignerRow } from './SignerRow';
+import { DocumentDriveLinks } from './DocumentDriveLinks';
+import { ConsentSignerInfo } from './ConsentSignerInfo';
+
+// =============================================================
+// Types
+// =============================================================
+
+type Props = {
+  contractId: string;
+};
+
+// =============================================================
+// Component
+export function CmContractDetailPageContent({ contractId }: Props) {
+  const [data, setData] = useState<CmContractDetailData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchDetail = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const token = await getAccessToken();
+      const result = await getContractDetail(contractId, token);
+      if (result.ok === true) {
+        setData(result.data);
+      } else {
+        setError(result.error || '契約情報の取得に失敗しました');
+      }
+    } catch {
+      setError('契約情報の取得に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  }, [contractId]);
+
+  useEffect(() => {
+    fetchDetail();
+  }, [fetchDetail]);
+
+  if (loading) {
+    return (
+      <CmCard>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+          <span className="ml-2 text-slate-500">読み込み中...</span>
+        </div>
+      </CmCard>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <CmCard>
+        <div className="flex items-center gap-2 text-red-600 py-8 justify-center">
+          <AlertCircle className="w-5 h-5" />
+          <span>{error || '不明なエラー'}</span>
+        </div>
+      </CmCard>
+    );
+  }
+
+  const { contract, documents, consent, plaudRecording } = data;
+  const status = contract.status as CmContractStatus;
+  const statusLabel = CM_CONTRACT_STATUS_LABELS[status] ?? contract.status;
+  const statusColor = CM_CONTRACT_STATUS_COLORS[status] ?? { bg: 'bg-slate-100', text: 'text-slate-600' };
+  const typeLabel = CM_CONTRACT_TYPE_LABELS[contract.contract_type] ?? contract.contract_type;
+
+  return (
+    <div className="space-y-6">
+      {/* ヘッダー */}
+      <CmCard>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">
+              {contract.client_name || ''} の契約
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              {typeLabel} ・ {contract.signing_method === 'paper' ? '紙契約' : '電子契約'}
+            </p>
+          </div>
+          <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium ${statusColor.bg} ${statusColor.text}`}>
+            {statusLabel}
+          </span>
+        </div>
+      </CmCard>
+
+      {/* 契約基本情報 */}
+      <CmCard title="契約情報">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+          <InfoRow label="契約日" value={cmFormatDate(contract.contract_date)} />
+          <InfoRow label="担当職員" value={contract.staff_name || '—'} />
+          <InfoRow label="契約種別" value={typeLabel} />
+          <InfoRow label="契約方式" value={contract.signing_method === 'paper' ? '紙' : '電子'} />
+          <InfoRow label="作成日時" value={cmFormatDateTime(contract.created_at)} />
+          {contract.signed_at && <InfoRow label="署名完了日時" value={cmFormatDateTime(contract.signed_at)} />}
+          {contract.completed_at && <InfoRow label="完了日時" value={cmFormatDateTime(contract.completed_at)} />}
+          {contract.notes && (
+            <div className="md:col-span-2">
+              <InfoRow label="備考" value={contract.notes} />
+            </div>
+          )}
+        </div>
+      </CmCard>
+
+      {/* 書類一覧 */}
+      <CmCard title="書類一覧" noPadding>
+        {documents.length === 0 ? (
+          <div className="text-center py-8 text-slate-500">書類がありません</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-slate-500 border-b border-slate-200 bg-slate-50">
+                  <th className="px-6 py-3 font-medium">書類名</th>
+                  <th className="px-6 py-3 font-medium">署名状態</th>
+                  <th className="px-6 py-3 font-medium">署名者</th>
+                  <th className="px-6 py-3 font-medium">Google Drive</th>
+                </tr>
+              </thead>
+              <tbody>
+                {documents.map((doc) => (
+                  <tr key={doc.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-slate-400" />
+                        <span className="text-slate-700">{doc.document_name}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <SigningStatusBadge status={doc.signing_status} />
+                      {doc.all_signed_at && (
+                        <p className="text-xs text-slate-400 mt-1">
+                          {cmFormatDateTime(doc.all_signed_at)}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      {doc.signers && doc.signers.length > 0 ? (
+                        <div className="space-y-1.5">
+                          {doc.signers.map((signer) => (
+                            <SignerRow key={signer.id} signer={signer} />
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <DocumentDriveLinks
+                        gdriveFileUrl={doc.gdrive_file_url}
+                        unsignedGdriveFileUrl={doc.unsigned_gdrive_file_url}
+                        signedGdriveFileUrl={doc.signed_gdrive_file_url}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CmCard>
+
+      {/* 本人確認 */}
+      <CmCard title="本人確認">
+        {contract.verification_method_id ? (
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <ShieldCheck className="w-5 h-5 text-green-600" />
+            </div>
+            <div className="text-sm space-y-1">
+              <p className="text-slate-700">確認方法: <span className="font-medium">{contract.verification_method_name || '—'}</span></p>
+              <p className="text-slate-700">
+                確認書類: <span className="font-medium">
+                  {contract.verification_document_name || '—'}
+                  {contract.verification_document_other && ` (${contract.verification_document_other})`}
+                </span>
+              </p>
+              {contract.verification_at && (
+                <p className="text-slate-500">確認日時: {cmFormatDateTime(contract.verification_at)}</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 text-slate-500">
+            <Clock className="w-5 h-5" />
+            <span className="text-sm">未入力</span>
+          </div>
+        )}
+      </CmCard>
+
+      {/* 録音 */}
+      <CmCard title="録音">
+        {plaudRecording ? (
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <Mic className="w-5 h-5 text-green-600" />
+            </div>
+            <div className="text-sm space-y-1">
+              <p className="text-slate-700 font-medium">{plaudRecording.title}</p>
+              <p className="text-slate-500">録音日時: {cmFormatDateTime(plaudRecording.plaud_created_at)}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 text-slate-500">
+            <Mic className="w-5 h-5" />
+            <span className="text-sm">未登録</span>
+          </div>
+        )}
+      </CmCard>
+
+      {/* 同意情報 */}
+      {consent && (
+        <CmCard title="電子契約同意">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+            </div>
+            <div className="text-sm space-y-1">
+              <ConsentSignerInfo consent={consent} />
+              <p className="text-slate-500">同意日時: {cmFormatDateTime(consent.consented_at)}</p>
+              {consent.gdrive_file_url && (
+                <a href={consent.gdrive_file_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs mt-1">
+                  <ExternalLink className="w-3 h-3" />署名画像を表示
+                </a>
+              )}
+            </div>
+          </div>
+        </CmCard>
+      )}
+    </div>
+  );
+}

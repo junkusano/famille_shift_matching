@@ -1,0 +1,255 @@
+/* src/styles/cm-styles/components/sidebar.module.css */
+
+/* サイドバー本体 */
+.cmSidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  background: linear-gradient(180deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.2s ease;
+  z-index: 50;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.cmSidebarExpanded {
+  width: 256px; /* 16rem */
+}
+
+.cmSidebarCollapsed {
+  width: 80px; /* 5rem */
+}
+
+/* ロゴエリア */
+.cmSidebarLogo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cmLogoIcon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cmLogoText {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.cmLogoTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: white;
+}
+
+.cmLogoSubtitle {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+/* ユーザーセクション */
+.cmUserSection {
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cmUserInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cmUserInfoCollapsed {
+  justify-content: center;
+}
+
+.cmAvatar {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.cmAvatarImage {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.cmAvatarStatus {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  background: #22c55e;
+  border: 2px solid #1e293b;
+  border-radius: 50%;
+}
+
+.cmUserName {
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmUserRole {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+/* ナビゲーション */
+.cmNav {
+  flex: 1;
+  padding: 12px 8px;
+  overflow-y: auto;
+}
+
+.cmMenuGroup {
+  margin-bottom: 4px;
+}
+
+.cmMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.cmMenuItem:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+.cmMenuItemActive {
+  background: rgba(59, 130, 246, 0.1);
+  color: #60a5fa;
+}
+
+.cmMenuIcon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.cmMenuLabel {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmMenuArrow {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.cmMenuArrowOpen {
+  transform: rotate(180deg);
+}
+
+/* サブメニュー */
+.cmSubMenu {
+  margin-left: 20px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 4px;
+}
+
+.cmSubMenuItem {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  color: #94a3b8;
+  font-size: 13px;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.cmSubMenuItem:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+.cmSubMenuItemActive {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+/* バッジ */
+.cmBadge {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: #ef4444;
+  color: white;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+/* フッター */
+.cmSidebarFooter {
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: auto;
+}
+
+.cmToggleButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  color: #94a3b8;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.cmToggleButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+/* レスポンシブ */
+@media (max-width: 768px) {
+  .cmSidebar {
+    transform: translateX(-100%);
+  }
+  
+  .cmSidebarExpanded {
+    transform: translateX(0);
+  }
+}

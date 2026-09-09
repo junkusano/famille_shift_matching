@@ -1,0 +1,41 @@
+import { getAccessToken } from "@/lib/getAccessToken";
+
+export type LineworksGroup = {
+    groupId: string;
+    groupName: string;
+};
+
+export async function fetchAllGroups(): Promise<LineworksGroup[]> {
+    const token = await getAccessToken();
+    const domainId = (
+        process.env.LINEWORKS_DOMAIN_ID
+        ?? process.env.NEXT_PUBLIC_LINEWORKS_DOMAIN_ID
+        ?? ""
+    ).trim();
+    if (!domainId) throw new Error("LINEWORKS_DOMAIN_ID is not configured");
+    const apiUrl = "https://www.worksapis.com/v1.0/groups";
+
+    const allGroups: LineworksGroup[] = [];
+    let cursor = "";
+    let hasMore = true;
+
+    while (hasMore) {
+        const res = await fetch(`${apiUrl}?domainId=${domainId}&count=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`
+            , {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+            });
+
+        if (!res.ok) throw new Error(`Group fetch failed: ${res.statusText}`);
+        const json = await res.json();
+
+        allGroups.push(...(json.groups || []));
+        cursor = json.responseMetaData?.nextCursor || "";
+        hasMore = !!cursor;
+    }
+
+    return allGroups;
+}

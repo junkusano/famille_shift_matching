@@ -1,0 +1,4 @@
+
+> famille_shift_matching@0.1.0 typecheck
+> tsc --noEmit
+

@@ -1,0 +1,26 @@
+{
+  "status": "ok",
+  "deployment": {
+    "id": "dpl_5MYot5cHPD7Wa3qX3oCBpSsv3CXv",
+    "url": "https://famille-shift-matching-l54uwvrt6-junkusanos-projects.vercel.app",
+    "inspectorUrl": "https://vercel.com/junkusanos-projects/famille-shift-matching/5MYot5cHPD7Wa3qX3oCBpSsv3CXv",
+    "readyState": "INITIALIZING",
+    "target": "production",
+    "deploymentApiUrl": "https://api.vercel.com/v13/deployments/dpl_5MYot5cHPD7Wa3qX3oCBpSsv3CXv"
+  },
+  "message": "Deployment famille-shift-matching-l54uwvrt6-junkusanos-projects.vercel.app ready.",
+  "next": [
+    {
+      "command": "vercel curl https://famille-shift-matching-l54uwvrt6-junkusanos-projects.vercel.app",
+      "when": "Verify deployment, including when Deployment Protection is enabled"
+    },
+    {
+      "command": "vercel inspect famille-shift-matching-l54uwvrt6-junkusanos-projects.vercel.app",
+      "when": "Inspect deployment"
+    },
+    {
+      "command": "vercel deploy --prod",
+      "when": "Promote to production"
+    }
+  ]
+}

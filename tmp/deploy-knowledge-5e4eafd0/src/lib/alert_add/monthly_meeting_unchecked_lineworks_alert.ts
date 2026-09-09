@@ -1,0 +1,307 @@
+// src/lib/alert_add/monthly_meeting_unchecked_lineworks_alert.ts
+// 月例会議：「月例」に未チェック → 翌月15日以降のみ 本人の「人事労務サポートルーム」へLINEWORKS通知
+
+import { supabaseAdmin } from "@/lib/supabase/service";
+import { getAccessToken } from "@/lib/getAccessToken";
+import {
+    buildRecoveredMentionText,
+    sendLWBotMentionMessage,
+    type MentionTarget,
+} from "@/lib/lineworks/sendLWBotMentionMessage";
+import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
+
+const LW_BOT_NO =
+    process.env.LINEWORKS_BOT_NO || process.env.WORKS_BOT_NO || process.env.LW_BOT_NO || "6807751";
+
+type AttendanceRow = {
+    target_month: string; // YYYY-MM-01
+    user_id: string;
+    attended_regular: boolean | null;
+    attended_extra: boolean | null;
+    checked_regular: boolean | null;
+    checked_extra: boolean | null;
+    staff_comment: string | null;
+};
+
+type StaffInfoRow = {
+    user_id: string | null;
+    channel_id: string | null; // 人事労務サポートルーム
+    lw_userid: string | null;  // メンション用
+    last_name_kanji: string | null;
+    first_name_kanji: string | null;
+    orgunitname: string | null;
+};
+
+export type MonthlyMeetingUncheckedLineworksResult = {
+    enabled: boolean;
+    scanned: number;
+    targetRows: number;
+    sentUsers: number;
+    errors: number;
+    dryRun: boolean;
+    targetYearMonth: string;
+    skippedBecauseDay: boolean;
+};
+
+function pad2(n: number) {
+    return String(n).padStart(2, "0");
+}
+
+function ymNow(d: Date): string {
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+}
+
+function monthStartStrFromYm(ym: string): string {
+    return `${ym}-01`;
+}
+
+function formatYmJa(ym: string): string {
+    const [y, m] = ym.split("-");
+    return `${y}年${Number(m)}月`;
+}
+
+function monthDiff(base: Date, targetMonthStr: string): number {
+    const target = new Date(`${targetMonthStr}T00:00:00`);
+    return (
+        (base.getFullYear() - target.getFullYear()) * 12 +
+        (base.getMonth() - target.getMonth())
+    );
+}
+
+function shouldRunEvery7Days(now: Date): boolean {
+    const anchor = new Date(2026, 3, 15); // 2026-04-15
+    const base = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diffDays = Math.floor((today.getTime() - base.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays % 7 === 0;
+}
+
+function toErrorMessage(e: unknown): string {
+    if (e instanceof Error) return e.message;
+    if (typeof e === "string") return e;
+    try {
+        return JSON.stringify(e);
+    } catch {
+        return "unknown error";
+    }
+}
+
+function buildStaffName(row?: StaffInfoRow) {
+    if (!row) return "";
+    return `${row.last_name_kanji ?? ""}${row.first_name_kanji ?? ""}`.trim();
+}
+
+async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInfoRow>> {
+    if (!userIds.length) return new Map();
+
+    const { data, error } = await supabaseAdmin
+        .from("user_entry_united_view_single")
+        .select("user_id, channel_id, lw_userid, last_name_kanji, first_name_kanji, orgunitname")
+        .in("user_id", userIds);
+
+    if (error) {
+        throw new Error(`user_entry_united_view_single select failed: ${error.message}`);
+    }
+
+    const map = new Map<string, StaffInfoRow>();
+    for (const row of (data ?? []) as StaffInfoRow[]) {
+        const userId = String(row.user_id ?? "").trim();
+        const org = String(row.orgunitname ?? "").trim();
+        if (!userId) continue;
+        if (org === "サービスサポート" || org.includes("サービスサポート")) continue;
+        map.set(userId, row);
+    }
+
+    return map;
+}
+
+export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
+    dryRun?: boolean;
+    targetUserId?: string;
+    forceDay15Rule?: boolean;
+} = {}): Promise<MonthlyMeetingUncheckedLineworksResult> {
+    const dryRun = args.dryRun ?? false;
+
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const firstTargetMonth = "2026-03-01";
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const targetYm = ymNow(prev);
+
+    if (!shouldRunEvery7Days(now) && !args.forceDay15Rule) {
+        return {
+            enabled: true,
+            scanned: 0,
+            targetRows: 0,
+            sentUsers: 0,
+            errors: 0,
+            dryRun,
+            targetYearMonth: targetYm,
+            skippedBecauseDay: true,
+        };
+    }
+
+    let q = supabaseAdmin
+        .from("monthly_meeting_attendance")
+        .select(
+            "target_month, user_id, attended_regular, attended_extra, checked_regular, checked_extra, staff_comment"
+        )
+        .gte("target_month", firstTargetMonth)
+        .lt("target_month", monthStartStrFromYm(ymNow(currentMonthStart)))
+        .eq("attended_regular", false)
+        .eq("attended_extra", false);
+
+    if (args.targetUserId) {
+        q = q.eq("user_id", args.targetUserId);
+    }
+
+    const { data, error } = await q;
+    if (error) {
+        throw new Error(`monthly_meeting_attendance select failed: ${error.message}`);
+    }
+
+    const rows = (data ?? []) as AttendanceRow[];
+    const scanned = rows.length;
+
+    const dateFilteredRows = rows.filter((row) => {
+        if (row.target_month < "2026-03-01") return false;
+
+        const diff = monthDiff(now, row.target_month);
+
+        if (diff <= 0) return false;
+
+        if (diff === 1) {
+            return now.getDate() >= 15;
+        }
+
+        return true;
+    });
+
+    const shiftCheckedRows: AttendanceRow[] = [];
+
+    for (const row of dateFilteredRows) {
+        const userId = String(row.user_id ?? "").trim();
+        if (!userId) continue;
+
+        const monthYm = row.target_month.slice(0, 7);
+        const monthStart = `${monthYm}-01`;
+
+        const nextMonthDate = new Date(`${monthStart}T00:00:00`);
+        nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+        const nextMonthStart = `${nextMonthDate.getFullYear()}-${pad2(nextMonthDate.getMonth() + 1)}-01`;
+
+        const { data: shifts, error: shiftError } = await supabaseAdmin
+            .from("shift")
+            .select("shift_id")
+            .gte("shift_start_date", monthStart)
+            .lt("shift_start_date", nextMonthStart)
+            .or(
+                `staff_01_user_id.eq.${userId},staff_02_user_id.eq.${userId},staff_03_user_id.eq.${userId}`
+            )
+            .limit(1);
+
+        if (shiftError) {
+            throw new Error(`shift select failed: ${shiftError.message}`);
+        }
+
+        if ((shifts ?? []).length > 0) {
+            shiftCheckedRows.push(row);
+        }
+    }
+
+    const filteredRows = shiftCheckedRows;
+
+    if (!filteredRows.length) {
+        return {
+            enabled: true,
+            scanned,
+            targetRows: 0,
+            sentUsers: 0,
+            errors: 0,
+            dryRun,
+            targetYearMonth: targetYm,
+            skippedBecauseDay: false,
+        };
+    }
+
+    const userIds = Array.from(
+        new Set(filteredRows.map((r) => String(r.user_id ?? "").trim()).filter(Boolean))
+    );
+
+    const staffMap = await loadStaffInfoMap(userIds);
+    const accessToken = await getAccessToken();
+
+    let sentUsers = 0;
+    let errors = 0;
+
+    for (const row of filteredRows) {
+        const userId = String(row.user_id ?? "").trim();
+        if (!userId) continue;
+
+        try {
+            const staff = staffMap.get(userId);
+            if (!staff) continue;
+
+            const channelId = String(staff.channel_id ?? "").trim();
+            if (!channelId) {
+                throw new Error(`channel_id not found for user_id="${userId}"`);
+            }
+
+            const staffName = buildStaffName(staff) || userId;
+            const orgName = String(staff.orgunitname ?? "").trim();
+            const lwUserId = String(staff.lw_userid ?? "").trim();
+
+            const monthYm = row.target_month.slice(0, 7);
+            const detailUrl =
+                `${getAppBaseUrl()}/portal/monthly-meeting-check?ym=${encodeURIComponent(monthYm)}`;
+
+            const mentionLine = lwUserId
+                ? `<m userId="${lwUserId}">さん`
+                : `＠${staffName}さん`;
+            const mentions: MentionTarget[] = lwUserId
+                ? [{ userId: lwUserId, label: staffName }]
+                : [];
+
+            const message =
+                `【月例会議 未参加】〈${formatYmJa(monthYm)}分〉\n` +
+                `${mentionLine}\n` +
+                `${formatYmJa(monthYm)}分の月例会議について、参加が確認できていません。\n` +
+                `月例会議に参加している場合は、「月例」にチェックをお願いします。\n\n` +
+                `月例会議に参加できていない場合は、マネージャーと話して追加開催を行ってください。\n` +
+                `追加開催が終わっている場合は、マネージャーに「追加」のチェックを入れてもらうよう依頼してください。\n` +
+                `コメントは、会議内容に対する所感や気づきを記入してください。\n\n` +
+                `チーム: ${orgName || "未設定"}\n\n` +
+                `${detailUrl}`;
+
+            if (!dryRun) {
+                await sendLWBotMentionMessage({
+                    botId: LW_BOT_NO,
+                    channelId,
+                    accessToken,
+                    mentions,
+                    buildText: (activeMentions, recoveryNotes) =>
+                        buildRecoveredMentionText(message, mentions, activeMentions, recoveryNotes),
+                });
+            }
+
+            sentUsers += 1;
+        } catch (e: unknown) {
+            errors += 1;
+            console.error("[monthly_meeting_unchecked_lineworks] send error", {
+                user_id: userId,
+                error: toErrorMessage(e),
+            });
+        }
+    }
+
+    return {
+        enabled: true,
+        scanned,
+        targetRows: filteredRows.length,
+        sentUsers,
+        errors,
+        dryRun,
+        targetYearMonth: targetYm,
+        skippedBecauseDay: false,
+    };
+}

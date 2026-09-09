@@ -1,0 +1,5 @@
+
+> famille_shift_matching@0.1.0 typecheck
+> tsc --noEmit
+
+node_modules/tailwind-merge/dist/types.d.ts(403,71): error TS1005: ']' expected.

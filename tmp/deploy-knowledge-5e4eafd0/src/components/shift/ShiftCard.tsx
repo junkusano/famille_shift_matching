@@ -1,0 +1,2258 @@
+// components/shift/ShiftCard.tsx
+"use client";
+import { spotApplicationLabel } from '@/lib/spot-sync/display';
+
+import { useEffect, useMemo, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogTrigger, DialogContent, DialogPortal, DialogTitle, DialogDescription, DialogOverlay
+} from "@/components/ui/dialog";
+import type { ShiftData } from "@/types/shift";
+import { supabase } from "@/lib/supabaseClient";
+import {
+  determineServicesFromCertificates,
+  type DocMasterRow as CertMasterRow,
+  type ServiceKey,
+} from "@/lib/certificateJudge";
+import DocUploader, {
+  type DocItem,
+  type Attachment,
+} from "@/components/DocUploader";
+import ShiftRecordLinkButton from "@/components/shift/ShiftRecordLinkButton";
+import Link from "next/link";
+
+import {
+  buildDisabilityCheckHref,
+  buildVisitRecordHref,
+  formatRosterErrorYearMonth,
+  hasRosterIssues,
+} from "@/lib/roster/rosterErrors";
+// ShiftCard.tsx のファイル先頭（importの下）
+let __keysCache: ServiceKey[] | null | undefined = undefined; // undefined=未取得, null=失敗, []=資格なし
+let __keysPromise: Promise<ServiceKey[]> | null = null;
+let __myUserId: string | null | undefined = undefined; // undefined=未取得
+let __myUserIdPromise: Promise<string | null> | null = null;
+type Mode = "request" | "reject" | "view";
+
+
+type Props = {
+  shift: ShiftData;
+  mode: Mode;
+  onRequest?: (attendRequest: boolean, timeAdjustNote?: string) => void;
+  creatingRequest?: boolean;
+  onReject?: (reason: string) => void;
+  extraActions?: React.ReactNode;
+
+  /** 親で強制ON/OFF（指定があればそれを優先） */
+  timeAdjustable?: boolean;
+  /** 親で文言を上書き（未指定ならマスターの label） */
+  timeAdjustText?: string;
+
+  /** テーブル名の上書き（不要なら触らない） */
+  kaipokeInfoTableName?: string;              // 既定: cs_kaipoke_info
+  timeAdjustabilityTableName?: string;        // 既定: cs_kaipoke_time_adjustability
+  standardRoute?: string;
+  standardTransWays?: string;
+  standardPurpose?: string;
+  kodoengoPlanLink?: string;
+};
+
+type UnknownRecord = Record<string, unknown>;
+
+type StaffRow = {
+  user_id: string;
+  last_name_kanji?: string;
+  first_name_kanji?: string;
+  level_sort?: number | null;
+  staff_02_attend_flg?: boolean | null;
+  staff_03_attend_flg?: boolean | null;
+};
+
+// ★ 追加：駐車場所
+type ParkingPlace = {
+  id: string;
+  serial: number;
+  label: string;
+  location_link: string | null;
+  parking_orientation: string | null;
+  remarks: string | null;
+  permit_required: boolean | null;
+  police_station_place_id: string | null;
+  picture1_url?: string | null;
+  picture2_url?: string | null;
+};
+
+// ★ 追加：cs_idごとの駐車情報キャッシュ（チラつき防止）
+const parkingCache = new Map<string, ParkingPlace[]>();
+const parkingPromiseCache = new Map<string, Promise<ParkingPlace[]>>();
+
+
+
+const formatName = (r?: StaffRow) =>
+  r ? `${r.last_name_kanji ?? ""} ${r.first_name_kanji ?? ""}`.trim() || r.user_id : "—";
+
+/* ---------- helpers ---------- */
+const DEFAULT_BADGE_TEXT = "時間調整可能";
+const TBL_INFO = "cs_kaipoke_info";
+const TBL_ADJ = "cs_kaipoke_time_adjustability";
+
+const REJECT_BTN_CLASS =
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 disabled:pointer-events-none disabled:opacity-50 " +
+  "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-9 px-4 py-2 " +
+  "bg-purple-600 hover:bg-purple-700 text-white border border-purple-600";
+
+// ShiftData から judo_ido（なければ shiftInfo.*）を必ず string にして返す
+const getJudoIdoStr = (s: ShiftData): string => {
+  // 1) トップレベル（getShiftIdStr と同じ手順）
+  const jid = (s as unknown as { judo_ido?: number | string }).judo_ido;
+  if (typeof jid === "number" || typeof jid === "string") return String(jid);
+  const n = pickNum(s, "judo_ido");
+  if (typeof n === "number") return String(n);
+  const t = pickStr(s, "judo_ido");
+  if (t != null) return t;
+
+  // 2) 最小のネスト対応（shiftInfo）
+  const info = (s as unknown as {
+    shiftInfo?: { judo_ido_num?: number | string; judo_ido?: number | string };
+  }).shiftInfo;
+  if (info) {
+    const v = info.judo_ido_num ?? info.judo_ido;
+    if (typeof v === "number" || typeof v === "string") return String(v);
+  }
+
+  // 3) 見つからなければ空文字
+  return "";
+};
+
+// ShiftData から shift_id（なければ id）を必ず string にして返す
+const getShiftIdStr = (s: ShiftData): string => {
+  const sid = s.shift_id;
+  if (typeof sid === "number" || typeof sid === "string") return String(sid);
+  const n = pickNum(s, "id");
+  if (typeof n === "number") return String(n);
+  const t = pickStr(s, "id");
+  return t ?? "";
+};
+
+// ここはコンポーネント外（ShiftCard.tsx 先頭のヘルパ群の近く）
+type KaipokeInfo = {
+  id?: string | null;
+  standard_route?: string | null;
+  standard_trans_ways?: string | null;
+  standard_purpose?: string | null;
+  kodoengoPlanLink?: string;
+  address?: string | null;
+  postal_code?: string | null;
+  kodoengo_plan_link?: string | null;
+
+  // ★追加
+  sms_phone_number?: string | null;
+};
+// ★ 追加：型（ShiftCard.tsx の他の型定義の近く）
+type RecordStatus = 'draft' | 'submitted' | 'approved' | 'archived';
+
+
+type KaipokeInfoResult = { adjId?: string; info: KaipokeInfo };
+
+const KAI_POKE_INFO_SELECT =
+  "id, time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code, kodoengo_plan_link";
+
+// テーブル名の上書き時に別の取得元が混ざらないよう、取得元とcs_idの組でキャッシュする
+const infoCache = new Map<string, KaipokeInfoResult>();
+const infoPromiseCache = new Map<string, Promise<KaipokeInfoResult>>();
+
+const getInfoCacheKey = (tableName: string, csId: string) => `${tableName}:${csId}`;
+
+async function fetchKaipokeInfo(
+  tableName: string,
+  csId: string
+): Promise<KaipokeInfoResult> {
+  const { data, error } = await supabase
+    .from(tableName)
+    .select(KAI_POKE_INFO_SELECT)
+    .eq("kaipoke_cs_id", csId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  const rec = (data ?? {}) as Record<string, unknown>;
+  const info: KaipokeInfo = {
+    id: typeof rec.id === "string" ? rec.id : null,
+    standard_route: typeof rec.standard_route === "string" ? rec.standard_route : null,
+    standard_trans_ways:
+      typeof rec.standard_trans_ways === "string" ? rec.standard_trans_ways : null,
+    standard_purpose:
+      typeof rec.standard_purpose === "string" ? rec.standard_purpose : null,
+    address: typeof rec.address === "string" ? rec.address : null,
+    postal_code: typeof rec.postal_code === "string" ? rec.postal_code : null,
+    kodoengo_plan_link:
+      typeof rec.kodoengo_plan_link === "string" ? rec.kodoengo_plan_link : null,
+  };
+  const adjId =
+    typeof rec.time_adjustability_id === "string"
+      ? rec.time_adjustability_id
+      : typeof rec.time_adjustability_id === "number"
+        ? String(rec.time_adjustability_id)
+        : undefined;
+
+  return { adjId, info };
+}
+
+function loadKaipokeInfo(
+  tableName: string,
+  csId: string
+): Promise<KaipokeInfoResult> {
+  const cacheKey = getInfoCacheKey(tableName, csId);
+  const cached = infoCache.get(cacheKey);
+  if (cached) return Promise.resolve(cached);
+
+  const inflight = infoPromiseCache.get(cacheKey);
+  if (inflight) return inflight;
+
+  const promise = fetchKaipokeInfo(tableName, csId)
+    .then((result) => {
+      infoCache.set(cacheKey, result);
+      return result;
+    })
+    .finally(() => {
+      infoPromiseCache.delete(cacheKey);
+    });
+
+  infoPromiseCache.set(cacheKey, promise);
+  return promise;
+}
+
+function isMyAssignmentRejectMode(s: ShiftData, myId?: string | null) {
+  if (!myId) return false;
+  return [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(myId);
+}
+
+function coerceBool(v: unknown): boolean | undefined {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (["1", "true", "t", "yes", "y", "on", "可", "ok"].includes(s)) return true;
+    if (["0", "false", "f", "no", "n", "off", "", "不可", "ng"].includes(s)) return false;
+    const n = Number(s); if (!Number.isNaN(n)) return n !== 0;
+  }
+  return undefined;
+}
+// 追加：オブジェクトのどこにあっても kaipoke_cs_id を再帰で探す（配列対応・循環防止）
+function deepFindKaipokeCsId(node: unknown, maxDepth = 5): string | undefined {
+  const seen = new Set<unknown>();
+  const KEYS = [
+    "kaipoke_cs_id", "kaipokeCsId",
+    "cs_id", "client_cs_id", "clientCsId",
+    "kaipokeId", "kaipoke_id",
+  ];
+  function walk(n: unknown, d: number): string | undefined {
+    if (n === null || typeof n !== "object" || d > maxDepth || seen.has(n)) return undefined;
+    seen.add(n);
+    const rec = n as Record<string, unknown>;
+
+    // 直撃
+    for (const k of KEYS) {
+      const v = rec[k];
+      if (typeof v === "string" && v.trim() !== "") return v.trim();
+      if (typeof v === "number") return String(v);
+    }
+
+    // 子要素を探索（オブジェクト & 配列）
+    for (const k in rec) {
+      const got = walk(rec[k], d + 1);
+      if (got) return got;
+    }
+    if (Array.isArray(n)) {
+      for (const item of n as unknown[]) {
+        const got = walk(item, d + 1);
+        if (got) return got;
+      }
+    }
+    return undefined;
+  }
+  return walk(node, 0);
+}
+function pickStr(obj: unknown, key: string): string | undefined {
+  if (!obj || typeof obj !== "object") return undefined;
+  const v = (obj as UnknownRecord)[key];
+  if (typeof v === "string" && v.trim() !== "") return v.trim();
+  return undefined;
+}
+function pickNum(obj: unknown, key: string): number | undefined {
+  if (!obj || typeof obj !== "object") return undefined;
+  const v = (obj as UnknownRecord)[key];
+  if (typeof v === "number") return v;
+  if (typeof v === "string") { const n = Number(v); if (!Number.isNaN(n)) return n; }
+  return undefined;
+}
+
+/* 簡易キャッシュ（ビルド間で共有しない揮発キャッシュ） */
+const masterCache = new Map<string, { label: string; adv: number; back: number }>();
+
+// 追加：文字列を複数キーから安全に取得
+function pickNonEmptyString(obj: unknown, keys: readonly string[]): string | undefined {
+  if (!obj || typeof obj !== "object") return undefined;
+  const rec = obj as Record<string, unknown>;
+  for (const k of keys) {
+    const v = rec[k];
+    if (typeof v === "string") {
+      const t = v.trim();
+      if (t !== "") return t;
+    }
+  }
+  return undefined;
+}
+
+// 追加：boolean-ish を複数キーから安全に取得
+function pickBooleanish(obj: unknown, keys: readonly string[]): boolean | undefined {
+  if (!obj || typeof obj !== "object") return undefined;
+  const rec = obj as Record<string, unknown>;
+  for (const k of keys) {
+    const b = coerceBool(rec[k]);
+    if (b !== undefined) return b;
+  }
+  return undefined;
+}
+
+// ★ 追加：拡張子で画像扱いするか
+function isImageUrl(u?: string | null) {
+  if (!u) return false;
+  const s = u.toLowerCase().split("?")[0];
+  return [".jpg", ".jpeg", ".png", ".webp", ".gif"].some(ext => s.endsWith(ext));
+}
+
+function isPdfUrl(u?: string | null) {
+  if (!u) return false;
+  const s = u.toLowerCase().split("?")[0];
+  return s.endsWith(".pdf");
+}
+
+function getDriveFileId(u?: string | null): string | null {
+  if (!u) return null;
+
+  const m1 = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (m1?.[1]) return m1[1];
+
+  try {
+    const url = new URL(u);
+    const id = url.searchParams.get("id");
+    if (id) return id;
+  } catch {
+    // noop
+  }
+
+  const m2 = u.match(/[-\w]{25,}/);
+  return m2?.[0] ?? null;
+}
+
+function isGoogleDriveUrl(u?: string | null) {
+  return !!u && u.includes("drive.google.com");
+}
+
+function toDrivePreviewUrl(u?: string | null) {
+  const fileId = getDriveFileId(u);
+  return fileId ? `https://drive.google.com/file/d/${fileId}/preview` : null;
+}
+
+// ★ 追加：駐車場所を取得（API経由）
+async function fetchActiveParkingPlaces(
+  csId: string,
+  accessToken?: string,
+  forceRefresh = false
+) {
+  if (forceRefresh) {
+    parkingCache.delete(csId);
+    parkingPromiseCache.delete(csId);
+  }
+
+  if (parkingCache.has(csId)) return parkingCache.get(csId)!;
+
+  const inflight = parkingPromiseCache.get(csId);
+  if (inflight) return await inflight;
+
+  const p = (async () => {
+    const res = await fetch(`/api/parking/cs_places/by-client?cs_id=${encodeURIComponent(csId)}`, {
+      method: "GET",
+      headers: {
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      cache: "no-store",
+    });
+
+    const json: unknown = await res.json();
+    if (
+      !res.ok ||
+      typeof json !== "object" ||
+      json === null ||
+      !("ok" in json) ||
+      (json as { ok: unknown }).ok !== true
+    ) {
+      const msg =
+        typeof json === "object" && json !== null && "message" in json
+          ? String((json as { message?: unknown }).message ?? "fetch parking failed")
+          : "fetch parking failed";
+      throw new Error(msg);
+    }
+
+    const rows =
+      "rows" in json && Array.isArray((json as { rows?: unknown }).rows)
+        ? ((json as { rows: ParkingPlace[] }).rows ?? [])
+        : [];
+
+    parkingCache.set(csId, rows);
+    return rows;
+  })();
+
+  parkingPromiseCache.set(csId, p);
+
+  try {
+    return await p;
+  } finally {
+    parkingPromiseCache.delete(csId);
+  }
+}
+
+// unknown オブジェクトから安全に string を取得
+const getString = (obj: unknown, key: string): string | undefined => {
+  if (obj && typeof obj === "object" && key in (obj as Record<string, unknown>)) {
+    const v = (obj as Record<string, unknown>)[key];
+    return typeof v === "string" && v.trim() ? v : undefined;
+  }
+  return undefined;
+};
+
+// 最初の「空でない文字列」を返す
+const pickNonEmpty = (...vals: Array<string | undefined | null>) =>
+  vals.find((v): v is string => typeof v === "string" && v.trim().length > 0) ?? "";
+
+function EstimatedPayLine({ amount }: { amount?: number | null }) {
+  if (typeof amount !== "number") return null;
+
+  return (
+    <div className="text-sm mt-1 font-semibold text-emerald-700">
+      概算給与: {amount.toLocaleString()}円
+    </div>
+  );
+}
+
+/* ---------- Component ---------- */
+export default function ShiftCard({
+  shift,
+  mode,
+  onRequest,
+  creatingRequest,
+  onReject,
+  extraActions,
+  timeAdjustable,
+  timeAdjustText,
+  kaipokeInfoTableName = TBL_INFO,
+  timeAdjustabilityTableName = TBL_ADJ,
+}: Props) {
+  const [open, setOpen] = useState(false);
+  const [attendRequest, setAttendRequest] = useState(false);
+  const [reason, setReason] = useState("");
+  const [timeAdjustNote, setTimeAdjustNote] = useState("");
+const [mealExpenseOpen, setMealExpenseOpen] = useState(false);
+const [mealExpenseAmount, setMealExpenseAmount] = useState("");
+
+const [mealExpenseDocuments, setMealExpenseDocuments] =
+  useState<DocItem[]>([]);
+
+const [mealExpenseRequested, setMealExpenseRequested] =
+  useState(false);
+
+const [mealExpenseChecking, setMealExpenseChecking] =
+  useState(false);
+
+const [mealExpenseSubmitting, setMealExpenseSubmitting] =
+  useState(false);
+
+  // 追加：カード内に保持
+  const [kaipokeInfo, setKaipokeInfo] = useState<{
+    id?: string | null;
+    standard_route?: string | null;
+    standard_trans_ways?: string | null;
+    standard_purpose?: string | null;
+    address?: string | null;       // ← 追加
+    postal_code?: string | null;
+    sms_phone_number?: string | null;
+    kodoengo_plan_link?: string | null;
+  } | null>(null);
+
+
+  const shiftIdStr = useMemo(() => getShiftIdStr(shift), [shift]);
+  // 1) shift から cs_id を取得（この前提だけに限定）
+
+  const csId = useMemo(() => deepFindKaipokeCsId(shift), [shift]);
+
+
+  // 2) cs_id -> time_adjustability_id
+  const [adjId, setAdjId] = useState<string | undefined>(undefined);
+
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+
+  // ★ 追加：state（コンポーネント内の他の useState 群の近く）
+  const [recordStatus, setRecordStatus] = useState<RecordStatus | undefined>(undefined);
+
+  // 他の useEffect 群の近くに追加
+  const [staffMap, setStaffMap] = useState<Record<string, StaffRow>>({});
+
+  // ★ 追加：駐車情報UI
+  const [parkingOpen, setParkingOpen] = useState(false);
+  const [parkingPlaces, setParkingPlaces] = useState<ParkingPlace[]>([]);
+  const [parkingSelectedId, setParkingSelectedId] = useState<string>("");
+  void parkingSelectedId;
+  const [parkingLoading, setParkingLoading] = useState(false);
+  const [parkingError, setParkingError] = useState<string | null>(null);
+  const [parkingSending, setParkingSending] = useState(false);
+  const [hasActiveParking, setHasActiveParking] = useState<boolean>(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  // 利用者様SMS送信（rejectモード）
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsBody, setSmsBody] = useState("");
+  // SMS送信ボタン一時非表示中は送信処理を停止
+  // const [smsSending, setSmsSending] = useState(false);
+  const [, setSmsError] = useState<string | null>(null);
+  const [smsSent, setSmsSent] = useState(false);
+
+  const SMS_DEFAULT_HEADER =
+    "ファミーユヘルパーサービス愛知からのSMSです。\n" +
+    "※このSMSは送信専用です。返信いただいても確認できません。";
+
+
+  useEffect(() => {
+    if (!(mode === "view" || mode === "reject")) { setStaffMap({}); return; }
+
+    const ids = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
+      .filter((v): v is string => !!v && v !== "-");
+
+    if (ids.length === 0) { setStaffMap({}); return; }
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("user_entry_united_view_single")
+        .select("user_id,last_name_kanji,first_name_kanji,level_sort")
+        .in("user_id", ids);
+
+      if (error) { setStaffMap({}); return; }
+      const map: Record<string, StaffRow> = {};
+      (data ?? []).forEach((r) => { map[r.user_id] = r as StaffRow; });
+      setStaffMap(map);
+    })();
+  }, [mode, shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]);
+
+
+
+  useEffect(() => {
+    if (mode !== "reject") return;                 // ★ reject以外は何もしない
+    if (__myUserId !== undefined) { setMyUserId(__myUserId); return; }
+    if (__myUserIdPromise) { __myUserIdPromise.then(id => setMyUserId(id)); return; }
+
+    __myUserIdPromise = (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data: me } = await supabase
+        .from("users")
+        .select("user_id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+      return me?.user_id ?? null;
+    })();
+
+    __myUserIdPromise
+      .then(id => { __myUserId = id; setMyUserId(id); })
+      .finally(() => { __myUserIdPromise = null; });
+  }, [mode]);
+
+ useEffect(() => {
+  (async () => {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setUserRole(null);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("system_role")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("userRole fetch error", error);
+      setUserRole(null);
+      return;
+    }
+
+    setUserRole(data?.system_role ?? null);
+  })();
+}, []);
+
+
+  // ★ 追加：ステータス取得（コンポーネント内の useEffect 群の近く）
+  useEffect(() => {
+    if (!shiftIdStr) return;
+
+    (async () => {
+      try {
+        const q = new URLSearchParams({ ids: shiftIdStr, format: "db" });
+        const res = await fetch(`/api/shift-records?${q.toString()}`, { method: "GET", cache: "no-store" });
+        if (!res.ok) {
+          //alert(`[shift_records] HTTP ${res.status} / id=${shiftIdStr}`);
+          return;
+        }
+        const json = await res.json();
+        // バルク形式（配列）を想定、単発でも status は拾えるよう保険
+        const raw = Array.isArray(json) ? json[0]?.status : json?.status;
+        const s = raw as ("draft" | "submitted" | "approved" | "archived" | undefined);
+
+        setRecordStatus(s);
+        // 取得結果の可視化
+        //alert(`[shift_records] ok  id=${shiftIdStr}  status=${s ?? "(none)"}`);
+      } catch (e) {
+        void e
+        //alert(`[shift_records] fetch error id=${shiftIdStr}  ${String(e)}`);
+      }
+    })();
+}, [shiftIdStr]);
+
+
+// 食事代申請済み判定
+useEffect(() => {
+  if (!shiftIdStr) {
+    setMealExpenseRequested(false);
+    setMealExpenseChecking(false);
+    return;
+  }
+
+  let cancelled = false;
+
+  const checkMealExpenseRequest = async () => {
+    setMealExpenseChecking(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("wf_request")
+        .select("id")
+        .eq(
+          "request_type_id",
+          "ceb95336-89c1-4030-a46f-e7acbbc8d901"
+        )
+        .contains("payload", {
+          kind: "meal_expense",
+          shift_id: shiftIdStr,
+        })
+        .limit(1);
+
+      if (error) {
+        throw error;
+      }
+
+      if (!cancelled) {
+        setMealExpenseRequested((data?.length ?? 0) > 0);
+      }
+    } catch (error) {
+      console.error(
+        "[meal-expense] request check failed",
+        error
+      );
+
+      if (!cancelled) {
+        setMealExpenseRequested(false);
+      }
+    } finally {
+      if (!cancelled) {
+        setMealExpenseChecking(false);
+      }
+    }
+  };
+
+  void checkMealExpenseRequest();
+
+  return () => {
+    cancelled = true;
+  };
+}, [shiftIdStr]);
+
+
+  // null = まだ未判定 / 取得失敗（判定不能）
+  const [myServiceKeys, setMyServiceKeys] = useState<ServiceKey[] | null>(null);
+  useEffect(() => {
+    (async () => {
+      // 既にキャッシュがあれば即反映
+      if (__keysCache !== undefined) { setMyServiceKeys(__keysCache); return; }
+      // 進行中があれば待つ
+      if (__keysPromise) {
+        try { const keys = await __keysPromise; __keysCache = keys; setMyServiceKeys(keys); }
+        catch { __keysCache = null; setMyServiceKeys(null); }
+        return;
+      }
+      // ここから初回取得
+      __keysPromise = (async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("no user");
+
+        const { data: me } = await supabase
+          .from("form_entries")
+          .select("attachments")
+          .eq("auth_uid", user.id)
+          .maybeSingle();
+
+        const attachments: Attachment[] = Array.isArray(me?.attachments) ? (me!.attachments as Attachment[]) : [];
+        const isCertificateAttachment = (a: Attachment | null | undefined): a is Attachment => {
+          if (!a) return false;
+          const t = (a.type ?? "").toLowerCase(); const l = (a.label ?? "").toLowerCase();
+          return ["資格", "certificate", "certification"].some(k => t.includes(k) || l.includes(k));
+        };
+        const certDocs: DocItem[] = attachments.filter(isCertificateAttachment).map(a => ({
+          id: a.id, url: a.url, label: a.label ?? null, type: "資格証明書",
+          mimeType: a.mimeType ?? null, uploaded_at: a.uploaded_at ?? null,
+          acquired_at: a.acquired_at ?? a.uploaded_at ?? null,
+        }));
+
+        const { data: master } = await supabase
+          .from("user_doc_master")
+          .select("category,label,is_active,sort_order,service_key:doc_group")
+          .order("sort_order", { ascending: true });
+
+        const keys = determineServicesFromCertificates(certDocs, (master ?? []) as CertMasterRow[]) ?? [];
+        return keys;
+      })();
+
+      try { const keys = await __keysPromise; __keysCache = keys; setMyServiceKeys(keys); }
+      catch { __keysCache = null; setMyServiceKeys(null); }
+      finally { __keysPromise = null; }
+    })();
+  }, []);
+
+  const eligible = useMemo(() => {
+    const key = pickNonEmptyString(shift, ["require_doc_group"]) ?? "";
+    if (!key) return true;                  // 未設定＝資格不要
+    if (myServiceKeys === null) return true; // 判定不能＝警告しない
+
+    // 完全一致ならOK
+    if (myServiceKeys.includes(key as ServiceKey)) return true;
+
+    // 介護福祉士・初任者研修などの
+    // 「家事・身体・移動支援」は「移動支援」もOK扱い
+    if (
+      key === "移動支援" &&
+      myServiceKeys.includes("家事・身体・移動支援" as ServiceKey)
+    ) {
+      return true;
+    }
+
+    return false;
+  }, [shift, myServiceKeys]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!csId) {
+      setKaipokeInfo(null);
+      setAdjId(undefined);
+      return;
+    }
+
+    // ★ requestモードではここで先読みしない（遅延に任せる）
+    // ★ request 以外（= reject / view）はここで先読みする
+    if (mode === "request") {
+      setKaipokeInfo(null);
+      setAdjId(undefined);
+      return;
+    }
+
+    const cacheKey = getInfoCacheKey(kaipokeInfoTableName, csId);
+    const cached = infoCache.get(cacheKey);
+    if (cached) {
+      setKaipokeInfo(cached.info);
+      setAdjId(cached.adjId);
+      return;
+    }
+
+    // 別カードの結果が残ったまま、新しい利用者の情報として描画されるのを防ぐ
+    setKaipokeInfo(null);
+    setAdjId(undefined);
+
+    void loadKaipokeInfo(kaipokeInfoTableName, csId)
+      .then(({ adjId, info }) => {
+        if (cancelled) return;
+        setKaipokeInfo(info);
+        setAdjId(adjId);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        console.error("[ShiftCard] failed to load kaipoke info", error);
+        setKaipokeInfo(null);
+        setAdjId(undefined);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [csId, mode, kaipokeInfoTableName]);
+
+
+  // ★ ShiftCard 内に置く（setKaipokeInfo / setAdjId を使うため）
+  const ensureInfoOnDemand = async () => {
+    if (!csId) return;
+
+    // shift内に既に route/trans/purpose があればスキップ（お好みで）
+    const hasMini =
+      !!pickNonEmptyString(shift, ["standard_route"]) ||
+      !!pickNonEmptyString(shift, ["standard_trans_ways"]) ||
+      !!pickNonEmptyString(shift, ["standard_purpose"]);
+    if (hasMini && kaipokeInfo) return;
+
+    try {
+      const { adjId: loadedAdjId, info } = await loadKaipokeInfo(
+        kaipokeInfoTableName,
+        csId
+      );
+      setKaipokeInfo(info);
+      setAdjId(loadedAdjId);
+    } catch (error) {
+      console.error("[ShiftCard] failed to load kaipoke info on demand", error);
+    }
+  };
+
+  // 3) time_adjustability_id -> マスター（label, Advance/Backwoard）
+  const [label, setLabel] = useState<string | undefined>(undefined);
+  const [adjustable, setAdjustable] = useState<boolean | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!adjId) { setLabel(undefined); setAdjustable(undefined); return; }
+      if (masterCache.has(adjId)) {
+        const m = masterCache.get(adjId)!;
+        if (!cancelled) {
+          setLabel(m.label);
+          setAdjustable((m.adv !== 0) || (m.back !== 0));
+        }
+        return;
+      }
+      const { data, error } = await supabase
+        .from(timeAdjustabilityTableName)
+        .select("label,Advance_adjustability,Backwoard_adjustability")
+        .eq("id", adjId)
+        .maybeSingle();
+      if (error || !data) { return; }
+      const rec = data as UnknownRecord;
+      const lab = pickStr(rec, "label") ?? DEFAULT_BADGE_TEXT;
+      const adv = pickNum(rec, "Advance_adjustability") ?? 0;
+      const back = pickNum(rec, "Backwoard_adjustability") ?? 0;
+      masterCache.set(adjId, { label: lab, adv, back });
+      if (!cancelled) {
+        setLabel(lab);
+        setAdjustable(adv !== 0 || back !== 0);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [adjId, timeAdjustabilityTableName]);
+
+  // 4) 旧フィールドのフォールバック（互換維持。無ければ undefined のまま）
+  const fallbackBool = useMemo(() => {
+    const b =
+      coerceBool((shift as unknown as UnknownRecord)["time_adjustable"]) ??
+      coerceBool((shift as unknown as UnknownRecord)["timeAdjustable"]) ??
+      coerceBool((shift as unknown as UnknownRecord)["time_adjust"]) ??
+      coerceBool((shift as unknown as UnknownRecord)["timeAdjust"]) ??
+      coerceBool((shift as unknown as UnknownRecord)["can_time_adjust"]);
+    return b ?? false;
+  }, [shift]);
+
+  // 5) 最終判定（親 > マスター判定 > 旧互換）
+  const showBadge =
+    typeof timeAdjustable === "boolean"
+      ? timeAdjustable
+      : (adjustable ?? fallbackBool);
+
+  // 文言（親 > マスターlabel > 既定）
+  const badgeText = timeAdjustText ?? label ?? DEFAULT_BADGE_TEXT;
+
+  /* ------- MiniInfo（名前/備考や通学情報） ------- */
+const MiniInfo = () => {
+  const route =
+    pickNonEmptyString(shift, ["standard_route"]) ??
+    pickNonEmptyString(kaipokeInfo, ["standard_route"]);
+
+  const trans =
+    pickNonEmptyString(shift, ["standard_trans_ways"]) ??
+    pickNonEmptyString(kaipokeInfo, ["standard_trans_ways"]);
+
+  const purpose =
+    pickNonEmptyString(shift, ["standard_purpose"]) ??
+    pickNonEmptyString(kaipokeInfo, ["standard_purpose"]);
+
+  const routeParts = [route, trans, purpose].filter(
+    (v): v is string => Boolean(v)
+  );
+
+  const routeText = routeParts.length
+    ? routeParts.join(" / ")
+    : "—";
+
+  const commuting =
+    pickBooleanish(shift, ["commuting_flg", "commutingFlg"]) ?? false;
+
+  const biko = pickNonEmptyString(shift, ["biko"]);
+
+const basicInformation = pickNonEmptyString(shift, [
+  "basic_information",
+]);
+
+const shiftDetailInformation = pickNonEmptyString(shift, [
+  "shift_detail_information",
+]);
+
+  return (
+    <>
+      <div className="text-sm">
+        利用者名:{" "}
+        <span className={mode === "reject" && hasRosterIssues(shift) ? "font-semibold text-red-600" : ""}>
+          {shift.client_name ?? "—"} 様
+        </span>
+
+        {commuting && (
+          <Dialog
+            onOpenChange={(open) => {
+              if (open) void ensureInfoOnDemand();
+            }}
+          >
+            <DialogTrigger asChild>
+              <button className="ml-2 text-xs text-blue-500 underline">
+                通所・通学
+              </button>
+            </DialogTrigger>
+
+            <DialogPortal>
+              <DialogOverlay className="overlay-avoid-sidebar" />
+
+              <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] ml-4 mr-0 modal-avoid-sidebar">
+                <div className="text-sm space-y-2">
+                  <div>
+                    <strong>通所経路等</strong>
+                    <p>{routeText}</p>
+                  </div>
+                </div>
+              </DialogContent>
+            </DialogPortal>
+          </Dialog>
+        )}
+      </div>
+
+      {mode === "request" && (
+        <div
+          className="text-sm"
+          style={{
+            color:
+              shift.gender_request_name === "男性希望"
+                ? "blue"
+                : shift.gender_request_name === "女性希望"
+                  ? "red"
+                  : "black",
+          }}
+        >
+          性別希望: {shift.gender_request_name ?? "—"}
+
+          {(biko || basicInformation || shiftDetailInformation) && (
+  <Dialog>
+    <DialogTrigger asChild>
+      <button className="ml-2 text-xs text-blue-500 underline">
+        詳細情報
+      </button>
+    </DialogTrigger>
+
+    <DialogPortal>
+      <DialogOverlay className="overlay-avoid-sidebar" />
+
+      <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[640px] ml-4 mr-0 modal-avoid-sidebar max-h-[85vh] overflow-hidden">
+        <div className="max-h-[70vh] overflow-y-auto pr-2 text-sm space-y-4">
+          {biko && (
+            <div>
+              <strong className="block text-base">
+                備考
+              </strong>
+
+              <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+                {biko}
+              </p>
+            </div>
+          )}
+
+          {basicInformation && (
+            <div className={biko ? "border-t pt-4" : ""}>
+              <strong className="block text-base">
+                基本情報
+              </strong>
+
+              <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+                {basicInformation}
+              </p>
+            </div>
+          )}
+
+          {shiftDetailInformation && (
+            <div
+              className={
+                biko || basicInformation ? "border-t pt-4" : ""
+              }
+            >
+              <strong className="block text-base">
+                詳細情報
+              </strong>
+
+              <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+                {shiftDetailInformation}
+              </p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </DialogPortal>
+  </Dialog>
+)}
+        </div>
+      )}
+    </>
+  );
+};
+
+  // ★ 追加：return の直前（addr/postal/mapsUrl 等の下あたりが分かりやすいです）
+  const startIsoForColor = `${shift.shift_start_date}T${(shift.shift_start_time || '00:00').slice(0, 5)}:00`;
+  const isPastStart = new Date(startIsoForColor).getTime() < new Date().getTime();
+
+  const isSubmitted = recordStatus === 'submitted';
+  const isGreen = isSubmitted || recordStatus === 'approved' || recordStatus === 'archived';
+  // Submitted 以外 かつ 開始時刻が過去 → 赤
+  const isRed = !isSubmitted && isPastStart;
+
+  const recordBtnColorCls =
+    isRed
+      ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
+      : isGreen
+        ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+        : '';
+
+  useEffect(() => {
+    if (mode !== "reject") return; // 対象のボタンが出ないモードでは無駄なので早期return
+    const el = document.getElementById(`srbtn-${shiftIdStr}`);
+    const domClass = el ? el.className : "(not found)";
+    void domClass
+    /*
+    alert(
+      [
+        "[ShiftCard btn debug]",
+        `id=${shiftIdStr}`,
+        `status=${recordStatus ?? "(none)"}`,
+        `isPastStart=${isPastStart}`,
+        `recordBtnColorCls(var)=${recordBtnColorCls || "(empty)"}`,
+        `element.className(final)=${domClass}`,
+      ].join("  |  ")
+    );
+    */
+  }, [mode, shiftIdStr, recordStatus, isPastStart, recordBtnColorCls]);
+
+  // ★ 追加：rejectモードのときだけ、is_active 駐車情報があるか先読み
+  useEffect(() => {
+    if (mode !== "reject") return;
+    if (!csId) { setHasActiveParking(false); return; }
+
+    (async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+
+        const rows = await fetchActiveParkingPlaces(csId, accessToken);
+        setHasActiveParking(rows.length > 0);
+      } catch {
+        // 取れない時は出さない（reject画面を壊さない）
+        setHasActiveParking(false);
+      }
+    })();
+  }, [mode, csId]);
+
+  // components/shift/ShiftCard.tsx で return の直前に
+  if (mode === "request") {
+    const cs = csId ?? "";
+    const service =
+      pickNonEmptyString(shift, ["shift_service_code", "service_code"]) ?? "";
+
+    // ① kaipoke_cs_id が 999999999* → 非表示
+    if (cs.startsWith("999999999")) return null;
+
+    // ② サービスが「その他」 → 非表示
+    if (service === "その他") return null;
+
+    // ③ サービス名に「キャンセル」を含む → 非表示
+    if (service.includes("キャンセル")) return null;
+
+    // === 既存の表示条件（必要なら残す）========================
+    //const lso = shift.level_sort_order ?? null;
+    //const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
+    //  .every((v) => !v || v === "-");
+
+    // lso が取れた時だけしきい値判定。取れないなら true 扱い（従来通り）
+    //const canShowByLevel = (lso === null) || (lso < 3_500_001);
+    //const canShowLegacy = noAssignees || canShowByLevel;
+    // ========================================================
+
+    // === 追加：staff_01/02/03 の level_sort + attend 条件 ===
+    // 必要な user_id が staffMap に読み込まれているかを確認
+    /*
+    const idsNeeded = [
+      shift.staff_01_user_id,
+      shift.staff_02_user_id,
+      shift.staff_03_user_id,
+    ].filter((v): v is string => !!v && v !== "-");
+
+    const isLoaded = idsNeeded.length === 0 || idsNeeded.every((id) => staffMap[id] !== undefined);
+
+    // staffMap 未読込の間は「ここで非表示にはしない」＝ true 扱いにして既存条件で流す
+    let passByStaff = true;
+
+    if (isLoaded) {
+      const s1 = staffMap[shift.staff_01_user_id ?? ""];
+      const s2 = staffMap[shift.staff_02_user_id ?? ""];
+      const s3 = staffMap[shift.staff_03_user_id ?? ""];
+
+
+      if ((s1.user_id !== "-" || s1.level_sort >= 5000000) ) return null;
+
+      const eligibleByLevel = (s?: { level_sort?: number }) =>
+        (s?.level_sort ?? Number.MAX_SAFE_INTEGER) < 5_000_000;
+
+      // 要件：
+      // ・01/02/03 のいずれかに level_sort < 5,000,000 がいる
+      // ・02/03 は attend_flg === false のときに表示対象
+
+      passByStaff =
+        (shift.staff_01_user_id === "-") ||            // 旧互換：01が "-" のとき表示
+        eligibleByLevel(s1) ||
+        (eligibleByLevel(s2) && s2.staff_02_attend_flg === false) ||
+        (eligibleByLevel(s3) && s3.staff_03_attend_flg === false);
+    }
+
+    // 最終判定：従来条件 と 新条件 の両方を満たす
+    if (!passByStaff) return null;
+    */
+  }
+
+  // reject モード：自分が担当していないカードは非表示
+  if (mode === "reject") {
+    // myUserId の取得前は一瞬判定不能なので描画を抑止（チラつき防止）
+    if (myUserId === null) return null;
+    if (!isMyAssignmentRejectMode(shift, myUserId)) return null;
+  }
+
+  // 表示とGoogle Mapsで必ず同じ解決済み住所を使う
+  const fullAddress =
+    pickNonEmptyString(kaipokeInfo, ["address"]) ??
+    pickNonEmptyString(shift, ["address"]);
+
+  const postal =
+    pickNonEmptyString(kaipokeInfo, ["postal_code"]) ??
+    pickNonEmptyString(shift, ["postal_code"]);
+
+  const mapsUrl = fullAddress
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`
+    : null;
+
+  const estimatedPayAmount =
+    typeof (shift as unknown as { estimated_pay_amount?: unknown }).estimated_pay_amount === "number"
+      ? (shift as unknown as { estimated_pay_amount: number }).estimated_pay_amount
+      : null;
+
+  const sr = pickNonEmpty(kaipokeInfo?.standard_route, getString(shift, "standard_route"));
+  const stw = pickNonEmpty(kaipokeInfo?.standard_trans_ways, getString(shift, "standard_trans_ways"));
+  const sp = pickNonEmpty(kaipokeInfo?.standard_purpose, getString(shift, "standard_purpose"));
+
+  const kpl =
+    (kaipokeInfo?.kodoengo_plan_link && kaipokeInfo.kodoengo_plan_link.trim()) ?
+      kaipokeInfo.kodoengo_plan_link :
+      (getString(shift, "kodoengo_plan_link") ?? "");
+
+  const ymFromDate = (d?: string | null) =>
+    (typeof d === "string" && d.length >= 7) ? d.slice(0, 7) : "";
+
+  const monthlyHref = (cs?: string, ym?: string) =>
+    (cs && ym)
+      ? `/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(cs)}&month=${encodeURIComponent(ym)}`
+      : "#";
+
+  const rosterIssueMonths = Array.from(
+    new Set(shift.roster_error_actual_record_months ?? [])
+  ).sort();
+  const showRosterIssues = mode === "reject" && hasRosterIssues(shift);
+  const visitRecordHref = buildVisitRecordHref(
+    shift.shift_start_date,
+    csId,
+    myUserId,
+  );
+  const clientDetailHref = kaipokeInfo?.id
+    ? `/portal/kaipoke-info-detail/${encodeURIComponent(kaipokeInfo.id)}`
+    : null;
+
+
+
+  const smsRecipientPhone =
+    pickNonEmptyString(kaipokeInfo, ["sms_phone_number"]) ??
+    pickNonEmptyString(shift, ["sms_phone_number"]);
+
+  /* SMS送信ボタン一時非表示中は送信処理も停止
+  const handleSmsSend = async () => {
+    if (!shiftIdStr || !csId || !smsRecipientPhone) {
+      setSmsError("送信に必要なシフトID・利用者ID・電話番号を取得できません。");
+      return;
+    }
+
+    const body = smsBody.trim();
+    if (!body) {
+      setSmsError("本文を入力してください。");
+      return;
+    }
+
+    setSmsSending(true);
+    setSmsError(null);
+    setSmsSent(false);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const messageBody = `${SMS_DEFAULT_HEADER}\n\n${body}`;
+
+      const res = await fetch("/api/sms/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+  items: [
+    {
+      phone: smsRecipientPhone,
+      body: messageBody,
+      shift_id: shiftIdStr,
+      kaipoke_cs_id: csId,
+    },
+  ],
+}),
+      });
+
+      const json = (await res.json().catch(() => null)) as
+  | {
+      ok?: boolean;
+      error?: string;
+      message?: string;
+    }
+  | null;
+
+if (!res.ok || json?.ok !== true) {
+  throw new Error(
+    json?.error ||
+      json?.message ||
+      "SMS送信に失敗しました。"
+  );
+}
+
+      setSmsSent(true);
+      setSmsBody("");
+    } catch (e) {
+      setSmsError(e instanceof Error ? e.message : "SMS送信に失敗しました。");
+    } finally {
+      setSmsSending(false);
+    }
+  };
+  */
+
+  // ★ 追加：駐車ダイアログを開く（必要なら取得）
+  const openParkingDialog = async () => {
+    if (!csId) return;
+    setParkingError(null);
+    setParkingOpen(true);
+
+    // 既に state に入ってるならそのまま
+    if (parkingPlaces.length > 0) return;
+
+    setParkingLoading(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const rows = await fetchActiveParkingPlaces(csId, accessToken, true);
+      setParkingPlaces(rows);
+      const firstId = rows[0]?.id ?? "";
+      setParkingSelectedId(firstId);
+    } catch (e) {
+      setParkingError(e instanceof Error ? e.message : "駐車情報の取得に失敗しました");
+    } finally {
+      setParkingLoading(false);
+    }
+  };
+
+  // ★ 追加：許可証申請（LW送信）
+  const applyParkingPermit = async (placeId: string) => {
+    if (!placeId) return;
+    setParkingError(null);
+    setParkingSending(true);
+
+    try {
+      const ok = window.confirm("「許可証申請」メッセージを送信します。よろしいですか？");
+      if (!ok) return;
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const res = await fetch(`/api/parking/permit-apply`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ parking_cs_place_id: placeId }),
+      });
+
+      const json: unknown = await res.json();
+      if (
+        !res.ok ||
+        typeof json !== "object" ||
+        json === null ||
+        !("ok" in json) ||
+        (json as { ok: unknown }).ok !== true
+      ) {
+        const msg =
+          typeof json === "object" && json !== null && "message" in json
+            ? String((json as { message?: unknown }).message ?? "apply failed")
+            : "apply failed";
+        throw new Error(msg);
+      }
+
+      alert("送信しました。");
+    } catch (e) {
+      setParkingError(e instanceof Error ? e.message : "送信に失敗しました");
+    } finally {
+      setParkingSending(false);
+    }
+  };
+  const handleMealExpenseSubmit = async () => {
+  if (mealExpenseSubmitting) {
+    return;
+  }
+
+  if (!shiftIdStr) {
+    alert("シフトIDを確認できませんでした。");
+    return;
+  }
+
+  const amount = Number(mealExpenseAmount);
+
+  if (
+    !Number.isInteger(amount) ||
+    amount <= 0
+  ) {
+    alert("申請金額を入力してください。");
+    return;
+  }
+
+  const receipts = mealExpenseDocuments.filter(
+    (document) =>
+      typeof document.url === "string" &&
+      document.url.trim() !== ""
+  );
+
+  if (receipts.length === 0) {
+    alert("領収書画像をアップロードしてください。");
+    return;
+  }
+
+  setMealExpenseSubmitting(true);
+
+  try {
+    /*
+     * 二重申請を防止
+     */
+    const { data: existing, error: existingError } =
+      await supabase
+        .from("wf_request")
+        .select("id")
+        .eq(
+          "request_type_id",
+          "ceb95336-89c1-4030-a46f-e7acbbc8d901"
+        )
+        .contains("payload", {
+          kind: "meal_expense",
+          shift_id: shiftIdStr,
+        })
+        .limit(1);
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    if ((existing?.length ?? 0) > 0) {
+      setMealExpenseRequested(true);
+      setMealExpenseOpen(false);
+
+      alert("このシフトは既に食事代申請済みです。");
+      return;
+    }
+
+    /*
+     * ログインユーザーを取得
+     */
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      throw new Error(
+        "ログインユーザーを確認できませんでした。"
+      );
+    }
+
+    /*
+     * auth_user_idから
+     * marikoshima形式のuser_idを取得
+     */
+    const { data: applicant, error: applicantError } =
+      await supabase
+        .from("users")
+        .select("user_id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+    if (applicantError) {
+      throw applicantError;
+    }
+
+    const applicantUserId = applicant?.user_id;
+
+    if (!applicantUserId) {
+      throw new Error(
+        "申請者のユーザーIDを確認できませんでした。"
+      );
+    }
+
+    const submittedAt = new Date().toISOString();
+
+    const payload = {
+      kind: "meal_expense",
+
+      // 申請済み判定と型を合わせるため文字列で保存
+      shift_id: shiftIdStr,
+
+      kaipoke_cs_id: csId || null,
+
+      shift_start_date:
+        shift.shift_start_date ?? null,
+
+      shift_start_time:
+        shift.shift_start_time ?? null,
+
+      shift_end_time:
+        shift.shift_end_time ?? null,
+
+      client_name:
+        shift.client_name ?? null,
+
+      amount,
+
+      receipts,
+    };
+
+    const { error: insertError } = await supabase
+      .from("wf_request")
+      .insert({
+        request_type_id:
+          "ceb95336-89c1-4030-a46f-e7acbbc8d901",
+
+        applicant_user_id:
+          applicantUserId,
+
+        title:
+          "食事代申請",
+
+        body:
+          `シフトID：${shiftIdStr}\n` +
+          `申請金額：${amount.toLocaleString()}円`,
+
+        payload,
+
+        status:
+          "submitted",
+
+        submitted_at:
+          submittedAt,
+      });
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    /*
+     * 保存成功後、即座に申請済み表示へ変更
+     */
+    setMealExpenseRequested(true);
+    setMealExpenseOpen(false);
+    setMealExpenseAmount("");
+    setMealExpenseDocuments([]);
+
+    alert("食事代を申請しました。");
+  } catch (error) {
+    console.error(
+      "[meal-expense] wf_request insert failed",
+      error
+    );
+
+    alert(
+      error instanceof Error
+        ? error.message
+        : "食事代申請の保存に失敗しました。"
+    );
+  } finally {
+    setMealExpenseSubmitting(false);
+  }
+};
+
+  /* ------- Render ------- */
+  return (
+    <Card
+      className={[
+        "shadow",
+        (!eligible ? "bg-gray-100" : ""),
+        (eligible && showBadge ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""),
+        (showRosterIssues ? "border-red-300 ring-1 ring-red-200" : ""),
+      ].join(" ")}
+      style={!eligible ? { opacity: 0.7, filter: "grayscale(0.1)" } : undefined}
+    >
+      <CardContent className="p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="text-sm font-semibold">
+            {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～{shift.shift_end_time?.slice(0, 5)}
+          </div>
+          {showBadge && (
+            <span className="text-[11px] px-2 py-0.5 rounded bg-pink-100 border border-pink-300" title={badgeText}>
+              {badgeText}
+            </span>
+          )}
+        </div>
+        <div className="text-sm mt-1">種別: {shift.service_code}</div>
+        <EstimatedPayLine amount={estimatedPayAmount} />
+        {mode === "reject" ? (
+          <div className="text-sm">
+            住所: {fullAddress ? (
+              <a
+                href={mapsUrl!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-blue-600"
+                title="Googleマップで開く"
+              >
+                {fullAddress}
+              </a>
+            ) : "—"}
+            {postal && <span className="ml-2">（{postal}）</span>}
+
+            {hasActiveParking && (
+              <button
+                type="button"
+                className="
+          inline-flex items-center gap-1
+          rounded-md px-2 py-1 text-xs font-semibold
+          bg-emerald-100 text-emerald-800
+          border border-emerald-200
+          hover:bg-emerald-200
+          active:scale-[0.98]
+          shadow-sm hover:shadow
+        "
+                onClick={() => { void openParkingDialog(); }}
+                title="駐車情報（許可証申請）"
+              >
+                🚗 駐車
+              </button>
+            )}
+          </div>
+        ) : mode === "request" ? (
+          <div className="text-sm">
+            住所: {fullAddress ? (
+              <a
+                href={mapsUrl!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-blue-600"
+                title="Googleマップで開く"
+              >
+                {fullAddress}
+              </a>
+            ) : "—"}
+            {postal && <span className="ml-2">（{postal}）</span>}
+          </div>
+        ) : (
+          <>
+            <div className="text-sm">郵便番号: {postal ?? "—"}</div>
+            <div className="text-sm">エリア: {shift.district ?? "—"}</div>
+          </>
+        )}
+        <div className="mt-2 space-y-1">
+        
+  <MiniInfo />
+</div>
+
+        {showRosterIssues && (
+          <section className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+            <div className="mb-2 font-semibold text-red-800">要確認・不備</div>
+            <div className="space-y-2 text-sm">
+              {shift.roster_error_visit_record && (
+                <div className="rounded border border-red-100 bg-white p-2 text-red-800">
+                  <div className="font-medium">⚠ 訪問記録が未入力です</div>
+                  <div className="mt-1 text-xs text-red-700">
+                    サービス終了時刻を過ぎています。
+                    <Link
+                      href={visitRecordHref}
+                      className="ml-1 font-medium text-blue-700 underline hover:text-blue-900"
+                    >
+                      訪問記録を確認
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {shift.roster_error_actual_record && (
+                <div className="rounded border border-red-100 bg-white p-2 text-red-800">
+                  <div className="font-medium">⚠ 実績記録の未提出があります</div>
+                  {rosterIssueMonths.length > 0 ? (
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {rosterIssueMonths.map((month) => (
+                        <Link
+                          key={month}
+                          href={buildDisabilityCheckHref(month, csId)}
+                          className="text-xs font-medium text-blue-700 underline hover:text-blue-900"
+                        >
+                          {formatRosterErrorYearMonth(month)}を確認
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-xs text-red-700">実績記録チェックを確認</div>
+                  )}
+                </div>
+              )}
+
+              {shift.roster_error_care_consultant && (
+                <div className="rounded border border-red-100 bg-white p-2 text-red-800">
+                  <div className="font-medium">⚠ ケアマネ・相談員情報が未設定です</div>
+                  {clientDetailHref && (
+                    <Link href={clientDetailHref} className="mt-1 inline-block text-xs font-medium text-blue-700 underline hover:text-blue-900">
+                      利用者情報を確認
+                    </Link>
+                  )}
+                </div>
+              )}
+
+              {shift.roster_error_transport_info && (
+                <div className="rounded border border-red-100 bg-white p-2 text-red-800">
+                  <div className="font-medium">⚠ 移動を伴うサービスですが、経路・手段・目的に未入力があります</div>
+                  {clientDetailHref && (
+                    <Link href={clientDetailHref} className="mt-1 inline-block text-xs font-medium text-blue-700 underline hover:text-blue-900">
+                      利用者情報を確認
+                    </Link>
+                  )}
+                </div>
+              )}
+
+              {shift.roster_error_kodoengo_plan && (
+                <div className="rounded border border-red-100 bg-white p-2 text-red-800">
+                  <div className="font-medium">⚠ 行動援護ですが、サービス計画書兼記録のリンクが未登録です</div>
+                  {clientDetailHref && (
+                    <Link href={clientDetailHref} className="mt-1 inline-block text-xs font-medium text-blue-700 underline hover:text-blue-900">
+                      利用者情報を確認
+                    </Link>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {(mode === "view" || mode === "reject" || mode === "request") && (
+  <div className="text-sm mt-2">
+    スタッフ：
+    <span className="inline-block mr-3">
+      {formatName(staffMap[shift.staff_01_user_id ?? ""])}
+    </span>
+    <span className="inline-block mr-3">
+      {formatName(staffMap[shift.staff_02_user_id ?? ""])}
+    </span>
+    <span className="inline-block">
+      {formatName(staffMap[shift.staff_03_user_id ?? ""])}
+    </span>
+
+    {shift.spot_offer_status === "確定" && (
+      <span className="ml-3 inline-flex flex-col rounded bg-yellow-100 px-2 py-1 text-xs text-black align-middle">
+        <span className="font-medium">{spotApplicationLabel(shift)}</span>
+        <span>
+          {shift.applicant_name ?? "—"}
+          （{shift.applicant_sex ?? "—"}）
+        </span>
+
+        {(userRole === "admin" || userRole === "manager") &&
+        shift.applicant_control_url && (
+          <a
+            href={shift.applicant_control_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            管理画面
+          </a>
+        )}
+      </span>
+    )}
+  </div>
+)}
+
+
+{(mode === "reject" || mode === "view") && (
+  <>
+    {mealExpenseChecking ? (
+      <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm text-gray-500">
+        食事代申請を確認中...
+      </div>
+    ) : mealExpenseRequested ? (
+      <div className="rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700">
+        ✓ 食事代申請済み
+      </div>
+    ) : (
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setMealExpenseOpen(true)}
+      >
+        食事代申請
+      </Button>
+    )}
+
+    <Dialog
+      open={mealExpenseOpen}
+      onOpenChange={setMealExpenseOpen}
+    >
+      <DialogPortal>
+        <DialogOverlay className="overlay-avoid-sidebar" />
+
+        <DialogContent className="z-[120] w-[calc(100vw-32px)] sm:max-w-[700px] sm:mx-auto ml-4 mr-0 max-h-[85vh] overflow-y-auto">
+          <DialogTitle>食事代申請</DialogTitle>
+
+          <DialogDescription>
+            食事代の金額と領収書画像を登録してください。
+          </DialogDescription>
+
+          <div className="mt-4">
+            <label className="block text-sm font-medium">
+              申請金額
+            </label>
+
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={mealExpenseAmount}
+                onChange={(e) =>
+                  setMealExpenseAmount(
+                    e.target.value.replace(/\D/g, "")
+                  )
+                }
+                placeholder="例：500"
+                className="w-40 rounded-md border px-3 py-2"
+              />
+
+              <span>円</span>
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <DocUploader
+              title="食事代領収書"
+              value={mealExpenseDocuments}
+              onChange={setMealExpenseDocuments}
+              docMaster={{
+                meal_expense: ["食事代領収書"],
+              }}
+              docCategory="meal_expense"
+              uploadApiPath="/api/upload/meal-cost"
+              showPlaceholders={true}
+            />
+          </div>
+
+          <div className="mt-5 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setMealExpenseOpen(false)}
+            >
+              閉じる
+            </Button>
+
+<Button
+  type="button"
+  disabled={
+    mealExpenseSubmitting ||
+    !mealExpenseAmount ||
+    Number(mealExpenseAmount) <= 0 ||
+    !mealExpenseDocuments.some((doc) => doc.url)
+  }
+  onClick={() => {
+    void handleMealExpenseSubmit();
+  }}
+>
+  {mealExpenseSubmitting
+    ? "申請中..."
+    : "食事代を申請"}
+</Button>
+          </div>
+        </DialogContent>
+      </DialogPortal>
+    </Dialog>
+  </>
+)}
+
+<div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
+          {mode === "reject" && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!smsRecipientPhone}
+                onClick={() => {
+                  setSmsError(null);
+                  setSmsSent(false);
+                  setSmsOpen(true);
+                }}
+              >
+                利用者様へSMS
+              </Button>
+
+              <Dialog open={smsOpen} onOpenChange={setSmsOpen}>
+                <DialogPortal>
+                  <DialogOverlay className="overlay-avoid-sidebar" />
+                  <DialogContent className="z-[120] w-[calc(100vw-32px)] sm:max-w-[560px] sm:mx-auto ml-4 mr-0">
+                    <DialogTitle>利用者様へSMS送信</DialogTitle>
+                    <DialogDescription>
+                      登録されている利用者様の電話番号へSMSを送信します。
+                    </DialogDescription>
+
+                    <div className="mt-4 space-y-3 text-sm">
+                      <div>
+                        <div className="font-medium">送信先</div>
+                        <div>{smsRecipientPhone ?? "電話番号未登録"}</div>
+                      </div>
+
+                      <div>
+                        <div className="font-medium">固定文</div>
+                        <div className="mt-1 whitespace-pre-wrap rounded-md border bg-gray-50 p-3 text-gray-700">
+                          {SMS_DEFAULT_HEADER}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="font-medium">本文</label>
+                        <textarea
+                          value={smsBody}
+                          onChange={(e) => setSmsBody(e.target.value)}
+                          placeholder="利用者様へ送る内容を入力してください"
+                          rows={6}
+                          className="mt-1 w-full rounded-md border p-3"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="font-medium">送信内容プレビュー</div>
+                        <div className="mt-1 whitespace-pre-wrap rounded-md border p-3">
+                          {SMS_DEFAULT_HEADER}
+                          {smsBody.trim() ? `\n\n${smsBody.trim()}` : ""}
+                        </div>
+                      </div>
+
+                      {/* SMS送信ボタン一時非表示に伴い、送信エラー表示も一時停止 */}
+                      {/* {smsError && (
+                        <div className="rounded-md border border-red-300 bg-red-50 p-2 text-red-700">
+                          {smsError}
+                        </div>
+                      )} */}
+
+                      {smsSent && (
+                        <div className="rounded-md border border-green-300 bg-green-50 p-2 text-green-700">
+                          SMSを送信しました。
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setSmsOpen(false)}
+                      >
+                        閉じる
+                      </Button>
+                      {/* SMS送信ボタンは一時的に非表示 */}
+                      {/*
+                      <Button
+                        type="button"
+                        disabled={smsSending || !smsRecipientPhone || !smsBody.trim()}
+                        onClick={() => void handleSmsSend()}
+                      >
+                        {smsSending ? "送信中..." : "SMSを送信"}
+                      </Button>
+                      */}
+                    </div>
+                  </DialogContent>
+                </DialogPortal>
+              </Dialog>
+            </>
+          )}
+
+{mode !== "view" && (
+  mode === "request" ? (
+    <Button onClick={() => setOpen(true)}>
+      このシフトを希望する
+    </Button>
+  ) : (
+    <Button
+      className={REJECT_BTN_CLASS}
+      onClick={() => setOpen(true)}
+    >
+      このシフトに入れない
+    </Button>
+  )
+)}
+
+<Dialog open={open} onOpenChange={setOpen}>
+            <DialogPortal>
+              <DialogOverlay className="overlay-avoid-sidebar" />
+              <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-4 mr-0">
+                {mode === "request" && !eligible && (
+                  <div className="mt-3 text-sm text-red-600 font-semibold">
+                    保有する資格ではこのサービスに入れない可能性があります。マネジャーに確認もしくは、保有資格の確認をポータルHomeで行ってください。
+                  </div>
+                )}
+                {mode === "request" ? (
+                  <>
+                    <DialogTitle>このシフトを希望しますか？</DialogTitle>
+                    <DialogDescription>
+                      希望を送信すると、シフトコーディネート申請が開始されます。
+                      <div className="mt-2 text-sm text-gray-500">
+                        利用者: {shift.client_name} / 日付: {shift.shift_start_date} / サービス: {shift.service_code}
+                      </div>
+                      <label className="flex items-center mt-4 gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={attendRequest}
+                          onChange={(e) => setAttendRequest(e.target.checked)}
+                        />
+                        同行を希望する
+                      </label>
+                      <div className="mt-4">
+                        <label className="text-sm font-medium">希望の時間調整（任意）</label>
+                        <textarea
+                          value={timeAdjustNote}
+                          onChange={(e) => setTimeAdjustNote(e.target.value)}
+                          placeholder="例）開始を15分後ろに出来れば可 など"
+                          className="w-full mt-1 p-2 border rounded"
+                        />
+                      </div>
+                    </DialogDescription>
+                    <div className="flex justify-end gap-2 mt-4">
+                      <Button variant="outline" onClick={() => setOpen(false)}>
+                        キャンセル
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          const warn = !eligible
+                            ? "※保有する資格ではこのサービスに入れない可能性があります。マネジャーに確認もしくは、保有資格の確認をポータルHomeで行ってください。\n"
+                            : "";
+                          const composed = (warn + (timeAdjustNote || "")).trim();
+                          onRequest?.(attendRequest, composed || undefined);
+                          setOpen(false);
+                        }}
+                        disabled={!!creatingRequest}
+                      >
+                        {creatingRequest ? "送信中..." : "希望を送信"}
+                      </Button>
+
+                    </div>
+                  </>
+                ) : (
+                  <>
+
+                    <DialogTitle>シフトに入れない</DialogTitle>
+                    <DialogDescription>
+                      {shift.client_name} 様のシフトを外します。理由を入力してください。
+                      <textarea
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        placeholder="シフトに入れない理由"
+                        className="w-full mt-2 p-2 border"
+                      />
+                    </DialogDescription>
+                    <div className="flex justify-end gap-2 mt-4">
+                      <Button variant="outline" onClick={() => setOpen(false)}>
+                        キャンセル
+                      </Button>
+                      <Button
+                        disabled={!reason}
+                        onClick={() => {
+                          onReject?.(reason);
+                          setOpen(false);
+                        }}
+                      >
+                        処理実行を確定
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </DialogContent>
+            </DialogPortal>
+          </Dialog>
+          {/* ★ 追加：駐車情報ダイアログ */}
+          <Dialog open={parkingOpen} onOpenChange={setParkingOpen}>
+            <DialogPortal>
+              <DialogOverlay className="overlay-avoid-sidebar" />
+              <DialogContent className="z-[110] w-[calc(100vw-32px)] sm:max-w-[760px] sm:mx-auto ml-4 mr-0 max-h-[85vh] overflow-y-auto">
+                <DialogTitle>駐車情報</DialogTitle>
+                <DialogDescription>
+                  駐車場所の地図・向き・備考を確認し、必要なら許可証申請を送信します。
+                </DialogDescription>
+
+                {parkingError && (
+                  <div className="mt-2 rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-800">
+                    {parkingError}
+                  </div>
+                )}
+
+                {parkingLoading ? (
+                  <div className="mt-3 text-sm text-gray-600">読み込み中...</div>
+                ) : (
+                  <>
+                    {parkingPlaces.length === 0 ? (
+                      <div className="mt-3 text-sm text-gray-600">有効な駐車情報（is_active=true）がありません。</div>
+                    ) : (
+                      <div className="mt-3 space-y-4">
+                        {parkingPlaces.map((p) => {
+                          const code = (p.police_station_place_id ?? "").trim();
+                          const url = (p.location_link ?? "").trim() || null;
+
+                          // ★許可証が必要 のときだけ申請OK
+                          //const canApplyPermit = (p.permit_required === true);
+
+                          return (
+                            <div key={p.id} className="rounded-lg border bg-white p-3 shadow-sm">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="font-semibold text-sm">
+                                  {code ? `認識コード：${code} / ` : ""}
+                                  {p.serial}. {p.label}
+                                </div>
+
+                                {p.permit_required === true ? (
+                                  <Button
+                                    onClick={() => { void applyParkingPermit(p.id); }}
+                                    disabled={parkingSending}
+                                    className="bg-amber-500 text-white hover:opacity-90"
+                                  >
+                                    {parkingSending ? "送信中..." : "許可証申請"}
+                                  </Button>
+                                ) : (
+                                  <div className="rounded-md border px-2 py-1 text-xs text-gray-600">
+                                    許可証不要
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                <div>
+                                  <div className="font-semibold">向き</div>
+                                  <div>{p.parking_orientation ?? "—"}</div>
+                                </div>
+
+                                <div>
+                                  <div className="font-semibold">備考</div>
+                                  <div className="whitespace-pre-wrap">{p.remarks ?? "—"}</div>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 text-sm">
+                                <div className="font-semibold">地図</div>
+                                {!url ? (
+                                  <div className="text-gray-600">未登録</div>
+                                ) : isGoogleDriveUrl(url) ? (
+                                  <div className="mt-1">
+                                    <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                      地図を開く
+                                    </a>
+                                    <iframe
+                                      src={toDrivePreviewUrl(url) ?? undefined}
+                                      className="mt-2 h-[360px] w-full rounded border"
+                                      title="地図プレビュー"
+                                    />
+                                  </div>
+                                ) : isImageUrl(url) ? (
+                                  <div className="mt-1">
+                                    <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                      画像を別タブで開く
+                                    </a>
+                                    <img
+                                      src={url}
+                                      alt="地図"
+                                      className="mt-2 max-h-[360px] w-full rounded border object-contain"
+                                    />
+                                  </div>
+                                ) : isPdfUrl(url) ? (
+                                  <div className="mt-1">
+                                    <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                      地図PDFを開く
+                                    </a>
+                                    <iframe
+                                      src={url}
+                                      className="mt-2 h-[360px] w-full rounded border"
+                                      title="地図PDF"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="mt-1">
+                                    <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                      地図を開く
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+
+                              {(p.picture1_url || p.picture2_url) && (
+                                <div className="mt-3 text-sm space-y-2">
+                                  <div className="font-semibold">添付資料</div>
+                                  {[p.picture1_url, p.picture2_url].filter(Boolean).map((attachmentUrl, idx) => {
+                                    const fileUrl = attachmentUrl as string;
+                                    const label = `添付${idx + 1}`;
+
+                                    if (isGoogleDriveUrl(fileUrl)) {
+                                      return (
+                                        <div key={fileUrl} className="mt-1">
+                                          <a href={fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                            {label} を開く
+                                          </a>
+                                          <iframe
+                                            src={toDrivePreviewUrl(fileUrl) ?? undefined}
+                                            className="mt-2 h-[360px] w-full rounded border"
+                                            title={label}
+                                          />
+                                        </div>
+                                      );
+                                    }
+
+                                    if (isImageUrl(fileUrl)) {
+                                      return (
+                                        <div key={fileUrl} className="mt-1">
+                                          <a href={fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                            {label} を別タブで開く
+                                          </a>
+                                          <img
+                                            src={fileUrl}
+                                            alt={label}
+                                            className="mt-2 max-h-[360px] w-full rounded border object-contain"
+                                          />
+                                        </div>
+                                      );
+                                    }
+
+                                    if (isPdfUrl(fileUrl)) {
+                                      return (
+                                        <div key={fileUrl} className="mt-1">
+                                          <a href={fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                            {label} のPDFを開く
+                                          </a>
+                                          <iframe
+                                            src={fileUrl}
+                                            className="mt-2 h-[360px] w-full rounded border"
+                                            title={label}
+                                          />
+                                        </div>
+                                      );
+                                    }
+
+                                    return (
+                                      <div key={fileUrl} className="mt-1">
+                                        <a href={fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                          {label} を開く
+                                        </a>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        <div className="flex justify-end pt-2">
+                          <Button variant="outline" onClick={() => setParkingOpen(false)}>
+                            閉じる
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                  </>
+                )}
+              </DialogContent>
+            </DialogPortal>
+          </Dialog>
+          {(mode === "reject" || mode === "view") && (
+            <Button
+              asChild
+              variant="ghost"
+              className={recordBtnColorCls || "bg-gray-100 text-black border-gray-300"}
+              id={`srbtn-${shiftIdStr}`}
+            >
+              <ShiftRecordLinkButton
+                id={`srbtn-${shiftIdStr}`}
+                className={recordBtnColorCls || "bg-gray-100 text-black border-gray-300"}
+                variant="ghost"
+                shiftId={getShiftIdStr(shift)}
+                clientName={shift.client_name ?? ""}
+                tokuteiComment={shift.tokutei_comment ?? ""}
+                standardRoute={sr}
+                standardTransWays={stw}
+                standardPurpose={sp}
+                kodoengoPlanLink={kpl}
+                staff01UserId={shift.staff_01_user_id ?? ""}
+                staff02UserId={shift.staff_02_user_id ?? ""}
+                staff03UserId={shift.staff_03_user_id ?? ""}
+                staff02AttendFlg={shift.staff_02_attend_flg ?? ""}
+                staff03AttendFlg={shift.staff_03_attend_flg ?? ""}
+                judoIdo={getJudoIdoStr(shift)}
+              />
+            </Button>
+          )}
+          {/* ▼ 追加：月間 */}
+          {csId && shift.shift_start_date && (
+            <Link
+              href={monthlyHref(csId, ymFromDate(shift.shift_start_date))}
+              className="inline-flex items-center px-2 text-sm font-medium text-blue-600 underline hover:text-blue-800"
+            >
+              月間シフト
+            </Link>
+          )}
+          {extraActions}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

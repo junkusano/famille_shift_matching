@@ -1,0 +1,961 @@
+//api/portal/my-score/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/service";
+import {
+    getPerformanceBadge,
+    isNewPerformanceSchemeOfficial,
+} from "@/lib/performanceScoreBadge";
+import {
+    calculateTeamRenewalScore,
+    calculateTeamServiceHoursScore,
+    calculateTeamVisitRecordScore,
+} from "@/lib/performance/teamScoreRules";
+
+const EXCLUDED_PERFORMANCE_SCORE_USER_IDS = [
+    "satominishio",
+    "jundakusanoda",
+    "shinomasuda",
+];
+
+/*type ShiftRow = {
+    shift_id: number;
+    shift_start_date: string;
+    shift_start_time: string | null;
+    shift_end_time: string | null;
+    staff_01_user_id: string | null;
+    staff_02_user_id: string | null;
+    staff_03_user_id: string | null;
+};
+
+type ShiftRecordRow = {
+    shift_id: number;
+    status: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+};
+
+type MeetingAttendanceRow = {
+    required: boolean | null;
+    attended_regular: boolean | null;
+    attended_extra: boolean | null;
+    checked_regular: boolean | null;
+    checked_extra: boolean | null;
+    updated_at: string | null;
+};*/
+
+/*type DisabilityCheckRow = {
+    is_checked: boolean | null;
+    application_check: boolean | null;
+    asigned_jisseki_staff_id: string | null;
+};
+
+type GoalRow = {
+    id: string;
+    selected: boolean | null;
+    watched: boolean | null;
+};*/
+
+type UserRow = {
+    user_id: string;
+    entry_id: string | null;
+    auth_uid: string;
+    system_role: string | null;
+    status: string | null;
+    last_name_kanji: string | null;
+    first_name_kanji: string | null;
+    last_name_kana: string | null;
+    first_name_kana: string | null;
+    org_unit_id: string | null;
+};
+
+type MemberOption = {
+    user_id: string;
+    entry_id: string | null;
+    status: string | null;
+    last_name_kanji: string | null;
+    first_name_kanji: string | null;
+    last_name_kana: string | null;
+    first_name_kana: string | null;
+    org_unit_id: string | null;
+};
+
+type TeamRankingRow = {
+    rank: number;
+    teamId: string;
+    teamName: string;
+    scoreEligible: boolean;
+    score: number;
+    serviceHoursScore: number;
+    visitRecordScore: number;
+    jissekiScore: number;
+    meetingScore: number;
+    serviceHoursGrowth: number;
+    serviceHoursCurrent: number;
+    serviceHoursPrevious: number;
+    visitRecordDeadlineMissCount: number;
+    jissekiIncompleteCount: number;
+    visitRecordPastIncompleteCount: number;
+    meetingIncompleteCount: number;
+    jissekiIncompleteDetails: TeamScoreDetail[];
+    renewalIncompleteCount: number;
+    renewalScore: number;
+    visitRecordDeadlineMissDetails: TeamScoreDetail[];
+    visitRecordIncompleteDetails: TeamScoreDetail[];
+    visitRecordPastIncompleteDetails: TeamScoreDetail[];
+    meetingIncompleteDetails: TeamScoreDetail[];
+    renewalIncompleteDetails: TeamScoreDetail[];
+};
+
+type TeamScoreDetail = {
+    id: string;
+    clientId: string | null;
+    clientName: string | null;
+    targetDate: string;
+    staffUserIds: string[];
+    staffNames: string[];
+    reason: string;
+};
+
+function parseTeamScoreDetails(value: unknown): TeamScoreDetail[] {
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((item, index) => {
+        if (!item || typeof item !== "object") return [];
+        const detail = item as Record<string, unknown>;
+        return [{
+            id: String(detail.id ?? `detail-${index}`),
+            clientId: detail.clientId == null ? null : String(detail.clientId),
+            clientName: detail.clientName == null ? null : String(detail.clientName),
+            targetDate: String(detail.targetDate ?? ""),
+            staffUserIds: Array.isArray(detail.staffUserIds)
+                ? detail.staffUserIds.map(String)
+                : [],
+            staffNames: Array.isArray(detail.staffNames)
+                ? detail.staffNames.map(String)
+                : [],
+            reason: String(detail.reason ?? ""),
+        }];
+    });
+}
+
+/*type Metric = {
+    key: string;
+    label: string;
+    score: number;
+    maxScore: number;
+    note: string;
+};
+
+function isValidYearMonth(value: string | null) {
+    return value !== null && /^\d{4}-\d{2}$/.test(value);
+}*/
+
+/*function getMonthRange(monthParam: string | null) {
+    const now = new Date();
+
+    const ym = isValidYearMonth(monthParam)
+        ? monthParam
+        : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+    const [yearText, monthText] = ym.split("-");
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+
+    const start = new Date(year, monthIndex, 1);
+    const end = new Date(year, monthIndex + 1, 1);
+
+    return {
+        ym,
+        startDate: start.toISOString().slice(0, 10),
+        endDate: end.toISOString().slice(0, 10),
+    };
+}*/
+
+/*function getPreviousYm(ym: string) {
+    const [yearText, monthText] = ym.split("-");
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+
+    const d = new Date(year, monthIndex - 1, 1);
+
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function calcMeetingScore(meeting: MeetingAttendanceRow | null | undefined, displayYm: string) {
+    const meetingRequired = meeting?.required !== false;
+
+    if (!meetingRequired) {
+        return {
+            meetingRequired,
+            meetingScore: 100,
+            note: "対象外",
+        };
+    }
+
+    if (meeting?.attended_regular === true) {
+        return {
+            meetingRequired,
+            meetingScore: 100,
+            note: "前月の月例参加あり",
+        };
+    }
+
+    if (meeting?.attended_extra === true) {
+        const [yearText, monthText] = displayYm.split("-");
+        const deadline = `${yearText}-${monthText}-10`;
+        const checkedDate = String(meeting.updated_at ?? "").slice(0, 10);
+
+        return {
+            meetingRequired,
+            meetingScore: checkedDate && checkedDate <= deadline ? 100 : 50,
+            note:
+                checkedDate && checkedDate <= deadline
+                    ? "前月会議の追加開催あり（10日まで）"
+                    : "前月会議の追加開催あり（11日以降のため5点）",
+        };
+    }
+
+    return {
+        meetingRequired,
+        meetingScore: 0,
+        note: "前月会議未参加",
+    };
+}*/
+
+function buildMonthOptions() {
+    const start = new Date(2026, 4, 1); // 2026年5月
+    const now = new Date();
+    const current = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const options = [];
+
+    for (
+        let d = new Date(start);
+        d <= current;
+        d = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+    ) {
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+        options.push({
+            value: ym,
+            label: `${d.getFullYear()}年${d.getMonth() + 1}月`,
+        });
+    }
+
+    return options.reverse();
+}
+
+function getJissekiLinkYearMonth(now = new Date()) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Tokyo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).formatToParts(now);
+    const value = (type: string) =>
+        parts.find((part) => part.type === type)?.value ?? "";
+    const year = Number(value("year"));
+    const month = Number(value("month"));
+    const day = Number(value("day"));
+
+    if (day >= 20) {
+        return `${year}-${String(month).padStart(2, "0")}`;
+    }
+
+    const previousMonth = new Date(Date.UTC(year, month - 2, 1));
+    return `${previousMonth.getUTCFullYear()}-${String(
+        previousMonth.getUTCMonth() + 1
+    ).padStart(2, "0")}`;
+}
+
+/*function buildRecentMonthsByYm(baseYm: string, count: number) {
+    const [yearText, monthText] = baseYm.split("-");
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+
+    return Array.from({ length: count }, (_, index) => {
+        const d = new Date(year, monthIndex - (count - 1 - index), 1);
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+        return {
+            value: ym,
+            label: `${d.getMonth() + 1}月`,
+        };
+    });
+}
+
+function calcMinutes(
+    date: string,
+    start?: string | null,
+    end?: string | null
+) {
+    if (!start || !end) return 0;
+
+    const s = new Date(`${date}T${start}`);
+    const e = new Date(`${date}T${end}`);
+
+    const diff = e.getTime() - s.getTime();
+
+    return diff > 0 ? Math.round(diff / 60000) : 0;
+}*/
+
+type ScoreRow = {
+    target_month: string;
+    service_hours: number | string | null;
+    visit_record_total_count: number | null;
+    houmon_same_day_done_count: number | null;
+    visit_record_past_incomplete_count: number | null;
+    meeting_previous_month_attended: boolean | null;
+    meeting_past_attended: boolean | null;
+    jisseki_previous_month_total_count: number | null;
+    jisseki_previous_month_done_count: number | null;
+    jisseki_past_incomplete_count: number | null;
+    training_goal_selected_count: number | null;
+    health_check_done: boolean | null;
+    visit_record_current_month_incomplete_count: number | null;
+    visit_record_deadline_miss_count: number | null;
+    shift_decline_3days_count: number | null;
+    shift_decline_6hours_count: number | null;
+    shift_decline_penalty_score: number | null;
+    jisseki_team_bonus_score: number | null;
+    individual_score?: number | null;
+    team_score?: number | null;
+    official_total_score: number | null;
+    projected_total_score: number | null;
+};
+
+function calcDisplayTotalScore(row: ScoreRow) {
+    if (row.official_total_score !== null && row.official_total_score !== undefined) {
+        return Number(row.official_total_score);
+    }
+    const serviceHoursScore = Math.min(
+        80,
+        Math.floor(Number(row.service_hours ?? 0) / 20) * 10
+    );
+
+
+
+    const visitRecordDeadlineMissCount = Number(row.visit_record_deadline_miss_count ?? 0);
+    const visitRecordPastIncompleteCount = Number(row.visit_record_past_incomplete_count ?? 0);
+    const rawVisitRecordScore = 20 - visitRecordDeadlineMissCount * 5 - visitRecordPastIncompleteCount * 5;
+    const visitRecordScore = isNewPerformanceSchemeOfficial(row.target_month)
+        ? rawVisitRecordScore : Math.max(0, rawVisitRecordScore);
+
+    const meetingScore =
+        row.meeting_previous_month_attended === true ||
+            row.meeting_past_attended === true
+            ? 10
+            : 0;
+
+    const jissekiScore = Math.max(
+        0,
+        20 - Number(row.jisseki_past_incomplete_count ?? 0) * 5
+    );
+
+    const trainingGoalScore = Math.min(
+        Number(row.training_goal_selected_count ?? 0) * 5,
+        20
+    );
+    const shiftDeclinePenaltyScore = Number(
+        row.shift_decline_penalty_score ?? 0
+    );
+    const healthCheckScore = row.health_check_done === true ? 10 : 0;
+
+    const teamBonusScore = Number(
+        row.jisseki_team_bonus_score ?? 0
+    );
+
+    return Math.max(
+        0,
+        serviceHoursScore +
+        visitRecordScore +
+        meetingScore +
+        jissekiScore +
+        trainingGoalScore +
+        healthCheckScore +
+        teamBonusScore -
+        shiftDeclinePenaltyScore
+    );
+}
+
+/*const SCORE_WEIGHTS = {
+    serviceHours: 80,
+    visitRecord: 30,
+    meeting: 10,
+    jisseki: 30,
+    trainingGoal: 0,
+};*/
+
+export async function GET(req: NextRequest) {
+    const token = req.headers
+        .get("authorization")
+        ?.replace("Bearer ", "");
+
+    if (!token) {
+        return NextResponse.json(
+            { error: "unauthorized" },
+            { status: 401 }
+        );
+    }
+
+    const { data: authData, error: authError } =
+        await supabaseAdmin.auth.getUser(token);
+
+    if (authError || !authData.user) {
+        return NextResponse.json(
+            { error: "unauthorized" },
+            { status: 401 }
+        );
+    }
+
+    // const targetMonth =
+    //   req.nextUrl.searchParams.get("ym") ??
+    // req.nextUrl.searchParams.get("month");
+
+    //const { ym, startDate, endDate } = getMonthRange(targetMonth);
+
+    const targetUserId = req.nextUrl.searchParams.get("user_id");
+
+    const now = new Date();
+    const jst = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+    const currentYm = `${jst.getFullYear()}-${String(jst.getMonth() + 1).padStart(2, "0")}`;
+
+    const ym = req.nextUrl.searchParams.get("ym") ?? currentYm;
+    const monthOptions = buildMonthOptions();
+
+    const { data: loginUser, error: loginUserError } = await supabaseAdmin
+        .from("user_entry_united_view_single")
+        .select(
+            `
+            user_id,
+            entry_id,
+            auth_uid,
+            system_role,
+            status,
+            last_name_kanji,
+            first_name_kanji,
+            last_name_kana,
+            first_name_kana,
+    org_unit_id
+            `
+        )
+        .eq("auth_uid", authData.user.id)
+        .maybeSingle<UserRow>();
+
+    if (loginUserError || !loginUser?.user_id) {
+        return NextResponse.json(
+            { error: "user not found" },
+            { status: 404 }
+        );
+    }
+
+    const loginRole = String(loginUser.system_role ?? "")
+        .trim()
+        .toLowerCase();
+
+    const canSwitchMember =
+        loginRole === "admin" || loginRole === "manager";
+
+    const { data: memberRows } = await supabaseAdmin
+        .from("user_entry_united_view_single")
+        .select(
+            `
+        user_id,
+        entry_id,
+        status,
+        last_name_kanji,
+        first_name_kanji,
+        last_name_kana,
+        first_name_kana,
+    org_unit_id
+      `
+        )
+        .not("user_id", "is", null)
+        .neq("status", "removed_from_lineworks_kaipoke")
+        .order("last_name_kana", { ascending: true })
+        .order("first_name_kana", { ascending: true })
+        .returns<MemberOption[]>();
+
+    const allMembers = (memberRows ?? []).filter((member) => {
+        return (
+            Boolean(member.user_id) &&
+            member.status !== "removed_from_lineworks_kaipoke" &&
+            !EXCLUDED_PERFORMANCE_SCORE_USER_IDS.includes(member.user_id)
+        );
+    });
+
+    const members = canSwitchMember
+        ? allMembers
+        : [
+            {
+                user_id: loginUser.user_id,
+                entry_id: loginUser.entry_id,
+                status: loginUser.status,
+                last_name_kanji: loginUser.last_name_kanji,
+                first_name_kanji: loginUser.first_name_kanji,
+                last_name_kana: loginUser.last_name_kana,
+                first_name_kana: loginUser.first_name_kana,
+                org_unit_id: loginUser.org_unit_id,
+            },
+        ];
+    const selectedMember =
+        canSwitchMember && targetUserId
+            ? members.find((member) => member.user_id === targetUserId)
+            : loginUser;
+
+    const me = selectedMember ?? loginUser;
+
+    const userId = me.user_id;
+    //const entryId = me.entry_id;
+
+    function addParams(path: string, params: Record<string, string | null | undefined>) {
+        const qs = new URLSearchParams();
+
+        Object.entries(params).forEach(([key, value]) => {
+            if (value) qs.set(key, value);
+        });
+
+        return `${path}?${qs.toString()}`;
+    }
+
+    function getPreviousYm(ym: string) {
+        const [yearText, monthText] = ym.split("-");
+        const d = new Date(Number(yearText), Number(monthText) - 2, 1);
+
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    }
+
+    const previousYm = getPreviousYm(ym);
+    const jissekiLinkYm = getJissekiLinkYearMonth();
+
+    const targetMonthDate = `${ym}-01`;
+
+    const { data: summary, error: summaryError } = await supabaseAdmin
+        .from("staff_monthly_score_summaries")
+        .select("*")
+        .eq("target_month", targetMonthDate)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+    if (summaryError) {
+        console.error(summaryError);
+        return NextResponse.json(
+            { error: summaryError.message },
+            { status: 500 }
+        );
+    }
+
+    if (!summary) {
+        return NextResponse.json(
+            { error: "score summary not found" },
+            { status: 404 }
+        );
+    }
+
+    const { data: teamSummary, error: teamSummaryError } = summary.team_orgunitid
+        ? await supabaseAdmin
+            .from("team_monthly_score_summaries")
+            .select("*")
+            .eq("target_month", targetMonthDate)
+            .eq("orgunitid", summary.team_orgunitid)
+            .maybeSingle()
+        : { data: null, error: null };
+
+    if (teamSummaryError) {
+        return NextResponse.json({ error: teamSummaryError.message }, { status: 500 });
+    }
+
+    const { data: teamRankingSourceRows, error: teamRankingError } = await supabaseAdmin
+        .from("team_monthly_score_summaries")
+        .select("*")
+        .eq("target_month", targetMonthDate);
+
+    if (teamRankingError) {
+        return NextResponse.json({ error: teamRankingError.message }, { status: 500 });
+    }
+
+    const { data: scoreEligibleOrgRows, error: scoreEligibleOrgError } = await supabaseAdmin
+        .from("orgs")
+        .select("orgunitid, orgunitname");
+    if (scoreEligibleOrgError) {
+        return NextResponse.json({ error: scoreEligibleOrgError.message }, { status: 500 });
+    }
+    const scoreEligibleOrgIds = new Set(
+        (scoreEligibleOrgRows ?? [])
+            .filter((org) => org.orgunitname !== "代表・本社機能")
+            .map((org) => String(org.orgunitid)),
+    );
+
+    const { data: activeTeamRows, error: activeTeamRowsError } = await supabaseAdmin
+        .from("staff_monthly_score_summaries")
+        .select("team_orgunitid, visit_record_total_count")
+        .eq("target_month", targetMonthDate)
+        .gt("visit_record_total_count", 0);
+    if (activeTeamRowsError) {
+        return NextResponse.json({ error: activeTeamRowsError.message }, { status: 500 });
+    }
+    const activeTeamIds = new Set(
+        (activeTeamRows ?? []).map((row) => String(row.team_orgunitid ?? "")),
+    );
+
+    const teamRanking: TeamRankingRow[] = [...(teamRankingSourceRows ?? [])]
+        .filter((team) => Number(team.visit_record_total_count ?? 0) > 0)
+        .map((team, index) => ({
+            rank: index + 1,
+            teamId: String(team.orgunitid),
+            teamName: String(team.team_name ?? team.orgunitname ?? team.orgunitid),
+            scoreEligible: scoreEligibleOrgIds.has(String(team.orgunitid)) && activeTeamIds.has(String(team.orgunitid)),
+            score:
+                calculateTeamServiceHoursScore(Number(team.service_hours_growth ?? 0))
+                + calculateTeamVisitRecordScore(
+                    Number(team.visit_record_deadline_miss_count ?? 0),
+                    Number(team.visit_record_past_incomplete_count ?? 0),
+                )
+                + Number(team.jisseki_score ?? 0)
+                + Number(team.meeting_score ?? 0)
+                + calculateTeamRenewalScore(Number(team.renewal_incomplete_count ?? 0)),
+            serviceHoursScore: calculateTeamServiceHoursScore(Number(team.service_hours_growth ?? 0)),
+            visitRecordScore: calculateTeamVisitRecordScore(
+                Number(team.visit_record_deadline_miss_count ?? 0),
+                Number(team.visit_record_past_incomplete_count ?? 0),
+            ),
+            jissekiScore: Number(team.jisseki_score ?? 0),
+            meetingScore: Number(team.meeting_score ?? 0),
+            serviceHoursGrowth: Number(team.service_hours_growth ?? 0),
+            visitRecordDeadlineMissCount: Number(team.visit_record_deadline_miss_count ?? 0),
+            jissekiIncompleteCount: Number(team.jisseki_incomplete_count ?? 0),
+            meetingIncompleteCount: Number(team.meeting_incomplete_count ?? 0),
+            serviceHoursCurrent: Number(team.service_hours_current ?? team.service_hours ?? 0),
+            serviceHoursPrevious: Number(team.service_hours_previous ?? team.previous_month_service_hours ?? 0),
+            jissekiIncompleteDetails: parseTeamScoreDetails(team.jisseki_incomplete_details),
+            visitRecordDeadlineMissDetails: parseTeamScoreDetails(team.visit_record_deadline_miss_details),
+            visitRecordPastIncompleteCount: Number(team.visit_record_past_incomplete_count ?? 0),
+            visitRecordIncompleteDetails: parseTeamScoreDetails(team.visit_record_incomplete_details),
+            meetingIncompleteDetails: parseTeamScoreDetails(team.meeting_incomplete_details),
+            renewalIncompleteCount: Number(team.renewal_incomplete_count ?? 0),
+            renewalScore: calculateTeamRenewalScore(Number(team.renewal_incomplete_count ?? 0)),
+            visitRecordPastIncompleteDetails: parseTeamScoreDetails(team.visit_record_past_incomplete_details),
+            renewalIncompleteDetails: parseTeamScoreDetails(team.renewal_incomplete_details),
+        }))
+        .sort((a, b) => b.score - a.score)
+        .map((team, index) => ({ ...team, rank: index + 1 }));
+
+    const { data: rankingSourceRows } = await supabaseAdmin
+        .from("staff_monthly_score_summaries")
+        .select("*")
+        .eq("target_month", targetMonthDate);
+
+    const teamNameByUserId = new Map<string, string>();
+    for (const row of rankingSourceRows ?? []) {
+        if (!row.user_id) continue;
+        const teamName = row.team_orgunitid
+            ? (teamRankingSourceRows ?? []).find((team) => String(team.orgunitid) === String(row.team_orgunitid))?.team_name
+                ?? (teamRankingSourceRows ?? []).find((team) => String(team.orgunitid) === String(row.team_orgunitid))?.orgunitname
+                ?? null
+            : null;
+        if (teamName) {
+            teamNameByUserId.set(row.user_id, String(teamName));
+        }
+    }
+
+    const projectedTeamScoreById = new Map(
+        teamRanking.filter((team) => team.scoreEligible).map((team) => [team.teamId, team.score]),
+    );
+
+    const baseRankingRows = (rankingSourceRows ?? [])
+        .filter((row) => !EXCLUDED_PERFORMANCE_SCORE_USER_IDS.includes(row.user_id))
+        .filter((row) => Number(row.visit_record_total_count ?? 0) > 0)
+        .map((row) => ({
+            user_id: row.user_id,
+            staff_name: row.staff_name,
+            team_name: teamNameByUserId.get(row.user_id) ?? null,
+            officialScore: Number(row.official_total_score ?? row.total_score ?? 0),
+            projectedScore: Number(row.individual_score ?? row.total_score ?? 0)
+                + (row.team_orgunitid
+                    ? projectedTeamScoreById.get(String(row.team_orgunitid)) ?? 0
+                    : 0),
+        }));
+
+    const buildRanking = (mode: "official" | "projected") =>
+        [...baseRankingRows]
+            .sort((a, b) =>
+                mode === "official"
+                    ? b.officialScore - a.officialScore
+                    : b.projectedScore - a.projectedScore
+            )
+            .map((row, index) => {
+                const score = mode === "official" ? row.officialScore : row.projectedScore;
+                const badgeScheme = mode === "projected" || isNewPerformanceSchemeOfficial(targetMonthDate)
+                    ? "new"
+                    : "current";
+                const badge = getPerformanceBadge(score, badgeScheme);
+                return {
+                    rank: index + 1,
+                    userId: row.user_id,
+                    score,
+                    name: row.staff_name ?? row.user_id,
+                    teamName: row.team_name ?? null,
+                    badge: badge.name,
+                    hourlyWageBonus: badge.hourlyWageBonus,
+                };
+            });
+
+    const officialRankingRows = buildRanking("official");
+    const projectedRankingRows = buildRanking("projected");
+
+    const { data: historyRows } = await supabaseAdmin
+        .from("staff_monthly_score_summaries")
+        .select(`
+            target_month,
+            rank_no,
+            official_total_score,
+            projected_total_score,
+            service_hours,
+            visit_record_total_count,
+            houmon_same_day_done_count,
+            visit_record_past_incomplete_count,
+            visit_record_deadline_miss_count,
+            meeting_previous_month_attended,
+            meeting_past_attended,
+            jisseki_previous_month_total_count,
+jisseki_previous_month_done_count,
+jisseki_past_incomplete_count,
+            visit_record_current_month_incomplete_count,
+            training_goal_selected_count,
+            health_check_done,
+shift_decline_3days_count,
+shift_decline_6hours_count,
+shift_decline_penalty_score,
+  jisseki_team_total_count,
+        jisseki_team_done_count,
+        jisseki_team_collection_rate,
+        jisseki_team_bonus_score
+`)
+        .eq("user_id", userId)
+        .gte("target_month", "2026-05-01")
+        .order("target_month", { ascending: true });
+
+    const serviceHoursScore = Math.min(
+        80,
+        Math.floor(Number(summary.service_hours ?? 0) / 20) * 10
+    );
+
+
+    const visitRecordDeadlineMissCount = Number(summary.visit_record_deadline_miss_count ?? 0);
+    const visitRecordPastIncompleteCount = Number(
+        summary.visit_record_past_incomplete_count ?? 0
+    );
+    const rawVisitRecordScore = 20 - visitRecordDeadlineMissCount * 5 - visitRecordPastIncompleteCount * 5;
+    const visitRecordScore = isNewPerformanceSchemeOfficial(targetMonthDate)
+        ? rawVisitRecordScore : Math.max(0, rawVisitRecordScore);
+    const meetingScore =
+        summary.meeting_previous_month_attended === true ||
+            summary.meeting_past_attended === true
+            ? 10
+            : 0;
+
+    const jissekiPastIncompleteCount = Number(
+        summary.jisseki_past_incomplete_count ?? 0
+    );
+
+    const jissekiScore = Math.max(
+        0,
+        20 - jissekiPastIncompleteCount * 5
+    );
+
+    const trainingGoalScore = Math.min(
+        Number(summary.training_goal_selected_count ?? 0) * 5,
+        20
+    );
+    const shiftDecline3DaysCount = Number(
+        summary.shift_decline_3days_count ?? 0
+    );
+
+    const shiftDecline6HoursCount = Number(
+        summary.shift_decline_6hours_count ?? 0
+    );
+
+    const shiftDeclinePenaltyScore = Number(
+        summary.shift_decline_penalty_score ?? 0
+    );
+
+    // チーム実績記録
+    const jissekiTeamTotalCount = Number(
+        summary.jisseki_team_total_count ?? 0
+    );
+
+    const jissekiTeamDoneCount = Number(
+        summary.jisseki_team_done_count ?? 0
+    );
+
+    const jissekiTeamCollectionRate = Number(
+        summary.jisseki_team_collection_rate ?? 0
+    );
+
+    const jissekiTeamBonusScore = Number(
+        summary.jisseki_team_bonus_score ?? 0
+    );
+
+    const individualScore = Number(summary.individual_score ?? summary.total_score ?? 0);
+    const projectedTeamSummary = teamRanking.find((team) => team.scoreEligible && team.teamId === String(summary.team_orgunitid ?? ""));
+    const teamScore = projectedTeamSummary?.score ?? 0;
+    const officialTotalScore = Number(summary.official_total_score ?? summary.total_score ?? individualScore);
+    const projectedTotalScore = individualScore + teamScore;
+    const newSchemeOfficial = isNewPerformanceSchemeOfficial(targetMonthDate);
+    const officialBadge = getPerformanceBadge(
+        officialTotalScore,
+        newSchemeOfficial ? "new" : "current"
+    );
+    const projectedBadge = getPerformanceBadge(projectedTotalScore, "new");
+    const teamServiceHoursScore = projectedTeamSummary?.serviceHoursScore ?? 0;
+    const teamJissekiScore = projectedTeamSummary?.jissekiScore ?? 0;
+    const teamVisitRecordScore = projectedTeamSummary?.visitRecordScore ?? 0;
+    const teamMeetingScore = projectedTeamSummary?.meetingScore ?? 0;
+
+    return NextResponse.json({
+        month: ym,
+        monthOptions,
+        userId,
+        userName:
+            summary.staff_name ??
+            `${me.last_name_kanji ?? ""}${me.first_name_kanji ?? ""}`,
+
+        totalScore: officialTotalScore,
+        individualScore,
+        teamBreakdown: projectedTeamSummary ?? null,
+        teamScore,
+        officialTotalScore,
+        projectedTotalScore,
+        newSchemeOfficial,
+        teamName: teamSummary?.team_name ?? teamSummary?.orgunitname ?? null,
+        officialBadge,
+        projectedBadge,
+
+        // 追加
+        jissekiTeamTotalCount,
+        jissekiTeamDoneCount,
+        jissekiTeamCollectionRate,
+        jissekiTeamBonusScore,
+
+        debugDbTotalScore: summary.total_score,
+        debugTargetMonth: summary.target_month,
+        debugUserId: summary.user_id,
+
+        // 現行の個人評価最大140点＋新制度のチーム成績最大70点
+        totalMaxScore: 210,
+
+        badge: officialBadge.name,
+        metrics: [
+            {
+                key: "service_hours",
+                label: "サービス時間",
+                score: serviceHoursScore,
+                teamScore: teamServiceHoursScore,
+                maxScore: 80,
+                combinedMaxScore: 100,
+                note: `${summary.service_hours ?? 0}時間`,
+                linkUrl: addParams("/portal/shift-view", {
+                    user_id: userId,
+                    date: `${ym}-01`,
+                }),
+            },
+            {
+                key: "shift_decline_penalty",
+                label: "シフト直前辞退ペナルティ",
+                score: -shiftDeclinePenaltyScore,
+                maxScore: 0,
+                note: `3日以内 ${shiftDecline3DaysCount}件 / 6時間以内 ${shiftDecline6HoursCount}件`,
+            },
+            {
+                key: "visit_record",
+                label: "訪問記録",
+                score: visitRecordScore,
+                teamScore: teamVisitRecordScore,
+                maxScore: 20,
+                combinedMaxScore: 40,
+                note: `23:43締切違反 ${visitRecordDeadlineMissCount}件 / 過去未完了 ${visitRecordPastIncompleteCount}件`,
+                linkUrl: addParams("/portal/shift-view", {
+                    user_id: userId,
+                    date: `${ym}-01`,
+                }),
+            },
+            {
+                key: "meeting",
+                label: "会議参加",
+                score: meetingScore,
+                teamScore: teamMeetingScore,
+                maxScore: 10,
+                combinedMaxScore: 20,
+                note: `前月参加: ${summary.meeting_previous_month_attended ? "あり" : "なし"} / 過去参加: ${summary.meeting_past_attended ? "あり" : "なし"}`,
+                linkUrl: addParams("/portal/monthly-meeting-check", {
+                    ym: previousYm,
+                    user_id: userId,
+                }),
+            },
+            {
+                key: "jisseki",
+                label: "実績記録",
+                score: jissekiScore,
+                teamScore: teamJissekiScore,
+                maxScore: 20,
+                combinedMaxScore: 40,
+                note:
+                    `前月完了 ${summary.jisseki_previous_month_done_count ?? 0}件` +
+                    ` / 前月対象 ${summary.jisseki_previous_month_total_count ?? 0}件` +
+                    ` / 過去未完了 ${summary.jisseki_past_incomplete_count ?? 0}件`,
+                linkUrl: addParams("/portal/disability-check", {
+                    ym: jissekiLinkYm,
+                    user_id: userId,
+                }),
+            },
+            {
+                key: "jisseki_team_bonus",
+                label: "チーム実績回収ボーナス",
+                score: jissekiTeamBonusScore,
+                maxScore: 20,
+                note:
+                    `チーム回収率 ${jissekiTeamCollectionRate.toFixed(1)}% ` +
+                    `（完了 ${jissekiTeamDoneCount}件 / 対象 ${jissekiTeamTotalCount}件）`,
+            },
+            {
+                key: "training_goal",
+                label: "目標・研修",
+                score: trainingGoalScore,
+                maxScore: 20,
+                note: `${summary.training_goal_selected_count ?? 0}件`,
+                linkUrl: addParams("/portal/training-goals", {
+                    user_id: userId,
+                }),
+            },
+            {
+                key: "health_check",
+                label: "健康診断",
+                score: summary.health_check_done ? 10 : 0,
+                maxScore: 10,
+                note: summary.health_check_done ? "提出済み" : "未提出",
+            },
+        ],
+        ranking: {
+            rank: officialRankingRows.find((row) => row.userId === userId)?.rank ?? null,
+            totalMembers: officialRankingRows.length,
+        },
+        officialRanking: officialRankingRows.slice(0, 100),
+        projectedRanking: projectedRankingRows.slice(0, 100),
+        teamRanking,
+        topRanking: officialRankingRows.slice(0, 100),
+        scoreHistory: (historyRows ?? []).map((row) => {
+            const month = String(row.target_month).slice(0, 7);
+            return {
+                month,
+                label: `${Number(month.slice(5, 7))}月`,
+                score: calcDisplayTotalScore(row),
+                officialScore: Number(row.official_total_score ?? calcDisplayTotalScore(row)),
+                projectedScore: Number(row.projected_total_score ?? calcDisplayTotalScore(row)),
+                rank: row.rank_no,
+            };
+        }),
+        members: members.map((member) => ({
+            userId: member.user_id,
+            name: `${member.last_name_kanji ?? ""}${member.first_name_kanji ?? ""}`,
+        })),
+    });
+}

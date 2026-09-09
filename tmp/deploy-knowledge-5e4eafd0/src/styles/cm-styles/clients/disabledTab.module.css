@@ -1,0 +1,37 @@
+/* =============================================================
+   src/styles/cm-styles/clients/disabledTab.module.css
+   利用者詳細 - 未実装タブスタイル
+   ============================================================= */
+
+.container {
+  text-align: center;
+  padding: 48px 0;
+}
+
+.iconWrapper {
+  width: 64px;
+  height: 64px;
+  background-color: #f1f5f9;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
+.icon {
+  width: 32px;
+  height: 32px;
+  color: #94a3b8;
+}
+
+.title {
+  color: #475569;
+  font-weight: 500;
+}
+
+.description {
+  font-size: 14px;
+  color: #64748b;
+  margin-top: 8px;
+}

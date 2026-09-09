@@ -1,0 +1,52 @@
+import { providerSyncEnabled } from '@/lib/spot-sync/reconcile';
+import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase/service';
+import { authenticateRunner, RpaRunnerAuthError } from '@/lib/rpa-runner/auth';
+import { isRecord } from '@/lib/rpa-runner/validation';
+import { resolveRpaFailureAlerts } from '@/lib/rpa-runner/alerts';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await context.params;
+    const body: unknown = await request.json();
+    if (!UUID.test(id) || !isRecord(body) || !isRecord(body.result)) return NextResponse.json({ ok: false, error: 'Invalid request' }, { status: 400 });
+    const runner = await authenticateRunner(request, body.runner_id);
+    if (providerSyncEnabled()) {
+      const {data: job,error: lookupError} = await supabaseAdmin.from('rpa_runner_jobs').select('job_type').eq('id',id).eq('claimed_runner_id',runner.runnerId).maybeSingle();
+      if (lookupError) throw lookupError;
+      if (job?.job_type.startsWith('sharefull.')) {
+        const {data: completed,error: completeError} = await supabaseAdmin.rpc('complete_sharefull_sync_job',{p_job_id:id,p_runner_id:runner.runnerId,p_result:body.result});
+        if (completeError) return NextResponse.json({ok:false,error:'Sharefull completion failed'},{status:500});
+        return NextResponse.json({ok:completed===true},{status:completed?200:409});
+      }
+    }
+    const { data, error } = await supabaseAdmin
+      .from('rpa_runner_jobs')
+      .update({ status: 'completed', result: body.result, completed_at: new Date().toISOString() })
+      .eq('id', id).eq('claimed_runner_id', runner.runnerId).eq('status', 'claimed')
+      .select('id, job_type, payload').maybeSingle();
+    if (error) return NextResponse.json({ ok: false, error: 'Job completion failed' }, { status: 500 });
+    if (!data) return NextResponse.json({ ok: false, error: 'Job is not claimable by this runner' }, { status: 409 });
+    if (data.job_type === 'sharefull.create_spot_offer') {
+      const payload = isRecord(data.payload) ? data.payload : {};
+      const result = isRecord(body.result) ? body.result : {};
+      const requestId = typeof payload.spot_offer_request_id === 'string' ? payload.spot_offer_request_id.trim() : '';
+      const sharefullJobId = typeof result.sharefull_job_id === 'string' ? result.sharefull_job_id.trim() : '';
+      if (requestId && sharefullJobId) {
+        const { error: sharefullUpdateError } = await supabaseAdmin
+          .from('spot_offer_request_table')
+          .update({ sharefull_job_id: sharefullJobId, sharefull_status: 'published' })
+          .eq('id', requestId)
+          .is('sharefull_job_id', null);
+        if (sharefullUpdateError) return NextResponse.json({ ok: false, error: 'Sharefull案件IDの保存に失敗しました' }, { status: 500 });
+      }
+    }
+    await resolveRpaFailureAlerts(runner.runnerId, data.job_type);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    if (error instanceof RpaRunnerAuthError) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ ok: false, error: 'Invalid request body' }, { status: 400 });
+  }
+}

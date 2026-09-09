@@ -1,0 +1,1911 @@
+// src/app/portal/spot-offer-template/page.tsx
+"use client";
+
+import React, { useEffect, useMemo, useState } from "react";
+import { useUserRole } from "@/context/RoleContext";
+import { supabase } from "@/lib/supabaseClient";
+import { spotApi, type SpotOfferTemplateUnified } from "@/lib/spot/spotApi";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
+
+const RPA_TEMPLATE_ID = "caf1a290-b9ac-4eeb-84eb-eb7fd9936c2f";
+const REQUIRED_LICENSE_OPTIONS = [
+  "初任者研修",
+  "実務者研修",
+  "介護福祉士",
+  "看護師",
+  "准看護師",
+  "普通自動車免許",
+  "同行援護従業者養成研修",
+  "行動援護従業者養成研修",
+  "喀痰吸引等研修",
+];
+
+const DEFAULT_UNIT_AMOUNT = "1330";
+const DEFAULT_COMMUTE_FEE = "200";
+const DEFAULT_REQUIRED_LICENSES = [
+  "初任者研修",
+  "実務者研修",
+  "介護福祉士",
+  "看護師",
+  "准看護師",
+];
+
+type NullableBoolean = boolean | null;
+
+type RpaRequestRow = {
+  status: string | null;
+  requested_at: string | null;
+  created_at: string | null;
+  request_details: {
+    core_id?: string | null;
+    shift_start_date?: string | null;
+  } | null;
+};
+
+type SukimaEnvVariable = {
+  group_key: "sukima";
+  key_name: string;
+  value: string;
+};
+
+const SUKIMA_ENV_LABELS: Record<string, string> = {
+  sukima_automsg: "自動メッセージ",
+  sukima_caution: "注意事項",
+  sukima_detail: "詳細説明",
+  sukima_koudou: "行動援護の場合",
+};
+
+function toArrayFromTextarea(value: string): string[] {
+  return value
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function toNullableTime(v: string): string | null {
+  const s0 = v.trim();
+  if (!s0) return null;
+
+  let hh = "";
+  let mm = "";
+  let ss = "00";
+
+  if (/^\d{2}:\d{2}$/.test(s0)) {
+    hh = s0.slice(0, 2);
+    mm = s0.slice(3, 5);
+  } else if (/^\d{2}:\d{2}:\d{2}$/.test(s0)) {
+    hh = s0.slice(0, 2);
+    mm = s0.slice(3, 5);
+    ss = s0.slice(6, 8);
+  } else if (/^\d{4}$/.test(s0)) {
+    hh = s0.slice(0, 2);
+    mm = s0.slice(2, 4);
+  } else {
+    throw new Error(`時間形式が不正です: "${s0}"（例: 0930 / 09:30 / 09:30:00）`);
+  }
+
+  const h = Number(hh);
+  const m = Number(mm);
+  const sec = Number(ss);
+
+  if (![h, m, sec].every(Number.isFinite) || h < 0 || h > 23 || m < 0 || m > 59 || sec < 0 || sec > 59) {
+    throw new Error(`時間の値が不正です: "${s0}"`);
+  }
+
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+}
+
+function timeForInput(v: string | null | undefined): string {
+  if (!v) return "";
+  if (/^\d{2}:\d{2}:\d{2}$/.test(v)) return v.slice(0, 5);
+  return v;
+}
+
+function numberToInput(v: number | null | undefined): string {
+  return typeof v === "number" && Number.isFinite(v) ? String(v) : "";
+}
+
+function toNullableNumber(v: string): number | null {
+  const s = v.trim();
+  if (!s) return null;
+  const n = Number(s.replace(/,/g, ""));
+  if (!Number.isFinite(n)) {
+    throw new Error(`数値形式が不正です: "${v}"`);
+  }
+  return n;
+}
+
+function getWorkDurationWarning(startText: string, endText: string): string | null {
+  if (!startText.trim() || !endText.trim()) return null;
+
+  try {
+    const start = toNullableTime(startText);
+    const end = toNullableTime(endText);
+    if (!start || !end) return null;
+
+    const toMinutes = (time: string) => {
+      const [hours, minutes] = time.split(":").map(Number);
+      return hours * 60 + minutes;
+    };
+
+    let workMinutes = toMinutes(end) - toMinutes(start);
+    if (workMinutes < 0) workMinutes += 24 * 60;
+
+    return workMinutes < 60 ? "勤務時間は1時間以上にしてください" : null;
+  } catch {
+    return null;
+  }
+}
+
+function boolLabel(v: NullableBoolean): string {
+  if (v === true) return "true";
+  if (v === false) return "false";
+  return "null";
+}
+
+function BoolSelect({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: NullableBoolean;
+  onChange: (value: NullableBoolean) => void;
+}) {
+  return (
+    <div>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <select
+        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+        value={value === null ? "null" : value ? "true" : "false"}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v === "null" ? null : v === "true");
+        }}
+      >
+        <option value="null">未設定</option>
+        <option value="true">true</option>
+        <option value="false">false</option>
+      </select>
+    </div>
+  );
+}
+
+function FieldLabel({
+  children,
+  required = false,
+}: {
+  children: React.ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <div className="text-[11px] text-muted-foreground">
+      {children}
+      {required && <span className="ml-1 text-red-600 font-semibold">*</span>}
+    </div>
+  );
+}
+
+export default function SpotOfferTemplatePage() {
+  const role = useUserRole();
+
+  const [loading, setLoading] = useState(true);
+  type RowWithClient = SpotOfferTemplateUnified & {
+    client_name?: string;
+    recent_rpa_requested_at?: string[];
+  };
+
+  const [rows, setRows] = useState<RowWithClient[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const [q, setQ] = useState("");
+
+  const [openEdit, setOpenEdit] = useState(false);
+  const [editing, setEditing] = useState<SpotOfferTemplateUnified | null>(null);
+
+  const [openRpa, setOpenRpa] = useState(false);
+  const [rpaTarget, setRpaTarget] = useState<SpotOfferTemplateUnified | null>(null);
+  const [shiftStartDate, setShiftStartDate] = useState("");
+  const [shiftStartTime, setShiftStartTime] = useState("");
+  const [shiftEndDate, setShiftEndDate] = useState("");
+  const [shiftEndTime, setShiftEndTime] = useState("");
+  const [rpaShiftId, setRpaShiftId] = useState<number | null>(null);
+  const [sendingRpa, setSendingRpa] = useState(false);
+  const [rpaError, setRpaError] = useState<string | null>(null);
+  const [rpaFieldErrors, setRpaFieldErrors] = useState<Record<string, string>>({});
+  const [sukimaEnvVariables, setSukimaEnvVariables] = useState<SukimaEnvVariable[]>([]);
+  const [loadingSukimaEnv, setLoadingSukimaEnv] = useState(false);
+  const [savingSukimaEnv, setSavingSukimaEnv] = useState(false);
+
+  const [fTimeeOfferId, setFTimeeOfferId] = useState("");
+  const [fUcareOfferId, setFUcareOfferId] = useState("");
+  const [fKaitekuOfferId, setFKaitekuOfferId] = useState("");
+  const [fTitle, setFTitle] = useState("");
+  const [fDesc, setFDesc] = useState("");
+  const [fCautions, setFCautions] = useState("");
+  const [fAutoMsg, setFAutoMsg] = useState("");
+  const [fAddress, setFAddress] = useState("");
+  const [fEmergencyPhone, setFEmergencyPhone] = useState("");
+  const [fSmokingPolicy, setFSmokingPolicy] = useState("");
+  const [fSmokingAreaWork, setFSmokingAreaWork] = useState<NullableBoolean>(null);
+  const [fRequiresLicense, setFRequiresLicense] = useState<NullableBoolean>(true);
+  const [fRequiredLicenses, setFRequiredLicenses] = useState<string[]>(DEFAULT_REQUIRED_LICENSES);
+  const [fBenefitsText, setFBenefitsText] = useState("");
+  const [fBelongingsText, setFBelongingsText] = useState("");
+  const [fInternalLabel, setFInternalLabel] = useState("");
+  const [fPhotoUrlsText, setFPhotoUrlsText] = useState("");
+  const [fSalary, setFSalary] = useState("");
+  const [fFare, setFFare] = useState("");
+  const [fKaipokeCsId, setFKaipokeCsId] = useState("");
+  const [fStartAt, setFStartAt] = useState("");
+  const [fEndAt, setFEndAt] = useState("");
+  const [fStatusChecked, setFStatusChecked] = useState(true);
+  const [fUnitAmount, setFUnitAmount] = useState(DEFAULT_UNIT_AMOUNT);
+  const [fCommuteFee, setFCommuteFee] = useState(DEFAULT_COMMUTE_FEE);
+  const [fSendMsgFlg, setFSendMsgFlg] = useState<NullableBoolean>(null);
+  const [fMatchingMsg, setFMatchingMsg] = useState("");
+  const [fMeetingPlace, setFMeetingPlace] = useState("");
+  const [fMeetingYuubinn, setFMeetingYuubinn] = useState("");
+  const [fMatchingPlaceName, setFMatchingPlaceName] = useState("");
+  const [fMeetingPlaceBanchi, setFMeetingPlaceBanchi] = useState("");
+  const [postalLoading, setPostalLoading] = useState(false);
+  const [postalError, setPostalError] = useState<string | null>(null);
+  const [fBreakStartTime, setFBreakStartTime] = useState("");
+  const [fBreakEndTime, setFBreakEndTime] = useState("");
+
+type ParkingPreview = {
+  id: string;
+  label: string | null;
+  parking_orientation: string | null;
+  permit_required: boolean | null;
+  remarks: string | null;
+};
+  const [breakStartTime, setBreakStartTime] = useState("");
+  const [breakEndTime, setBreakEndTime] = useState("");
+  const breakValidationMessage = useMemo(() => {
+  try {
+    return getBreakValidationMessage(
+      shiftStartTime,
+      shiftEndTime,
+      breakStartTime,
+      breakEndTime
+    );
+  } catch {
+    return null;
+  }
+}, [shiftStartTime, shiftEndTime, breakStartTime, breakEndTime]);
+
+  type ClientPreview = {
+  name: string | null;
+  address: string | null;
+};
+
+  const [clientPreview, setClientPreview] = useState<ClientPreview | null>(null);
+  const [parkingPreview, setParkingPreview] = useState<ParkingPreview[]>([]);
+  const [loadingClientPreview, setLoadingClientPreview] = useState(false);
+
+    type ClientOption = {
+   kaipoke_cs_id: string;
+   name: string;
+   kana?: string | null;
+  };
+  
+  const [clientOptions, setClientOptions] = useState<ClientOption[]>([]);
+  const clientSelectOptions = useMemo<SearchableSelectOption[]>(
+    () =>
+      clientOptions.map((client) => ({
+        value: client.kaipoke_cs_id,
+        label: client.name || client.kaipoke_cs_id,
+        searchText: [
+          client.name,
+          client.kana,
+          client.kaipoke_cs_id,
+        ]
+          .filter((value): value is string => Boolean(value))
+          .join(" "),
+      })),
+    [clientOptions]
+  );
+
+  const canAccess = useMemo(() => ["admin", "manager"].includes(role), [role]);
+
+
+  const fetchList = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await spotApi.listTemplates({ q });
+
+      const csIds = Array.from(
+        new Set(data.map((r) => r.kaipoke_cs_id).filter(Boolean))
+      );
+
+    let clientMap: Record<string, string> = {};
+    
+    if (csIds.length > 0) {
+      const { data: clients } = await supabase
+      .from("cs_kaipoke_info")
+      .select("kaipoke_cs_id, name, kana")
+      .in("kaipoke_cs_id", csIds)
+      .order("kana", { ascending: true });
+
+      clientMap = Object.fromEntries(
+        (clients ?? []).map((c) => [String(c.kaipoke_cs_id), c.name])
+       );
+     } 
+
+     const { data: rpaRequests, error: rpaError } = await supabase
+      .from("rpa_command_requests")
+      .select("status, requested_at, created_at, request_details")
+      .eq("template_id", RPA_TEMPLATE_ID)
+      .in("status", ["approved", "processing", "completed", "running"])
+      .order("requested_at", { ascending: false });
+
+    if (rpaError) throw rpaError;
+
+    const requestMap: Record<string, string[]> = {};
+
+    for (const req of (rpaRequests ?? []) as RpaRequestRow[]) {
+      const coreId = req.request_details?.core_id;
+      const requestedAt = req.request_details?.shift_start_date;
+
+      if (!coreId || !requestedAt) continue;
+
+      if (!requestMap[coreId]) {
+        requestMap[coreId] = [];
+      }
+
+      if (requestMap[coreId].length < 5) {
+        requestMap[coreId].push(requestedAt);
+      }
+    }
+
+     const merged = data.map((r) => ({
+      ...r,
+      client_name: r.kaipoke_cs_id
+        ? clientMap[String(r.kaipoke_cs_id)] ?? "-"
+       : "-",
+       recent_rpa_requested_at: requestMap[r.core_id] ?? [],
+       }));
+
+       console.log("spot rows preview", merged.slice(0, 5).map((r) => ({
+        core_id: r.core_id,
+        title: r.template_title,
+        client_name: r.client_name,
+        work_address: r.work_address,
+        start_at: r.start_at,
+        end_at: r.end_at,
+        status: r.status
+      })));
+
+       setRows(merged);
+
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const csId = fKaipokeCsId.trim();
+
+  if (!csId) {
+    setClientPreview(null);
+    setParkingPreview([]);
+    return;
+  }
+
+  let cancelled = false;
+
+  const fetchClientPreview = async () => {
+    try {
+      setLoadingClientPreview(true);
+
+      const [{ data: clientData, error: clientError }, { data: parkingData, error: parkingError }] =
+        await Promise.all([
+          supabase
+            .from("cs_kaipoke_info")
+            .select("name, address")
+            .eq("kaipoke_cs_id", csId)
+            .maybeSingle(),
+
+          supabase
+            .from("parking_cs_places_admin_view")
+            .select("id, label, parking_orientation, permit_required, remarks")
+            .eq("kaipoke_cs_id", csId)
+            .order("serial", { ascending: true }),
+        ]);
+
+      if (clientError) throw clientError;
+      if (parkingError) throw parkingError;
+
+      if (cancelled) return;
+
+      setClientPreview(
+        clientData
+          ? {
+              name: clientData.name ?? null,
+              address: clientData.address ?? null,
+            }
+          : null
+      );
+
+      setParkingPreview(parkingData ?? []);
+    } catch (e) {
+      if (cancelled) return;
+      console.error("利用者情報取得エラー:", e);
+      setClientPreview(null);
+      setParkingPreview([]);
+    } finally {
+      if (!cancelled) {
+        setLoadingClientPreview(false);
+      }
+    }
+  };
+
+  void fetchClientPreview();
+
+  return () => {
+    cancelled = true;
+  };
+}, [fKaipokeCsId]);
+
+useEffect(() => {
+  const loadClientOptions = async () => {
+    try {
+      const { data, error } = await supabase
+       .from("cs_kaipoke_info")
+       .select("kaipoke_cs_id, name, kana")
+       .not("kaipoke_cs_id", "is", null)
+       .not("name", "is", null)
+       .order("kana", { ascending: true })
+       .order("name", { ascending: true });
+
+     if (error) throw error;
+
+     setClientOptions(
+      (data ?? []).map((row) => ({
+       kaipoke_cs_id: row.kaipoke_cs_id,
+       name: row.name,
+       kana: row.kana ?? null,
+     }))
+   );
+   } catch (e) {
+    console.error("利用者一覧取得エラー:", e);
+     setClientOptions([]);
+    }
+ };
+
+  void loadClientOptions();
+  }, []);
+
+useEffect(() => {
+    void fetchList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const resetForm = () => {
+    setFTimeeOfferId("");
+    setFUcareOfferId("");
+    setFKaitekuOfferId("");
+    setFTitle("");
+    setFDesc("");
+    setFCautions("");
+    setFAutoMsg("");
+    setFAddress("");
+    setFEmergencyPhone("");
+    setFSmokingPolicy("");
+    setFSmokingAreaWork(null);
+    setFRequiresLicense(true);
+    setFRequiredLicenses(DEFAULT_REQUIRED_LICENSES);
+    setFBenefitsText("");
+    setFBelongingsText("");
+    setFInternalLabel("");
+    setFPhotoUrlsText("");
+    setFSalary("");
+    setFFare("");
+    setFKaipokeCsId("");
+    setFStartAt("");
+    setFEndAt("");
+    setFBreakStartTime("");
+    setFBreakEndTime("");
+    setFStatusChecked(true);
+    setFUnitAmount(DEFAULT_UNIT_AMOUNT);
+    setFCommuteFee(DEFAULT_COMMUTE_FEE);
+    setFSendMsgFlg(true);
+    setFMatchingMsg("");
+    setFMeetingPlace("");
+    setFMeetingYuubinn("");
+    setFMatchingPlaceName("");
+    setFMeetingPlaceBanchi("");
+  };
+
+  const openCreate = () => {
+  setEditing(null);
+  resetForm();
+  setEditError(null);
+  setOpenEdit(true);
+};
+
+  const openUpdate = (row: SpotOfferTemplateUnified) => {
+    setEditing(row);
+    setFTimeeOfferId(row.timee_offer_id ?? "");
+    setFUcareOfferId(row.ucare_offer_id ?? "");
+    setFKaitekuOfferId(row.kaiteku_offer_id ?? "");
+    setFTitle(row.template_title ?? "");
+    setFDesc(row.work_description ?? "");
+    setFCautions(row.cautions ?? "");
+    setFAutoMsg(row.auto_message ?? "");
+    setFAddress(row.work_address ?? "");
+    setFEmergencyPhone(row.emergency_phone ?? "");
+    setFSmokingPolicy(row.smoking_policy ?? "");
+    setFSmokingAreaWork(row.smoking_area_work ?? null);
+    setFRequiresLicense(row.requires_license ?? null);
+    setFRequiredLicenses(row.required_licenses ?? []);
+    setFBenefitsText((row.benefits ?? []).join("\n"));
+    setFBelongingsText((row.belongings ?? []).join("\n"));
+    setFInternalLabel(row.internal_label ?? "");
+    setFPhotoUrlsText((row.photo_urls ?? []).join("\n"));
+    setFSalary(row.salary ?? "");
+    setFFare(row.fare ?? "");
+    setFKaipokeCsId(row.kaipoke_cs_id ?? "");
+    setFStartAt(timeForInput(row.start_at));
+    setFEndAt(timeForInput(row.end_at));
+    setFStatusChecked((row.status ?? "active") === "active");
+    setFUnitAmount(numberToInput(row.unit_amount));
+    setFCommuteFee(numberToInput(row.commute_fee));
+    setFSendMsgFlg(row.send_msg_flg ?? true);
+    setFMatchingMsg(row.matching_msg ?? "");
+    setFMeetingPlace(row.meeting_place ?? "");
+    setFMeetingYuubinn(row.meeting_yuubinn ?? "");
+    setFMatchingPlaceName(row.matching_place_name ?? "");
+    setFMeetingPlaceBanchi(row.meeting_place_banchi ?? "");
+    setEditError(null);
+    setOpenEdit(true);
+  };
+
+  const lookupAddressByPostalCode = async (postalCodeRaw: string) => {
+  const postalCode = postalCodeRaw.replace(/[^\d]/g, "");
+
+  if (!postalCode) {
+    setPostalError(null);
+    return;
+  }
+
+  if (!/^\d{7}$/.test(postalCode)) {
+    setPostalError("郵便番号は7桁で入力してください");
+    return;
+  }
+
+  try {
+    setPostalLoading(true);
+    setPostalError(null);
+
+    const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${postalCode}`);
+    const json = await res.json();
+
+    if (!res.ok) {
+      throw new Error("住所検索に失敗しました");
+    }
+
+    if (!json.results || json.results.length === 0) {
+      setPostalError("該当する住所が見つかりませんでした。住所を直接入力してください。");
+      return;
+    }
+
+    const result = json.results[0];
+    const autoAddress = `${result.address1 ?? ""}${result.address2 ?? ""}${result.address3 ?? ""}`;
+
+    if (autoAddress.trim()) {
+      setFMeetingPlace(autoAddress);
+    }
+  } catch (e) {
+    setPostalError(e instanceof Error ? e.message : "住所検索に失敗しました");
+  } finally {
+    setPostalLoading(false);
+  }
+};
+
+const saveTemplate = async () => {
+  try {
+    setEditError(null);
+
+    if (!fTitle.trim()) {
+      throw new Error("タイトルは必須です");
+    }
+    if (!fKaipokeCsId.trim()) {
+      throw new Error("利用者IDは必須です");
+    }
+    if (!fMeetingPlace.trim()) {
+      throw new Error("住所は必須です");
+    }
+    if (!fMeetingPlaceBanchi.trim()) {
+      throw new Error("番地は必須です");
+    }
+   if (!fMatchingPlaceName.trim()) {
+      throw new Error("集合場所名は必須です");
+    }
+    if (!fStartAt.trim()) {
+      throw new Error("開始時間は必須です");
+    }
+    if (!fEndAt.trim()) {
+      throw new Error("終了時間は必須です");
+    }
+    if (!fUnitAmount.trim()) {
+      throw new Error("時給は必須です");
+    }
+    if (!fCommuteFee.trim()) {
+      throw new Error("交通費は必須です");
+    }
+    if (!fMatchingMsg.trim()) {
+      throw new Error("マッチングメッセージは必須です");
+    }
+
+    const unitAmount = toNullableNumber(fUnitAmount);
+    const commuteFee = toNullableNumber(fCommuteFee);
+
+    if (unitAmount === null) {
+      throw new Error("時給は必須です");
+    }
+    if (commuteFee === null) {
+      throw new Error("交通費は必須です");
+    }
+
+    const payload: Partial<SpotOfferTemplateUnified> = {
+      timee_offer_id: editing
+        ? null
+        : fTimeeOfferId.trim() || null,
+      ucare_offer_id: fUcareOfferId.trim() || null,
+      kaiteku_offer_id: fKaitekuOfferId.trim() || null,
+      template_title: fTitle.trim() || null,
+      work_description: fDesc.trim() || null,
+      cautions: fCautions.trim() || null,
+      auto_message: fAutoMsg.trim() || null,
+      work_address: fAddress.trim() || null,
+      emergency_phone: fEmergencyPhone.trim() || null,
+      smoking_policy: fSmokingPolicy.trim() || null,
+      smoking_area_work: fSmokingAreaWork,
+      requires_license: fRequiresLicense,
+      required_licenses: fRequiredLicenses,
+      benefits: toArrayFromTextarea(fBenefitsText),
+      belongings: toArrayFromTextarea(fBelongingsText),
+      internal_label: fInternalLabel.trim() || null,
+      photo_urls: toArrayFromTextarea(fPhotoUrlsText),
+      salary: fSalary.trim() || null,
+      fare: fFare.trim() || null,
+      kaipoke_cs_id: fKaipokeCsId.trim() || null,
+      start_at: toNullableTime(fStartAt),
+      end_at: toNullableTime(fEndAt),
+      status: fStatusChecked ? "active" : "inactive",
+      unit_amount: unitAmount,
+      commute_fee: commuteFee,
+      send_msg_flg: true,
+      matching_msg: fMatchingMsg.trim() || null,
+      meeting_place: fMeetingPlace.trim() || null,
+      meeting_yuubinn: fMeetingYuubinn.trim() || null,
+      matching_place_name: fMatchingPlaceName.trim() || null,
+      meeting_place_banchi: fMeetingPlaceBanchi.trim() || null,
+    };
+
+    if (editing) {
+      await spotApi.updateTemplate(editing.core_id, payload);
+    } else {
+      await spotApi.createTemplate(payload);
+    }
+
+    setOpenEdit(false);
+    await fetchList();
+  } catch (e) {
+  setEditError(e instanceof Error ? e.message : String(e));
+}
+};
+
+  const toggleRowStatus = async (row: SpotOfferTemplateUnified) => {
+    const nextChecked = row.status !== "active";
+    const nextStatus = nextChecked ? "active" : "inactive";
+
+    try {
+      setError(null);
+
+      await spotApi.updateTemplate(row.core_id, {
+        status: nextStatus,
+      });
+
+      setRows((prev) =>
+        prev.map((r) =>
+          r.core_id === row.core_id
+          ? { ...r, status: nextStatus }
+          : r
+        ) 
+       );
+     } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  
+  const deleteTemplate = async (row: SpotOfferTemplateUnified) => {
+    const ok = window.confirm(`削除しますか？\n\n${row.template_title ?? "(無題)"}\ncore_id=${row.core_id}`);
+    if (!ok) return;
+
+    try {
+      setError(null);
+      await spotApi.deleteTemplate(row.core_id);
+      await fetchList();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+const copyTemplate = (row: SpotOfferTemplateUnified) => {
+  setEditing(null);
+
+  setFTimeeOfferId("");
+  setFUcareOfferId("");
+  setFKaitekuOfferId("");
+
+  setFTitle(`${row.template_title ?? "(無題)"} コピー`);
+  setFDesc(row.work_description ?? "");
+  setFCautions(row.cautions ?? "");
+  setFAutoMsg(row.auto_message ?? "");
+  setFAddress(row.work_address ?? "");
+  setFEmergencyPhone(row.emergency_phone ?? "");
+
+  setFSmokingPolicy(row.smoking_policy ?? "");
+  setFSmokingAreaWork(row.smoking_area_work ?? null);
+
+  setFRequiresLicense(row.requires_license ?? true);
+  setFRequiredLicenses(row.required_licenses ?? []);
+
+  setFBenefitsText((row.benefits ?? []).join("\n"));
+  setFBelongingsText((row.belongings ?? []).join("\n"));
+
+  setFInternalLabel(row.internal_label ?? "");
+  setFPhotoUrlsText((row.photo_urls ?? []).join("\n"));
+
+  setFSalary(row.salary ?? "");
+  setFFare(row.fare ?? "");
+
+  setFKaipokeCsId(row.kaipoke_cs_id ?? "");
+
+  setFStartAt(timeForInput(row.start_at));
+  setFEndAt(timeForInput(row.end_at));
+
+  setFStatusChecked(true);
+
+  setFUnitAmount(numberToInput(row.unit_amount));
+  setFCommuteFee(numberToInput(row.commute_fee));
+
+  setFSendMsgFlg(row.send_msg_flg ?? true);
+
+  setFMatchingMsg(row.matching_msg ?? "");
+
+  setFMeetingPlace(row.meeting_place ?? "");
+  setFMeetingYuubinn(row.meeting_yuubinn ?? "");
+  setFMatchingPlaceName(row.matching_place_name ?? "");
+  setFMeetingPlaceBanchi(row.meeting_place_banchi ?? "");
+
+  setOpenEdit(true);
+};
+
+  const openRpaDialog = async (row: SpotOfferTemplateUnified) => {
+    setRpaTarget(row);
+
+     setShiftStartTime(timeForInput(row.start_at) || "");
+     setShiftEndTime(timeForInput(row.end_at) || "");
+
+     // 休憩時間はテンプレに保存していないので毎回クリア
+     setBreakStartTime("");
+     setBreakEndTime("");
+     setRpaShiftId(null);
+
+     setRpaError(null);
+     setRpaFieldErrors({});
+     setLoadingSukimaEnv(true);
+     try {
+       const { data: sessionData } = await supabase.auth.getSession();
+       const accessToken = sessionData.session?.access_token;
+       if (!accessToken) throw new Error("ログインユーザー未取得");
+       const response = await fetch("/api/spot-offer/sukima-env", {
+         headers: { Authorization: `Bearer ${accessToken}` },
+         cache: "no-store",
+       });
+       const result = await response.json() as { ok?: boolean; error?: string; variables?: SukimaEnvVariable[] };
+       if (!response.ok || !result.ok) throw new Error(result.error ?? "sukima設定の取得に失敗しました");
+       setSukimaEnvVariables(result.variables ?? []);
+     } catch (e) {
+       setSukimaEnvVariables([]);
+       setRpaError(e instanceof Error ? e.message : String(e));
+     } finally {
+       setLoadingSukimaEnv(false);
+     }
+  
+     setOpenRpa(true);
+  };
+
+  const getBreakValidationMessage = (
+  startText: string,
+  endText: string,
+  breakStartText: string,
+  breakEndText: string
+): string | null => {
+  const start = startText.trim() ? toNullableTime(startText) : null;
+  const end = endText.trim() ? toNullableTime(endText) : null;
+  const breakStart = breakStartText.trim() ? toNullableTime(breakStartText) : null;
+  const breakEnd = breakEndText.trim() ? toNullableTime(breakEndText) : null;
+
+  if (!start || !end) return null;
+
+  const toMinutes = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  let workMinutes = toMinutes(end) - toMinutes(start);
+  if (workMinutes < 0) workMinutes += 24 * 60;
+
+  let breakMinutes = 0;
+  if (breakStart && breakEnd) {
+    breakMinutes = toMinutes(breakEnd) - toMinutes(breakStart);
+    if (breakMinutes < 0) breakMinutes += 24 * 60;
+  }
+
+  if (workMinutes >= 8 * 60 && breakMinutes < 60) {
+    return "8時間以上の勤務のため、1時間以上の休憩を入力してください";
+  }
+
+  if (workMinutes > 6 * 60 && breakMinutes < 45) {
+    return "6時間を超える勤務のため、45分以上の休憩を入力してください";
+  }
+
+  return null;
+};
+
+if (breakValidationMessage) {
+  setRpaFieldErrors({ breakStartTime: breakValidationMessage });
+  setRpaError("休憩時間を確認してください");
+  return;
+}
+
+  const sendRpaRequest = async () => {
+  if (!rpaTarget) return;
+
+  setRpaError(null);
+  setRpaFieldErrors({});
+
+  const nextErrors: Record<string, string> = {};
+
+  if (!shiftStartDate.trim()) {
+    nextErrors.shiftStartDate = "開始日は必須です";
+  }
+
+  if (!shiftEndDate.trim()) {
+    nextErrors.shiftEndDate = "終了日は必須です";
+  }
+
+try {
+  if (shiftStartTime.trim()) {
+    toNullableTime(shiftStartTime);
+  }
+} catch (e) {
+  nextErrors.shiftStartTime =
+    e instanceof Error ? e.message : String(e);
+}
+
+try {
+  if (shiftEndTime.trim()) {
+    toNullableTime(shiftEndTime);
+  }
+} catch (e) {
+  nextErrors.shiftEndTime =
+    e instanceof Error ? e.message : String(e);
+}
+
+try {
+  if (breakStartTime.trim()) {
+    toNullableTime(breakStartTime);
+  }
+} catch (e) {
+  nextErrors.breakStartTime =
+    e instanceof Error ? e.message : String(e);
+}
+
+try {
+  if (breakEndTime.trim()) {
+    toNullableTime(breakEndTime);
+  }
+} catch (e) {
+  nextErrors.breakEndTime =
+    e instanceof Error ? e.message : String(e);
+}
+
+  if (Object.keys(nextErrors).length > 0) {
+    setRpaFieldErrors(nextErrors);
+    setRpaError("入力内容を確認してください");
+    return;
+  }
+
+  try {
+    setSendingRpa(true);  
+
+      const { data: envSessionData } = await supabase.auth.getSession();
+      const envAccessToken = envSessionData.session?.access_token;
+      if (!envAccessToken) throw new Error("ログインユーザー未取得");
+      setSavingSukimaEnv(true);
+      const envResponse = await fetch("/api/spot-offer/sukima-env", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${envAccessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          variables: sukimaEnvVariables
+            .filter(({ key_name }) => key_name !== "sukima_automsg")
+            .map(({ key_name, value }) => ({ key_name, value })),
+        }),
+      });
+      const envResult = await envResponse.json() as { ok?: boolean; error?: string };
+      if (!envResponse.ok || !envResult.ok) throw new Error(envResult.error ?? "sukima設定の保存に失敗しました");
+      setSavingSukimaEnv(false);
+
+      const session = await supabase.auth.getSession();
+      const authUserId = session.data?.session?.user?.id;
+      if (!authUserId) throw new Error("ログインユーザー未取得");
+
+      const { data: userData, error: userError } = await supabase
+        .from("user_entry_united_view")
+        .select("manager_auth_user_id, manager_user_id, user_id")
+        .eq("auth_user_id", authUserId)
+        .eq("group_type", "人事労務サポートルーム")
+        .limit(1)
+        .single();
+
+      if (userError || !userData?.manager_auth_user_id) {
+        throw new Error("承認者（マネージャー）情報取得に失敗しました");
+      }
+
+     // 勤務時間・休憩時間・金額チェック
+      const start = toNullableTime(shiftStartTime);
+      const end = toNullableTime(shiftEndTime);
+
+      let resolvedShiftId: number | null = rpaShiftId;
+
+if (!resolvedShiftId && rpaTarget?.kaipoke_cs_id && shiftStartDate.trim()) {
+    let query = supabase
+        .from("shift_shift_record_view")
+        .select("shift_id")
+        .eq("kaipoke_cs_id", rpaTarget.kaipoke_cs_id)
+        .eq("shift_start_date", shiftStartDate.trim());
+
+    const normalizedStart = start;
+    const normalizedEnd = end;
+
+    if (normalizedStart) {
+        query = query.eq("shift_start_time", normalizedStart);
+    }
+
+    if (normalizedEnd) {
+        query = query.eq("shift_end_time", normalizedEnd);
+    }
+
+    const { data: shiftRows, error: shiftError } = await query.limit(1);
+
+    if (shiftError) {
+        throw new Error(`shift_id取得に失敗: ${shiftError.message}`);
+    }
+
+    resolvedShiftId = shiftRows?.[0]?.shift_id
+        ? Number(shiftRows[0].shift_id)
+        : null;
+}
+      const breakStart = breakStartTime.trim() ? toNullableTime(breakStartTime) : null;
+      const breakEnd = breakEndTime.trim() ? toNullableTime(breakEndTime) : null;
+
+      const toMinutes = (t: string) => {
+        const [h, m] = t.split(":").map(Number);
+        return h * 60 + m;
+      };
+
+      if (start && end) {
+        let workMinutes = toMinutes(end) - toMinutes(start);
+
+       // 日跨ぎ対応
+        if (workMinutes < 0) {
+           workMinutes += 24 * 60;
+          }
+        
+        let breakMinutes = 0;
+        
+        if (breakStart && breakEnd) {
+          breakMinutes = toMinutes(breakEnd) - toMinutes(breakStart);
+
+          // 日跨ぎ対応
+          if (breakMinutes < 0) {
+             breakMinutes += 24 * 60;
+          }
+        }
+
+if (workMinutes < 60) {
+  setRpaFieldErrors({ shiftStartTime: "勤務時間は1時間以上で入力してください" });
+  setRpaError("勤務時間を確認してください");
+  return;
+}
+
+if (workMinutes >= 8 * 60 && breakMinutes < 60) {
+  setRpaFieldErrors({ breakStartTime: "勤務時間が8時間以上の場合、1時間以上の休憩が必要です" });
+  setRpaError("休憩時間を確認してください");
+  return;
+}
+
+
+if (workMinutes > 6 * 60 && breakMinutes < 45) {
+  setRpaFieldErrors({ breakStartTime: "勤務時間が6時間1分以上の場合、45分以上の休憩が必要です" });
+  setRpaError("休憩時間を確認してください");
+  return;
+}
+
+  const hourlyWage = toNullableNumber(fUnitAmount);
+  const workHours = (workMinutes - breakMinutes) / 60;
+  const totalAmount = hourlyWage ? hourlyWage * workHours : 0;
+
+  if (totalAmount > 9800) {
+     alert("時給×勤務時間が9,800円を超えています。勤務時間または時給を確認してください");
+      return;
+      }
+    }
+
+      const details = {
+        core_id: rpaTarget.core_id,
+        created_from: "/portal/spot-offer-template",
+
+        shift_id: resolvedShiftId,
+        kaipoke_cs_id: rpaTarget.kaipoke_cs_id ?? null,
+
+        shift_start_date: shiftStartDate.trim(),
+        shift_start_time: toNullableTime(shiftStartTime),
+        shift_end_date: shiftEndDate.trim(),
+        shift_end_time: toNullableTime(shiftEndTime),
+
+        break_start_time: toNullableTime(breakStartTime),
+        break_end_time: toNullableTime(breakEndTime),
+
+        requester_user_id: userData.user_id,
+
+        template_title: rpaTarget.template_title ?? null,
+        work_address: rpaTarget.work_address ?? null,
+        salary: rpaTarget.salary ?? null,
+        fare: rpaTarget.fare ?? null,
+        status: rpaTarget.status ?? null,
+      };
+
+      if (!resolvedShiftId) {
+        throw new Error("shift_idが取得できないため、求人リクエストを作成できません");
+      }
+
+            // 重複チェック
+
+      const { data: existingRequest } = await supabase
+
+      .from("spot_offer_request_table")
+
+      .select("shift_id,status")
+
+      .eq("shift_id", resolvedShiftId)
+
+      .in("status", ["募集中", "確定"])
+
+      .maybeSingle();
+
+
+
+      if (existingRequest) {
+
+        throw new Error(
+
+          `既にスポット募集済みです（${existingRequest.status}）`
+
+        );
+
+      }
+
+
+const spotOfferRequestPayload = {
+  core_id: rpaTarget.core_id,
+  shift_id: resolvedShiftId,
+  template_title: rpaTarget.template_title ?? null,
+  kaipoke_cs_id: rpaTarget.kaipoke_cs_id ?? null,
+
+  shift_start_date: shiftStartDate.trim(),
+  shift_start_time: toNullableTime(shiftStartTime),
+  shift_end_time: toNullableTime(shiftEndTime),
+
+  start_at: toNullableTime(shiftStartTime),
+  end_at: toNullableTime(shiftEndTime),
+
+  unit_amount: rpaTarget.unit_amount ?? null,
+  commute_fee: rpaTarget.commute_fee ?? null,
+
+  status: "募集中",
+  updated_at: new Date().toISOString(),
+};
+
+const { error: spotOfferRequestError } = await supabase
+  .from("spot_offer_request_table")
+  .upsert(spotOfferRequestPayload, {
+    onConflict: "shift_id",
+  });
+
+if (spotOfferRequestError) {
+  throw new Error(
+    `spot_offer_request_table登録に失敗: ${spotOfferRequestError.message}`
+  );
+}
+
+const { error: insertError } = await supabase.from("rpa_command_requests").insert({
+  template_id: RPA_TEMPLATE_ID,
+  requester_id: authUserId,
+  approver_id: userData.manager_auth_user_id,
+  status: "approved",
+  request_details: details,
+});
+
+if (insertError) {
+  throw new Error(`RPAリクエスト送信に失敗: ${insertError.message}`);
+}
+
+alert("RPAリクエストを送信しました");
+setOpenRpa(false);
+setRpaTarget(null);
+
+await fetchList();
+} catch (e) {
+  setRpaError(e instanceof Error ? e.message : String(e));
+} finally {
+  setSavingSukimaEnv(false);
+  setSendingRpa(false);
+}
+};
+
+  if (!canAccess) {
+    return <div className="p-4 text-red-600">このページは管理者およびマネジャーのみがアクセスできます。</div>;
+  }
+  
+  const sortedRows = [...rows].sort((a, b) => {
+    const aActive = a.status === "active" ? 0 : 1;
+    const bActive = b.status === "active" ? 0 : 1;
+
+    if (aActive !== bActive) {
+      return aActive - bActive;
+    }
+
+    return (a.client_name ?? "").localeCompare(b.client_name ?? "", "ja");
+  });
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-bold">スポット求人テンプレ管理 / RPAリクエスト</h1>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={fetchList} disabled={loading}>
+            再読み込み
+          </Button>
+          <Button onClick={openCreate}>新規テンプレ追加</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-[320px_auto] gap-2 items-end">
+        <div>
+          <div className="text-[11px] text-muted-foreground">検索（タイトル/住所/ラベル）</div>
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="例：名古屋 / 夜勤 / 港区" />
+        </div>
+        <div className="md:justify-self-start">
+          <Button variant="outline" onClick={fetchList} disabled={loading}>
+            検索
+          </Button>
+        </div>
+      </div>
+
+      {error && <div className="text-sm text-red-600 whitespace-pre-wrap">{error}</div>}
+
+      <div className="border rounded overflow-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[120px]">状態</TableHead>
+              <TableHead className="w-[240px]">タイトル</TableHead>
+              <TableHead className="w-[180px]">利用者名</TableHead>
+              <TableHead className="w-[260px]">住所</TableHead>
+              <TableHead className="w-[180px] whitespace-nowrap">時間</TableHead>
+              <TableHead className="w-[220px]">リクエスト作成日</TableHead>
+              <TableHead className="w-[220px]">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  読み込み中...
+                </TableCell>
+              </TableRow>
+            ) : rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  データなし
+                </TableCell>
+              </TableRow>
+            ) : (
+              sortedRows.map((r) => (
+                <TableRow key={r.core_id}>
+                  <TableCell className="whitespace-nowrap">
+                     <label className="flex items-center gap-2">
+                       <input
+                         type="checkbox"
+                         checked={r.status === "active"}
+                         onChange={() => void toggleRowStatus(r)}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {r.status === "active" ? "有効" : "無効"}
+                      </span>
+                     </label>
+                  </TableCell>
+
+                  <TableCell className="font-medium">
+                    <div className="truncate" title={r.template_title ?? ""}>
+                      {r.template_title ?? "(無題)"}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground truncate" title={r.core_id}>
+                      core_id: {r.core_id}
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {r.client_name ?? "-"}
+                  </TableCell>
+                  <TableCell className="max-w-[260px]">
+                    <div className="truncate" title={r.work_address ?? ""}>
+                      {r.work_address ?? "-"}
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {timeForInput(r.start_at) || "-"} ～ {timeForInput(r.end_at) || "-"}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {r.recent_rpa_requested_at?.length ? (
+                      <div className="space-y-1">
+                        {r.recent_rpa_requested_at.map((dt, idx) => (
+                          <div key={idx}>{new Date(dt).toLocaleDateString("ja-JP")}</div>
+                        ))}
+                      </div>
+                    ) : (
+                      "-"
+                   )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => openUpdate(r)}>
+                        編集
+                      </Button>
+
+                      <Button size="sm" variant="outline" onClick={() => copyTemplate(r)}>
+                        コピー
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => deleteTemplate(r)}>
+                        削除
+                      </Button>
+                      <Button size="sm" onClick={() => openRpaDialog(r)}>
+                        RPAリクエスト作成
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Dialog
+  open={openEdit}
+  onOpenChange={(open) => {
+    setOpenEdit(open);
+
+    if (!open) {
+      setEditError(null);
+    }
+  }}
+>
+        <DialogContent className="w-[96vw] max-w-6xl max-h-[92vh] overflow-y-auto">
+<DialogHeader>
+  <DialogTitle>
+    {editing ? "テンプレート編集" : "テンプレート新規追加"}
+  </DialogTitle>
+</DialogHeader>
+
+{editError && (
+  <div className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 whitespace-pre-wrap">
+    {editError}
+  </div>
+)}
+
+{!editing && (
+  <div className="mb-4 rounded-md border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm font-medium text-red-700">
+    □ タイミーに公開されるため、利用者様名・住所・電話番号などの個人情報は入力しないでください。
+  </div>
+)}
+
+          <div className="space-y-5">
+            <div>
+              <div className="text-sm font-semibold">基本情報</div>
+              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <div>
+                  <div className="md:col-span-2 xl:col-span-3"></div>
+                  <FieldLabel required>タイトル　※ここに個人名は入れないでください。</FieldLabel>
+                  <Input className="bg-yellow-50" value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="例：港区 夕方短時間 2時間" />
+                </div>
+                <div>
+                  <FieldLabel>状態</FieldLabel>
+                  <label className="flex items-center gap-2 h-9">
+                    <input
+                        type="checkbox"
+                        checked={fStatusChecked}
+                        onChange={(e) => setFStatusChecked(e.target.checked)}
+                      />
+                      <span>{fStatusChecked ? "アクティブ" : "非アクティブ"}</span>
+                  </label>
+               </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">内部ラベル</div>
+                  <Input value={fInternalLabel} onChange={(e) => setFInternalLabel(e.target.value)} placeholder="例：〇〇様 行動援護　など" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <FieldLabel>利用者選択</FieldLabel>
+
+                  <SearchableSelect
+                    options={clientSelectOptions}
+                    value={fKaipokeCsId}
+                    onChange={(value) => setFKaipokeCsId(value ?? "")}
+                    placeholder="利用者を選択"
+                    searchPlaceholder="利用者名・カナ・IDで検索"
+                  />
+          </div>
+                
+                <div className="md:col-span-2 xl:col-span-3 rounded-md border border-green-300 bg-green-50 p-3 text-sm">
+                  <div className="font-semibold text-green-800">
+                    📍 利用者情報について
+                  </div>
+                    <div className="mt-1 text-green-700">
+    この下に表示される利用者住所・駐車場情報は、システム内部で利用する情報です。<br />
+    <span className="font-semibold">
+      タイミーには表示されません。
+    </span>
+  </div>
+</div>
+
+<div className="md:col-span-2 xl:col-span-3 rounded border p-3 bg-muted/30">
+  <div className="text-sm font-semibold mb-2">利用者情報プレビュー</div>
+
+                  {!fKaipokeCsId.trim() ? (
+                    <div className="text-xs text-muted-foreground">
+                      利用者様を選択すると、住所・駐車場情報を表示します。
+                     </div>
+                  ) : loadingClientPreview ? (
+                     <div className="text-xs text-muted-foreground">取得中...</div>
+  ) : (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <div className="text-[11px] text-muted-foreground">住所</div>
+          <div className="text-sm whitespace-pre-wrap">{clientPreview?.address ?? "-"}</div>
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[11px] text-muted-foreground mb-1">駐車場情報</div>
+        {parkingPreview.length === 0 ? (
+          <div className="text-sm text-muted-foreground">駐車場情報なし</div>
+        ) : (
+          <div className="space-y-2">
+            {parkingPreview.map((p, index) => (
+              <div key={p.id} className="rounded border p-2 bg-background">
+                <div className="text-sm font-medium">
+                  {p.label || `駐車場${index + 1}`}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  向き: {p.parking_orientation ?? "-"} / 許可証:{" "}
+                  {p.permit_required == null ? "-" : p.permit_required ? "必要" : "不要"}
+                </div>
+                <div className="text-sm whitespace-pre-wrap">
+                  備考: {p.remarks ?? "-"}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )}    
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold">勤務情報</div>
+  <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+     <div className="md:col-span-2 xl:col-span-3">
+      <FieldLabel required>勤務時間 ※リクエスト作成時に変更可</FieldLabel>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Input
+  className="bg-yellow-50"
+  value={fStartAt}
+  onChange={(e) => {
+    setFStartAt(e.target.value);
+    setShiftStartTime(e.target.value);
+  }}
+  placeholder="開始時間 例：0930 / 09:30"
+/>
+        <Input
+  className="bg-yellow-50"
+  value={fEndAt}
+  onChange={(e) => {
+    setFEndAt(e.target.value);
+    setShiftEndTime(e.target.value);
+  }}
+  placeholder="終了時間 例：1730 / 17:30"
+/>
+      </div>
+    </div>
+
+    <div className="md:col-span-2 xl:col-span-3">
+      <FieldLabel>休憩時間</FieldLabel>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Input
+  className="bg-yellow-50"
+  value={fBreakStartTime}
+  onChange={(e) => setFBreakStartTime(e.target.value)}
+  placeholder="休憩開始 例：1200 / 12:00"
+/>
+        <Input
+  className="bg-yellow-50"
+  value={fBreakEndTime}
+  onChange={(e) => setFBreakEndTime(e.target.value)}
+  placeholder="休憩終了 例：1230 / 12:30"
+/>
+      </div>
+      {breakValidationMessage && (
+  <div className="mt-1 text-xs text-red-600">
+    {breakValidationMessage}
+  </div>
+)}
+    </div>
+    <div>
+      <FieldLabel required>時給</FieldLabel>
+      <Input
+  className="bg-yellow-50"
+  value={fUnitAmount}
+  onChange={(e) => setFUnitAmount(e.target.value)}
+  placeholder="例：1500"
+  inputMode="numeric"
+/>
+    </div>
+
+    <div>
+      <FieldLabel required>交通費</FieldLabel>
+      <Input
+  className="bg-yellow-50"
+  value={fCommuteFee}
+  onChange={(e) => setFCommuteFee(e.target.value)}
+  placeholder="例：200"
+  inputMode="numeric"
+/>
+    </div>
+     <div className="md:col-span-2 xl:col-span-3">
+        <div className="text-[11px] text-muted-foreground">仕事内容</div>
+        <Textarea
+  className="bg-yellow-50"
+  value={fDesc}
+  onChange={(e) => setFDesc(e.target.value)}
+  rows={4}
+/>
+     </div>
+   </div>
+   
+</div>  
+            <div>
+              <div className="text-sm font-semibold">集合情報</div>
+              <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+                <div className="font-semibold text-amber-800">
+                   ⚠ 待ち合わせ場所について
+                </div>
+                <div className="mt-1 text-amber-700">
+                  現住所は入力しないでください。<br />
+                  コンビニ・公園・バス停・学校など、近隣の目印となる場所を入力してください。<br />
+                  <span className="font-semibold text-red-600">
+                  </span>
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <div>
+                  <div className="text-[11px] text-muted-foreground">集合場所名<span className="text-red-500 ml-1">*</span></div>
+                  <Input
+  className="bg-yellow-50"
+  value={fMatchingPlaceName}
+  onChange={(e) => setFMatchingPlaceName(e.target.value)}
+  placeholder="例：〇〇公園"
+/>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">郵便番号</div>
+                  <div className="flex gap-2">
+                    <Input
+  className="bg-yellow-50"
+  value={fMeetingYuubinn}
+  onChange={(e) => {
+    setFMeetingYuubinn(e.target.value);
+    setPostalError(null);
+  }}
+  onBlur={() => void lookupAddressByPostalCode(fMeetingYuubinn)}
+  placeholder="例：4560018　ハイフンなしで入力"
+  inputMode="numeric"
+/>
+                  <Button
+                   type="button"
+                   variant="outline"
+                   onClick={() => void lookupAddressByPostalCode(fMeetingYuubinn)}
+                   disabled={postalLoading}
+                >
+                  {postalLoading ? "検索中..." : "住所検索"}
+                </Button>
+                  </div>
+                  {postalError && (
+                   <div className="mt-1 text-xs text-red-600">{postalError}</div>
+                )}
+                
+                </div>
+                  <div className="md:col-span-2 xl:col-span-3">
+                   <div className="md:col-span-2 xl:col-span-3"></div> 
+                   <FieldLabel required>住所</FieldLabel> 
+                  <Input
+  className="bg-yellow-50"
+  value={fMeetingPlace}
+  onChange={(e) => setFMeetingPlace(e.target.value)}
+  placeholder="例：愛知県名古屋市熱田区新尾頭"
+/>
+                </div>
+                  <div className="md:col-span-2 xl:col-span-3">
+                   <FieldLabel required>番地</FieldLabel>
+                  <Input
+  className="bg-yellow-50"
+  value={fMeetingPlaceBanchi}
+  onChange={(e) => setFMeetingPlaceBanchi(e.target.value)}
+  placeholder="例：３丁目1-18 WIZ金山602"
+/>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold">資格</div>
+                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  <BoolSelect
+                    label="資格必須"
+                    value={fRequiresLicense}
+                    onChange={setFRequiresLicense} />
+
+                  <div className="md:col-span-2 xl:col-span-3">
+      <FieldLabel>必要資格</FieldLabel>
+      <select
+        multiple
+        className="flex min-h-[140px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
+        value={fRequiredLicenses}
+        onChange={(e) => {
+          const values = Array.from(e.target.selectedOptions).map((opt) => opt.value);
+          setFRequiredLicenses(values);
+        }}
+      >
+        {REQUIRED_LICENSE_OPTIONS.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        {fRequiredLicenses.length === 0 ? (
+          <span className="text-xs text-muted-foreground">未選択</span>
+        ) : (
+          fRequiredLicenses.map((license) => (
+            <span
+              key={license}
+              className="inline-flex items-center rounded-full border px-2 py-1 text-xs bg-background"
+            >
+              {license}
+            </span>
+          ))
+        )}
+      </div>
+
+      <div className="mt-1 text-xs text-muted-foreground">
+        Ctrl または Command を押しながらクリックすると複数選択できます
+      </div>
+    </div>
+  </div>
+ </div>
+
+  <div>
+  <div className="text-sm font-semibold">メッセージ</div>
+  <div className="mt-2 space-y-3">
+    <div>
+      <FieldLabel>send_msg_flg</FieldLabel>
+      <label className="flex items-center gap-2 h-9">
+        <input
+  type="checkbox"
+  checked={true}
+  disabled
+/>
+        <span>{fSendMsgFlg ? "送信する" : "送信しない"}</span>
+      </label>
+    </div>
+
+    <div>
+      <div className="mb-2 rounded-md border border-blue-300 bg-blue-50 p-3 text-sm">
+        <div className="font-semibold text-blue-800">
+          ⚠ マッチングメッセージについて
+        </div>
+        <div className="mt-1 text-blue-700">
+          利用者様宅の前などで待ち合わせる場合は、
+          <span className="font-semibold">
+            こちらに住所を記載してください。
+          </span>
+        </div> 
+      </div>
+      <div className="text-[11px] text-muted-foreground">マッチングメッセージ</div>
+      <Textarea
+  className="bg-yellow-50"
+  value={fMatchingMsg}
+  onChange={(e) => setFMatchingMsg(e.target.value)}
+  rows={3}
+/>
+    </div>
+  </div>
+</div>
+
+
+            <div>
+              <div className="text-sm font-semibold">ID / 連携情報</div>
+              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <div>
+                  <div className="text-[11px] text-muted-foreground">timee_offer_id</div>
+                  <Input value={fTimeeOfferId} onChange={(e) => setFTimeeOfferId(e.target.value)} />
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">ucare_offer_id</div>
+                  <Input value={fUcareOfferId} onChange={(e) => setFUcareOfferId(e.target.value)} />
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">kaiteku_offer_id</div>
+                  <Input value={fKaitekuOfferId} onChange={(e) => setFKaitekuOfferId(e.target.value)} />
+                </div>
+
+                {editing && (
+                  <div className="md:col-span-2 xl:col-span-2 text-xs text-muted-foreground self-end">
+                    core_id: {editing.core_id}
+                    <br />
+                    timee_scraped_at: {editing.timee_scraped_at ?? "-"}
+                    <br />
+                    ucare_scraped_at: {editing.ucare_scraped_at ?? "-"}
+                    <br />
+                    kaiteku_scraped_at: {editing.kaiteku_scraped_at ?? "-"}
+                    <br />
+                    created_at: {editing.created_at ?? "-"}
+                    <br />
+                    updated_at: {editing.updated_at ?? "-"}
+                  </div>
+                )}
+              </div>
+            </div>
+            {editing && (
+              <div className="rounded border p-3 text-xs text-muted-foreground">
+                DBの存在確認済み追加項目: smoking_policy / smoking_area_work / requires_license / unit_amount /
+                commute_fee / send_msg_flg / matching_msg / meeting_place / meeting_yuubinn /
+                matching_place_name / meeting_place_banchi
+                <br />
+                現在値: smoking_area_work={boolLabel(editing.smoking_area_work)} / requires_license={boolLabel(editing.requires_license)} / send_msg_flg={boolLabel(editing.send_msg_flg)}
+              </div>
+            )}
+          </div>
+
+          {rpaError && (
+  　　　　　　<div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 whitespace-pre-wrap">
+    　　　　　　{rpaError}
+ 　　　　　　 </div>
+)}
+
+          <DialogFooter className="flex justify-start gap-2 pt-2">
+            <Button
+  variant="secondary"
+  onClick={() => {
+    setEditError(null);
+    setOpenEdit(false);
+  }}
+>
+  閉じる
+</Button>
+            <Button onClick={saveTemplate}>{editing ? "更新" : "追加"}</Button>
+          </DialogFooter>
+        </DialogContent>
+     </Dialog>
+
+      <Dialog open={openRpa} onOpenChange={setOpenRpa}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>RPAリクエスト作成</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="text-sm">
+              <div className="font-medium">{rpaTarget?.template_title ?? ""}</div>
+              <div className="text-[11px] text-muted-foreground">core_id: {rpaTarget?.core_id ?? ""}</div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <div className="text-[11px] text-muted-foreground">shift_start_date（必須）</div>
+                <Input
+                  type="date"
+                    value={shiftStartDate}
+                    onChange={(e) => {
+                    const v = e.target.value;
+                    setShiftStartDate(v);
+                    setShiftEndDate(v);
+                   }}
+                 />
+                 {rpaFieldErrors.shiftStartDate && (
+                  <div className="mt-1 text-xs text-red-600">
+                {rpaFieldErrors.shiftStartDate}
+                 </div>
+            )}
+
+              </div>
+              <div>
+                <div className="text-[11px] text-muted-foreground">shift_start_time（任意）</div>
+                <Input
+                  value={shiftStartTime}
+                  onChange={(e) => setShiftStartTime(e.target.value)}
+                  placeholder="0930 / 09:30（空欄OK）"
+                />
+
+                {rpaFieldErrors.shiftStartTime && (
+                  <div className="mt-1 text-xs text-red-600">
+                    {rpaFieldErrors.shiftStartTime}
+                    </div>
+                )}
+
+              </div>
+
+              <div>
+                <div className="text-[11px] text-muted-foreground">shift_end_date（必須）</div>
+                <Input type="date" value={shiftEndDate} onChange={(e) => setShiftEndDate(e.target.value)} />
+
+                {rpaFieldErrors.shiftEndDate && (
+                  <div className="mt-1 text-xs text-red-600">
+                    {rpaFieldErrors.shiftEndDate}
+                    </div>
+                )}
+
+              </div>
+              <div>
+                <div className="text-[11px] text-muted-foreground">shift_end_time（任意）</div>
+                <Input
+                  value={shiftEndTime}
+                  onChange={(e) => setShiftEndTime(e.target.value)}
+                  placeholder="0930 / 09:30（空欄OK）"
+                />
+
+                {rpaFieldErrors.shiftEndTime && (
+                  <div className="mt-1 text-xs text-red-600">
+                    {rpaFieldErrors.shiftEndTime}
+                    </div>
+                )}
+
+                {getWorkDurationWarning(shiftStartTime, shiftEndTime) && (
+                  <div className="mt-1 text-xs text-red-600">
+                    {getWorkDurationWarning(shiftStartTime, shiftEndTime)}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="text-[11px] text-muted-foreground">休憩開始（任意）</div>
+                <Input
+                  value={breakStartTime}
+                  onChange={(e) => setBreakStartTime(e.target.value)}
+                  placeholder="1200 / 12:00（空欄OK）"
+                />
+
+                {rpaFieldErrors.breakStartTime && (
+                  <div className="mt-1 text-xs text-red-600">
+                    {rpaFieldErrors.breakStartTime}
+                    </div>
+                )}
+              </div>
+
+              <div>
+                <div className="text-[11px] text-muted-foreground">休憩終了（任意）</div>
+                <Input
+                  value={breakEndTime}
+                  onChange={(e) => setBreakEndTime(e.target.value)}
+                  placeholder="1230 / 12:30（空欄OK）"
+                />
+                {rpaFieldErrors.breakEndTime && (
+                  <div className="mt-1 text-xs text-red-600">
+                    {rpaFieldErrors.breakEndTime}
+                    </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded border p-3 space-y-2">
+              <div>
+                <div className="text-sm font-medium">タイミーテンプレート編集</div>
+                <div className="text-[11px] text-muted-foreground">sukima の設定値のみ表示しています。自動メッセージ以外の値はRPA送信時に保存されます。</div>
+              </div>
+              {loadingSukimaEnv ? (
+                <div className="text-sm text-muted-foreground">読み込み中...</div>
+              ) : sukimaEnvVariables.length === 0 ? (
+                <div className="text-sm text-muted-foreground">sukima の設定はありません。</div>
+              ) : (
+                <div className="space-y-2">
+                  {sukimaEnvVariables.map((variable, index) => (
+                    <div key={`${variable.key_name}-${index}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-2 items-center">
+                      <div className="text-xs break-all">{SUKIMA_ENV_LABELS[variable.key_name] ?? variable.key_name}</div>
+                      {["sukima_automsg", "sukima_caution", "sukima_detail", "sukima_koudou"].includes(variable.key_name) ? (
+                        <Textarea
+                          value={variable.value}
+                          rows={4}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setSukimaEnvVariables((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, value } : item));
+                          }}
+                          disabled={savingSukimaEnv || sendingRpa}
+                        />
+                      ) : (
+                        <Input
+                          value={variable.value}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setSukimaEnvVariables((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, value } : item));
+                          }}
+                          disabled={savingSukimaEnv || sendingRpa}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="text-[11px] text-muted-foreground">
+              ※ このページは RPAテンプレートID: {RPA_TEMPLATE_ID} に対して request_details を作成します。
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="secondary" onClick={() => setOpenRpa(false)} disabled={sendingRpa}>
+              閉じる
+            </Button>
+            <Button onClick={sendRpaRequest} disabled={sendingRpa || loadingSukimaEnv}>
+              {sendingRpa ? "送信中..." : "RPAリクエスト送信"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

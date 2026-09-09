@@ -1,0 +1,1869 @@
+//components/assessment/AssessmentScreen.tsx
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import type {
+    AssessmentRecord,
+    AssessmentServiceKind,
+    AssessmentCheck,
+} from "@/types/assessment";
+import {
+    getAssessmentContentTemplate,
+    isElderCareAssessmentKind,
+} from "@/lib/assessment/assessment-kind-detector";
+import { supabase } from "@/lib/supabaseClient";
+import PlanEditor, { type PlanDetailForEditor } from "@/components/assessment/PlanEditor";
+import ElderCareAssessmentForm from "@/components/assessment/ElderCareAssessmentForm";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
+
+type Props = { initialAssessmentId: string | null };
+
+type ClientOption = {
+    client_id: string;
+    client_name: string | null;
+    kana?: string;
+    service_kind?: string;
+};
+
+type PlanSummary = {
+    plan_id: string;
+    assessment_id: string;
+    client_info_id: string | null;
+    kaipoke_cs_id: string;
+    plan_document_kind: string;
+    title: string;
+    version_no: number;
+    status: string;
+    issued_on: string | null;
+    plan_start_date: string | null;
+    plan_end_date: string | null;
+    author_user_id: string | null;
+    author_name: string | null;
+    person_family_hope: string | null;
+    assistance_goal: string | null;
+    remarks: string | null;
+    weekly_plan_comment: string | null;
+    monthly_summary: unknown;
+    pdf_file_url: string | null;
+    pdf_generated_at: string | null;
+    digisign_status: string | null;
+    digisign_sent_at: string | null;
+    digisign_completed_at: string | null;
+    lineworks_sent_at: string | null;
+    is_deleted: boolean;
+    created_at: string;
+    updated_at: string;
+};
+
+type CarePlanCandidate = {
+    id: string;
+    doc_name: string;
+    applicable_date: string | null;
+    doc_date_raw: string | null;
+    created_at: string;
+    summary_preview: string;
+};
+
+type GenerationSourceDocument = {
+    id: string;
+    doc_name: string;
+    category: string;
+    document_date: string | null;
+    has_url: boolean;
+    has_ocr: boolean;
+    has_summary: boolean;
+    needs_ocr: boolean;
+    needs_summary: boolean;
+};
+
+
+type RecordingTranscriptOption = {
+    id: string;
+    client_id: string | null;
+    context_name: string | null;
+    file_name: string;
+    recorder_name: string;
+    recorded_at: string;
+    transcript_status: string;
+};
+
+type PlanDetail = PlanDetailForEditor;
+
+async function getBearer() {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    return token ? `Bearer ${token}` : "";
+}
+
+function normalizeServiceKind(v: string | null): AssessmentServiceKind {
+    if (v === "障害" || v === "移動支援" || v === "要支援" || v === "要介護") return v;
+    return "障害";
+}
+
+export default function AssessmentScreen({ initialAssessmentId }: Props) {
+    const router = useRouter();
+    const sp = useSearchParams();
+
+    const clientIdQ = sp.get("client_id") ?? "";
+    const serviceKindQ = normalizeServiceKind(sp.get("service_kind"));
+
+    const [clientId, setClientId] = useState(clientIdQ);
+    const [serviceKind, setServiceKind] = useState<AssessmentServiceKind>(serviceKindQ);
+
+    const [clients, setClients] = useState<ClientOption[]>([]);
+    const clientSelectOptions = useMemo<SearchableSelectOption[]>(
+        () =>
+            clients.map((client) => ({
+                value: client.client_id,
+                label: `${client.client_name?.trim() || "名称未設定"}（${client.client_id}）`,
+                searchText: [
+                    client.client_name,
+                    client.kana,
+                    client.client_id,
+                    client.service_kind,
+                ]
+                    .filter((value): value is string => Boolean(value))
+                    .join(" "),
+            })),
+        [clients]
+    );
+
+    const [list, setList] = useState<AssessmentRecord[]>([]);
+    const [selectedId, setSelectedId] = useState<string | null>(initialAssessmentId);
+
+    const [detail, setDetail] = useState<AssessmentRecord | null>(null);
+    const [saving, setSaving] = useState(false);
+    const [creatingAssessment, setCreatingAssessment] = useState(false);
+    const [deletingAssessmentId, setDeletingAssessmentId] = useState<string | null>(null);
+    const [generating, setGenerating] = useState(false);
+
+    const [planGenerating, setPlanGenerating] = useState(false);
+    const [sourcePreparing, setSourcePreparing] = useState(false);
+    const [sourcePreparationMessage, setSourcePreparationMessage] = useState("");
+    const [recordingTranscripts, setRecordingTranscripts] =
+        useState<RecordingTranscriptOption[]>([]);
+    const [recordingTranscriptsLoading, setRecordingTranscriptsLoading] =
+        useState(false);
+    const [recordingTranscriptsError, setRecordingTranscriptsError] = useState("");
+    const [selectedTranscriptIds, setSelectedTranscriptIds] = useState<string[]>([]);
+    const [meetingMinutesGenerating, setMeetingMinutesGenerating] = useState(false);
+
+    const [carePlanCandidates, setCarePlanCandidates] =
+        useState<CarePlanCandidate[]>([]);
+
+    const [carePlanCandidatesLoading, setCarePlanCandidatesLoading] =
+        useState(false);
+
+    const [selectedCarePlanId, setSelectedCarePlanId] =
+        useState("");
+
+    const [plans, setPlans] = useState<PlanSummary[]>([]);
+    const [plansLoading, setPlansLoading] = useState(false);
+    const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+    const [planDetail, setPlanDetail] = useState<PlanDetail | null>(null);
+    const [planDetailLoading, setPlanDetailLoading] = useState(false);
+    const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
+
+    const createAssessmentInFlight = useRef(false);
+    const generateAssessmentInFlight = useRef(false);
+    const generatePlansInFlight = useRef(false);
+
+    const selectedFromList = useMemo(
+        () => list.find((r) => r.assessment_id === selectedId) ?? null,
+        [list, selectedId]
+    );
+
+    function syncQuery(nextClientId: string, nextServiceKind: AssessmentServiceKind, nextId?: string | null) {
+        const q = new URLSearchParams();
+        if (nextClientId) q.set("client_id", nextClientId);
+        if (nextServiceKind) q.set("service_kind", nextServiceKind);
+        const qs = q.toString();
+
+        if (nextId) router.push(`/portal/assessment/${nextId}?${qs}`);
+        else router.push(`/portal/assessment?${qs}`);
+    }
+
+    // client list
+    useEffect(() => {
+        (async () => {
+            const bearer = await getBearer();
+            const res = await fetch("/api/assessment/clients", {
+                headers: bearer ? { Authorization: bearer } : {},
+            });
+            const j = await res.json();
+            if (j?.ok) setClients(j.data ?? []);
+        })();
+    }, []);
+
+    // list fetch
+    useEffect(() => {
+        (async () => {
+            if (!clientId) {
+                setList([]);
+                setDetail(null);
+                return;
+            }
+            const bearer = await getBearer();
+            const url = `/api/assessment?client_info_id=${encodeURIComponent(clientId)}&service_kind=${encodeURIComponent(
+                serviceKind
+            )}`;
+            const res = await fetch(url, { headers: bearer ? { Authorization: bearer } : {} });
+            const j = await res.json();
+            if (j?.ok) setList(j.data ?? []);
+        })();
+    }, [clientId, serviceKind]);
+
+    // detail fetch
+    useEffect(() => {
+        (async () => {
+            if (!selectedId) {
+                setDetail(null);
+                return;
+            }
+            const bearer = await getBearer();
+            const res = await fetch(`/api/assessment/${selectedId}`, {
+                headers: bearer ? { Authorization: bearer } : {},
+            });
+            const j = await res.json();
+            if (j?.ok) setDetail(j.data);
+        })();
+    }, [selectedId]);
+
+    useEffect(() => {
+        if (!detail?.assessment_id) {
+            setPlans([]);
+            setSelectedPlanId(null);
+            setPlanDetail(null);
+
+            setCarePlanCandidates([]);
+            setSelectedCarePlanId("");
+
+            return;
+        }
+
+        fetchPlans(detail.assessment_id);
+
+        const isElderCare =
+            isElderCareAssessmentKind(detail.service_kind);
+
+        if (isElderCare) {
+            fetchCarePlanCandidates(
+                detail.assessment_id,
+            );
+        } else {
+            setCarePlanCandidates([]);
+            setSelectedCarePlanId("");
+        }
+    }, [
+        detail?.assessment_id,
+        detail?.service_kind,
+    ]);
+
+    useEffect(() => {
+        let cancelled = false;
+        setSelectedTranscriptIds([]);
+        setRecordingTranscriptsError("");
+
+        const recordingClientId = String(
+            detail?.client_info_id || detail?.kaipoke_cs_id || "",
+        );
+        if (!recordingClientId) {
+            setRecordingTranscripts([]);
+            setRecordingTranscriptsLoading(false);
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        setRecordingTranscriptsLoading(true);
+        void (async () => {
+            try {
+                const bearer = await getBearer();
+                const params = new URLSearchParams({
+                    portal: "helper",
+                    client_id: recordingClientId,
+                    status: "completed",
+                    page: "1",
+                    perPage: "100",
+                });
+                const response = await fetch(`/api/recording-transcripts?${params.toString()}`, {
+                    headers: bearer ? { Authorization: bearer } : {},
+                });
+                const result = await response.json();
+                if (!response.ok || !result?.ok) {
+                    throw new Error(result?.error ?? "文字起こし一覧を取得できませんでした");
+                }
+                if (!cancelled) {
+                    setRecordingTranscripts(
+                        Array.isArray(result.data?.rows)
+                            ? result.data.rows.filter(
+                                (transcript: RecordingTranscriptOption) =>
+                                    transcript.client_id ===
+                                    recordingClientId,
+                            )
+                            : [],
+                    );
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    setRecordingTranscripts([]);
+                    setRecordingTranscriptsError(
+                        error instanceof Error ? error.message : String(error),
+                    );
+                }
+            } finally {
+                if (!cancelled) setRecordingTranscriptsLoading(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [detail?.client_info_id, detail?.kaipoke_cs_id]);
+
+    // URL→state同期
+    useEffect(() => {
+        setClientId(clientIdQ);
+        setServiceKind(serviceKindQ);
+    }, [clientIdQ, serviceKindQ]);
+
+    async function createNew() {
+        if (!clientId || createAssessmentInFlight.current) return;
+        createAssessmentInFlight.current = true;
+        setCreatingAssessment(true);
+        try {
+            const bearer = await getBearer();
+            const res = await fetch(`/api/assessment`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(bearer ? { Authorization: bearer } : {}),
+                },
+                body: JSON.stringify({
+                    client_id: clientId,
+                    service_kind: serviceKind,
+                    content: getAssessmentContentTemplate(serviceKind),
+                }),
+            });
+            const j = await res.json();
+            if (j?.ok && j?.data) {
+                const rec: AssessmentRecord = j.data;
+                setList((prev) => [rec, ...prev]);
+                setSelectedId(rec.assessment_id);
+                syncQuery(clientId, serviceKind, rec.assessment_id);
+            }
+        } finally {
+            createAssessmentInFlight.current = false;
+            setCreatingAssessment(false);
+        }
+    }
+
+    async function prepareGenerationSourceDocuments(
+        bearer: string,
+        baseCarePlanId?: string,
+    ): Promise<boolean> {
+        if (!clientId) return true;
+
+        setSourcePreparing(true);
+        setSourcePreparationMessage("生成に使う関連資料のOCR・サマリー状況を確認しています...");
+
+        try {
+            const params = new URLSearchParams({ kaipoke_cs_id: clientId });
+            if (baseCarePlanId) {
+                params.set("base_care_plan_cs_doc_id", baseCarePlanId);
+            }
+
+            const checkResponse = await fetch(
+                `/api/assessment/source-documents?${params.toString()}`,
+                { headers: bearer ? { Authorization: bearer } : {} },
+            );
+            const checkResult = (await checkResponse.json().catch(() => null)) as
+                | {
+                    ok: true;
+                    needs_processing?: GenerationSourceDocument[];
+                }
+                | { ok: false; error?: string }
+                | null;
+
+            if (!checkResponse.ok || !checkResult || checkResult.ok !== true) {
+                const error =
+                    checkResult && "error" in checkResult
+                        ? checkResult.error
+                        : "関連資料を確認できませんでした";
+                throw new Error(error || "関連資料を確認できませんでした");
+            }
+
+            const pending = Array.isArray(checkResult.needs_processing)
+                ? checkResult.needs_processing
+                : [];
+
+            const ocrCount = pending.filter((document) => document.needs_ocr).length;
+            const summaryCount = pending.filter((document) => document.needs_summary).length;
+
+            if (pending.length === 0) {
+                setSourcePreparationMessage(
+                    "生成に使う関連資料のOCR・サマリーは準備済みです。",
+                );
+                return true;
+            }
+
+            window.alert(
+                [
+                    `生成に使う関連資料 ${pending.length}件に、OCR本文またはサマリーの不足があります。`,
+                    `先に不足分を処理します（再OCR ${ocrCount}件・再サマリー ${summaryCount}件）。完了後に生成を続けます。`,
+                    "",
+                    ...pending.map(
+                        (document) =>
+                            `・${document.doc_name}（${document.category}）`,
+                    ),
+                ].join("\n"),
+            );
+
+            for (let index = 0; index < pending.length; index += 1) {
+                const document = pending[index];
+                let latestOcrText: string | undefined;
+
+                if (document.needs_ocr) {
+                    if (!document.has_url) {
+                        throw new Error(
+                            `「${document.doc_name}」には元PDFのURLがありません`,
+                        );
+                    }
+
+                    setSourcePreparationMessage(
+                        `関連資料を準備中 ${index + 1}/${pending.length}：${document.doc_name} を再OCRしています...`,
+                    );
+
+                    const ocrResponse = await fetch("/api/cs-docs/reprocess", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            ...(bearer ? { Authorization: bearer } : {}),
+                        },
+                        body: JSON.stringify({ id: document.id, mode: "ocr" }),
+                    });
+                    const ocrResult = (await ocrResponse.json().catch(() => null)) as
+                        | { ok: true; ocr_text?: string }
+                        | { ok: false; error?: string }
+                        | null;
+                    if (!ocrResponse.ok || !ocrResult || ocrResult.ok !== true || !ocrResult.ocr_text) {
+                        const error =
+                            ocrResult && "error" in ocrResult
+                                ? ocrResult.error
+                                : "再OCRに失敗しました";
+                        throw new Error(`「${document.doc_name}」: ${error}`);
+                    }
+                    latestOcrText = ocrResult.ocr_text;
+                }
+
+                if (document.needs_summary) {
+                    setSourcePreparationMessage(
+                        `関連資料を準備中 ${index + 1}/${pending.length}：${document.doc_name} を再サマリーしています...`,
+                    );
+
+                    const summaryResponse = await fetch("/api/cs-docs/reprocess", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            ...(bearer ? { Authorization: bearer } : {}),
+                        },
+                        body: JSON.stringify({
+                            id: document.id,
+                            mode: "summary",
+                            ...(latestOcrText ? { ocr_text: latestOcrText } : {}),
+                        }),
+                    });
+                    const summaryResult = (await summaryResponse.json().catch(() => null)) as
+                        | { ok: true; summary?: string }
+                        | { ok: false; error?: string }
+                        | null;
+                    if (
+                        !summaryResponse.ok ||
+                        !summaryResult ||
+                        summaryResult.ok !== true ||
+                        !summaryResult.summary
+                    ) {
+                        const error =
+                            summaryResult && "error" in summaryResult
+                                ? summaryResult.error
+                                : "再サマリーに失敗しました";
+                        throw new Error(`「${document.doc_name}」: ${error}`);
+                    }
+                }
+            }
+
+            setSourcePreparationMessage(
+                `関連資料の準備が完了しました（再OCR ${ocrCount}件・再サマリー ${summaryCount}件）。`,
+            );
+            window.alert(
+                `関連資料の準備が完了しました（再OCR ${ocrCount}件・再サマリー ${summaryCount}件）。続けて生成します。`,
+            );
+
+            return true;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setSourcePreparationMessage(
+                "関連資料の自動準備に失敗しました。再OCR・再サマリーが必要です。",
+            );
+            window.alert(
+                [
+                    "生成に使う資料の再OCR・再サマリーが完了しなかったため、生成を中止しました。",
+                    message,
+                    "元資料(cs_docs)で対象資料を確認してください。",
+                ].join("\n"),
+            );
+            return false;
+        } finally {
+            setSourcePreparing(false);
+        }
+    }
+
+    async function autoGenerate() {
+        if (!clientId || generateAssessmentInFlight.current) return;
+
+        generateAssessmentInFlight.current = true;
+        setGenerating(true);
+        try {
+            const bearer = await getBearer();
+            const sourcesReady = await prepareGenerationSourceDocuments(
+                bearer,
+                selectedCarePlanId || undefined,
+            );
+            if (!sourcesReady) return;
+
+            // 既存アセスメントを開いている場合は、従来どおり「その1件」を再生成する。
+            // by-client API は「利用者単位で未作成の種類を作る」ため、既存1件の再生成には使わない。
+            if (detail?.assessment_id) {
+                const res = await fetch(`/api/assessment/${detail.assessment_id}/auto-generate`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(bearer ? { Authorization: bearer } : {}),
+                    },
+                    body: JSON.stringify({
+                        service_kind: serviceKind,
+                    }),
+                });
+
+                const j = await res.json();
+                if (!j?.ok) {
+                    console.log("assessment [id] auto-generate error body:", j);
+                    window.alert(`自動生成に失敗: ${j?.error ?? "unknown error"}`);
+                    return;
+                }
+
+                if (j?.data) {
+                    setDetail(j.data);
+                    setList((prev) => prev.map((r) => (r.assessment_id === j.data.assessment_id ? j.data : r)));
+                }
+
+                window.alert("アセスメント自動生成完了（現在開いている1件を更新しました）");
+                return;
+            }
+
+            // 詳細を開いていない場合は、利用者単位で週間シフトを判定し、必要な種類を作成する。
+            // service_kind は「現在画面で選択中の種別を最低限作るためのフォールバック」。
+            // API側では、週間シフトで検出できた種別 + この service_kind を対象にする。
+            const res = await fetch(
+                `/api/assessment/by-client/${encodeURIComponent(clientId)}/auto-generate`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(bearer
+                            ? { Authorization: bearer }
+                            : {}),
+                    },
+                    body: JSON.stringify({
+                        service_kind: serviceKind,
+                        overwrite: true,
+                    }),
+                },
+            );
+
+            const j = await res.json();
+
+            if (!j?.ok) {
+                console.log(
+                    "by-client auto-generate error body:",
+                    j,
+                );
+
+                window.alert(
+                    `自動生成に失敗: ${j?.error ?? "unknown error"
+                    }`,
+                );
+
+                return;
+            }
+
+            const created = Array.isArray(j.created)
+                ? j.created
+                : [];
+
+            const updated = Array.isArray(j.updated)
+                ? j.updated
+                : [];
+
+            const skipped = Array.isArray(j.skipped)
+                ? j.skipped
+                : [];
+
+            const detectedKinds = Array.isArray(
+                j.detected_kinds,
+            )
+                ? j.detected_kinds
+                : [];
+
+            const targetKinds = Array.isArray(
+                j.target_kinds,
+            )
+                ? j.target_kinds
+                : [];
+
+            const affected =
+                created.find(
+                    (record) =>
+                        record?.service_kind === serviceKind,
+                ) ??
+                updated.find(
+                    (record) =>
+                        record?.service_kind === serviceKind,
+                ) ??
+                created[0] ??
+                updated[0] ??
+                null;
+
+            if (!affected) {
+                window.alert(
+                    [
+                        "生成または更新されたアセスメントはありませんでした。",
+                        `判定: ${detectedKinds.join(" / ") || "なし"
+                        }`,
+                        `対象: ${targetKinds.join(" / ") || "なし"
+                        }`,
+                        `既存スキップ: ${skipped.length}件`,
+                    ].join("\n"),
+                );
+
+                return;
+            }
+            const nextKind = normalizeServiceKind(String(affected.service_kind ?? serviceKind));
+            const nextId = String(affected.assessment_id ?? "") || null;
+
+            setServiceKind(nextKind);
+            syncQuery(clientId, nextKind, nextId);
+
+            const listRes = await fetch(
+                `/api/assessment?client_info_id=${encodeURIComponent(clientId)}&service_kind=${encodeURIComponent(nextKind)}`,
+                { headers: bearer ? { Authorization: bearer } : {} }
+            );
+            const listJson = await listRes.json();
+            if (listJson?.ok) setList(listJson.data ?? []);
+
+            if (nextId) {
+                setSelectedId(nextId);
+
+                const found = [...created, ...updated].find((r) => r?.assessment_id === nextId);
+                if (found) {
+                    setDetail(found as AssessmentRecord);
+                } else {
+                    const detailRes = await fetch(`/api/assessment/${nextId}`, {
+                        headers: bearer ? { Authorization: bearer } : {},
+                    });
+                    const detailJson = await detailRes.json();
+                    if (detailJson?.ok) setDetail(detailJson.data);
+                }
+            }
+
+            window.alert(
+                [
+                    `アセスメント自動生成完了`,
+                    `判定: ${detectedKinds.join(" / ") || "なし"}`,
+                    `対象: ${targetKinds.join(" / ") || "なし"}`,
+                    `新規作成: ${created.length}件`,
+                    `更新: ${updated.length}件`,
+                    `既存ありスキップ: ${skipped.length}件`,
+                    skipped.length ? `※既存を作り直す場合は、対象のアセスメントを開いてから再度「アセスメント自動生成」を押してください。` : "",
+                ]
+                    .filter(Boolean)
+                    .join("\n")
+            );
+        } finally {
+            generateAssessmentInFlight.current = false;
+            setGenerating(false);
+        }
+    }
+
+
+    function toggleTranscriptSelection(transcriptId: string) {
+        setSelectedTranscriptIds((previous) => {
+            if (previous.includes(transcriptId)) {
+                return previous.filter((id) => id !== transcriptId);
+            }
+            if (previous.length >= 10) {
+                window.alert("文字起こしは10件まで選択できます。");
+                return previous;
+            }
+            return [...previous, transcriptId];
+        });
+    }
+
+    async function generateMeetingMinutesFromTranscripts() {
+        if (!detail?.assessment_id || selectedTranscriptIds.length === 0) {
+            window.alert("議事録に使用する文字起こしを選択してください。");
+            return;
+        }
+        if (
+            detail.meeting_minutes?.trim() &&
+            !window.confirm(
+                "現在の担当者会議議事録を、選択した文字起こしから作成した内容で置き換えますか？",
+            )
+        ) {
+            return;
+        }
+
+        setMeetingMinutesGenerating(true);
+        try {
+            const bearer = await getBearer();
+            const response = await fetch("/api/assessment/meeting-minutes-summary", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(bearer ? { Authorization: bearer } : {}),
+                },
+                body: JSON.stringify({
+                    assessment_id: detail.assessment_id,
+                    transcript_ids: selectedTranscriptIds,
+                }),
+            });
+            const result = (await response.json().catch(() => null)) as
+                | { ok: true; meeting_minutes?: string }
+                | { ok: false; error?: string }
+                | null;
+            if (
+                !response.ok ||
+                !result ||
+                result.ok !== true ||
+                !result.meeting_minutes
+            ) {
+                const error =
+                    result && "error" in result
+                        ? result.error
+                        : "担当者会議議事録を生成できませんでした";
+                throw new Error(error || "担当者会議議事録を生成できませんでした");
+            }
+
+            setDetail((current) =>
+                current && current.assessment_id === detail.assessment_id
+                    ? { ...current, meeting_minutes: result.meeting_minutes ?? "" }
+                    : current,
+            );
+            window.alert(
+                "選択した文字起こしから議事録を作成し、担当者会議議事録欄へ反映しました。内容を確認して保存してください。",
+            );
+        } catch (error) {
+            window.alert(
+                `議事録の生成に失敗しました。\n${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            );
+        } finally {
+            setMeetingMinutesGenerating(false);
+        }
+    }
+
+    async function save() {
+        if (!detail) return;
+        setSaving(true);
+        try {
+            const bearer = await getBearer();
+            const res = await fetch(`/api/assessment/${detail.assessment_id}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(bearer ? { Authorization: bearer } : {}),
+                },
+                body: JSON.stringify({
+                    assessed_on: detail.assessed_on,
+                    author_name: detail.author_name,
+                    content: detail.content,
+                    meeting_minutes: detail.meeting_minutes ?? "",
+                }),
+            });
+            const j = await res.json();
+            if (j?.ok) {
+                setDetail(j.data);
+                setList((prev) => prev.map((r) => (r.assessment_id === j.data.assessment_id ? j.data : r)));
+            }
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    async function deleteAssessment(assessment: AssessmentRecord) {
+        if (deletingAssessmentId) return;
+        const ok = window.confirm("このアセスメントを削除しますか？");
+        if (!ok) return;
+
+        setDeletingAssessmentId(assessment.assessment_id);
+        try {
+            const bearer = await getBearer();
+            const res = await fetch(`/api/assessment/${assessment.assessment_id}`, {
+                method: "DELETE",
+                headers: bearer ? { Authorization: bearer } : {},
+            });
+            const j = await res.json();
+            if (j?.ok) {
+                setList((prev) => prev.filter((r) => r.assessment_id !== assessment.assessment_id));
+                if (selectedId === assessment.assessment_id) {
+                    setDetail(null);
+                    setSelectedId(null);
+                    syncQuery(clientId, serviceKind, null);
+                }
+            }
+        } finally {
+            setDeletingAssessmentId(null);
+        }
+    }
+
+
+    async function fetchCarePlanCandidates(
+        assessmentId: string,
+    ) {
+        setCarePlanCandidatesLoading(true);
+
+        try {
+            const bearer = await getBearer();
+
+            const res = await fetch(
+                `/api/plans/generate?assessment_id=${encodeURIComponent(
+                    assessmentId,
+                )}`,
+                {
+                    headers: bearer
+                        ? {
+                            Authorization: bearer,
+                        }
+                        : {},
+                },
+            );
+
+            const j = await res.json();
+
+            if (!res.ok || !j?.ok) {
+                console.error(
+                    "care plan candidates error:",
+                    j,
+                );
+
+                setCarePlanCandidates([]);
+                setSelectedCarePlanId("");
+
+                return;
+            }
+
+            const candidates = Array.isArray(
+                j.care_plans,
+            )
+                ? (j.care_plans as CarePlanCandidate[])
+                : [];
+
+            setCarePlanCandidates(candidates);
+
+            /*
+             * 候補が1件だけなら自動選択する。
+             * 複数ある場合は利用者に選ばせる。
+             */
+            if (candidates.length === 1) {
+                setSelectedCarePlanId(
+                    candidates[0].id,
+                );
+            } else {
+                setSelectedCarePlanId("");
+            }
+        } catch (error) {
+            console.error(
+                "care plan candidates fetch failed:",
+                error,
+            );
+
+            setCarePlanCandidates([]);
+            setSelectedCarePlanId("");
+        } finally {
+            setCarePlanCandidatesLoading(false);
+        }
+    }
+
+    async function generatePlans() {
+        if (!detail?.assessment_id || generatePlansInFlight.current) return;
+
+        const isElderCare =
+            isElderCareAssessmentKind(detail.service_kind);
+
+        if (
+            isElderCare &&
+            !selectedCarePlanId
+        ) {
+            window.alert(
+                carePlanCandidates.length === 0
+                    ? "訪問介護計画の生成に必要なケアプランを取得できませんでした。"
+                    : "ベースとなるケアプランを選択してください。",
+            );
+            return;
+        }
+
+        generatePlansInFlight.current = true;
+        setPlanGenerating(true);
+        try {
+            const bearer = await getBearer();
+            const sourcesReady = await prepareGenerationSourceDocuments(
+                bearer,
+                selectedCarePlanId || undefined,
+            );
+            if (!sourcesReady) return;
+
+            // 1) まず最新内容を保存
+            const saveRes = await fetch(`/api/assessment/${detail.assessment_id}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(bearer ? { Authorization: bearer } : {}),
+                },
+                body: JSON.stringify({
+                    assessed_on: detail.assessed_on,
+                    author_name: detail.author_name,
+                    content: detail.content,
+                    meeting_minutes: detail.meeting_minutes ?? "",
+                }),
+            });
+
+            const saveJson = await saveRes.json();
+
+            if (!saveJson?.ok || !saveJson?.data?.assessment_id) {
+                window.alert(`保存に失敗したため、プラン生成を中止しました: ${saveJson?.error ?? "unknown error"}`);
+                return;
+            }
+
+            setDetail(saveJson.data);
+            setList((prev) =>
+                prev.map((r) => (r.assessment_id === saveJson.data.assessment_id ? saveJson.data : r))
+            );
+
+            const latestAssessmentId = saveJson.data.assessment_id as string;
+
+            // 2) プラン生成
+            const res = await fetch(`/api/plans/generate`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(bearer ? { Authorization: bearer } : {}),
+                },
+                body: JSON.stringify({
+                    assessment_id:
+                        latestAssessmentId,
+
+                    replace_existing:
+                        false,
+
+                    base_care_plan_cs_doc_id:
+                        selectedCarePlanId || null,
+                }),
+            });
+
+            const j = await res.json();
+
+            if (!j?.ok) {
+                window.alert(`プラン生成に失敗: ${j?.error ?? "unknown error"}`);
+                return;
+            }
+
+            // 3) 生成後に一覧を再取得して、画面に反映
+            await fetchPlans(latestAssessmentId);
+
+            const msg = [
+                `プラン生成完了: ${j?.plans?.length ?? 0}件`,
+                ...(Array.isArray(j?.plans)
+                    ? j.plans.map((p: { title?: string; skipped?: boolean }) =>
+                        `- ${p.title ?? "無題"}${p.skipped ? "（既存あり）" : ""}`
+                    )
+                    : []),
+                ...(Array.isArray(j?.warnings) && j.warnings.length
+                    ? ["", "警告:", ...j.warnings.map((w: string) => `- ${w}`)]
+                    : []),
+            ].join("\n");
+
+            window.alert(msg);
+        } finally {
+            generatePlansInFlight.current = false;
+            setPlanGenerating(false);
+        }
+    }
+
+    async function fetchPlans(assessmentId: string) {
+        setPlansLoading(true);
+        try {
+            const bearer = await getBearer();
+            const res = await fetch(`/api/plans?assessment_id=${encodeURIComponent(assessmentId)}`, {
+                headers: bearer ? { Authorization: bearer } : {},
+            });
+
+            const j = await res.json();
+
+            if (!j?.ok) {
+                console.log("fetchPlans error:", j);
+                setPlans([]);
+                return;
+            }
+
+            setPlans(j.data ?? []);
+        } finally {
+            setPlansLoading(false);
+        }
+    }
+
+    async function fetchPlanDetail(planId: string) {
+        setSelectedPlanId(planId);
+        setPlanDetailLoading(true);
+        try {
+            const bearer = await getBearer();
+            const res = await fetch(`/api/plans/${planId}`, {
+                headers: bearer ? { Authorization: bearer } : {},
+            });
+
+            const j = await res.json();
+
+            if (!j?.ok) {
+                window.alert(`プラン詳細の取得に失敗: ${j?.error ?? "unknown error"}`);
+                setPlanDetail(null);
+                return;
+            }
+
+            setPlanDetail(j.data);
+        } finally {
+            setPlanDetailLoading(false);
+        }
+    }
+
+    async function deletePlan(plan: PlanSummary) {
+        if (deletingPlanId) return;
+        const ok = window.confirm(`「${plan.title}」だけを削除しますか？\nアセスメントは削除されません。`);
+        if (!ok) return;
+
+        setDeletingPlanId(plan.plan_id);
+        try {
+            const bearer = await getBearer();
+            const res = await fetch(`/api/plans/${plan.plan_id}`, {
+                method: "DELETE",
+                headers: bearer ? { Authorization: bearer } : {},
+            });
+            const j = await res.json();
+            if (!res.ok || !j?.ok) {
+                window.alert(`計画書の削除に失敗: ${j?.error ?? "unknown error"}`);
+                return;
+            }
+
+            setPlans((previous) => previous.filter((item) => item.plan_id !== plan.plan_id));
+            if (selectedPlanId === plan.plan_id) {
+                setSelectedPlanId(null);
+                setPlanDetail(null);
+            }
+        } finally {
+            setDeletingPlanId(null);
+        }
+    }
+
+    function setCheck(sheetKey: string, rowKey: string, check: AssessmentCheck) {
+        if (!detail) return;
+        setDetail({
+            ...detail,
+            content: {
+                ...detail.content,
+                sheets: detail.content.sheets.map((s) =>
+                    s.key !== sheetKey
+                        ? s
+                        : { ...s, rows: s.rows.map((r) => (r.key !== rowKey ? r : { ...r, check })) }
+                ),
+            },
+        });
+    }
+
+    function setText(sheetKey: string, rowKey: string, field: "remark" | "hope", value: string) {
+        if (!detail) return;
+        setDetail({
+            ...detail,
+            content: {
+                ...detail.content,
+                sheets: detail.content.sheets.map((s) =>
+                    s.key !== sheetKey
+                        ? s
+                        : { ...s, rows: s.rows.map((r) => (r.key !== rowKey ? r : { ...r, [field]: value })) }
+                ),
+            },
+        });
+    }
+
+    function setRowValue(sheetKey: string, rowKey: string, value: string) {
+        if (!detail) return;
+        setDetail({
+            ...detail,
+            content: {
+                ...detail.content,
+                sheets: detail.content.sheets.map((s) =>
+                    s.key !== sheetKey
+                        ? s
+                        : { ...s, rows: s.rows.map((r) => (r.key !== rowKey ? r : { ...r, value })) }
+                ),
+            },
+        });
+    }
+
+
+    function setPrintTarget(sheetKey: string, v: boolean) {
+        if (!detail) return;
+        setDetail({
+            ...detail,
+            content: {
+                ...detail.content,
+                sheets: detail.content.sheets.map((s) => (s.key !== sheetKey ? s : { ...s, printTarget: v })),
+            },
+        });
+    }
+
+    return (
+        <div className="p-4 space-y-3">
+            <div className="flex flex-wrap gap-3 items-end">
+                <div>
+                    <div className="text-sm mb-1">利用者（URLクエリ連動）</div>
+                    <SearchableSelect
+                        options={clientSelectOptions}
+                        value={clientId}
+                        onChange={(value) => {
+                            const v = value ?? "";
+                            setClientId(v);
+                            setSelectedId(null);
+                            setDetail(null);
+                            syncQuery(v, serviceKind, null);
+                        }}
+                        placeholder="選択してください"
+                        searchPlaceholder="利用者名・カナ・IDで検索"
+                        className="w-72"
+                    />
+                </div>
+
+                <div>
+                    <div className="text-sm mb-1">サービス種別</div>
+                    <select
+                        className="border rounded px-2 py-1"
+                        value={serviceKind}
+                        onChange={(e) => {
+                            const v = e.target.value as AssessmentServiceKind;
+                            setServiceKind(v);
+                            setSelectedId(null);
+                            setDetail(null);
+                            syncQuery(clientId, v, null);
+                        }}
+                    >
+                        <option value="障害">障害</option>
+                        <option value="移動支援">移動支援</option>
+                        <option value="要支援">要支援</option>
+                        <option value="要介護">要介護</option>
+                    </select>
+                </div>
+
+                <button
+                    className="border rounded px-3 py-1 bg-black text-white disabled:opacity-40"
+                    disabled={!clientId || creatingAssessment}
+                    onClick={createNew}
+                >
+                    {creatingAssessment ? "作成中..." : "新規作成"}
+                </button>
+
+                {detail?.kaipoke_cs_id ? (
+                    <Link
+                        className="text-blue-600 underline"
+                        href={`/portal/cs_docs?kaipoke_cs_id=${encodeURIComponent(String(detail.kaipoke_cs_id))}`}
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        元資料(cs_docs)を開く
+                    </Link>
+                ) : null}
+
+
+                {detail?.assessment_id ? (
+                    <Link
+                        className="text-blue-600 underline"
+                        href={`/portal/assessment?client_id=${encodeURIComponent(clientId)}&service_kind=${encodeURIComponent(
+                            serviceKind
+                        )}`}
+                    >
+                        一覧に戻る
+                    </Link>
+                ) : null}
+            </div>
+
+            {sourcePreparationMessage ? (
+                <div
+                    className="rounded border border-blue-300 bg-blue-50 px-3 py-2 text-sm text-blue-900"
+                    role="status"
+                    aria-live="polite"
+                >
+                    {sourcePreparationMessage}
+                </div>
+            ) : null}
+
+            <div
+                className={[
+                    "grid grid-cols-1 gap-3",
+                    detail
+                        ? "xl:grid-cols-[240px_minmax(0,1fr)]"
+                        : "md:grid-cols-2",
+                ].join(" ")}
+            >
+                {/* 左：一覧 */}
+                <div className="min-w-0 rounded border border-sky-300 bg-sky-50 p-3">
+                    <div className="mb-3 border-b border-sky-300 pb-3">
+                        <div className="mb-2 font-semibold text-sky-950">アセスメント履歴</div>
+                        <button
+                            className="w-full rounded border border-blue-700 bg-blue-600 px-2 py-1.5 text-sm text-white disabled:opacity-40"
+                            disabled={!clientId || generating || sourcePreparing}
+                            onClick={autoGenerate}
+                            title="週間シフトから必要なアセスメント種別を判定し、障害・移動支援・要介護・要支援を必要分だけ自動作成します"
+                        >
+                            {sourcePreparing
+                                ? "関連資料を準備中..."
+                                : generating
+                                    ? "自動生成中..."
+                                    : "アセスメント自動生成"}
+                        </button>
+                    </div>
+                    {!clientId ? (
+                        <div className="text-sm text-gray-600">上で利用者を選択してください</div>
+                    ) : list.length === 0 ? (
+                        <div className="text-sm text-gray-600">履歴がありません</div>
+                    ) : (
+                        <ul className="space-y-2">
+                            {list.map((r) => {
+                                const active = r.assessment_id === selectedId;
+                                return (
+                                    <li
+                                        key={r.assessment_id}
+                                        className={`flex items-stretch gap-1 rounded border ${
+                                            active
+                                                ? "border-sky-500 bg-white shadow-sm"
+                                                : "border-sky-200 bg-sky-100/70"
+                                        }`}
+                                    >
+                                        <button
+                                            className="min-w-0 flex-1 rounded-l px-2 py-2 text-left hover:bg-white"
+                                            onClick={() => {
+                                                setSelectedId(r.assessment_id);
+                                                syncQuery(clientId, serviceKind, r.assessment_id);
+                                            }}
+                                        >
+                                            <div className="text-sm">{r.assessed_on}</div>
+                                            <div className="text-xs text-gray-600">作成者: {r.author_name}</div>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="shrink-0 border-l border-sky-200 px-2 text-xs text-red-700 hover:bg-red-50 disabled:opacity-40"
+                                            disabled={deletingAssessmentId !== null}
+                                            onClick={() => deleteAssessment(r)}
+                                            aria-label={`${r.assessed_on}のアセスメントを削除`}
+                                        >
+                                            {deletingAssessmentId === r.assessment_id ? "削除中" : "削除"}
+                                        </button>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                </div>
+
+                {/* 右：詳細 */}
+                <div className="min-w-0 border border-gray-300 bg-white p-3">
+                    <div className="mb-2 border-b border-gray-300 pb-2 font-semibold">詳細</div>
+
+                    {!detail ? (
+                        <div className="text-sm text-gray-600">左の履歴から選択するか「新規作成」を押してください</div>
+                    ) : (
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_minmax(280px,1fr)]">
+                                <div>
+                                    <div className="text-sm mb-1">作成年月日</div>
+                                    <input
+                                        type="date"
+                                        className="border rounded px-2 py-1"
+                                        value={detail.assessed_on}
+                                        onChange={(e) => setDetail({ ...detail, assessed_on: e.target.value })}
+                                    />
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="text-sm mb-1">アセスメント作成者氏名（初期値：ログインユーザー）</div>
+                                    <input
+                                        className="border rounded px-2 py-1 w-full"
+                                        value={detail.author_name}
+                                        onChange={(e) => setDetail({ ...detail, author_name: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="rounded border border-sky-200 bg-sky-50 p-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <div className="font-semibold text-sky-950">
+                                            famille Voice文字起こしから議事録を作成
+                                        </div>
+                                        <div className="text-xs text-sky-800">
+                                            この利用者の完了済み文字起こしを複数選択できます（最大10件）。
+                                        </div>
+                                    </div>
+                                    <Link
+                                        href="/portal/recording-transcripts"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-sm text-blue-700 underline"
+                                    >
+                                        文字起こし管理を開く
+                                    </Link>
+                                </div>
+
+                                {recordingTranscriptsLoading ? (
+                                    <div className="mt-3 text-sm text-gray-600">
+                                        文字起こしを取得中...
+                                    </div>
+                                ) : recordingTranscriptsError ? (
+                                    <div className="mt-3 text-sm text-red-700">
+                                        {recordingTranscriptsError}
+                                    </div>
+                                ) : recordingTranscripts.length === 0 ? (
+                                    <div className="mt-3 text-sm text-gray-600">
+                                        この利用者の完了済み文字起こしはありません。
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                                            <button
+                                                type="button"
+                                                className="rounded border bg-white px-2 py-1 text-xs"
+                                                onClick={() =>
+                                                    setSelectedTranscriptIds(
+                                                        recordingTranscripts
+                                                            .slice(0, 10)
+                                                            .map((transcript) => transcript.id),
+                                                    )
+                                                }
+                                            >
+                                                先頭10件を選択
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="rounded border bg-white px-2 py-1 text-xs"
+                                                onClick={() => setSelectedTranscriptIds([])}
+                                            >
+                                                選択解除
+                                            </button>
+                                            <span className="text-xs text-gray-700">
+                                                {selectedTranscriptIds.length}件選択中
+                                            </span>
+                                        </div>
+
+                                        <div className="mt-2 max-h-64 space-y-2 overflow-y-auto rounded border bg-white p-2">
+                                            {recordingTranscripts.map((transcript) => (
+                                                <label
+                                                    key={transcript.id}
+                                                    className="flex cursor-pointer items-start gap-2 rounded border border-transparent p-2 hover:border-sky-200 hover:bg-sky-50"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        className="mt-1"
+                                                        checked={selectedTranscriptIds.includes(
+                                                            transcript.id,
+                                                        )}
+                                                        onChange={() =>
+                                                            toggleTranscriptSelection(transcript.id)
+                                                        }
+                                                    />
+                                                    <span className="min-w-0 text-sm">
+                                                        <span className="block font-medium text-gray-900">
+                                                            {transcript.context_name?.trim() ||
+                                                                transcript.file_name}
+                                                        </span>
+                                                        <span className="block text-xs text-gray-600">
+                                                            {new Date(
+                                                                transcript.recorded_at,
+                                                            ).toLocaleString("ja-JP")}
+                                                            {" / 録音者: "}
+                                                            {transcript.recorder_name}
+                                                        </span>
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            className="mt-3 rounded bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:bg-gray-300"
+                                            disabled={
+                                                selectedTranscriptIds.length === 0 ||
+                                                meetingMinutesGenerating
+                                            }
+                                            onClick={generateMeetingMinutesFromTranscripts}
+                                        >
+                                            {meetingMinutesGenerating
+                                                ? "議事録を生成中..."
+                                                : "選択した文字起こしから議事録を作成"}
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+
+                            <div className="w-full">
+                                <div className="text-sm mb-1">担当者会議議事録</div>
+                                <textarea
+                                    className="min-h-[280px] w-full rounded border px-3 py-2"
+                                    value={detail.meeting_minutes ?? ""}
+                                    onChange={(e) =>
+                                        setDetail({
+                                            ...detail,
+                                            meeting_minutes: e.target.value,
+                                        })
+                                    }
+                                    placeholder="担当者会議の内容を入力"
+                                />
+                            </div>
+
+                            <div className="flex gap-2">
+                                {detail &&
+                                    (
+                                        isElderCareAssessmentKind(
+                                            detail.service_kind,
+                                        )
+                                    ) && (
+                                        <div className="rounded border border-amber-300 bg-amber-50 p-3">
+                                            <div className="mb-1 text-sm font-semibold text-amber-900">
+                                                ベースとなるケアプラン
+                                            </div>
+
+                                            <div className="mb-2 text-xs text-amber-800">
+                                                訪問介護計画書の長期・短期目標は、
+                                                選択した居宅介護支援計画書を基準に生成します。
+                                            </div>
+
+                                            {carePlanCandidatesLoading ? (
+                                                <div className="text-sm text-gray-600">
+                                                    ケアプラン候補を取得中...
+                                                </div>
+                                            ) : carePlanCandidates.length === 0 ? (
+                                                <div className="text-sm font-semibold text-red-600">
+                                                    ケアプラン
+                                                    （居宅介護支援計画書）が見つかりません。
+                                                </div>
+                                            ) : (
+                                                <select
+                                                    className="w-full rounded border border-gray-400 bg-white px-2 py-2 text-sm"
+                                                    value={selectedCarePlanId}
+                                                    onChange={(event) =>
+                                                        setSelectedCarePlanId(
+                                                            event.target.value,
+                                                        )
+                                                    }
+                                                >
+                                                    <option value="">
+                                                        ベースとなるケアプランを選択
+                                                    </option>
+
+                                                    {carePlanCandidates.map(
+                                                        (candidate) => {
+                                                            const dateText =
+                                                                candidate.applicable_date ??
+                                                                candidate.doc_date_raw ??
+                                                                candidate.created_at;
+
+                                                            return (
+                                                                <option
+                                                                    key={candidate.id}
+                                                                    value={candidate.id}
+                                                                >
+                                                                    {candidate.doc_name}
+                                                                    {" / "}
+                                                                    {dateText
+                                                                        ? new Date(
+                                                                            dateText,
+                                                                        ).toLocaleDateString(
+                                                                            "ja-JP",
+                                                                        )
+                                                                        : "日付不明"}
+                                                                </option>
+                                                            );
+                                                        },
+                                                    )}
+                                                </select>
+                                            )}
+
+                                            {selectedCarePlanId && (
+                                                <div className="mt-2 rounded border border-gray-200 bg-white p-2 text-xs text-gray-700">
+                                                    {carePlanCandidates.find(
+                                                        (candidate) =>
+                                                            candidate.id ===
+                                                            selectedCarePlanId,
+                                                    )?.summary_preview ||
+                                                        "サマリーはありません。"}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                <button
+                                    className="border rounded px-3 py-1 bg-black text-white disabled:opacity-40"
+                                    disabled={saving || planGenerating}
+                                    onClick={save}
+                                >
+                                    保存
+                                </button>
+                                <button
+                                    className="border rounded px-3 py-1 bg-green-600 text-white disabled:opacity-40"
+                                    disabled={
+                                        planGenerating ||
+                                        sourcePreparing ||
+                                        saving ||
+                                        !detail ||
+                                        (
+                                            (
+                                                isElderCareAssessmentKind(
+                                                    detail.service_kind,
+                                                )
+                                            ) &&
+                                            !selectedCarePlanId
+                                        )
+                                    }
+                                    onClick={generatePlans}
+                                >
+                                    {sourcePreparing
+                                        ? "関連資料を準備中..."
+                                        : planGenerating
+                                            ? "プラン生成中..."
+                                            : "プラン生成"}
+                                </button>
+
+                            </div>
+
+                            {detail && (
+                                <div className="space-y-3 rounded border border-emerald-300 bg-emerald-50 p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="font-bold text-emerald-950">計画書一覧</div>
+                                        <button
+                                            className="rounded border border-emerald-400 bg-white px-3 py-1 text-sm disabled:opacity-40"
+                                            disabled={plansLoading}
+                                            onClick={() => fetchPlans(detail.assessment_id)}
+                                        >
+                                            {plansLoading ? "更新中..." : "一覧更新"}
+                                        </button>
+                                    </div>
+
+                                    {plansLoading ? (
+                                        <div className="text-sm text-gray-500">プラン一覧を取得中...</div>
+                                    ) : plans.length === 0 ? (
+                                        <div className="text-sm text-gray-500">
+                                            まだプランは作成されていません。「プラン生成」を押すとここに表示されます。
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {plans.map((p) => {
+                                                const selected = selectedPlanId === p.plan_id;
+                                                return (
+                                                <div
+                                                    key={p.plan_id}
+                                                    className={[
+                                                        "rounded border p-3",
+                                                        selected
+                                                            ? "border-emerald-500 bg-white shadow-sm"
+                                                            : "border-emerald-200 bg-emerald-100/70",
+                                                    ].join(" ")}
+                                                >
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <button
+                                                            type="button"
+                                                            className="min-w-0 flex-1 text-left"
+                                                            onClick={() => fetchPlanDetail(p.plan_id)}
+                                                        >
+                                                            <div className="font-semibold">{p.title}</div>
+                                                            <div className="text-xs text-gray-500">
+                                                                {p.plan_document_kind} / status: {p.status} / version: {p.version_no}
+                                                            </div>
+                                                            <div className="mt-1 text-xs text-gray-500">
+                                                                {p.created_at ? new Date(p.created_at).toLocaleString("ja-JP") : ""}
+                                                            </div>
+                                                        </button>
+                                                        <div className="flex shrink-0 flex-wrap gap-1">
+                                                            <button
+                                                                type="button"
+                                                                className="rounded border border-green-700 bg-green-700 px-2 py-1 text-xs text-white"
+                                                                onClick={() => {
+                                                                    window.open(`/portal/plans/${p.plan_id}/print`, "_blank");
+                                                                }}
+                                                            >
+                                                                印刷View
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className="rounded border border-red-300 bg-white px-2 py-1 text-xs text-red-700 disabled:opacity-40"
+                                                                disabled={deletingPlanId !== null}
+                                                                onClick={() => deletePlan(p)}
+                                                            >
+                                                                {deletingPlanId === p.plan_id ? "削除中" : "削除"}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )})}
+                                        </div>
+                                    )}
+
+                                    {planDetailLoading && (
+                                        <div className="text-sm text-gray-500">プラン詳細を取得中...</div>
+                                    )}
+
+                                    {planDetail && (
+                                        <PlanEditor
+                                            detail={planDetail}
+                                            onReload={async (planId) => {
+                                                await fetchPlanDetail(planId);
+                                                if (detail?.assessment_id) {
+                                                    await fetchPlans(detail.assessment_id);
+                                                }
+                                            }}
+                                        />
+                                    )}
+
+                                </div>
+                            )}
+
+                            <details className="rounded border border-sky-300 bg-sky-50">
+                                <summary className="cursor-pointer select-none px-3 py-2 font-semibold text-sky-950">
+                                    アセスメント内容を表示・編集
+                                </summary>
+                                <div className="border-t border-sky-200 bg-white p-3">
+                                    {isElderCareAssessmentKind(
+                                        detail.service_kind,
+                                    ) ? (
+                                        <ElderCareAssessmentForm
+                                            content={detail.content}
+                                            onChange={(nextContent) => {
+                                                setDetail({
+                                                    ...detail,
+                                                    content: nextContent,
+                                                });
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="space-y-4">
+                                    {detail.content?.sheets?.map((sheet) => (
+                                        <div key={sheet.key} className="border rounded p-2">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="font-semibold">{sheet.title}</div>
+
+                                                <div className="text-sm">
+                                                    印刷対象：
+
+                                                    <label className="ml-2">
+                                                        <input
+                                                            type="radio"
+                                                            name={`print_${sheet.key}`}
+                                                            checked={sheet.printTarget === true}
+                                                            onChange={() =>
+                                                                setPrintTarget(sheet.key, true)
+                                                            }
+                                                        />{" "}
+                                                        対象
+                                                    </label>
+
+                                                    <label className="ml-2">
+                                                        <input
+                                                            type="radio"
+                                                            name={`print_${sheet.key}`}
+                                                            checked={sheet.printTarget === false}
+                                                            onChange={() =>
+                                                                setPrintTarget(sheet.key, false)
+                                                            }
+                                                        />{" "}
+                                                        対象外
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            {sheet.rows.length === 0 ? (
+                                                <div className="text-sm text-gray-600 mt-2">
+                                                    （このシートの項目は未投入です。template.ts
+                                                    にカイポケ項目を追記してください）
+                                                </div>
+                                            ) : (
+                                                <div className="overflow-auto mt-2">
+                                                    <table className="min-w-full border-collapse">
+                                                        <thead>
+                                                            <tr className="text-left">
+                                                                <th className="border px-2 py-1 w-[110px]">
+                                                                    チェック欄
+                                                                </th>
+
+                                                                <th className="border px-2 py-1">
+                                                                    詳細項目
+                                                                </th>
+
+                                                                <th className="border px-2 py-1">
+                                                                    備考
+                                                                </th>
+
+                                                                <th className="border px-2 py-1">
+                                                                    本人・家族の希望・要望
+                                                                </th>
+                                                            </tr>
+                                                        </thead>
+
+                                                        <tbody>
+                                                            {sheet.rows.map((r) => {
+                                                                const rowAny = r as typeof r & {
+                                                                    inputType?: string;
+                                                                    value?: string;
+                                                                    defaultValue?: string;
+                                                                    options?: {
+                                                                        value: string;
+                                                                        label: string;
+                                                                    }[];
+                                                                };
+
+                                                                const isRadio =
+                                                                    rowAny.inputType === "radio" &&
+                                                                    Array.isArray(rowAny.options);
+
+                                                                const currentValue = String(
+                                                                    rowAny.value ??
+                                                                    rowAny.defaultValue ??
+                                                                    "01",
+                                                                );
+
+                                                                return (
+                                                                    <tr key={r.key}>
+                                                                        <td className="border px-2 py-1 align-top">
+                                                                            <select
+                                                                                className="border rounded px-2 py-1 w-full"
+                                                                                value={r.check}
+                                                                                onChange={(e) =>
+                                                                                    setCheck(
+                                                                                        sheet.key,
+                                                                                        r.key,
+                                                                                        e.target
+                                                                                            .value as AssessmentCheck,
+                                                                                    )
+                                                                                }
+                                                                            >
+                                                                                <option value="NONE">
+                                                                                    －
+                                                                                </option>
+
+                                                                                <option value="CIRCLE">
+                                                                                    ○
+                                                                                </option>
+                                                                            </select>
+                                                                        </td>
+
+                                                                        <td className="border px-2 py-1 align-top">
+                                                                            <div className="font-medium">
+                                                                                {r.label}
+                                                                            </div>
+
+                                                                            {isRadio ? (
+                                                                                <div className="mt-2 space-y-1 text-sm">
+                                                                                    {rowAny.options!.map(
+                                                                                        (opt) => (
+                                                                                            <label
+                                                                                                key={
+                                                                                                    opt.value
+                                                                                                }
+                                                                                                className="block"
+                                                                                            >
+                                                                                                <input
+                                                                                                    type="radio"
+                                                                                                    name={`${sheet.key}_${r.key}`}
+                                                                                                    value={
+                                                                                                        opt.value
+                                                                                                    }
+                                                                                                    checked={
+                                                                                                        currentValue ===
+                                                                                                        opt.value
+                                                                                                    }
+                                                                                                    onChange={(
+                                                                                                        e,
+                                                                                                    ) =>
+                                                                                                        setRowValue(
+                                                                                                            sheet.key,
+                                                                                                            r.key,
+                                                                                                            e
+                                                                                                                .target
+                                                                                                                .value,
+                                                                                                        )
+                                                                                                    }
+                                                                                                />{" "}
+                                                                                                {opt.label}
+                                                                                            </label>
+                                                                                        ),
+                                                                                    )}
+                                                                                </div>
+                                                                            ) : null}
+                                                                        </td>
+
+                                                                        <td className="border px-2 py-1 align-top">
+                                                                            <textarea
+                                                                                className="border rounded px-2 py-1 w-full min-h-[70px]"
+                                                                                value={r.remark}
+                                                                                onChange={(e) =>
+                                                                                    setText(
+                                                                                        sheet.key,
+                                                                                        r.key,
+                                                                                        "remark",
+                                                                                        e.target.value,
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                        </td>
+
+                                                                        <td className="border px-2 py-1 align-top">
+                                                                            <textarea
+                                                                                className="border rounded px-2 py-1 w-full min-h-[70px]"
+                                                                                value={r.hope}
+                                                                                onChange={(e) =>
+                                                                                    setText(
+                                                                                        sheet.key,
+                                                                                        r.key,
+                                                                                        "hope",
+                                                                                        e.target.value,
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </details>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {selectedFromList?.assessment_id ? (
+                <div className="text-xs text-gray-600">現在表示中ID: {selectedFromList.assessment_id}</div>
+            ) : null}
+        </div>
+    );
+}
