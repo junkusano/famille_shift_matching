@@ -213,7 +213,10 @@ export async function buildMonitoringHtml(snapshot: MonitoringPdfSnapshot): Prom
     snapshot.monitoring.service_type === "care_insurance"
       ? careInsuranceBody(snapshot)
       : disabilityBody(snapshot);
-  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"/><style>${sharedStyles(fontCss)}</style></head><body>${body}<div class="footer">サービス提供責任者が内容を確認した確定版です。PDF作成日時：${escapeHtml(
+  const confirmation = snapshot.monitoring.monitoring_json?.bulk_run_id
+    ? "事業所の一斉送付処理により作成しました。"
+    : "サービス提供責任者が内容を確認した確定版です。";
+  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"/><style>${sharedStyles(fontCss)}</style></head><body>${body}<div class="footer">${confirmation}PDF作成日時：${escapeHtml(
     new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }),
   )}</div></body></html>`;
 }
