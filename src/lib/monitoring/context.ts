@@ -12,6 +12,7 @@ import type {
 } from "@/types/monitoring";
 import { detectMonitoringServiceType, monitoringContactWarnings } from "./core";
 import { getMonitoringMonthlyNotice } from "./notices";
+import { loadMonitoringSignedPlan } from "./signed-plan";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -50,6 +51,13 @@ function overlapsPeriod(plan: UnknownRecord, start: string, end: string): boolea
   return (!planStart || planStart <= end) && (!planEnd || planEnd >= start);
 }
 
+function hasMonitoringPlanContent(plan: UnknownRecord): boolean {
+  return Boolean(
+    text(plan.person_family_hope) ||
+      text(plan.assistance_goal) ||
+      text(plan.identified_needs),
+  );
+}
 function planPeriod(plan: UnknownRecord | null): string | null {
   if (!plan) return null;
   const start = nullableText(plan.plan_start_date);
@@ -289,9 +297,29 @@ export async function loadMonitoringContext(params: {
     overlapsPeriod(plan, periodStart, periodEnd),
   );
   const plan =
-    plans.find((candidate) => text(candidate.status) === "active") ?? plans[0] ?? null;
+    plans.find(
+      (candidate) =>
+        text(candidate.status) === "active" && hasMonitoringPlanContent(candidate),
+    ) ??
+    plans.find(hasMonitoringPlanContent) ??
+    plans.find((candidate) => text(candidate.status) === "active") ??
+    plans[0] ??
+    null;
   const planId = plan ? text(plan.plan_id) : null;
-  const goals = await loadGoals(planId);
+  const signedPlan = await loadMonitoringSignedPlan({ kaipokeCsId, periodEnd });
+  const planGoals = await loadGoals(planId);
+  const goals = planGoals.length > 0
+    ? planGoals
+    : signedPlan?.assistance_goal
+      ? [{
+          goal_id: `cs_doc:${signedPlan.cs_doc_id}:assistance`,
+          parent_goal_id: null,
+          goal_type: "assistance" as const,
+          goal_text: signedPlan.assistance_goal,
+          evaluation_start: signedPlan.document_date || null,
+          evaluation_end: null,
+        }]
+      : [];
 
   const serviceTypeDetected = detectMonitoringServiceType(
     client.service_kind,
@@ -408,9 +436,12 @@ export async function loadMonitoringContext(params: {
         issued_on: plan.issued_on,
         plan_start_date: plan.plan_start_date,
         plan_end_date: plan.plan_end_date,
-        person_family_hope: plan.person_family_hope,
-        assistance_goal: plan.assistance_goal,
-        identified_needs: plan.identified_needs,
+        person_family_hope: signedPlan ? signedPlan.client_request : plan.person_family_hope,
+        family_request: signedPlan ? signedPlan.family_request : "",
+        assistance_goal: signedPlan ? signedPlan.assistance_goal : plan.assistance_goal,
+        identified_needs: signedPlan ? signedPlan.issues : plan.identified_needs,
+        signed_plan_cs_doc_id: signedPlan?.cs_doc_id ?? null,
+        signed_plan_document_date: signedPlan?.document_date ?? null,
         health_status: plan.health_status,
         medical_care_risks: plan.medical_care_risks,
         home_activity_participation: plan.home_activity_participation,
@@ -425,6 +456,7 @@ export async function loadMonitoringContext(params: {
     service_type_detected: serviceTypeDetected,
     assessment: safeAssessment,
     plan: safePlan,
+    signed_plan: signedPlan,
     goals,
     visit_records: evidenceRecords,
     previous_monitorings: previousMonitorings,

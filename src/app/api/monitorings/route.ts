@@ -4,9 +4,12 @@ import { requireMonitoringActor, monitoringAuthErrorResponse } from "@/lib/monit
 import { recordMonitoringEvent } from "@/lib/monitoring/audit";
 import { validateMonitoringPeriod } from "@/lib/monitoring/core";
 import { loadMonitoringContext } from "@/lib/monitoring/context";
+import { prepareMonitoringSignedPlan } from "@/lib/monitoring/signed-plan";
+import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
 import type { MonitoringServiceType } from "@/types/monitoring";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 function isServiceType(value: unknown): value is MonitoringServiceType {
   return value === "care_insurance" || value === "disability";
@@ -83,6 +86,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "評価日を指定してください" }, { status: 400 });
     }
 
+    const initialContext = await loadMonitoringContext({ clientInfoId, periodStart, periodEnd });
+    const { token } = await getUserFromBearer(request);
+    if (!token) throw new Error("署名済みプランの準備に必要な認証情報を取得できません");
+    await prepareMonitoringSignedPlan({
+      kaipokeCsId: String(initialContext.client.kaipoke_cs_id ?? ""),
+      periodEnd,
+      accessToken: token,
+    });
     const context = await loadMonitoringContext({ clientInfoId, periodStart, periodEnd });
     const requestedType = body.service_type;
     const serviceType = isServiceType(requestedType)
@@ -108,9 +119,15 @@ export async function POST(request: NextRequest) {
         status: "draft",
         assessment_id: context.assessment ? String(context.assessment.assessment_id ?? "") || null : null,
         plan_id: context.plan ? String(context.plan.plan_id ?? "") || null : null,
-        client_request: String(plan.person_family_hope ?? ""),
-        family_request: "",
-        issues: String(plan.identified_needs ?? plan.assistance_goal ?? ""),
+        client_request: context.signed_plan
+          ? context.signed_plan.client_request
+          : String(plan.person_family_hope ?? ""),
+        family_request: context.signed_plan
+          ? context.signed_plan.family_request
+          : String(plan.family_request ?? ""),
+        issues: context.signed_plan
+          ? context.signed_plan.issues
+          : String(plan.identified_needs ?? plan.assistance_goal ?? ""),
         office_notice: context.office_notice,
         created_by: actor.userId,
         created_by_name: actor.name,

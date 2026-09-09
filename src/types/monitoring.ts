@@ -88,6 +88,17 @@ export type MonitoringSourceGoal = {
   evaluation_end: string | null;
 };
 
+export type MonitoringSignedPlan = {
+  cs_doc_id: string;
+  doc_name: string;
+  document_date: string;
+  client_request: string;
+  family_request: string;
+  issues: string;
+  assistance_goal: string;
+  ocr_ready: boolean;
+  summary_ready: boolean;
+};
 export type MonitoringFaxTarget = {
   fax_id: string | null;
   office_name: string | null;
@@ -105,6 +116,7 @@ export type MonitoringContext = {
   service_type_detected: MonitoringServiceType | null;
   assessment: Record<string, unknown> | null;
   plan: Record<string, unknown> | null;
+  signed_plan: MonitoringSignedPlan | null;
   goals: MonitoringSourceGoal[];
   visit_records: MonitoringVisitRecord[];
   previous_monitorings: Array<Record<string, unknown>>;
