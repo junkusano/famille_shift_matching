@@ -1,0 +1,18 @@
+const fs=require('fs');const path=require('path');const {loadEnvConfig}=require('@next/env');loadEnvConfig(process.cwd());
+const dir='tmp/blog-20260910';const generated='C:/Users/USER/.codex/generated_images/01a088d3-f6ff-74d2-9ef8-9dadff00eebd';
+const base=new URL(process.env.WORDPRESS_API_URL).origin;if(base!=='https://www.shi-on.net')throw Error('Unexpected WordPress host');
+const auth='Basic '+Buffer.from(process.env.WORDPRESS_USERNAME+':'+process.env.WORDPRESS_APP_PASSWORD).toString('base64');
+async function api(endpoint,body,extra={}){const r=await fetch(base+'/wp-json/wp/v2/'+endpoint,{method:body?'POST':'GET',headers:{Authorization:auth,...(body?{'Content-Type':'application/json'}:{}),...extra},body:body?(Buffer.isBuffer(body)?body:JSON.stringify(body)):undefined,redirect:'error',signal:AbortSignal.timeout(60000)});const data=await r.json();if(!r.ok)throw Error(endpoint+' HTTP '+r.status+' '+data.code);return data;}
+async function media(kind,file,title,alt){const saved=path.join(dir,kind+'-media.json');if(fs.existsSync(saved))return JSON.parse(fs.readFileSync(saved));const local=path.join(dir,kind+'-featured.png');fs.copyFileSync(path.join(generated,file),local);const m=await api('media',fs.readFileSync(local),{'Content-Type':'image/png','Content-Disposition':'attachment; filename="'+kind+'-featured-20260910.png"'});fs.writeFileSync(saved,JSON.stringify(m));await api('media/'+m.id,{title,alt_text:alt});return m;}
+async function draft(kind,m){const data=JSON.parse(fs.readFileSync(path.join(dir,kind+'.json')));const found=await api('posts?context=edit&status=draft,pending,publish,future,private&slug='+data.slug);if(found.length){if(found[0].content.raw!==data.content)throw Error('Existing different article: '+found[0].id);return found[0];}const post=await api('posts',{...data,status:'draft',featured_media:m.id});fs.writeFileSync(path.join(dir,kind+'-post.json'),JSON.stringify(post));const verify=await api('posts/'+post.id+'?context=edit');if(verify.status!=='draft'||verify.featured_media!==m.id||verify.content.raw.trim()!==data.content.trim())throw Error('Draft verification failed');return verify;}
+(async()=>{
+const robotBefore=await api('posts/1957?context=edit');fs.writeFileSync(path.join(dir,'robot-before.json'),JSON.stringify(robotBefore));
+const robot=await media('humanoid','exec-3098da5c-7b05-491e-8cfd-0d52110debeb.png','ヒューマノイドの価値は導入後も進化する身体にある','ソフトウェア更新で技能が広がるヒューマノイドを表した記事用イメージ');
+await api('posts/1957',{featured_media:robot.id});const robotAfter=await api('posts/1957?context=edit');if(robotAfter.featured_media!==robot.id||robotAfter.content.raw!==robotBefore.content.raw||robotAfter.status!==robotBefore.status)throw Error('Robot verification failed');
+console.log(JSON.stringify({kind:'robot',id:1957,status:robotAfter.status,link:robotAfter.link,media:robot.id}));
+const fluImage=await media('influenza','exec-fd026b5b-2172-470a-a83e-096ff40fe9e0.png','愛知県で早い流行入り、インフルエンザ予防を今から','マスク、石けんでの手洗い、人混みを避ける工夫を伝えるインフルエンザ予防のイメージ');
+const flu=await draft('flu',fluImage);console.log(JSON.stringify({kind:'flu',id:flu.id,status:flu.status,link:flu.link,media:flu.featured_media}));
+const wageImage=await media('minimum-wage','exec-018b4c5b-4630-49c5-8231-b6b040b784c1.png','賃上げを支える事業所の規模','損益分岐点、共通の管理基盤と介護職員のチームを通じて賃上げの原資を表すイメージ');
+const wage=await draft('wage',wageImage);console.log(JSON.stringify({kind:'wage',id:wage.id,status:wage.status,link:wage.link,media:wage.featured_media}));
+fs.writeFileSync(path.join(dir,'result.json'),JSON.stringify({robot:{id:1957,link:robotAfter.link,media:robot.id},flu:{id:flu.id,status:flu.status},wage:{id:wage.id,status:wage.status}},null,2));
+})().catch(e=>{console.error(e.message);process.exit(1)});
