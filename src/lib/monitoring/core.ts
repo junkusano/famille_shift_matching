@@ -99,6 +99,36 @@ export function hasMonitoringGoalComment(
   );
 }
 
+/**
+ * 観察事項だけに残った内容を、本文が短い場合に全体経過へ補う。
+ * 観察事項は補足欄であり、本文の代わりにはしない。
+ */
+export function enrichMonitoringSummary(
+  summary: unknown,
+  observations: unknown,
+): string {
+  const body = typeof summary === "string" ? summary.trim() : "";
+  if (body.length >= 520 || !Array.isArray(observations)) return body;
+
+  const normalize = (value: string) => value.replace(/[\s、。・]/g, "");
+  const normalizedBody = normalize(body);
+  const additions = observations
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .filter((value) => !normalizedBody.includes(normalize(value)));
+
+  if (additions.length === 0) return body;
+  let combined = body;
+  for (const addition of additions) {
+    const next = [combined, addition].filter(Boolean).join("\n");
+    if (next.length > 900) break;
+    combined = next;
+  }
+  return combined;
+}
+
 /** OCRで目標の末尾につながったサービス時間・回数の帳票欄を除く。 */
 export function cleanMonitoringGoalText(value: string): string {
   const serviceField = /[■□☑☐]\s*(?:身体(?:介護)?|家事(?:援助)?|重訪|重度訪問介護|通院|乗降|同行|行動援護)\s*(?:[（(]\s*伴(?:う|ず)\s*[）)])?\s*(?:[0-9０-９]+(?:[.．][0-9０-９]+)?\s*)?(?:時間|回数)/;

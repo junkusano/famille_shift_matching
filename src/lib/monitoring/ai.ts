@@ -8,6 +8,7 @@ import type {
   MonitoringServiceType,
 } from "@/types/monitoring";
 import {
+  enrichMonitoringSummary,
   isMonitoringAchievement,
   sanitizeEvidenceIds,
 } from "./core";
@@ -66,11 +67,13 @@ summary、notable_observations、各目標のevaluation・review_contentを含�
 目標評価は、目標、対象期間のサービス実施内容、利用者状況の具体的根拠から判断してください。
 evidence_record_idsには、入力visit_recordsに存在するevidence_idだけを入れてください。
 前回文章をコピーせず、今回確認した事実を中心に再評価してください。
-全体経過（summary）は、確認できた事実だけを次の順で簡潔にまとめてください。
-1. 実施したサービスの内容
+全体経過（summary）はモニタリングの本文です。短い結論だけにせず、確認できた事実を次の順で具体的にまとめてください。
+1. 対象期間に実施したサービスの種類・内容・回数や時間が分かる場合はその量
 2. 週間シフト等の計画がある場合は、計画に対する実施状況と欠席・中止の有無
-3. 利用者の様子
-4. 援助目標に対する状況
+3. 利用者の様子、支援上の留意点、課題
+4. 援助目標に対する状況（具体的に分かる場合だけ）
+全体経過が薄い場合は、入力から読み取れる適切な事実をできる限り本文に含めてください。
+notable_observationsに入れる重要な事実は、重複を避けつつ必ず全体経過にも含めてください。観察事項だけを本文の代わりにしてはいけません。
 必要な根拠がない項目は触れず、省略してください。
 利用者の希望、家族の希望、解決すべき課題はプラン原文をサーバ側で転記するため、訪問時の事実から作らず、client_request・family_request・issuesには空文字を返してください。
 notable_observationsには、利用者の様子、支援上の留意点、課題について、出典に触れない直接的な観察事実だけを入れてください。
@@ -237,17 +240,19 @@ export async function generateMonitoringWithAi(params: {
       },
   );
 
+  const notableObservations = (Array.isArray(root.notable_observations)
+    ? root.notable_observations
+    : []
+  )
+    .map(stringValue)
+    .filter(Boolean);
+
   return {
     client_request: stringValue(root.client_request),
     family_request: stringValue(root.family_request),
     issues: stringValue(root.issues),
-    summary: stringValue(root.summary),
-    notable_observations: (Array.isArray(root.notable_observations)
-      ? root.notable_observations
-      : []
-    )
-      .map(stringValue)
-      .filter(Boolean),
+    summary: enrichMonitoringSummary(stringValue(root.summary), notableObservations),
+    notable_observations: notableObservations,
     goals,
     model: response.model || profile.model,
   };
