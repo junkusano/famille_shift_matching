@@ -11,7 +11,14 @@ function legacyType(slot: string) {
   if (slot === "license_back") return "免許証裏";
   if (slot === "residence_card") return "住民票";
   if (slot.startsWith("certificate_")) return "資格証明書";
+  // 顔写真は photo_url に保存するため、attachments には入れない。
+  if (slot === "photo") return null;
   return "その他";
+}
+
+function certificateIndex(slot: string) {
+  const match = slot.match(/^certificate_(\d+)$/);
+  return match ? Number(match[1]) : null;
 }
 
 async function syncEntryDisplayFields(entryId: string) {
@@ -31,22 +38,60 @@ async function syncEntryDisplayFields(entryId: string) {
     .single();
   if (entryError) throw entryError;
 
+  const { data: certificateMaster, error: certificateMasterError } = await supabaseAdmin
+    .from("user_doc_master")
+    .select("label,sort_order")
+    .eq("category", "certificate")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+  if (certificateMasterError) throw certificateMasterError;
+  const certificateLabels = (certificateMaster ?? []).map((row) => row.label).filter(Boolean);
+
   const existing = Array.isArray(entry.attachments) ? entry.attachments : [];
-  const urls = new Set(existing.map((item: { url?: string }) => item?.url).filter(Boolean));
+  const fileByUrl = new Map(
+    files.map((file) => [
+      `https://drive.google.com/uc?export=view&id=${file.drive_file_id}`,
+      file,
+    ])
+  );
+
+  // 旧同期で「image.jpg」として保存された資格証を資格マスタ名へ補正し、
+  // 旧同期で「その他」に入った顔写真を除去する。
+  const normalizedExisting = existing
+    .filter((item: { url?: string }) => fileByUrl.get(item?.url ?? "")?.slot !== "photo")
+    .map((item: { url?: string; type?: string; label?: string; mimeType?: string; uploaded_at?: string }) => {
+      const file = fileByUrl.get(item.url ?? "");
+      const index = file ? certificateIndex(file.slot) : null;
+      if (file && index !== null) {
+        return {
+          ...item,
+          type: "資格証明書",
+          label: certificateLabels[index] ?? item.label ?? file.original_filename,
+          mimeType: item.mimeType ?? file.mime_type,
+          uploaded_at: item.uploaded_at ?? file.created_at,
+        };
+      }
+      return item;
+    });
+  const urls = new Set(normalizedExisting.map((item: { url?: string }) => item?.url).filter(Boolean));
   const additions = files
-    .map((file) => ({
-      url: `https://drive.google.com/uc?export=view&id=${file.drive_file_id}`,
-      type: legacyType(file.slot),
-      label: file.original_filename,
-      mimeType: file.mime_type,
-      uploaded_at: file.created_at,
-    }))
+    .filter((file) => file.slot !== "photo")
+    .map((file) => {
+      const index = certificateIndex(file.slot);
+      return {
+        url: `https://drive.google.com/uc?export=view&id=${file.drive_file_id}`,
+        type: legacyType(file.slot),
+        label: index !== null ? certificateLabels[index] ?? file.original_filename : file.original_filename,
+        mimeType: file.mime_type,
+        uploaded_at: file.created_at,
+      };
+    })
     .filter((item) => !urls.has(item.url));
   const bySlot = new Map(files.map((file) => [file.slot, `https://drive.google.com/uc?export=view&id=${file.drive_file_id}`]));
   const certificates = Array.isArray(entry.certifications) ? entry.certifications : [];
   const certificateUrls = files.filter((file) => file.slot.startsWith("certificate_")).map((file) => `https://drive.google.com/uc?export=view&id=${file.drive_file_id}`);
   const update = {
-    attachments: [...existing, ...additions],
+    attachments: [...normalizedExisting, ...additions],
     photo_url: entry.photo_url ?? bySlot.get("photo") ?? null,
     license_front_url: entry.license_front_url ?? bySlot.get("license_front") ?? null,
     license_back_url: entry.license_back_url ?? bySlot.get("license_back") ?? null,

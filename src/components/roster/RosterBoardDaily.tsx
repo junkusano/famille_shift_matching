@@ -142,6 +142,8 @@ type Props = {
   initialView: RosterDailyView;
   googleCalendarEvents?: GoogleCalendarEvent[];
   deletable?: boolean;
+  basePath?: string;
+  beta?: boolean;
 };
 
 // ===== DnD State =====
@@ -168,6 +170,8 @@ export default function RosterBoardDaily({
   initialView,
   googleCalendarEvents = [],
   deletable = false,
+  basePath = "/portal/roster/daily",
+  beta = false,
 }: Props) {
 
     // ====== ルーティング（日付遷移） ======
@@ -177,7 +181,7 @@ export default function RosterBoardDaily({
     const go = (d: string) => {
         const params = new URLSearchParams(searchParams?.toString());
         params.set("date", d);
-        router.push(`/portal/roster/daily?${params.toString()}`);
+        router.push(`${basePath}?${params.toString()}`);
     };
     const toJstYYYYMMDD = (dt: Date) =>
         new Intl.DateTimeFormat("sv-SE", {
@@ -865,6 +869,7 @@ const topPx =
                 {/* ヘッダー（シンプル） */}
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
+                        {beta && <span className="rounded bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">シフト表 β版</span>}
                         <button onClick={prevDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">前日</button>
                         <input type="date" className="px-2 py-1 rounded border text-sm" value={date} onChange={onPickDate} />
                         <button onClick={nextDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">翌日</button>

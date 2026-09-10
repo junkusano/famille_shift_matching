@@ -176,7 +176,13 @@ const makeCard = (
   dialog: makeDialog(r),
 });
 
-export async function getDailyRosterView(date: string): Promise<RosterDailyView> {
+const formatYmd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+export async function getDailyRosterView(
+  date: string,
+  options: { hideInactiveStaff?: boolean } = {},
+): Promise<RosterDailyView> {
   // 1) staff
   const staffSel = [
   "user_id",
@@ -226,6 +232,32 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
 }));
 
   if (staff.length === 0) console.warn("[roster] no staff records");
+
+  let visibleStaff = staff;
+  if (options.hideInactiveStaff) {
+    const [year, month] = date.split("-").map(Number);
+    const rangeStart = formatYmd(new Date(year, month - 1 - 2, 1));
+    const rangeEnd = formatYmd(new Date(year, month - 1 + 3, 0));
+    const { data: assignedRows, error: assignedErr } = await SB
+      .from("shift_daily_dialog_view")
+      .select("shift_date,staff_id_1,staff_id_2,staff_id_3")
+      .gte("shift_date", rangeStart)
+      .lte("shift_date", rangeEnd);
+
+    if (assignedErr) {
+      // 判定できない場合は、誤って全員を隠さないよう従来どおり表示する。
+      console.warn("[roster] beta staff activity query error", assignedErr);
+    } else {
+      const assignedIds = new Set<string>();
+      for (const row of assignedRows ?? []) {
+        for (const key of ["staff_id_1", "staff_id_2", "staff_id_3"] as const) {
+          const id = row[key];
+          if (id != null && String(id).trim()) assignedIds.add(String(id));
+        }
+      }
+      visibleStaff = staff.filter((st) => assignedIds.has(st.id));
+    }
+  }
 
   // 2) shifts: まず新view、失敗時のみ旧view fallback
   const shiftSel = [
@@ -357,5 +389,5 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
 
   if (shifts.length === 0) console.warn("[roster] no shifts for", date);
 
-  return { date, staff, shifts };
+  return { date, staff: visibleStaff, shifts };
 }
