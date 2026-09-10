@@ -23,12 +23,18 @@ type FieldSpec = {
   stops: RegExp[];
 };
 
-const SIGNED_PLAN_NAME = /(?:訪問介護(?:予防)?計画書|障害サービス計画書|移動支援計画書|重度就労計画書|介護計画書)/;
+const SIGNED_PLAN_NAME = /(?:訪問介護計画書|訪問介護予防計画書|介護予防訪問介護計画書|居宅介護計画書|重度訪問介護計画書|同行援護計画書|行動援護計画書|移動支援計画書|障害サービス計画書|障害(?:福祉サービス)?(?:個別)?計画書|重度就労計画書|介護計画書)/;
+
+export function isMonitoringSignedPlanName(value: unknown): boolean {
+  return SIGNED_PLAN_NAME.test(text(value));
+}
 const COMMON_STOPS = [
   /本人\s*[（(]\s*家族\s*[）)]\s*の希望/,
   /本人の希望/,
   /家族の希望/,
   /援助目標/,
+  /長期目標/,
+  /短期目標/,
   /解決すべき課題/,
   /生活上の課題/,
   /サービス内容/,
@@ -58,6 +64,14 @@ const ASSISTANCE_GOAL: FieldSpec = {
   labels: [/援助目標/],
   stops: COMMON_STOPS,
 };
+const LONG_TERM_GOAL: FieldSpec = {
+  labels: [/長期目標/],
+  stops: COMMON_STOPS,
+};
+const SHORT_TERM_GOAL: FieldSpec = {
+  labels: [/短期目標/],
+  stops: COMMON_STOPS,
+};
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -68,7 +82,7 @@ function documentDate(row: CsDocRow): string {
 }
 
 function compactLine(value: string): string {
-  return value.normalize("NFKC").replace(/[\s　]+/g, "");
+  return value.normalize("NFKC").replace(/[\s　]+/g, "").replace(/^[:：]+/, "");
 }
 
 function extractField(source: string, spec: FieldSpec): string {
@@ -97,20 +111,30 @@ function extractField(source: string, spec: FieldSpec): string {
   return values.join("").replace(/[|｜]+$/g, "").trim();
 }
 
-function toSignedPlan(row: CsDocRow): MonitoringSignedPlan {
-  const sourceText = text(row.ocr_text);
+export function extractMonitoringSignedPlanFields(source: string) {
+  const sourceText = text(source);
   const combinedHope = extractField(sourceText, PERSON_FAMILY_HOPE);
   const personHope = extractField(sourceText, PERSON_HOPE);
   const familyHope = extractField(sourceText, FAMILY_HOPE);
+  const assistanceGoal = extractField(sourceText, ASSISTANCE_GOAL)
+    || extractField(sourceText, LONG_TERM_GOAL)
+    || extractField(sourceText, SHORT_TERM_GOAL);
+  return {
+    client_request: combinedHope || personHope,
+    family_request: combinedHope ? "" : familyHope,
+    issues: extractField(sourceText, ISSUES),
+    assistance_goal: cleanMonitoringGoalText(assistanceGoal),
+  };
+}
 
+function toSignedPlan(row: CsDocRow): MonitoringSignedPlan {
+  const sourceText = text(row.ocr_text);
+  const fields = extractMonitoringSignedPlanFields(sourceText);
   return {
     cs_doc_id: row.id,
     doc_name: text(row.doc_name) || "署名済みプラン",
     document_date: documentDate(row),
-    client_request: combinedHope || personHope,
-    family_request: combinedHope ? "" : familyHope,
-    issues: extractField(sourceText, ISSUES),
-    assistance_goal: cleanMonitoringGoalText(extractField(sourceText, ASSISTANCE_GOAL)),
+    ...fields,
     ocr_ready: Boolean(sourceText),
     summary_ready: Boolean(text(row.summary)),
   };
@@ -129,9 +153,7 @@ async function findSignedPlan(params: {
     .limit(200);
   if (error) throw error;
 
-  const candidates = ((data ?? []) as CsDocRow[]).filter((row) =>
-    SIGNED_PLAN_NAME.test(text(row.doc_name)),
-  );
+  const candidates = ((data ?? []) as CsDocRow[]).filter((row) => isMonitoringSignedPlanName(row.doc_name));
   const dated = candidates.filter((row) => documentDate(row) <= params.periodEnd);
   return dated[0] ?? candidates[0] ?? null;
 }

@@ -54,6 +54,17 @@ export default function MonitoringBulkAdmin() {
     } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); }
     finally { active.current = false; setWorking(false); }
   }
+  async function sendOne(runId: string, item: Item) {
+    if (active.current) return;
+    if (!window.confirm(`${item.client_name} 様のモニタリングを生成し、PDFをFAX送付します。書類・連絡先に不足がある場合はイベント管理に追加します。実行しますか？`)) return;
+    active.current = true;
+    setWorking(true); setError("");
+    try {
+      await request(`/api/monitorings/bulk/${runId}/items/${item.id}`, true);
+      await refresh(runId);
+    } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); }
+    finally { active.current = false; setWorking(false); }
+  }
   return <section className="space-y-4 rounded-xl border bg-white p-5 shadow-sm">
     <h2 className="text-xl font-bold">前月分の一斉生成・FAX送付</h2>
     <p className="text-sm text-slate-600">前月1日〜末日のシフトを対象に、評価日を送付日として作成します。不備は「マネジャー向け具体的な書類等対応」のイベントに追加します。</p>
@@ -63,6 +74,6 @@ export default function MonitoringBulkAdmin() {
     {error && <p role="alert" className="rounded bg-red-50 p-3 text-red-700">{error}</p>}
     <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{["対象月", "開始日時", "最終送付日時", "状態", "FAX受付／不備／作成済／エラー", ""].map((x,i) => <th key={i} className="p-2">{x}</th>)}</tr></thead><tbody>{runs.map(run => <tr key={run.id} className="border-t"><td className="p-2"><button disabled={working} onClick={() => void refresh(run.id).catch(e => setError(e.message))} className="text-blue-700 underline">{run.target_month}</button></td><td className="p-2">{dateTime(run.started_at)}</td><td className="p-2">{dateTime(run.last_sent_at)}</td><td className="p-2">{labels[run.status] ?? run.status}</td><td className="p-2">{run.sent_count}／{run.task_count}／{run.skipped_count}／{run.error_count}（全{run.target_count}名）</td><td className="p-2">{run.status === "running" && <button disabled={working} onClick={() => void start(run.id)} className="text-blue-700 underline">再開</button>}</td></tr>)}</tbody></table></div>
     {!runs.length && <p className="text-sm text-slate-500">一斉送付の履歴はありません。</p>}
-    <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="p-2">利用者</th><th className="p-2">結果</th><th className="p-2">処理日時</th><th className="p-2">内容</th></tr></thead><tbody>{items.map(item => <tr key={item.id} className="border-t"><td className="p-2"><Link className="text-blue-700 underline" href={`/portal/kaipoke-info-detail/${item.client_info_id}`}>{item.client_name}</Link></td><td className="p-2">{labels[item.status] ?? item.status}</td><td className="p-2">{dateTime(item.processed_at)}</td><td className="p-2">{item.note}{item.monitoring_id && <Link className="ml-2 text-blue-700 underline" href={`/portal/kaipoke-info-detail/${item.client_info_id}/monitoring/${item.monitoring_id}`}>モニタリング</Link>}{item.event_task_id && <Link className="ml-2 text-blue-700 underline" href={`/portal/event-tasks?id=${item.event_task_id}`}>イベント</Link>}</td></tr>)}</tbody></table></div>
+    <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="p-2">利用者</th><th className="p-2">結果</th><th className="p-2">処理日時</th><th className="p-2">内容</th><th className="p-2">個別処理</th></tr></thead><tbody>{items.map(item => <tr key={item.id} className="border-t"><td className="p-2"><Link className="text-blue-700 underline" href={`/portal/kaipoke-info-detail/${item.client_info_id}`}>{item.client_name}</Link></td><td className="p-2">{labels[item.status] ?? item.status}</td><td className="p-2">{dateTime(item.processed_at)}</td><td className="p-2">{item.note}{item.monitoring_id && <Link className="ml-2 text-blue-700 underline" href={`/portal/kaipoke-info-detail/${item.client_info_id}/monitoring/${item.monitoring_id}`}>モニタリング</Link>}{item.event_task_id && <Link className="ml-2 text-blue-700 underline" href={`/portal/event-tasks?id=${item.event_task_id}`}>イベント</Link>}</td><td className="p-2">{item.monitoring_id || item.status === "sent" ? <span className="text-slate-500">個別画面で確認</span> : <button disabled={working || !selected} onClick={() => void sendOne(selected, item)} className="rounded border border-blue-300 px-3 py-1 text-blue-700 disabled:opacity-50">個別生成・送付</button>}</td></tr>)}</tbody></table></div>
   </section>;
 }
