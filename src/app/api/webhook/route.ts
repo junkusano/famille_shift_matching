@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
 import { getAccessToken } from "@/lib/getAccessToken";
 import crypto from "crypto";
+import { handleShiftCancellationAgent } from "@/lib/agent-playbooks/shiftCancellation";
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -55,6 +56,23 @@ function extractMentionLwUserIds(data: Record<string, unknown>): string[] {
     }
 
     return Array.from(ids);
+}
+
+function hasSmartEyeMention(data: Record<string, unknown>, text: string | null): boolean {
+    const content = (data.content ?? {}) as Record<string, unknown>;
+    const mentions = Array.isArray(content.mentions) ? content.mentions : [];
+    const structuredMention = mentions.some((mention) => {
+        const value = mention as Record<string, unknown>;
+        const botNo = normalizeString(value.botNo) ?? normalizeString(value.botno) ?? normalizeString(value.botId);
+        return botNo === BOT_ID;
+    });
+    if (structuredMention) return true;
+
+    const rawText = normalizeString(content.text) ?? text ?? "";
+    if (new RegExp(`<dm\\s+[^>]*botno=["']?${BOT_ID}["']?[^>]*>`, "i").test(rawText)) return true;
+
+    // Callbackではメンションタグが表示名に変換されるため、Bot名の先頭メンションも受け付ける。
+    return /^\s*@すまーとアイさん(?:\s|　|さん|$)/.test(rawText);
 }
 
 function extractDialogflowReplyText(dfResponse: Record<string, unknown>): string | null {
@@ -569,6 +587,7 @@ export async function POST(req: NextRequest) {
         const message = normalizeString(content?.text);
         const fileId = normalizeString(content?.fileId);
         const members = eventType === "joined" ? (data?.members ?? null) : null;
+        const mentionLwUserids = extractMentionLwUserIds(data);
 
 
         if (!eventType || !channelId || !domainId) {
@@ -586,6 +605,8 @@ export async function POST(req: NextRequest) {
                 message,
                 file_id: fileId,
                 members,
+                mention_lw_userids: mentionLwUserids,
+                raw_event: data,
                 status: 0,
             },
         ]);
@@ -631,6 +652,22 @@ export async function POST(req: NextRequest) {
 
         console.log("[lw webhook] groupType=", groupType);
 
+        const shiftCancellationResult = await handleShiftCancellationAgent({
+            eventType,
+            message: message ?? "",
+            channelId,
+            requesterLwUserid: userId,
+            issuedAt: timestamp,
+            hasBotMention: hasSmartEyeMention(data, message),
+        });
+
+        if (shiftCancellationResult.handled) {
+            if (shiftCancellationResult.replyText) {
+                await sendLineworksMessage({ channelId, text: shiftCancellationResult.replyText });
+            }
+            return NextResponse.json({ status: "ok", handledBy: "shift-cancellation-agent" }, { status: 200 });
+        }
+
 
         const routeToQuitDialogflow =
             shouldReplyToMessage({
@@ -647,8 +684,6 @@ export async function POST(req: NextRequest) {
 
         if (routeToQuitDialogflow) {
             try {
-                const mentionLwUserids = extractMentionLwUserIds(data);
-
                 const dfResult = await callDialogflowDetectIntent({
                     text: message!,
                     channelId,
