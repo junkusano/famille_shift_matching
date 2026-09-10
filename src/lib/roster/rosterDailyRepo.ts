@@ -176,10 +176,7 @@ const makeCard = (
   dialog: makeDialog(r),
 });
 
-export async function getDailyRosterView(
-  date: string,
-  options: { hideInactiveStaff?: boolean } = {},
-): Promise<RosterDailyView> {
+export async function getDailyRosterView(date: string): Promise<RosterDailyView> {
   // 1) staff
   const staffSel = [
   "user_id",
@@ -360,12 +357,5 @@ export async function getDailyRosterView(
 
   if (shifts.length === 0) console.warn("[roster] no shifts for", date);
 
-  // β版では、設定している日付に担当シフトがあるスタッフだけを表示する。
-  let visibleStaff = staff;
-  if (options.hideInactiveStaff) {
-    const assignedIds = new Set(shifts.map((shift) => shift.staff_id));
-    visibleStaff = staff.filter((st) => assignedIds.has(st.id));
-  }
-
-  return { date, staff: visibleStaff, shifts };
+  return { date, staff, shifts };
 }

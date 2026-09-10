@@ -16,7 +16,7 @@ export default async function Page({
   searchParams?: Record<string, string>;
 }) {
   const date = searchParams?.date ?? toJstYmd(new Date());
-  const initialView = await getDailyRosterView(date, { hideInactiveStaff: true });
+  const initialView = await getDailyRosterView(date);
 
   return (
     <RosterBoardDaily
