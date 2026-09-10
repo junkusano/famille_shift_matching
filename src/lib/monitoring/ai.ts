@@ -57,8 +57,11 @@ summary、notable_observations、各目標のevaluation・review_contentを含�
 
 入力データに存在しない事実を生成してはいけません。
 「順調」「安定」「改善」「悪化」等は、対象期間と過去の状況に具体的根拠がある場合だけ使用してください。
-評価に足る事実を十分に確認できなければ、achievementをinsufficient_evidenceとし、
-「対象期間について、評価に足る事実を十分に確認できませんでした」と明記してください。
+目標に対するコメントは、目標と対象期間の具体的事実を結び付けられる場合だけ作成してください。
+根拠がなければ、その目標をgoalsに含めず、「確認できない」「判断できない」「記録不足」等の文章も作成しないでください。
+目標の評価がなくても、サービス実施内容と利用者の様子を中心に全体経過を作成してください。
+今後の方針・計画見直しに関する情報共有・提案は、計画に対する具体的な問題又は支援上の課題が対象期間に確認できる場合だけ記載してください。
+確認できなかったことや情報不足を理由に、情報共有・提案が必要とは書かないでください。
 
 目標評価は、目標、対象期間のサービス実施内容、利用者状況の具体的根拠から判断してください。
 evidence_record_idsには、入力visit_recordsに存在するevidence_idだけを入れてください。
@@ -78,11 +81,12 @@ notable_observationsには、利用者の様子、支援上の留意点、課題
 「事業所より」の欄は別途人が管理するため、レスポンスに含めないでください。`;
 
 const CARE_PROMPT = `介護保険型として作成してください。
-長期目標・短期目標をそれぞれ評価し、達成状況、利用者の様子、支援上の留意点・課題、今後の方針・計画見直しの必要性を整理してください。
+長期目標・短期目標は、対象期間の事実と具体的に結び付くものだけ評価してください。根拠がない目標の評価は出力しないでください。
+今後の方針・計画見直しは、計画に対する具体的な問題又は支援上の課題が確認できる場合だけ記載してください。
 見直しはサービス提供責任者として情報共有・提案が必要かを示すに留め、ケアプラン変更を指示、決定、確約しないでください。`;
 
 const DISABILITY_PROMPT = `障害福祉等の簡易モニタリング型として作成してください。
-援助目標と実際の支援状況を対応付け、相談支援専門員が経過を把握できる簡潔な文章にしてください。
+援助目標と実際の支援状況を対応付けられる場合だけ、相談支援専門員が経過を把握できる簡潔な文章にしてください。根拠がない目標の評価は出力しないでください。
 個別支援計画の変更や専門判断を断定しないでください。
 見直しが必要と考えられる場合も、相談支援専門員への情報共有・提案に留めてください。`;
 
@@ -140,6 +144,15 @@ function record(value: unknown): Record<string, unknown> {
 
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function goalEvaluationValue(value: unknown): string {
+  const text = stringValue(value);
+  // 「確認できない」だけで終わる評価はモニタリングに載せない。
+  // 具体的な支援・様子があっても、目標への評価をできない結論なら同様に省く。
+  return /確認(?:が)?できません|判断(?:が)?できません|情報不足|記録不足/.test(text)
+    ? ""
+    : text;
 }
 
 export async function generateMonitoringWithAi(params: {
@@ -202,9 +215,7 @@ export async function generateMonitoringWithAi(params: {
     generatedByGoal.set(goalId, {
       goal_id: goalId,
       achievement,
-      evaluation:
-        stringValue(goal.evaluation) ||
-        "対象期間について、評価に足る事実を十分に確認できませんでした。",
+      evaluation: goalEvaluationValue(goal.evaluation),
       evidence_record_ids: sanitizeEvidenceIds(
         goal.evidence_record_ids,
         allowedEvidenceIds,
@@ -219,7 +230,7 @@ export async function generateMonitoringWithAi(params: {
       generatedByGoal.get(sourceGoal.goal_id) ?? {
         goal_id: sourceGoal.goal_id,
         achievement: "insufficient_evidence",
-        evaluation: "対象期間について、評価に足る事実を十分に確認できませんでした。",
+        evaluation: "",
         evidence_record_ids: [],
         review_required: false,
         review_content: "",

@@ -382,9 +382,9 @@ export default function MonitoringEditorPage() {
                         </select>
                       </div>
                       <div className="mt-4 space-y-3">
-                        <TextArea label="特記事項／目標達成状況に対する事業所および利用者・家族の評価" value={goal.evaluation_text} disabled={!canManage} rows={5} onChange={(value) => updateGoal(goal.id, { evaluation_text: value })} />
-                        <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={goal.review_required} disabled={!canManage} onChange={(event) => updateGoal(goal.id, { review_required: event.target.checked })} />今後の方針・計画見直しに関する情報共有が必要</label>
-                        <TextArea label="変更内容・共有事項" value={goal.review_content} disabled={!canManage} onChange={(value) => updateGoal(goal.id, { review_content: value })} />
+                        <TextArea label="特記事項／目標達成状況に対する事業所および利用者・家族の評価（確認できた場合のみ）" value={goal.evaluation_text} disabled={!canManage} rows={5} onChange={(value) => updateGoal(goal.id, { evaluation_text: value })} />
+                        <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={goal.review_required} disabled={!canManage} onChange={(event) => updateGoal(goal.id, { review_required: event.target.checked })} />今後の方針・計画見直しに関する情報共有が必要（具体的な問題・課題がある場合のみ）</label>
+                        <TextArea label="変更内容・共有事項（具体的な問題・課題がある場合のみ）" value={goal.review_content} disabled={!canManage} onChange={(value) => updateGoal(goal.id, { review_content: value })} />
                         <details className="rounded-md border bg-slate-50 p-3">
                           <summary className="cursor-pointer text-sm font-semibold text-blue-800">AI判断の根拠を見る（{goal.ai_evidence_json.length}件）</summary>
                           <div className="mt-3 space-y-2">

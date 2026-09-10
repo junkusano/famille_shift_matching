@@ -88,6 +88,17 @@ export function effectiveOfficeNotice(individual: unknown, monthly: unknown): st
   return typeof monthly === "string" ? monthly : "";
 }
 
+/** 目標に紐づく評価・共有事項がある場合だけ、帳票に表示する。 */
+export function hasMonitoringGoalComment(
+  evaluationText: unknown,
+  reviewContent: unknown,
+): boolean {
+  return (
+    (typeof evaluationText === "string" && evaluationText.trim().length > 0) ||
+    (typeof reviewContent === "string" && reviewContent.trim().length > 0)
+  );
+}
+
 /** OCRで目標の末尾につながったサービス時間・回数の帳票欄を除く。 */
 export function cleanMonitoringGoalText(value: string): string {
   const serviceField = /[■□☑☐]\s*(?:身体(?:介護)?|家事(?:援助)?|重訪|重度訪問介護|通院|乗降|同行|行動援護)\s*(?:[（(]\s*伴(?:う|ず)\s*[）)])?\s*(?:[0-9０-９]+(?:[.．][0-9０-９]+)?\s*)?(?:時間|回数)/;

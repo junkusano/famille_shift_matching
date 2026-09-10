@@ -27,14 +27,6 @@ export async function POST(request: NextRequest, { params }: Context) {
         { status: 400 },
       );
     }
-    const missingEvaluation = goals.find((goal) => !goal.evaluation_text.trim());
-    if (missingEvaluation) {
-      return NextResponse.json(
-        { ok: false, error: `「${missingEvaluation.goal_text}」の評価文を入力してください` },
-        { status: 400 },
-      );
-    }
-
     const confirmedAt = new Date().toISOString();
     const { error } = await supabaseAdmin
       .from("client_monitorings")

@@ -12,6 +12,7 @@ import {
   MONITORING_ACHIEVEMENT_LABELS,
   MONITORING_SERVICE_LABELS,
   formatMonitoringPeriod,
+  hasMonitoringGoalComment,
 } from "./core";
 
 type PdfContext = {
@@ -119,6 +120,9 @@ function sharedStyles(fontCss: string): string {
 
 function careInsuranceBody(snapshot: MonitoringPdfSnapshot): string {
   const { monitoring, goals, context } = snapshot;
+  const evaluatedGoals = goals.filter((goal) =>
+    hasMonitoringGoalComment(goal.evaluation_text, goal.review_content),
+  );
   return `
     <div class="meta"><span>${escapeHtml(
       MONITORING_SERVICE_LABELS[monitoring.service_type],
@@ -143,8 +147,8 @@ function careInsuranceBody(snapshot: MonitoringPdfSnapshot): string {
       <tr><th>解決すべき課題</th><td>${multiline(monitoring.issues)}</td></tr>
       <tr><th>全体経過</th><td class="summary">${multiline(monitoring.summary)}</td></tr>
     </table>
-    <h2>目標ごとの評価</h2>
-    ${goals
+    ${evaluatedGoals.length > 0 ? `<h2>目標ごとの評価</h2>
+    ${evaluatedGoals
       .map(
         (goal) => `
       <table class="goal">
@@ -156,11 +160,11 @@ function careInsuranceBody(snapshot: MonitoringPdfSnapshot): string {
         )} ～ ${escapeHtml(goal.evaluation_end ?? "")}</td><th style="width:12%">達成状況</th><td style="width:16%">${escapeHtml(
           MONITORING_ACHIEVEMENT_LABELS[goal.achievement_status],
         )}</td><th style="width:14%">見直し必要性</th><td>${goal.review_required ? "あり" : "なし"}</td></tr>
-        <tr><th>特記事項／評価</th><td colspan="5">${multiline(goal.evaluation_text)}</td></tr>
-        <tr><th>変更内容・共有事項</th><td colspan="5">${multiline(goal.review_content)}</td></tr>
+        ${goal.evaluation_text.trim() ? `<tr><th>特記事項／評価</th><td colspan="5">${multiline(goal.evaluation_text)}</td></tr>` : ""}
+        ${goal.review_content.trim() ? `<tr><th>変更内容・共有事項</th><td colspan="5">${multiline(goal.review_content)}</td></tr>` : ""}
       </table>`,
       )
-      .join("")}
+      .join("")}` : ""}
     <table class="section"><tr><th class="label">事業所より</th><td class="notice">${multiline(
       monitoring.office_notice,
     )}</td></tr></table>
@@ -169,6 +173,9 @@ function careInsuranceBody(snapshot: MonitoringPdfSnapshot): string {
 
 function disabilityBody(snapshot: MonitoringPdfSnapshot): string {
   const { monitoring, goals, context } = snapshot;
+  const evaluatedGoals = goals.filter((goal) =>
+    hasMonitoringGoalComment(goal.evaluation_text, goal.review_content),
+  );
   const teamContactText = (context.team_contacts ?? [])
     .map((contact) => `${escapeHtml(contact.name)}　TEL: ${escapeHtml(contact.phone ?? "電話番号未登録")}`)
     .join("<br />") || "担当者未登録";
@@ -179,9 +186,16 @@ function disabilityBody(snapshot: MonitoringPdfSnapshot): string {
     .join("\n");
   const monitoringText = [
     monitoring.summary,
-    ...goals.map(
+    ...evaluatedGoals.map(
       (goal) =>
-        `【${goal.goal_text}】${MONITORING_ACHIEVEMENT_LABELS[goal.achievement_status]}：${goal.evaluation_text}`,
+        [
+          goal.evaluation_text.trim()
+            ? `【${goal.goal_text}】${MONITORING_ACHIEVEMENT_LABELS[goal.achievement_status]}：${goal.evaluation_text}`
+            : "",
+          goal.review_content.trim() ? `共有事項：${goal.review_content}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
     ),
   ]
     .filter(Boolean)
