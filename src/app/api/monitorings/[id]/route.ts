@@ -27,6 +27,7 @@ export async function GET(request: NextRequest, { params }: Context) {
         clientInfoId: monitoring.client_info_id,
         periodStart: monitoring.period_start,
         periodEnd: monitoring.period_end,
+        evaluationDate: monitoring.evaluation_date,
       }),
       supabaseAdmin
         .from("monitoring_fax_history")
@@ -82,6 +83,7 @@ export async function PUT(request: NextRequest, { params }: Context) {
       clientInfoId: monitoring.client_info_id,
       periodStart: monitoring.period_start,
       periodEnd: monitoring.period_end,
+      evaluationDate: monitoring.evaluation_date,
     });
     const allowedEvidenceIds = new Set(context.visit_records.map((visit) => visit.evidence_id));
     const invalidatesPdf = ["confirmed", "pdf_final", "fax_sent"].includes(monitoring.status);

@@ -319,7 +319,7 @@ export default function MonitoringEditorPage() {
               >
                 ← モニタリング一覧
               </Link>
-              <h1 className="mt-2 text-2xl font-bold">{String(data.context.client.name ?? "利用者")} 様　モニタリング</h1>
+              <h1 className="mt-2 text-2xl font-bold"><Link href={`/portal/kaipoke-info-detail/${clientInfoId}`} className="text-blue-700 hover:underline">{String(data.context.client.name ?? "利用者")} 様</Link>　モニタリング</h1>
               <div className="mt-2 flex flex-wrap gap-2 text-sm">
                 <span className="rounded-full bg-slate-200 px-3 py-1 font-semibold">{MONITORING_STATUS_LABELS[draft.status]}</span>
                 <span className="rounded-full bg-blue-100 px-3 py-1 text-blue-900">{MONITORING_SERVICE_LABELS[draft.service_type]}</span>

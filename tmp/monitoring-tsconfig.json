@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": ["../src/lib/monitoring/**/*.ts", "../src/app/api/monitorings/**/*.ts", "../src/components/MonitoringBulkAdmin.tsx", "../src/app/portal/admin/monitoring-office-notice/page.tsx"],
+  "exclude": ["../node_modules", "../tmp"]
+}

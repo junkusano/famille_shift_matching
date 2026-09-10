@@ -30,7 +30,7 @@ export function calculateAutomationNextRunAt(
 
   if (triggerType === "interval") {
     const minutes = Number(schedule.minutes);
-    if (!Number.isInteger(minutes) || minutes < 5 || minutes > 1_440) return null;
+    if (!Number.isInteger(minutes) || minutes < 5 || minutes > 10_080) return null;
     return new Date(from.getTime() + minutes * 60_000).toISOString();
   }
 
@@ -46,6 +46,19 @@ export function calculateAutomationNextRunAt(
     const [hours, minutes] = first.split(":").map(Number);
     const tomorrow = fromJstParts(current.year, current.month, current.day + 1, hours, minutes);
     return tomorrow.toISOString();
+  }
+
+  if (triggerType === "weekly") {
+    const dayOfWeek = Number(schedule.dayOfWeek);
+    const time = schedule.time;
+    if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6 || !time || !TIME_PATTERN.test(time)) return null;
+    const [hours, minutes] = time.split(":").map(Number);
+    const shifted = new Date(from.getTime() + JST_OFFSET_MS);
+    const delta = (dayOfWeek - shifted.getUTCDay() + 7) % 7;
+    const candidate = fromJstParts(current.year, current.month, current.day + delta, hours, minutes);
+    if (candidate > from) return candidate.toISOString();
+    candidate.setUTCDate(candidate.getUTCDate() + 7);
+    return candidate.toISOString();
   }
 
   const day = Number(schedule.day);

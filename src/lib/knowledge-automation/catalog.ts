@@ -12,12 +12,14 @@ export const TASK_TYPE_LABELS: Record<AutomationTaskType, string> = {
   lesson_reminder: "再発防止策から教訓リマインド",
   billing_review: "請求管理表の定期レビュー",
   wordpress_blog: "WordPressブログ記事作成",
+  knowledge_diff: "差分ナレッジの抽出",
   custom: "その他の自動化",
 };
 
 export const TRIGGER_TYPE_LABELS: Record<AutomationTriggerType, string> = {
   interval: "一定間隔で確認",
   daily: "毎日決まった時刻",
+  weekly: "毎週決まった曜日・時刻",
   monthly: "毎月決まった日",
   event: "新しい情報を受け取ったとき",
   manual: "必要なときだけ手動実行",
@@ -47,6 +49,11 @@ export type AutomationTemplate = {
 };
 
 export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
+  {
+    key: "knowledge-diff", label: "週次の差分ナレッジ抽出",
+    summary: "前回の正常実行以降に変わったナレッジを横断し、判断に必要な変化だけを保存します。",
+    input: { name: "週次の差分ナレッジ抽出", description: "新規・更新ナレッジをまとめ、今回の変化と根拠を差分ナレッジとして保存します。", task_type: "knowledge_diff", trigger_type: "weekly", schedule: { dayOfWeek: 1, time: "03:30" }, destination: "none", approval_mode: "review_required", condition_summary: "前回正常終了以降に追加・更新された、個人情報を含まない現行ナレッジを対象にします。", settings: { operation: "knowledge_diff_extract", initial_lookback_days: 7, max_source_items: 200 }, is_enabled: true },
+  },
   {
     key: "system-diagnostics", label: "Vercel・Supabaseのエラー診断",
     summary: "エラーとDB警告をコード・過去ナレッジに照合し、修正候補を保存します。",

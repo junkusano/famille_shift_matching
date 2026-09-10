@@ -6,6 +6,7 @@ import { calculateAutomationNextRunAt } from "@/lib/knowledge-automation/schedul
 import type { KnowledgeAutomationTask } from "@/lib/knowledge-automation/types";
 import { rewriteWordPressBlog } from "@/lib/knowledge-automation/wordpressRewrite";
 import { createWordPressBlogDraft } from "@/lib/knowledge-automation/wordpressBlog";
+import { runKnowledgeDiff } from "@/lib/knowledge/diff";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { WordPressApiError } from "@/lib/wordpress/server";
 
@@ -88,13 +89,22 @@ export async function runKnowledgeAutomationTask(input: {
   try {
     const isRewrite = task.settings.operation === "wordpress_blog_rewrite";
     const isDiagnostics = task.settings.operation === "system_diagnostics";
-    if (!isDiagnostics && ((!isRewrite && task.task_type !== "wordpress_blog") || task.destination !== "wordpress_post")) {
+    const isKnowledgeDiff = task.settings.operation === "knowledge_diff_extract";
+    if (!isDiagnostics && !isKnowledgeDiff && ((!isRewrite && task.task_type !== "wordpress_blog") || task.destination !== "wordpress_post")) {
       throw new Error("この種類の自動化はまだ実行処理が登録されていません。");
     }
-    const result = isDiagnostics ? await runSystemDiagnostics(task) : isRewrite ? await rewriteWordPressBlog(task, run.id) : await createWordPressBlogDraft(task);
+    const result = isDiagnostics
+      ? await runSystemDiagnostics(task)
+      : isKnowledgeDiff
+        ? await runKnowledgeDiff({ trigger: "schedule", dryRun: false, taskId: task.id })
+        : isRewrite
+          ? await rewriteWordPressBlog(task, run.id)
+          : await createWordPressBlogDraft(task);
     const finishedAt = new Date().toISOString();
     const diagnosisFailed = "audit" in result && "failed" in result.audit && result.audit.failed === true;
-    const status = diagnosisFailed ? "failed" : (result.status === "created" || result.status === "updated") ? "succeeded" : "skipped";
+    const status = diagnosisFailed ? "failed" : (result.status === "created" || result.status === "updated" || result.status === "succeeded") ? "succeeded" : "skipped";
+    const postId = "postId" in result ? result.postId ?? null : null;
+    const postLink = "postLink" in result ? result.postLink ?? null : null;
     const savedRun = await supabaseAdmin.from("knowledge_automation_runs").update({
       status,
       safety_result: "allowed",
@@ -104,9 +114,9 @@ export async function runKnowledgeAutomationTask(input: {
         message: result.message,
         sourceId: "sourceId" in result ? result.sourceId ?? null : null,
         sourceTitle: "sourceTitle" in result ? result.sourceTitle ?? null : null,
-        postId: result.postId ?? null,
+        postId,
       },
-      output_reference: result.postLink ?? null,
+      output_reference: postLink,
       finished_at: finishedAt,
       lease_expires_at: null,
     }).eq("id", run.id);
@@ -117,7 +127,7 @@ export async function runKnowledgeAutomationTask(input: {
       last_error_at: diagnosisFailed ? finishedAt : null,
       last_error_message: diagnosisFailed ? result.message : null,
     }).eq("id", task.id);
-    return { ok: !diagnosisFailed, status, message: result.message, outputReference: result.postLink ?? null };
+    return { ok: !diagnosisFailed, status, message: result.message, outputReference: postLink };
   } catch (error) {
     const safe = safeError(error);
     const finishedAt = new Date().toISOString();

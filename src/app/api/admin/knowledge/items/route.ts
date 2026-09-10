@@ -28,11 +28,15 @@ export async function GET(request: NextRequest) {
     .order("updated_at", { ascending: false })
     .range(from, from + perPage - 1);
 
-  const filters = ["knowledge_type", "category", "publishability", "review_status", "verification_status"] as const;
+  const filters = ["knowledge_type", "category", "publishability", "review_status", "verification_status", "stability", "confidentiality", "processing_status"] as const;
   for (const key of filters) {
     const value = request.nextUrl.searchParams.get(key);
     if (value) query = query.eq(key, value);
   }
+  const conceptLevel = request.nextUrl.searchParams.get("concept_level");
+  if (conceptLevel && /^[1-4]$/.test(conceptLevel)) query = query.eq("concept_level", Number(conceptLevel));
+  const importance = request.nextUrl.searchParams.get("importance");
+  if (importance && /^[1-5]$/.test(importance)) query = query.eq("importance", Number(importance));
   const privacy = request.nextUrl.searchParams.get("privacy_level");
   if (privacy && /^[0-3]$/.test(privacy)) query = query.eq("privacy_level", Number(privacy));
   const sourceId = request.nextUrl.searchParams.get("source_id");

@@ -10,7 +10,7 @@ import type {
   MonitoringTeamContact,
   MonitoringVisitRecord,
 } from "@/types/monitoring";
-import { detectMonitoringServiceType, monitoringContactWarnings } from "./core";
+import { cleanMonitoringGoalText, detectMonitoringServiceType, monitoringContactWarnings } from "./core";
 import { getMonitoringMonthlyNotice } from "./notices";
 import { loadMonitoringSignedPlan } from "./signed-plan";
 
@@ -101,7 +101,7 @@ async function loadGoals(planId: string | null): Promise<MonitoringSourceGoal[]>
       goal_id: longId,
       parent_goal_id: null,
       goal_type: "long_term",
-      goal_text: text(longGoal.goal_text),
+      goal_text: cleanMonitoringGoalText(text(longGoal.goal_text)),
       evaluation_start: nullableText(longGoal.goal_start_date),
       evaluation_end: nullableText(longGoal.goal_end_date),
     });
@@ -112,7 +112,7 @@ async function loadGoals(planId: string | null): Promise<MonitoringSourceGoal[]>
         goal_id: text(shortGoal.plan_short_term_goal_id),
         parent_goal_id: longId,
         goal_type: "short_term",
-        goal_text: text(shortGoal.goal_text),
+        goal_text: cleanMonitoringGoalText(text(shortGoal.goal_text)),
         evaluation_start: nullableText(shortGoal.goal_start_date),
         evaluation_end: nullableText(shortGoal.goal_end_date),
       });
@@ -227,8 +227,9 @@ export async function loadMonitoringContext(params: {
   clientInfoId: string;
   periodStart: string;
   periodEnd: string;
+  evaluationDate?: string;
 }): Promise<MonitoringContext> {
-  const { clientInfoId, periodStart, periodEnd } = params;
+  const { clientInfoId, periodStart, periodEnd, evaluationDate } = params;
   const { data: clientRow, error: clientError } = await supabaseAdmin
     .from("cs_kaipoke_info")
     .select(
@@ -307,6 +308,10 @@ export async function loadMonitoringContext(params: {
     null;
   const planId = plan ? text(plan.plan_id) : null;
   const signedPlan = await loadMonitoringSignedPlan({ kaipokeCsId, periodEnd });
+  const serviceTypeDetected = detectMonitoringServiceType(
+    client.service_kind,
+    plan?.plan_document_kind,
+  );
   const planGoals = await loadGoals(planId);
   const goals = planGoals.length > 0
     ? planGoals
@@ -314,17 +319,12 @@ export async function loadMonitoringContext(params: {
       ? [{
           goal_id: `cs_doc:${signedPlan.cs_doc_id}:assistance`,
           parent_goal_id: null,
-          goal_type: "assistance" as const,
+          goal_type: serviceTypeDetected === "care_insurance" ? "long_term" as const : "assistance" as const,
           goal_text: signedPlan.assistance_goal,
           evaluation_start: signedPlan.document_date || null,
           evaluation_end: null,
         }]
       : [];
-
-  const serviceTypeDetected = detectMonitoringServiceType(
-    client.service_kind,
-    plan?.plan_document_kind,
-  );
 
   const evidenceRecords: MonitoringVisitRecord[] = visits
     .filter((row) => text(row.tokutei_comment))
@@ -367,13 +367,15 @@ export async function loadMonitoringContext(params: {
   const officeName = "ファミーユヘルパーサービス愛知";
 
   const monthlyNotice = serviceTypeDetected
-    ? await getMonitoringMonthlyNotice({ serviceType: serviceTypeDetected, periodEnd })
+    ? await getMonitoringMonthlyNotice({
+        serviceType: serviceTypeDetected,
+        evaluationDate: evaluationDate || periodEnd,
+      })
     : null;
   const officeNotice = text(monthlyNotice?.body);
 
   const warnings: string[] = [];
-  if (!assessmentResult.data) warnings.push("対象期間以前のアセスメントがありません");
-  if (!plan) warnings.push("対象期間に有効なプランがありません");
+  if (!plan && !signedPlan) warnings.push("対象期間に有効なプランがありません");
   if (goals.length === 0) warnings.push("長期／短期目標がありません");
   if (evidenceRecords.length === 0) warnings.push("対象期間の訪問記録がありません");
   const hasRegisteredContact = Boolean(

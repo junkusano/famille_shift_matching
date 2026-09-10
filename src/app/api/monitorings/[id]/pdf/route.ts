@@ -66,6 +66,7 @@ export async function POST(request: NextRequest, { params }: Context) {
         clientInfoId: monitoring.client_info_id,
         periodStart: monitoring.period_start,
         periodEnd: monitoring.period_end,
+        evaluationDate: monitoring.evaluation_date,
       }),
       supabaseAdmin
         .from("client_monitoring_pdf_snapshots")

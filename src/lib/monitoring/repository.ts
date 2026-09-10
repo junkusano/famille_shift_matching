@@ -1,6 +1,6 @@
 import "server-only";
 
-import { buildMonitoringPdfFilename } from "@/lib/monitoring/core";
+import { buildMonitoringPdfFilename, cleanMonitoringGoalText } from "@/lib/monitoring/core";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import type { MonitoringGoal, MonitoringRecord } from "@/types/monitoring";
 
@@ -24,6 +24,7 @@ export async function getMonitoringGoals(id: string): Promise<MonitoringGoal[]> 
   if (error) throw error;
   return ((data ?? []) as MonitoringGoal[]).map((goal) => ({
     ...goal,
+    goal_text: cleanMonitoringGoalText(goal.goal_text),
     ai_evidence_json: Array.isArray(goal.ai_evidence_json) ? goal.ai_evidence_json : [],
   }));
 }

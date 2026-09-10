@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Save } from "lucide-react";
 import { useRoleContext } from "@/context/RoleContext";
 import { supabase } from "@/lib/supabaseClient";
+import MonitoringBulkAdmin from "@/components/MonitoringBulkAdmin";
 
 type Notice = {
   id: string;
@@ -100,10 +101,10 @@ export default function MonitoringOfficeNoticePage() {
 
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-8">
-      <div className="mx-auto max-w-3xl space-y-5">
+      <div className="mx-auto max-w-7xl space-y-5">
         <header>
-          <p className="text-sm text-slate-500">介護保険モニタリング</p>
-          <h1 className="text-2xl font-bold text-slate-900">モニタリング「事業所より」設定</h1>
+          <p className="text-sm text-slate-500">介護保険・障害福祉サービス</p>
+          <h1 className="text-2xl font-bold text-slate-900">モニタリング管理</h1>
           <p className="mt-2 text-sm text-slate-600">
             個別の「事業所より」が未入力の場合に使う、月ごとの共通お知らせです。
           </p>
@@ -112,7 +113,9 @@ export default function MonitoringOfficeNoticePage() {
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">{error}</div>}
         {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">{message}</div>}
 
+        <MonitoringBulkAdmin />
         <section className="rounded-xl border bg-white p-5 shadow-sm">
+          <h2 className="mb-4 text-xl font-bold">「事業所より」設定</h2>
           <label className="block max-w-xs text-sm font-medium">
             対象年月
             <input
