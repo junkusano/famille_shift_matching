@@ -82,6 +82,7 @@ type Props = {
   processingStatus: CmProcessingStatus | null;
   loading: boolean;
   onRefresh: () => void;
+  onRunOcr: () => Promise<{ textLength?: number }>;
 
   currentPage: number;
   currentPageData: CmFaxPage | null;
@@ -141,6 +142,7 @@ export function CmFaxDetailContent({
   processingStatus,
   loading,
   onRefresh,
+  onRunOcr,
   currentPage,
   currentPageData,
   pageOrder,
@@ -182,6 +184,7 @@ export function CmFaxDetailContent({
   const [activeTab, setActiveTab] = useState<CmFaxDetailTabId>('assign');
   const [isOfficeModalOpen, setIsOfficeModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRunningOcr, setIsRunningOcr] = useState(false);
   const [draggedPage, setDraggedPage] = useState<number | null>(null);
 
   // 現在のページが割り当てられている書類
@@ -348,6 +351,18 @@ export function CmFaxDetailContent({
         processingStatus={processingStatus}
         loading={loading}
         onRefresh={onRefresh}
+        onRunOcr={async () => {
+          setIsRunningOcr(true);
+          try {
+            const result = await onRunOcr();
+            success(`ABBYY OCR完了（${result.textLength ?? 0}文字）`);
+          } catch (err) {
+            error(err instanceof Error ? err.message : 'OCRに失敗しました');
+          } finally {
+            setIsRunningOcr(false);
+          }
+        }}
+        isRunningOcr={isRunningOcr}
         onAddOffice={() => setIsOfficeModalOpen(true)}
       />
 

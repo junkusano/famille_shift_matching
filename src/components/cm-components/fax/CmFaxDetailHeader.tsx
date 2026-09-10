@@ -14,7 +14,7 @@
 
 import React, { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, Building2, Plus } from 'lucide-react';
+import { ChevronLeft, Building2, Plus, ScanText } from 'lucide-react';
 import type {
   CmFaxReceived,
   CmFaxReceivedOffice,
@@ -27,6 +27,8 @@ type Props = {
   processingStatus: CmProcessingStatus | null;
   loading: boolean;
   onRefresh: () => void;
+  onRunOcr: () => void;
+  isRunningOcr: boolean;
   onAddOffice: () => void;
 };
 
@@ -35,6 +37,8 @@ export function CmFaxDetailHeader({
   offices,
   processingStatus,
   onAddOffice,
+  onRunOcr,
+  isRunningOcr,
   // loading, onRefresh は現在のデザインでは使用しないが、後方互換性のため残す
 }: Props) {
   const router = useRouter();
@@ -93,7 +97,16 @@ export function CmFaxDetailHeader({
         </div>
 
         {/* 進捗バー */}
-        <div className="flex items-center gap-3 text-sm">
+          <div className="flex items-center gap-3 text-sm">
+          <button
+            onClick={onRunOcr}
+            disabled={isRunningOcr}
+            className="inline-flex items-center gap-1.5 rounded bg-teal-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-teal-700 disabled:opacity-60"
+            title="このFAXの1ページ目をABBYYでOCR"
+          >
+            <ScanText className={`h-3.5 w-3.5 ${isRunningOcr ? 'animate-pulse' : ''}`} />
+            {isRunningOcr ? 'OCR中...' : 'ABBYYテスト'}
+          </button>
           <span className="text-gray-500">
             <span className="font-bold text-teal-600">{assignedPages}</span>
             <span className="text-gray-400"> / {totalPages} 完了</span>

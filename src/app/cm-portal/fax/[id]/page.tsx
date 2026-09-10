@@ -28,6 +28,17 @@ export default function CmFaxDetailPage() {
     ...rest
   } = useCmFaxDetail(faxId);
 
+  const runOcrTest = async () => {
+    const response = await fetch(`/api/cm/fax/${faxId}/ocr`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || 'OCRに失敗しました');
+    await refresh();
+    return result;
+  };
+
   // ---------------------------------------------------------
   // バリデーション
   // ---------------------------------------------------------
@@ -96,6 +107,7 @@ export default function CmFaxDetailPage() {
       fax={fax}
       loading={loading}
       onRefresh={refresh}
+      onRunOcr={runOcrTest}
       {...rest}
     />
   );

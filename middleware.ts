@@ -92,6 +92,7 @@ export async function middleware(req: NextRequest) {
       '/portal/admin/monitoring-office-notice',
       '/portal/admin/website',
       '/portal/admin/health-check-results',
+      '/portal/roster/daily-beta',
     ]
 
     const isAdminPath = adminOnlyPaths.some((path) => pathname.startsWith(path))
