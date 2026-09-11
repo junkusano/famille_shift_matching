@@ -468,11 +468,9 @@ export default function KnowledgeAutomationPage() {
                 <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700"><CheckCircle2 size={15} aria-hidden />安全チェック適用</div>
                 <div className="flex flex-wrap gap-2">
                   {task.settings.operation === "system_diagnostics" && <button type="button" onClick={() => void showDiagnostics(task)} className="rounded-lg border px-4 py-2 text-sm">診断結果を見る</button>}
-                  {(task.task_type === "wordpress_blog" || task.settings.operation === "wordpress_blog_rewrite" || task.settings.operation === "system_diagnostics") && (
-                    <button type="button" disabled={runningId === task.id} onClick={() => void runNow(task)} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                  <button type="button" disabled={runningId === task.id} onClick={() => void runNow(task)} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
                       <Play size={15} aria-hidden />{runningId === task.id ? "実行中…" : "今すぐ実行"}
                     </button>
-                  )}
                   <button type="button" disabled={savingId === task.id} onClick={() => void toggle(task)} className={`rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 ${task.is_enabled ? "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}>{savingId === task.id ? "変更中…" : task.is_enabled ? "停止する" : "有効にする"}</button>
                 </div>
               </div>
