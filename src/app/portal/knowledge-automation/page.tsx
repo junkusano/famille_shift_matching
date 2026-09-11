@@ -58,9 +58,12 @@ function taskInput(task: KnowledgeAutomationTask): KnowledgeAutomationTaskInput 
   };
 }
 
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+
 function scheduleLabel(task: Pick<KnowledgeAutomationTaskInput, "trigger_type" | "schedule">) {
   if (task.trigger_type === "interval") return `${task.schedule.minutes ?? "—"}分ごと`;
   if (task.trigger_type === "daily") return `毎日 ${(task.schedule.times ?? []).join("・") || "時刻未設定"}`;
+  if (task.trigger_type === "weekly") return `毎週${WEEKDAY_LABELS[task.schedule.dayOfWeek ?? -1] ?? "—"}曜日 ${task.schedule.time ?? "時刻未設定"}`;
   if (task.trigger_type === "monthly") return `毎月${task.schedule.day ?? "—"}日 ${task.schedule.time ?? "—"}`;
   if (task.trigger_type === "event") return "新しい対象情報を受け取ったとき";
   return "手動実行";
@@ -278,6 +281,18 @@ export default function KnowledgeAutomationPage() {
                 {Object.entries(DESTINATION_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
+            {(form.destination === "lineworks_message" || form.destination === "lineworks_board") && (
+              <label className="text-sm font-medium md:col-span-2">LINE WORKSチャンネルID
+                <input
+                  value={typeof form.settings?.lineworksChannelId === "string" ? form.settings.lineworksChannelId : ""}
+                  onChange={(event) => setForm({ ...form, settings: { ...(form.settings ?? {}), lineworksChannelId: event.target.value.trim() } })}
+                  inputMode="numeric"
+                  className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                  placeholder="例：146763225"
+                />
+                <span className="mt-1 block text-xs font-normal text-slate-500">LINE WORKSへ送信するグループまたは掲示先のチャンネルIDです。</span>
+              </label>
+            )}
             <label className="text-sm font-medium md:col-span-2">説明
               <textarea value={form.description ?? ""} onChange={(event) => setForm({ ...form, description: event.target.value })} maxLength={500} rows={2} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" placeholder="この自動化の目的を入力します" />
             </label>
@@ -333,7 +348,15 @@ export default function KnowledgeAutomationPage() {
             <label className="text-sm font-medium">実行するタイミング
               <select value={form.trigger_type} onChange={(event) => {
                 const triggerType = event.target.value as AutomationTriggerType;
-                setForm({ ...form, trigger_type: triggerType, schedule: triggerType === "daily" ? { times: ["09:00"] } : {} });
+                setForm({
+                  ...form,
+                  trigger_type: triggerType,
+                  schedule: triggerType === "daily"
+                    ? { times: ["09:00"] }
+                    : triggerType === "weekly"
+                      ? { dayOfWeek: 4, time: "09:00" }
+                      : {},
+                });
               }} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5">
                 {Object.entries(TRIGGER_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
@@ -380,6 +403,16 @@ export default function KnowledgeAutomationPage() {
                     <Plus size={16} aria-hidden /> 時刻を追加
                   </button>
                 </div>
+              </div>}
+              {form.trigger_type === "weekly" && <div className="grid grid-cols-2 gap-2">
+                <label>曜日
+                  <select value={form.schedule.dayOfWeek ?? 4} onChange={(event) => setForm({ ...form, schedule: { ...form.schedule, dayOfWeek: Number(event.target.value) } })} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5">
+                    {WEEKDAY_LABELS.map((label, index) => <option key={label} value={index}>{label}曜日</option>)}
+                  </select>
+                </label>
+                <label>時刻
+                  <input type="time" value={form.schedule.time ?? "09:00"} onChange={(event) => setForm({ ...form, schedule: { ...form.schedule, time: event.target.value } })} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" />
+                </label>
               </div>}
               {form.trigger_type === "monthly" && <div className="grid grid-cols-2 gap-2">
                 <label>毎月何日
@@ -468,11 +501,9 @@ export default function KnowledgeAutomationPage() {
                 <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700"><CheckCircle2 size={15} aria-hidden />安全チェック適用</div>
                 <div className="flex flex-wrap gap-2">
                   {task.settings.operation === "system_diagnostics" && <button type="button" onClick={() => void showDiagnostics(task)} className="rounded-lg border px-4 py-2 text-sm">診断結果を見る</button>}
-                  {(task.task_type === "wordpress_blog" || task.settings.operation === "wordpress_blog_rewrite" || task.settings.operation === "system_diagnostics") && (
-                    <button type="button" disabled={runningId === task.id} onClick={() => void runNow(task)} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                  <button type="button" disabled={runningId === task.id} onClick={() => void runNow(task)} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
                       <Play size={15} aria-hidden />{runningId === task.id ? "実行中…" : "今すぐ実行"}
                     </button>
-                  )}
                   <button type="button" disabled={savingId === task.id} onClick={() => void toggle(task)} className={`rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 ${task.is_enabled ? "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}>{savingId === task.id ? "変更中…" : task.is_enabled ? "停止する" : "有効にする"}</button>
                 </div>
               </div>
