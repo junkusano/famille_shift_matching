@@ -7,6 +7,7 @@ import type { KnowledgeAutomationTask } from "@/lib/knowledge-automation/types";
 import { rewriteWordPressBlog } from "@/lib/knowledge-automation/wordpressRewrite";
 import { createWordPressBlogDraft } from "@/lib/knowledge-automation/wordpressBlog";
 import { runKnowledgeDiff } from "@/lib/knowledge/diff";
+import { runExternalInformationAutomation } from "@/lib/knowledge-automation/externalInformation";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { WordPressApiError } from "@/lib/wordpress/server";
 
@@ -90,16 +91,19 @@ export async function runKnowledgeAutomationTask(input: {
     const isRewrite = task.settings.operation === "wordpress_blog_rewrite";
     const isDiagnostics = task.settings.operation === "system_diagnostics";
     const isKnowledgeDiff = task.settings.operation === "knowledge_diff_extract";
-    if (!isDiagnostics && !isKnowledgeDiff && ((!isRewrite && task.task_type !== "wordpress_blog") || task.destination !== "wordpress_post")) {
+    const externalResult = await runExternalInformationAutomation(task);
+    if (!externalResult && !isDiagnostics && !isKnowledgeDiff && ((!isRewrite && task.task_type !== "wordpress_blog") || task.destination !== "wordpress_post")) {
       throw new Error("この種類の自動化はまだ実行処理が登録されていません。");
     }
-    const result = isDiagnostics
-      ? await runSystemDiagnostics(task)
-      : isKnowledgeDiff
-        ? await runKnowledgeDiff({ trigger: "schedule", dryRun: false, taskId: task.id })
-        : isRewrite
-          ? await rewriteWordPressBlog(task, run.id)
-          : await createWordPressBlogDraft(task);
+    const result = externalResult
+      ? externalResult
+      : isDiagnostics
+        ? await runSystemDiagnostics(task)
+        : isKnowledgeDiff
+          ? await runKnowledgeDiff({ trigger: "schedule", dryRun: false, taskId: task.id })
+          : isRewrite
+            ? await rewriteWordPressBlog(task, run.id)
+            : await createWordPressBlogDraft(task);
     const finishedAt = new Date().toISOString();
     const diagnosisFailed = "audit" in result && "failed" in result.audit && result.audit.failed === true;
     const status = diagnosisFailed ? "failed" : (result.status === "created" || result.status === "updated" || result.status === "succeeded") ? "succeeded" : "skipped";
