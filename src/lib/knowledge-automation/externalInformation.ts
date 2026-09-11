@@ -32,7 +32,7 @@ function readableText(html: string) {
 }
 
 async function priorityEventSources() {
-  const results = await Promise.all(PRIORITY_EVENT_SOURCES.map(async (source) => {
+  return Promise.all(PRIORITY_EVENT_SOURCES.map(async (source) => {
     try {
       const response = await fetch(source.url, { headers: { "User-Agent": "myfamille-event-automation/1.0" }, cache: "no-store" });
       if (!response.ok) return { ...source, excerpt: "取得失敗" };
@@ -41,7 +41,30 @@ async function priorityEventSources() {
       return { ...source, excerpt: "取得失敗" };
     }
   }));
-  return results.map((source) => `【${source.name}】${source.url}\n${source.excerpt}`).join("\n\n");
+}
+
+function prioritySourcesPrompt(sources: Awaited<ReturnType<typeof priorityEventSources>>) {
+  return sources.map((source) => `【${source.name}】${source.url}\n${source.excerpt}`).join("\n\n");
+}
+
+function isApprovedEventUrl(value: string) {
+  try {
+    const host = new URL(value).hostname.replace(/^www\\./, "");
+    return ["nagoyachaya.aeonmall.jp", "aeon.jp", "mitsui-shopping-park.com", "matsuzakaya.co.jp", "jma.go.jp"].some(
+      (domain) => host === domain || host.endsWith(`.${domain}`),
+    );
+  } catch {
+    return false;
+  }
+}
+
+function validateEventDigest(text: string) {
+  validateEventDigest(text);
+
+  const urls = Array.from(text.matchAll(/https?:\\/\\/[^\\s)]+/g), (match) => match[0]);
+  if (urls.length === 0 || urls.some((url) => !isApprovedEventUrl(url))) {
+    throw new Error("優先する公式サイト以外、または根拠URLのない候補が含まれるため、配信を中止しました。");
+  }
 }
 
 function textSetting(task: KnowledgeAutomationTask, key: string) {
@@ -81,6 +104,7 @@ function isEventDigest(task: KnowledgeAutomationTask) {
 }
 
 async function createEventDigest(task: KnowledgeAutomationTask) {
+  const prioritySources = await priorityEventSources();
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const response = await openai.responses.create({
     model: process.env.KNOWLEDGE_AUTOMATION_MODEL || "gpt-4.1-mini",
@@ -110,7 +134,7 @@ async function createEventDigest(task: KnowledgeAutomationTask) {
           "タスク名: " + task.name,
           "目的: " + (task.description ?? ""),
           "条件: " + (task.condition_summary ?? ""),
-          "優先公式ソースの取得内容:\n" + await priorityEventSources(),
+          "優先公式ソースの取得内容:\n" + prioritySourcesPrompt(prioritySources),
         ].join("\n"),
       },
     ],
