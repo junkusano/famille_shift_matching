@@ -148,7 +148,8 @@ async function addUserToGroup(params: {
 /**
  * メンション付き送信の共通処理。
  *
- * まず通常送信を試し、失敗時だけ、メンション対象を送付先グループへ追加して再送する。
+ * まず通常送信を試し、失敗時は利用者様情報連携グループに限り対象者を追加する。
+ * その他のグループや種別不明の場合は追加せず、メンションを外して再送する。
  * 追加できないユーザーは再送本文に理由を記載し、該当ユーザーのメンションだけ外す。
  */
 export async function sendLWBotMentionMessage(
@@ -183,13 +184,23 @@ export async function sendLWBotMentionMessage(
   let groupResolveError: string | null = null;
   try {
     groupId = await resolveGroupId(args.channelId);
+    const { data: group, error } = await supabaseAdmin
+      .from("group_lw_channel_view")
+      .select("group_type")
+      .eq("group_id", groupId)
+      .maybeSingle();
+    if (error) throw new Error("グループ種別の取得に失敗しました: " + error.message);
+    if (group?.group_type !== "利用者様情報連携グループ") {
+      throw new Error("利用者様情報連携グループ以外、または種別不明のため自動追加しません");
+    }
   } catch (error) {
+    groupId = null;
     groupResolveError = error instanceof Error ? error.message : String(error);
   }
 
   let groupAccessToken = accessToken;
   let groupTokenError: string | null = null;
-  if (args.getGroupAccessToken) {
+  if (groupId && args.getGroupAccessToken) {
     try {
       groupAccessToken = await args.getGroupAccessToken();
     } catch (error) {

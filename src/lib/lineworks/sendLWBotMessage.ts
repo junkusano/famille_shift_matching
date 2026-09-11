@@ -1,5 +1,6 @@
 //lib/lineworks/sendLWBotMessage.ts
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { buildRecoveredMentionText, sendLWBotMentionMessage } from "@/lib/lineworks/sendLWBotMentionMessage";
 
 export async function sendLWBotMessage(
   channelId: string,
@@ -26,6 +27,21 @@ export async function sendLWBotMessage(
   }
 
   const botId = "6807751";
+  const mentions = Array.from(text.matchAll(/<m userId="([^"]+)">/g), (match) => ({
+    userId: match[1],
+    label: match[1],
+  }));
+  if (mentions.length > 0) {
+    await sendLWBotMentionMessage({
+      botId,
+      channelId: effectiveChannelId,
+      accessToken,
+      mentions,
+      buildText: (activeMentions, recoveryNotes) =>
+        buildRecoveredMentionText(text, mentions, activeMentions, recoveryNotes),
+    });
+    return true;
+  }
   const url = `https://www.worksapis.com/v1.0/bots/${botId}/channels/${effectiveChannelId}/messages`;
 
   const res = await fetch(url, {
