@@ -58,9 +58,12 @@ function taskInput(task: KnowledgeAutomationTask): KnowledgeAutomationTaskInput 
   };
 }
 
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+
 function scheduleLabel(task: Pick<KnowledgeAutomationTaskInput, "trigger_type" | "schedule">) {
   if (task.trigger_type === "interval") return `${task.schedule.minutes ?? "—"}分ごと`;
   if (task.trigger_type === "daily") return `毎日 ${(task.schedule.times ?? []).join("・") || "時刻未設定"}`;
+  if (task.trigger_type === "weekly") return `毎週${WEEKDAY_LABELS[task.schedule.dayOfWeek ?? -1] ?? "—"}曜日 ${task.schedule.time ?? "時刻未設定"}`;
   if (task.trigger_type === "monthly") return `毎月${task.schedule.day ?? "—"}日 ${task.schedule.time ?? "—"}`;
   if (task.trigger_type === "event") return "新しい対象情報を受け取ったとき";
   return "手動実行";
@@ -345,7 +348,15 @@ export default function KnowledgeAutomationPage() {
             <label className="text-sm font-medium">実行するタイミング
               <select value={form.trigger_type} onChange={(event) => {
                 const triggerType = event.target.value as AutomationTriggerType;
-                setForm({ ...form, trigger_type: triggerType, schedule: triggerType === "daily" ? { times: ["09:00"] } : {} });
+                setForm({
+                  ...form,
+                  trigger_type: triggerType,
+                  schedule: triggerType === "daily"
+                    ? { times: ["09:00"] }
+                    : triggerType === "weekly"
+                      ? { dayOfWeek: 4, time: "09:00" }
+                      : {},
+                });
               }} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5">
                 {Object.entries(TRIGGER_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
@@ -392,6 +403,16 @@ export default function KnowledgeAutomationPage() {
                     <Plus size={16} aria-hidden /> 時刻を追加
                   </button>
                 </div>
+              </div>}
+              {form.trigger_type === "weekly" && <div className="grid grid-cols-2 gap-2">
+                <label>曜日
+                  <select value={form.schedule.dayOfWeek ?? 4} onChange={(event) => setForm({ ...form, schedule: { ...form.schedule, dayOfWeek: Number(event.target.value) } })} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5">
+                    {WEEKDAY_LABELS.map((label, index) => <option key={label} value={index}>{label}曜日</option>)}
+                  </select>
+                </label>
+                <label>時刻
+                  <input type="time" value={form.schedule.time ?? "09:00"} onChange={(event) => setForm({ ...form, schedule: { ...form.schedule, time: event.target.value } })} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" />
+                </label>
               </div>}
               {form.trigger_type === "monthly" && <div className="grid grid-cols-2 gap-2">
                 <label>毎月何日
