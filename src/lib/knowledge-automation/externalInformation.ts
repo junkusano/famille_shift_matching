@@ -14,6 +14,36 @@ type AutomationResult = {
 
 const EVENT_DIGEST_DEFAULT_CHANNEL_ID = "146763225";
 
+const PRIORITY_EVENT_SOURCES = [
+  { name: "イオンモール名古屋茶屋", url: "https://nagoyachaya.aeonmall.jp/event/" },
+  { name: "イオン八事", url: "https://www.aeon.jp/sc/yagoto/event/" },
+  { name: "ららぽーと名古屋みなとアクルス", url: "https://mitsui-shopping-park.com/lalaport/minato/event/" },
+  { name: "松坂屋名古屋店・松坂屋美術館", url: "https://www.matsuzakaya.co.jp/nagoya/museum/schedule.html" },
+] as const;
+
+function readableText(html: string) {
+  return html
+    .replace(/<script[\\s\\S]*?<\\/script>|<style[\\s\\S]*?<\\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|&#x3000;/g, " ")
+    .replace(/\\s+/g, " ")
+    .trim()
+    .slice(0, 12_000);
+}
+
+async function priorityEventSources() {
+  const results = await Promise.all(PRIORITY_EVENT_SOURCES.map(async (source) => {
+    try {
+      const response = await fetch(source.url, { headers: { "User-Agent": "myfamille-event-automation/1.0" }, cache: "no-store" });
+      if (!response.ok) return { ...source, excerpt: "取得失敗" };
+      return { ...source, excerpt: readableText(await response.text()) };
+    } catch {
+      return { ...source, excerpt: "取得失敗" };
+    }
+  }));
+  return results.map((source) => `【${source.name}】${source.url}\n${source.excerpt}`).join("\n\n");
+}
+
 function textSetting(task: KnowledgeAutomationTask, key: string) {
   const value = task.settings?.[key];
   return typeof value === "string" ? value.trim() : "";
@@ -60,6 +90,7 @@ async function createEventDigest(task: KnowledgeAutomationTask) {
         role: "system",
         content: [
           "あなたは名古屋市の障害福祉事業所の利用者・ヘルパー向け情報担当です。",
+          "最初に、依頼文に添えられた優先公式ソース（イオン、ららぽーと、松坂屋）を確認します。そこに今週末の条件を満たす候補があれば、行政系の常設施設より先に扱います。",
           "対象地域は愛知県名古屋市内だけです。名古屋市外（東京・大阪など）は、検索結果に出ても絶対に掲載しません。",
           "直近の土日に、名古屋市内で実施されるイベントだけを最大3件選びます。件数を埋めるために不適切な候補を加えません。",
           "各候補は主催者・会場・自治体の公式ページで、開催日、会場の名古屋市内住所、料金を確認できた場合だけ掲載します。チケット販売サイト、まとめサイト、検索結果だけを根拠にしません。",
@@ -79,6 +110,7 @@ async function createEventDigest(task: KnowledgeAutomationTask) {
           "タスク名: " + task.name,
           "目的: " + (task.description ?? ""),
           "条件: " + (task.condition_summary ?? ""),
+          "優先公式ソースの取得内容:\n" + await priorityEventSources(),
         ].join("\n"),
       },
     ],
