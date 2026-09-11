@@ -86,6 +86,15 @@ async function createEventDigest(task: KnowledgeAutomationTask) {
 
   const text = response.output_text.trim();
   if (!text) throw new Error("イベント情報を作成できませんでした。");
+  if (!/名古屋市/.test(text)) {
+    throw new Error("名古屋市内の開催地を公式情報で確認できないため、配信を中止しました。");
+  }
+  if (/(東京都|大阪府|東京ドーム|阪急うめだ|eplus\\.jp)/.test(text)) {
+    throw new Error("名古屋市外またはチケット販売サイト由来の候補が含まれるため、配信を中止しました。");
+  }
+  if (/(詳細は公式サイトをご確認ください|公式確認が必要)/.test(text)) {
+    throw new Error("料金またはバリアフリー条件を確認できない候補が含まれるため、配信を中止しました。");
+  }
   const delivered = await sendMessage(task, text, EVENT_DIGEST_DEFAULT_CHANNEL_ID);
   if (!delivered) return { status: "skipped" as const, message: "送信先のLINE WORKSチャンネルIDが未設定です。編集画面で設定してください。" };
   return { status: "succeeded" as const, message: "週末イベント情報をLINE WORKSへ送信しました。" };
