@@ -1,0 +1,18 @@
+{
+  "id": "9eb37fe2-9f82-43ae-9bf7-3059ea8df90c",
+  "settings": {
+    "openai_image_model": "gpt-image-2",
+    "public_sources_only": true,
+    "wordpress_reuse_media": true,
+    "article_policy_version": "geo-editorial-v2",
+    "wordpress_media_policy": "reuse-then-generate",
+    "wordpress_auto_category": true,
+    "internal_knowledge_links": false,
+    "wordpress_featured_image": false,
+    "allow_external_ai_context": true,
+    "wordpress_category_policy": "existing-only",
+    "require_original_viewpoint": true,
+    "wordpress_category_root_slug": "column"
+  },
+  "updated_at": "2026-09-10T23:02:08.175239+00:00"
+}
