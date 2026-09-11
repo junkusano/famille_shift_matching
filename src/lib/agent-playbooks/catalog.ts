@@ -48,6 +48,7 @@ export const APPROVER_SCOPE_LABELS: Record<AgentApproverScope, string> = {
 
 export const ACTION_LABELS: Record<AgentAction, string> = {
   "shift.list": "シフトを検索・列記",
+  "shift.create": "シフトを追加",
   "shift.delete": "シフトを削除",
   "lineworks.leave_self": "依頼者本人を部屋から退出",
   "context.read_recent": "直前の会話を参照",
@@ -73,6 +74,27 @@ export const EMPTY_PLAYBOOK: AgentPlaybookInput = {
 };
 
 export const PLAYBOOK_TEMPLATES: Array<{ key: string; label: string; summary: string; input: AgentPlaybookInput }> = [
+  {
+    key: "shift-create",
+    label: "シフト追加",
+    summary: "日付・時間・担当者・サービスを特定し、確認後にシフトを追加します。",
+    input: {
+      name: "利用者様のシフト追加",
+      description: "利用者様の部屋で、必要項目を確認し、安全にシフトを追加します。",
+      category: "shift",
+      room_scope: "client_room",
+      situation: "cs_kaipoke_idが特定できる利用者様の部屋で、@すまーとアイさんへのメンション付きでシフトの追加・登録を依頼されたとき",
+      instructions: "対象日、開始・終了時刻、担当者、サービスコードを特定する。対象日は必ず依頼内容から確認し、日付が不明なら聞き返す。時刻・担当者・サービスコードが不足している場合は、同じ利用者様の直前のシフト（同じ曜日を優先）を参考に候補を提案し、推測した項目だと明示する。登録内容を列記して依頼者へ確認し、依頼者がOKと答えた場合だけ、重複を再確認してシフトを追加する。追加後は結果を知らせる。",
+      trigger_examples: ["9月20日のシフトを追加してください", "10月3日に前回と同じ内容でシフトを入れて"],
+      allowed_actions: ["context.read_recent", "shift.list", "shift.create"],
+      context_message_limit: 10,
+      context_minutes: 30,
+      confirmation_mode: "always",
+      approver_scope: "requester_only",
+      session_ttl_minutes: 7,
+      is_enabled: false,
+    },
+  },
   {
     key: "shift-cancel",
     label: "シフトキャンセル・削除",

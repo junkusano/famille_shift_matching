@@ -6,6 +6,7 @@ export const AGENT_CONFIRMATION_MODES = ["none", "before_write", "always"] as co
 export const AGENT_APPROVER_SCOPES = ["requester_only", "requester_or_manager"] as const;
 export const AGENT_ACTIONS = [
   "shift.list",
+  "shift.create",
   "shift.delete",
   "lineworks.leave_self",
   "context.read_recent",

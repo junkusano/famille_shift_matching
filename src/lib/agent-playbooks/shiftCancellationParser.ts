@@ -83,18 +83,21 @@ function extractTime(segment: string): { startTime: string | null; endTime: stri
     : { startTime: null, endTime: null };
 }
 
+export function parseShiftTimeRange(text: string) {
+  return extractTime(normalizeDigits(text));
+}
+
 export function containsShiftCancellationIntent(text: string) {
   const normalized = normalizeDigits(text).replace(/\s+/g, "");
   return /(キャンセル|中止|取消|取り消|削除)/.test(normalized) && /(シフト|支援|サービス|訪問)/.test(normalized);
 }
 
-export function parseShiftCancellationRequests(texts: string[], referenceDate: Date): ShiftCancellationRequest[] {
+export function parseShiftDateTimeRequests(texts: string[], referenceDate: Date): ShiftCancellationRequest[] {
   const reference = jstDateParts(referenceDate);
   const parsed: ShiftCancellationRequest[] = [];
   const datePattern = /(?:(\d{4})\s*年\s*)?(?:(\d{1,2})\s*(?:月|\/)\s*(\d{1,2})\s*日?|(\d{1,2})\s*日)/g;
 
   for (const originalText of texts) {
-    if (!containsShiftCancellationIntent(originalText)) continue;
     const text = normalizeDigits(originalText);
     const matches = Array.from(text.matchAll(datePattern));
 
@@ -132,4 +135,11 @@ export function parseShiftCancellationRequests(texts: string[], referenceDate: D
   }
 
   return result.sort((a, b) => `${a.date} ${a.startTime ?? ""}`.localeCompare(`${b.date} ${b.startTime ?? ""}`));
+}
+
+export function parseShiftCancellationRequests(texts: string[], referenceDate: Date): ShiftCancellationRequest[] {
+  return parseShiftDateTimeRequests(
+    texts.filter((text) => containsShiftCancellationIntent(text)),
+    referenceDate,
+  );
 }

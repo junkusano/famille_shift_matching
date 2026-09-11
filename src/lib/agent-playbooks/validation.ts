@@ -23,8 +23,8 @@ export const agentPlaybookInputSchema = z.object({
   session_ttl_minutes: z.number().int().min(1).max(60),
   is_enabled: z.boolean(),
 }).superRefine((value, context) => {
-  if (value.allowed_actions.includes("shift.delete") && value.confirmation_mode === "none") {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["confirmation_mode"], message: "シフト削除には実行前の確認が必要です。" });
+  if ((value.allowed_actions.includes("shift.create") || value.allowed_actions.includes("shift.delete")) && value.confirmation_mode === "none") {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["confirmation_mode"], message: "シフトの追加・削除には実行前の確認が必要です。" });
   }
   if (value.context_message_limit === 0 && value.context_minutes > 0) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["context_message_limit"], message: "会話を参照する場合は取得件数も指定してください。" });

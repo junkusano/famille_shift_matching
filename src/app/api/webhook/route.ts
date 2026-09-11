@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAccessToken } from "@/lib/getAccessToken";
 import crypto from "crypto";
 import { handleShiftCancellationAgent } from "@/lib/agent-playbooks/shiftCancellation";
+import { handleShiftCreationAgent } from "@/lib/agent-playbooks/shiftCreation";
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -651,6 +652,23 @@ export async function POST(req: NextRequest) {
         const groupType = await getGroupTypeFromChannelId(channelId);
 
         console.log("[lw webhook] groupType=", groupType);
+
+        const shiftCreationResult = await handleShiftCreationAgent({
+            eventType,
+            message: message ?? "",
+            channelId,
+            requesterLwUserid: userId,
+            issuedAt: timestamp,
+            hasBotMention: hasSmartEyeMention(data, message),
+            mentionedLwUserids: mentionLwUserids,
+        });
+
+        if (shiftCreationResult.handled) {
+            if (shiftCreationResult.replyText) {
+                await sendLineworksMessage({ channelId, text: shiftCreationResult.replyText });
+            }
+            return NextResponse.json({ status: "ok", handledBy: "shift-creation-agent" }, { status: 200 });
+        }
 
         const shiftCancellationResult = await handleShiftCancellationAgent({
             eventType,
