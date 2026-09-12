@@ -81,6 +81,10 @@
       "schedule": "00 0 * * *"
     },
     {
+      "path": "/api/cron/analyzeAndAlert",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/alert-reset-shift-cert",
       "schedule": "11 19 * * *"
     },

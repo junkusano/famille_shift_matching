@@ -569,6 +569,7 @@ export async function POST(req: NextRequest) {
         const message = normalizeString(content?.text);
         const fileId = normalizeString(content?.fileId);
         const members = eventType === "joined" ? (data?.members ?? null) : null;
+        const mentionLwUserids = extractMentionLwUserIds(data);
 
 
         if (!eventType || !channelId || !domainId) {
@@ -586,6 +587,8 @@ export async function POST(req: NextRequest) {
                 message,
                 file_id: fileId,
                 members,
+                mention_lw_userids: mentionLwUserids,
+                raw_event: data,
                 status: 0,
             },
         ]);
@@ -647,8 +650,6 @@ export async function POST(req: NextRequest) {
 
         if (routeToQuitDialogflow) {
             try {
-                const mentionLwUserids = extractMentionLwUserIds(data);
-
                 const dfResult = await callDialogflowDetectIntent({
                     text: message!,
                     channelId,
