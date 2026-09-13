@@ -54,6 +54,7 @@ export const ACTION_LABELS: Record<AgentAction, string> = {
   "context.read_recent": "直前の会話を参照",
   "knowledge.draft_update": "手順書の追記案を作成",
   "lineworks.send_unhandled_reminder": "未対応リマインドを送信",
+  "lineworks.send_manager_risk_alert": "草野対応案件をマネジャーへ通知",
 };
 
 export const EMPTY_PLAYBOOK: AgentPlaybookInput = {

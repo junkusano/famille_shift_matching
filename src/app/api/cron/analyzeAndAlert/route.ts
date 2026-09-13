@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { runManagerRiskAlerts } from "@/lib/agent-playbooks/managerRiskAlert";
 import { runUnhandledRequestAlerts } from "@/lib/agent-playbooks/unhandledRequestAlert";
 import { assertCronAuth } from "@/lib/cron/auth";
 
@@ -13,11 +14,19 @@ export async function GET(request: NextRequest) {
     const dryRun = request.nextUrl.searchParams.get("dryRun") === "1";
     const requestedTime = dryRun ? request.nextUrl.searchParams.get("at") : null;
     const parsedTime = requestedTime ? new Date(requestedTime) : null;
-    const result = await runUnhandledRequestAlerts({
-      dryRun,
-      now: parsedTime && !Number.isNaN(parsedTime.getTime()) ? parsedTime : undefined,
-    });
-    return NextResponse.json(result, { status: result.ok ? 200 : 503 });
+    const now = parsedTime && !Number.isNaN(parsedTime.getTime()) ? parsedTime : undefined;
+    const [unhandledResult, managerRiskResult] = await Promise.allSettled([
+      runUnhandledRequestAlerts({ dryRun, now }),
+      runManagerRiskAlerts({ dryRun, now }),
+    ]);
+    const unhandled = unhandledResult.status === "fulfilled"
+      ? unhandledResult.value
+      : { ok: false, error: unhandledResult.reason instanceof Error ? unhandledResult.reason.message : String(unhandledResult.reason) };
+    const managerRisk = managerRiskResult.status === "fulfilled"
+      ? managerRiskResult.value
+      : { ok: false, error: managerRiskResult.reason instanceof Error ? managerRiskResult.reason.message : String(managerRiskResult.reason) };
+    const ok = unhandled.ok && managerRisk.ok;
+    return NextResponse.json({ ok, unhandled, managerRisk }, { status: ok ? 200 : 503 });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[cron][analyzeAndAlert] failed", { message });

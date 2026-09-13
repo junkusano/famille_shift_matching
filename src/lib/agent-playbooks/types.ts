@@ -12,6 +12,7 @@ export const AGENT_ACTIONS = [
   "context.read_recent",
   "knowledge.draft_update",
   "lineworks.send_unhandled_reminder",
+  "lineworks.send_manager_risk_alert",
 ] as const;
 
 export type AgentCategory = (typeof AGENT_CATEGORIES)[number];
