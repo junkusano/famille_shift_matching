@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 
 const BOT_ID = "6807751";
 const MANAGER_CHANNEL_ID = "99142491";
+const TARGET_GROUP_TYPE = "利用者様情報連携グループ";
 
 type Playbook = {
   id: string;
@@ -154,6 +155,23 @@ async function getDirectory(): Promise<DirectoryUser[]> {
   });
 }
 
+async function getTargetChannelIds(channelIds: string[]) {
+  const uniqueIds = [...new Set(channelIds.filter(Boolean))];
+  const chunks = Array.from({ length: Math.ceil(uniqueIds.length / 200) }, (_, index) => (
+    uniqueIds.slice(index * 200, (index + 1) * 200)
+  ));
+  const results = await Promise.all(chunks.map(async (chunk) => {
+    const { data, error } = await supabaseAdmin
+      .from("group_lw_channel_view")
+      .select("channel_id")
+      .eq("group_type", TARGET_GROUP_TYPE)
+      .in("channel_id", chunk);
+    if (error) throw error;
+    return data ?? [];
+  }));
+  return new Set(results.flat().map((row) => String(row.channel_id ?? "").trim()).filter(Boolean));
+}
+
 async function getRecentLogs(contextMinutes: number, now: Date): Promise<MessageLog[]> {
   const since = new Date(now.getTime() - contextMinutes * 60 * 1000).toISOString();
   const { data, error } = await supabaseAdmin
@@ -215,7 +233,10 @@ function isRequestText(text: string) {
     .replace(/[\s　]+/g, " ")
     .trim();
   if (normalized.length < 3) return false;
-  if (/^[!！。,.、]*(ありがとう|ありがとうございます|お疲れ様です|承知しました|了解しました)[!！。,.、]*$/.test(normalized)) {
+  if (/^[!！。,.、]*(ありがとう(?:ございます|ございました)?|ありがとうございました|助かりました|感謝します|お疲れ様です|承知しました|了解しました)[!！。,.、]*$/.test(normalized)) {
+    return false;
+  }
+  if (/コメント(?:に|にも)入れてお(?:く|きます|きました)/.test(normalized)) {
     return false;
   }
   return /[?？]|(?:して|を|ご)(?:ください|下さい|ほしい|欲しい)|お願い(?:します|いたします|致します|できますか)|よろしくお願い|(?:できます|出来ます|よいです|良いです|いかがです|どうです|どうなりました|どうすれば|どうしたら|分かります|わかります)(?:か|でしょうか)|教えて|確認(?:して|をお願い|いただけ)|対応(?:して|をお願い|いただけ)|回答(?:して|をお願い|いただけ)|返信(?:して|をお願い|いただけ)|連絡(?:して|をお願い|いただけ)|判断(?:して|をお願い|いただけ)/.test(normalized);
@@ -405,11 +426,13 @@ export async function runUnhandledRequestAlerts(options: { now?: Date; dryRun?: 
   }
 
   const contextMinutes = Math.max(playbook.context_minutes, playbook.session_ttl_minutes);
-  const [directory, logs, recentSends] = await Promise.all([
+  const [directory, recentLogs, recentSends] = await Promise.all([
     getDirectory(),
     getRecentLogs(contextMinutes, now),
     getRecentSends(playbook.id, new Date(now.getTime() - contextMinutes * 60 * 1000).toISOString()),
   ]);
+  const targetChannelIds = await getTargetChannelIds(recentLogs.flatMap((log) => log.channel_id ? [log.channel_id] : []));
+  const logs = recentLogs.filter((log) => Boolean(log.channel_id && targetChannelIds.has(log.channel_id)));
   const candidates = buildCandidates({
     logs,
     directory,
