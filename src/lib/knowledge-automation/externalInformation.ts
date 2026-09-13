@@ -59,8 +59,6 @@ function isApprovedEventUrl(value: string) {
 }
 
 function validateEventDigest(text: string) {
-<<<<<<< HEAD
-=======
   if (!/名古屋市/.test(text)) {
     throw new Error("名古屋市内の開催地を公式情報で確認できないため、配信を中止しました。");
   }
@@ -71,7 +69,6 @@ function validateEventDigest(text: string) {
     throw new Error("料金またはバリアフリー条件を確認できない候補が含まれるため、配信を中止しました。");
   }
 
->>>>>>> 8977e6e295141b7595e6862ebd7e614ff7d70ed2
   const urls = Array.from(text.matchAll(/https?:\/\/[^\s)]+/g), (match) => match[0]);
   if (urls.length === 0 || urls.some((url) => !isApprovedEventUrl(url))) {
     throw new Error("優先する公式サイト以外、または根拠URLのない候補が含まれるため、配信を中止しました。");
@@ -153,18 +150,6 @@ async function createEventDigest(task: KnowledgeAutomationTask) {
 
   const text = response.output_text.trim();
   if (!text) throw new Error("イベント情報を作成できませんでした。");
-<<<<<<< HEAD
-  if (!/名古屋市/.test(text)) {
-    throw new Error("名古屋市内の開催地を公式情報で確認できないため、配信を中止しました。");
-  }
-  if (/(東京都|大阪府|東京ドーム|阪急うめだ|eplus\.jp)/.test(text)) {
-    throw new Error("名古屋市外またはチケット販売サイト由来の候補が含まれるため、配信を中止しました。");
-  }
-  if (/(詳細は公式サイトをご確認ください|公式確認が必要)/.test(text)) {
-    throw new Error("料金またはバリアフリー条件を確認できない候補が含まれるため、配信を中止しました。");
-  }
-=======
->>>>>>> 8977e6e295141b7595e6862ebd7e614ff7d70ed2
   validateEventDigest(text);
   const delivered = await sendMessage(task, text, EVENT_DIGEST_DEFAULT_CHANNEL_ID);
   if (!delivered) return { status: "skipped" as const, message: "送信先のLINE WORKSチャンネルIDが未設定です。編集画面で設定してください。" };
