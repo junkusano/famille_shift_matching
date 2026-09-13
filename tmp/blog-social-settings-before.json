@@ -1,0 +1,43 @@
+[
+  {
+    "id": "0a2b940a-d163-447e-8076-1336a0ccdd93",
+    "name": "ブログ記事の分析・リライト",
+    "description": "毎日1回、公開済みブログのアクセス分析と内容を確認し、ほとんど読まれていない記事、情報が古い記事、内容改善が必要な記事を優先順位付きで選定する。優先度の高い記事を、キーナレッジとアナリティクス・クラリティの履歴を使用し、リライトし、下書きや提案で止めず、既存の公開記事を直接更新して保存・公開反映を確認する。\n反映後、addtoany をつかって　X　Threadsへ　ツイートする",
+    "settings": {
+      "operation": "wordpress_blog_rewrite",
+      "draft_only": false,
+      "instructions": "アクセス分析→候補選定→根拠確認→リライト→既存公開記事へ反映→保存内容と公開表示を再確認、まで完了する。記事ID・URL・公開状態を維持し、更新前の内容と選定理由・変更内容を記録する。",
+      "preserve_url": true,
+      "preserve_post_id": true,
+      "max_posts_per_run": 1,
+      "implementation_status": "ready",
+      "rewrite_cooldown_days": 30,
+      "save_original_content": true,
+      "implementation_version": "blog-automation-v1",
+      "analytics_lookback_days": 90,
+      "preserve_publish_status": true,
+      "verify_published_content": true
+    },
+    "updated_at": "2026-09-13T01:10:01.254408+00:00"
+  },
+  {
+    "id": "9eb37fe2-9f82-43ae-9bf7-3059ea8df90c",
+    "name": "ブログ記事の追加",
+    "description": "草野ナレッジの「記事化候補＝高」となっているもの、もしくは直近の外部ニュース・公式発表を起点に、関連する草野思考ログの独自論点を一つ組み合わせ、読者に新しい視点が残る経営コラムを作る。草野ナレッジ等の内部URLは記事へ掲載しない。ファミーユナレッジは　キーナレッジを使用して深層まで下げる必要はありません（高コストにならない様に）。アイキャッチを既存の画像から取得するかもしくは新たに生成して掲載する。LLMO/GEOの観点から有益なものを作ってください。 作成後は下書きで止めず、公開・表示確認まで自動実行する。",
+    "settings": {
+      "openai_image_model": "gpt-image-2",
+      "public_sources_only": true,
+      "wordpress_reuse_media": true,
+      "article_policy_version": "geo-editorial-v2",
+      "wordpress_media_policy": "reuse-then-generate",
+      "wordpress_auto_category": true,
+      "internal_knowledge_links": false,
+      "wordpress_featured_image": true,
+      "allow_external_ai_context": true,
+      "wordpress_category_policy": "existing-only",
+      "require_original_viewpoint": true,
+      "wordpress_category_root_slug": "column"
+    },
+    "updated_at": "2026-09-12T23:02:29.315642+00:00"
+  }
+]

@@ -2,6 +2,7 @@ import "server-only";
 
 import { runSystemDiagnostics } from "@/lib/knowledge-automation/diagnostics";
 import { randomUUID } from "crypto";
+import { queueVerifiedBlogShares, recoverBlogSocialShares } from "./socialSharing";
 import { calculateAutomationNextRunAt } from "@/lib/knowledge-automation/scheduling";
 import type { KnowledgeAutomationTask } from "@/lib/knowledge-automation/types";
 import { rewriteWordPressBlog } from "@/lib/knowledge-automation/wordpressRewrite";
@@ -109,29 +110,45 @@ export async function runKnowledgeAutomationTask(input: {
     const status = diagnosisFailed ? "failed" : (result.status === "created" || result.status === "updated" || result.status === "succeeded") ? "succeeded" : "skipped";
     const postId = "postId" in result ? result.postId ?? null : null;
     const postLink = "postLink" in result ? result.postLink ?? null : null;
+    const outputSummary = {
+      ...("audit" in result ? result.audit : {}),
+      message: result.message,
+      sourceId: "sourceId" in result ? result.sourceId ?? null : null,
+      sourceTitle: "sourceTitle" in result ? result.sourceTitle ?? null : null,
+      postId,
+      ...("socialPublication" in result ? { socialPublication: result.socialPublication } : {}),
+    };
     const savedRun = await supabaseAdmin.from("knowledge_automation_runs").update({
       status,
       safety_result: "allowed",
       safety_findings: [],
-      output_summary: {
-        ...("audit" in result ? result.audit : {}),
-        message: result.message,
-        sourceId: "sourceId" in result ? result.sourceId ?? null : null,
-        sourceTitle: "sourceTitle" in result ? result.sourceTitle ?? null : null,
-        postId,
-      },
+      output_summary: outputSummary,
       output_reference: postLink,
       finished_at: finishedAt,
       lease_expires_at: null,
     }).eq("id", run.id);
     if (savedRun.error) throw new Error("実行結果を保存できませんでした。");
+    let socialQueueError: string | null = null;
+    let message = result.message;
+    if ("socialPublication" in result && result.socialPublication && task.settings.social_sharing === true) {
+      try {
+        const jobs = await queueVerifiedBlogShares(task, run.id, result.socialPublication);
+        if (jobs.length) message += " X・Threadsへの投稿を予約しました。投稿結果はSNS投稿状況で確認できます。";
+        const { error } = await supabaseAdmin.from("knowledge_automation_runs")
+          .update({ output_summary: { ...outputSummary, message, socialQueued: jobs } }).eq("id", run.id);
+        if (error) throw new Error("SNS投稿の予約履歴を保存できませんでした。次回再確認します。");
+      } catch (error) {
+        socialQueueError = error instanceof Error ? error.message : "SNS投稿を予約できませんでした。";
+        message += " SNS投稿は予約の再確認待ちです。";
+      }
+    }
     await supabaseAdmin.from("knowledge_automation_tasks").update({
       ...(status === "succeeded" ? { last_success_at: finishedAt } : {}),
-      last_result: result.message,
-      last_error_at: diagnosisFailed ? finishedAt : null,
-      last_error_message: diagnosisFailed ? result.message : null,
+      last_result: message,
+      last_error_at: diagnosisFailed || socialQueueError ? finishedAt : null,
+      last_error_message: diagnosisFailed ? result.message : socialQueueError,
     }).eq("id", task.id);
-    return { ok: !diagnosisFailed, status, message: result.message, outputReference: postLink };
+    return { ok: !diagnosisFailed && !socialQueueError, status, message, outputReference: postLink };
   } catch (error) {
     const safe = safeError(error);
     const finishedAt = new Date().toISOString();
@@ -157,6 +174,8 @@ export async function runKnowledgeAutomationTask(input: {
 }
 
 export async function runDueKnowledgeAutomations(now = new Date()) {
+  // SNS recovery is independent of the long-running article-generation tasks.
+  await recoverBlogSocialShares().catch(error => console.error("SNS queue recovery failed:", error instanceof Error ? error.message : "unknown"));
   const { data, error } = await supabaseAdmin
     .from("knowledge_automation_tasks")
     .select("id,next_run_at")

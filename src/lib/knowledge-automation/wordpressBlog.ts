@@ -1,6 +1,7 @@
 import "server-only";
 
 import OpenAI from "openai";
+import { socialPublication, type SocialPublication } from "./socialSharing";
 import { verifyPublishedBlogPost } from "@/lib/wordpress/blogPosts";
 import { z } from "zod";
 import { runKnowledgeSource } from "@/lib/knowledge/pipeline";
@@ -57,6 +58,7 @@ export type WordPressBlogResult = {
   sourceTitle?: string;
   postId?: number;
   postLink?: string;
+  socialPublication?: SocialPublication;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -406,5 +408,6 @@ export async function createWordPressBlogDraft(task: KnowledgeAutomationTask): P
     status: "created",
     message: `「${article.title}」をWordPress${publish ? "に公開し、表示を確認しました" : "の下書きに追加しました"}。${featuredImage ? `アイキャッチは${featuredImage.source === "existing" ? "既存画像を再利用" : "新規生成"}しました。` : ""}${categoryIds.length > 0 ? "コラムカテゴリも設定しました。" : ""}`,
     sourceId: seed.id, sourceTitle: seed.title, postId: post.id, postLink: post.link,
+    ...(publish ? { socialPublication: socialPublication(post.id, post.link, article.title, content, "created") } : {}),
   };
 }

@@ -36,7 +36,10 @@ export type AutomationSchedule = {
   eventKey?: string;
 };
 
+export type SocialShareStatus = { platform: string; account: string; status: string; postUrl: string | null; error: string | null };
 export type KnowledgeAutomationTask = {
+  socialShares?: SocialShareStatus[];
+  socialSharesError?: string | null;
   id: string;
   name: string;
   description: string | null;

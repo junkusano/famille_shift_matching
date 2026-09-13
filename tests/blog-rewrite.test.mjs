@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),ts=require('typescript');
 function loadModule(path,mocks={}) {
+ mocks = {'@/lib/knowledge-automation/diagnostics': {}, '@/lib/knowledge/diff': {}, '@/lib/knowledge-automation/externalInformation': {runExternalInformationAutomation:async()=>null}, './socialSharing': {queueVerifiedBlogShares:async()=>[],recoverBlogSocialShares:async()=>{}}, ...mocks};
  const c=vm.createContext({exports:{},require:n=>n in mocks?mocks[n]:require(n),Date,URL,URLSearchParams,Map,Set,Buffer,Headers,AbortSignal,fetch:globalThis.fetch,process});
  vm.runInContext(ts.transpileModule(readFileSync(new URL(path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,c);return c.exports;
 }

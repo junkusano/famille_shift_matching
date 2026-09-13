@@ -485,6 +485,20 @@ export default function KnowledgeAutomationPage() {
                 </div>
                 <button type="button" onClick={() => startEdit(task)} className="inline-flex shrink-0 items-center gap-1 rounded-lg border px-3 py-2 text-sm hover:bg-slate-50"><Pencil size={15} aria-hidden /> 編集</button>
               </div>
+              {(task.settings.social_sharing === true || task.settings.social_setup_status === "awaiting_runner_update") && <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm">
+                <p className="font-semibold">SNS投稿状況</p>
+                {task.settings.social_sharing !== true && <p className="mt-1 text-amber-800">RPAの更新・動作確認待ちです。まだ自動投稿は開始していません。</p>}
+                <p className="mt-1 text-xs text-slate-600">記事の公開確認後に、ログイン済みのRPA用Chromeから投稿します。</p>
+                {task.socialSharesError && <p className="mt-1 text-red-700">{task.socialSharesError}</p>}
+                {task.settings.social_sharing === true && !task.socialSharesError && !task.socialShares?.length && <p className="mt-1">次の記事公開・更新を待っています。</p>}
+                {task.socialShares?.map(share => <div key={share.platform} className="mt-2">
+                  <span className="font-medium">{share.platform === "x" ? "X" : "Threads"} @{share.account}</span>
+                  <span className="ml-2">{share.status === "completed" ? "投稿確認済み" : share.status === "claimed" ? "投稿処理中" : share.status === "pending" ? "RPAの実行待ち" : share.status === "cancelled" ? "取り消し" : "確認が必要"}</span>
+                  {share.postUrl && <a className="ml-2 text-blue-700 underline" href={share.postUrl} target="_blank" rel="noreferrer">投稿を見る</a>}
+                  {share.error && <p className="mt-1 text-red-700">{share.error}</p>}
+                </div>)}
+                <a href="/portal/admin/rpa-runners" className="mt-2 inline-block text-blue-700 underline">RPAの稼働状況を見る</a>
+              </div>}
               <dl className="mt-4 grid gap-3 rounded-lg bg-slate-50 p-3 text-sm sm:grid-cols-2">
                 <div><dt className="text-xs font-semibold text-slate-500">タイミング</dt><dd className="mt-0.5 flex items-center gap-1.5"><Clock3 size={15} className="text-slate-400" aria-hidden />{scheduleLabel(task)}</dd></div>
                 <div><dt className="text-xs font-semibold text-slate-500">反映先</dt><dd className="mt-0.5">{DESTINATION_LABELS[task.destination]}</dd></div>

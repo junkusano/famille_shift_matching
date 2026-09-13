@@ -1,5 +1,6 @@
 import "server-only";
 import OpenAI from "openai";
+import { socialPublication } from "./socialSharing";
 import { z } from "zod";
 import { createAnalyticsClient } from "@/lib/knowledge/connectors/googleAnalytics";
 import { rankRewriteCandidates, validateRewrite } from "@/lib/knowledge-automation/rewritePolicy";
@@ -67,5 +68,5 @@ export async function rewriteWordPressBlog(task:KnowledgeAutomationTask,runId:st
   const {error}=await supabaseAdmin.from("knowledge_automation_runs").update({output_summary:{...audit,phase:"prepared"},output_reference:post.link}).eq("id",runId);
   if(error) throw new Error("更新前の本文を保存できなかったため更新を中止しました。");
   const saved=await updatePublishedBlogPost(post,content);
-  return {status:"updated" as const,message:`「${post.title.raw}」をリライトし、公開記事への反映を確認しました。`,postId:post.id,postLink:saved.link,audit:{...audit,phase:"published_verified"}};
+  return {status:"updated" as const,message:`「${post.title.raw}」をリライトし、公開記事への反映を確認しました。`,postId:post.id,postLink:saved.link,socialPublication:socialPublication(post.id,saved.link,post.title.raw,content,"updated"),audit:{...audit,phase:"published_verified"}};
 }

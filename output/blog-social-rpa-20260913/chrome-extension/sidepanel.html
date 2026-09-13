@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ファミーユRPA</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icons/icon-32.png" alt="" />
+      <div><h1>ファミーユRPA</h1><p id="panel-subtitle">利用者オンボーディング</p></div>
+    </header>
+    <main>
+      <div id="support-progress-panel" hidden>
+        <p id="support-progress-page-status" class="notice">カイポケ画面を確認中...</p>
+        <section>
+          <h2>famille Voice 支援経過</h2>
+          <p id="support-progress-client" class="subtle"></p>
+          <button id="load-support-progress" type="button">Voice候補を読み込む</button>
+          <p id="support-progress-status" class="subtle"></p>
+          <div id="support-progress-list" class="support-progress-list"></div>
+          <div class="actions">
+            <button id="summarize-support-progress" type="button" disabled>選択内容を要約する</button>
+            <button id="apply-support-progress" type="button" disabled>カイポケの内容欄へ転記</button>
+          </div>
+          <label for="support-progress-raw">選択した生の文字起こし</label>
+          <textarea id="support-progress-raw" class="support-progress-text" readonly></textarea>
+          <label for="support-progress-summary">転記する要約文</label>
+          <textarea id="support-progress-summary" class="support-progress-text"></textarea>
+          <p class="safety">年月日・記録者は手動入力です。RPAは内容欄への転記までで停止し、登録ボタンは押しません。</p>
+        </section>
+      </div>
+      <div id="onboarding-panel">
+      <p id="page-status" class="notice">カイポケ画面を確認中...</p>
+
+      <section>
+        <h2>基本情報PDF</h2>
+        <label for="document-select">転記元</label>
+        <select id="document-select"><option value="">読み込み中...</option></select>
+        <p id="document-status" class="subtle"></p>
+        <details id="postal-lookup-details" hidden><summary>郵便番号検索の記録</summary><pre id="postal-lookup-log"></pre></details>
+        <iframe id="pdf-preview" title="基本情報PDFプレビュー" hidden></iframe>
+      </section>
+
+      <section id="candidate-section" hidden>
+        <h2>カイポケ転記候補</h2>
+        <div class="two-columns">
+          <div class="field"><label for="name-last">姓</label><input id="name-last" /><small data-meta="name-last"></small></div>
+          <div class="field"><label for="name-first">名</label><input id="name-first" /><small data-meta="name-first"></small></div>
+          <div class="field"><label for="kana-last">姓（カナ）</label><input id="kana-last" /><small data-meta="kana-last"></small></div>
+          <div class="field"><label for="kana-first">名（カナ）</label><input id="kana-first" /><small data-meta="kana-first"></small></div>
+          <div class="field"><label for="gender">性別</label><input id="gender" /><small data-meta="gender"></small></div>
+          <div class="field"><label for="birth-date">生年月日</label><input id="birth-date" /><small data-meta="birth-date"></small></div>
+          <div class="field"><label for="postal-code">郵便番号</label><input id="postal-code" inputmode="numeric" /><button id="lookup-postal-code" type="button" class="lookup-button">住所から検索</button><select id="postal-code-options" hidden aria-label="郵便番号候補"></select><small data-meta="postal-code"></small></div>
+          <div class="field"><label for="prefecture">都道府県</label><input id="prefecture" /><small data-meta="prefecture"></small></div>
+        </div>
+        <div class="field"><label for="city">市区町村</label><input id="city" /><small data-meta="city"></small></div>
+        <div class="field"><label for="address">町名・番地</label><input id="address" /><small data-meta="address"></small></div>
+        <div class="field"><label for="building">ビル・マンション名</label><input id="building" /><small data-meta="building"></small></div>
+        <div class="two-columns">
+          <div class="field"><label for="tel">電話番号</label><input id="tel" /><small data-meta="tel"></small></div>
+          <div class="field"><label for="mobile">携帯電話番号</label><input id="mobile" /><small data-meta="mobile"></small></div>
+        </div>
+        <div class="field"><label for="remarks">AI整理情報（備考・最大1000文字）</label><textarea id="remarks" maxlength="1000"></textarea><small data-meta="remarks"></small></div>
+
+        <details><summary>既存summaryを確認</summary><pre id="source-summary"></pre></details>
+
+        <div class="actions">
+          <button id="apply-all" type="button">基本情報を反映 →</button>
+          <button id="apply-remarks" type="button" class="secondary">備考だけ反映 →</button>
+        </div>
+        <p id="apply-status" class="notice" hidden></p>
+        <p class="safety">反映後はPDF・候補・カイポケ画面を確認し、人が「確認画面へ」を押してください。新規登録・既存利用者の編集のどちらにも利用できます。</p>
+      </section>
+      </div>
+
+      <div id="sharefull-panel" hidden>
+        <p id="sharefull-page-status" class="notice">Sharefull画面を確認中...</p>
+        <section>
+          <h2>Sharefullテンプレート作成</h2>
+          <p class="subtle">MyFamilleのスポット募集案件を選択して、Sharefullテンプレートを作成します。</p>
+          <input id="sharefull-case-search" placeholder="タイトル・住所・内部ラベルで検索" />
+          <button id="sharefull-case-refresh" type="button" class="secondary">案件一覧を再読み込み</button>
+          <div id="sharefull-case-list" class="sharefull-case-list"></div>
+          <p id="sharefull-status" class="notice" hidden></p>
+        </section>
+      </div>
+
+      <section id="taimee-panel" hidden>
+        <h2>タイミー勤務者フォロー</h2>
+        <label for="taimee-work-date">対象日</label>
+        <input id="taimee-work-date" type="date" />
+        <button id="taimee-fetch-workers" type="button">① 対象者を取得</button>
+        <p id="taimee-status" class="notice">レビュー一覧を確認しています。</p>
+        <p id="taimee-summary" class="taimee-summary">対象者：0名　対象外：0名　送信済み：0名</p>
+        <div id="taimee-worker-list" class="taimee-worker-list"></div>
+        <button id="taimee-edit-template" type="button" class="secondary">SMS本文を確認・編集</button>
+        <div id="taimee-template-editor" hidden>
+          <label for="taimee-template">SMS本文</label>
+          <textarea id="taimee-template" rows="14"></textarea>
+          <button id="taimee-save-template" type="button" class="secondary">テンプレートを保存</button>
+        </div>
+        <button id="taimee-send-sms" type="button" disabled>③ 選択した0名へSMS送信</button>
+        <p class="safety">①ではSMSを送信しません。内容を確認し、送信対象を選択してから③を実行してください。</p>
+      </section>
+    </main>
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

@@ -23,7 +23,21 @@ export async function GET(request: NextRequest) {
     .order("is_enabled", { ascending: false })
     .order("updated_at", { ascending: false });
   if (error) return databaseError(error);
-  return NextResponse.json({ ok: true, tasks: data ?? [] });
+  const tasks = await Promise.all((data ?? []).map(async task => {
+    if (task.settings?.social_sharing !== true) return task;
+    const { data: shares, error: shareError } = await supabaseAdmin.from("rpa_runner_jobs")
+      .select("payload,status,result,error_message").eq("job_type", "social.share_blog")
+      .eq("payload->>automation_task_id", task.id).order("created_at", { ascending: false }).limit(20);
+    const latest = new Map<string, NonNullable<typeof shares>[number]>();
+    for (const share of shares ?? []) if (!latest.has(share.payload.platform)) latest.set(share.payload.platform, share);
+    return { ...task, socialSharesError: shareError ? "SNS投稿状況を取得できませんでした。" : null,
+      socialShares: [...latest.values()].map(share => ({
+        platform: share.payload.platform, account: share.payload.account, status: share.status,
+        postUrl: share.result?.state === "published" ? share.result.post_url ?? null : null,
+        error: share.error_message ?? null,
+      })) };
+  }));
+  return NextResponse.json({ ok: true, tasks });
 }
 
 export async function POST(request: NextRequest) {

@@ -1,0 +1,87 @@
+{
+  "manifest_version": 3,
+  "name": "ファミーユRPA",
+  "description": "ファミーユとWebシステムを連携するRPA拡張機能",
+  "version": "0.3.27",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ファミーユRPA",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting",
+    "sidePanel",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://threads.com/*",
+    "https://www.threads.com/*",
+    "https://kaipoke.biz/*",
+    "https://*.kaipoke.biz/*",
+    "https://biz.caitech.co.jp/*",
+    "https://partner.ucare.works/*",
+    "https://myfamille.shi-on.net/*",
+    "https://famille-shift-matching-git-master-junkusanos-projects.vercel.app/*",
+    "https://app-new.taimee.co.jp/*",
+    "https://client.sharefull.com/*",
+    "https://lb-client.sharefull.com/*",
+    "http://127.0.0.1:43123/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src https://drive.google.com"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://kaipoke.biz/*",
+        "https://*.kaipoke.biz/*",
+        "https://app-new.taimee.co.jp/*",
+        "https://client.sharefull.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://biz.caitech.co.jp/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://partner.ucare.works/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
