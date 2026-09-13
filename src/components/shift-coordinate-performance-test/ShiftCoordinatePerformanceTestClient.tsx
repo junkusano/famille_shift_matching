@@ -590,7 +590,7 @@ export default function ShiftCoordinatePerformanceTestClient() {
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full border border-cm-primary-100 bg-cm-primary-50 px-3 py-1 text-xs font-semibold text-cm-primary-800">
                 <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                ベータ版・UIアップデート
+                シフトを自分でコーディネート
               </div>
               <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
                 シフ子

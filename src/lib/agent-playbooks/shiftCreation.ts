@@ -1,3 +1,4 @@
+import { resolveClientManagerMentions } from "@/lib/lineworks/resolveClientManagerMentions";
 import { notifyShiftChange } from "@/lib/lineworks/shiftChangeNotify";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { containsShiftCancellationIntent, parseShiftDateTimeRequests, parseShiftTimeRange } from "@/lib/agent-playbooks/shiftCancellationParser";
@@ -60,6 +61,7 @@ type ShiftDraft = {
   referenceShiftId: number | null;
   referenceShiftDate: string | null;
   inferredFields: string[];
+  staffSource?: string;
 };
 
 export type ShiftCreationAgentResult = { handled: boolean; replyText?: string };
@@ -293,6 +295,27 @@ async function getPreviousShift(clientId: string, targetDate: string): Promise<P
     ?? null;
 }
 
+function isAssignableStaffId(id: string | null | undefined): id is string {
+  return !!id?.trim() && !["servicesuport", "servicesupport"].includes(id.trim().toLowerCase());
+}
+
+async function getPreviousServiceStaff(clientId: string, date: string, serviceCode: string, staff: Staff[]) {
+  const ids = staff.map((person) => person.user_id).filter(isAssignableStaffId);
+  if (ids.length === 0) return null;
+  const { data, error } = await supabaseAdmin.from("shift")
+    .select(SHIFT_SELECT)
+    .eq("kaipoke_cs_id", clientId)
+    .eq("service_code", serviceCode)
+    .lt("shift_start_date", date)
+    .in("staff_01_user_id", ids)
+    .order("shift_start_date", { ascending: false })
+    .order("shift_start_time", { ascending: false })
+    .order("shift_id", { ascending: false })
+    .limit(1).maybeSingle();
+  if (error) throw error;
+  return data as PreviousShift | null;
+}
+
 async function getActiveStaff(): Promise<Staff[]> {
   const { data, error } = await supabaseAdmin
     .from("user_entry_united_view_single")
@@ -301,7 +324,7 @@ async function getActiveStaff(): Promise<Staff[]> {
     .not("user_id", "is", null)
     .limit(2000);
   if (error) throw error;
-  return (data ?? []).map((row) => ({
+  return (data ?? []).filter((row) => isAssignableStaffId(row.user_id)).map((row) => ({
     user_id: String(row.user_id),
     lw_userid: row.lw_userid ? String(row.lw_userid) : null,
     last_name_kanji: row.last_name_kanji ? String(row.last_name_kanji) : null,
@@ -363,10 +386,12 @@ async function staffNames(userIds: string[]) {
 
 async function buildReply(draft: ShiftDraft, intro = "次の内容でシフトを追加します。") {
   const names = await staffNames(draft.staffUserIds);
-  const inferred = draft.inferredFields.length > 0
-    ? `\n前回のシフトを参考に提案した項目：${draft.inferredFields.join("・")}（参照：${draft.referenceShiftDate ?? "日付不明"}）`
+  const referenceFields = draft.inferredFields.filter((field) => field !== "担当者");
+  const inferred = referenceFields.length > 0
+    ? `\n前回のシフトを参考に提案した項目：${referenceFields.join("・")}（参照：${draft.referenceShiftDate ?? "日付不明"}）`
     : "";
-  return `${intro}\n・日付：${draft.date}\n・時間：${draft.startTime}～${draft.endTime}\n・担当者：${names.join("、")}\n・サービスコード：${draft.serviceCode}${inferred}`;
+  const staffSource = draft.staffSource ? `\n担当者の選定元：${draft.staffSource}` : "";
+  return `${intro}\n・日付：${draft.date}\n・時間：${draft.startTime}～${draft.endTime}\n・担当者：${names.join("、")}\n・サービスコード：${draft.serviceCode}${inferred}${staffSource}`;
 }
 
 async function resolveDraft(params: {
@@ -401,7 +426,12 @@ async function resolveDraft(params: {
   }
   if (parsedTime.endTime) draft.endTime = parsedTime.endTime;
   if (explicitService) draft.serviceCode = explicitService;
+  if (draft.inferredFields.includes("担当者") || draft.staffUserIds.some((id) => !isAssignableStaffId(id))) {
+    draft.staffUserIds = [];
+    draft.staffSource = undefined;
+  }
   if (explicitStaff.userIds.length > 0) {
+    draft.staffSource = "依頼文で指定";
     draft.staffUserIds = explicitStaff.userIds;
     draft.requiredStaffCount = explicitStaff.userIds.length;
     draft.twoPersonWork = explicitStaff.userIds.length >= 2;
@@ -435,20 +465,37 @@ async function resolveDraft(params: {
       draft.serviceCode = previous.service_code;
       draft.inferredFields.push("サービスコード");
     }
-    if (draft.staffUserIds.length === 0 && previous.staff_01_user_id) {
-      draft.staffUserIds = [previous.staff_01_user_id, previous.staff_02_user_id, previous.staff_03_user_id]
-        .filter((id): id is string => !!id);
-      draft.staff02Attend = !!previous.staff_02_attend_flg;
-      draft.staff03Attend = !!previous.staff_03_attend_flg;
-      draft.requiredStaffCount = previous.required_staff_count;
-      draft.twoPersonWork = previous.two_person_work_flg;
-      draft.staff01RoleCode = previous.staff_01_role_code;
-      draft.staff02RoleCode = previous.staff_02_role_code;
-      draft.staff03RoleCode = previous.staff_03_role_code;
-      draft.inferredFields.push("担当者");
-    }
     draft.referenceShiftId = previous.shift_id;
     draft.referenceShiftDate = previous.shift_start_date;
+  }
+  if (draft.staffUserIds.length === 0 && draft.date && draft.serviceCode) {
+    const history = await getPreviousServiceStaff(params.clientId, draft.date, draft.serviceCode, staff);
+    const activeIds = new Set(staff.map((person) => person.user_id));
+    if (history) {
+      const slots = [
+        { id: history.staff_01_user_id, role: history.staff_01_role_code },
+        ...(history.staff_02_attend_flg ? [{ id: history.staff_02_user_id, role: history.staff_02_role_code }] : []),
+        ...(history.staff_03_attend_flg ? [{ id: history.staff_03_user_id, role: history.staff_03_role_code }] : []),
+      ].filter((slot) => isAssignableStaffId(slot.id) && activeIds.has(slot.id));
+      draft.staffUserIds = slots.map((slot) => slot.id!);
+      draft.requiredStaffCount = history.required_staff_count ?? 1;
+      draft.twoPersonWork = !!history.two_person_work_flg;
+      draft.staff01RoleCode = slots[0]?.role ?? null;
+      draft.staff02RoleCode = slots[1]?.role ?? null;
+      draft.staff03RoleCode = slots[2]?.role ?? null;
+      draft.staffSource = "同じサービスの直近シフト（" + history.shift_start_date + "）";
+    } else {
+      const managers = await resolveClientManagerMentions({ clientId: params.clientId });
+      const managerId = managers.managerIds.find(isAssignableStaffId);
+      draft.staffUserIds = managerId ? [managerId] : [];
+      draft.requiredStaffCount = 1;
+      draft.twoPersonWork = false;
+      draft.staff01RoleCode = draft.staff02RoleCode = draft.staff03RoleCode = null;
+      draft.staffSource = managerId ? "担当マネジャー一覧の先頭" : undefined;
+    }
+    draft.staff02Attend = draft.staffUserIds.length >= 2;
+    draft.staff03Attend = draft.staffUserIds.length >= 3;
+    if (draft.staffUserIds.length) draft.inferredFields.push("担当者");
   }
   draft.inferredFields = Array.from(new Set(draft.inferredFields));
 
@@ -476,6 +523,11 @@ async function confirmCreate(params: {
     actionName: "shift.create",
     inputSummary: { answer: "ok", draft },
   });
+  if (draft.staffUserIds.some((id) => !isAssignableStaffId(id))) {
+    await finishSession(params.session.id, "failed");
+    await updateRun(runId, { status: "blocked", error_code: "invalid_shift_staff", finished_at: new Date().toISOString() });
+    return { handled: true, replyText: "担当者に利用できないアカウントが含まれています。担当者を選び直すため、もう一度追加を依頼してください。" };
+  }
   if (!draft.kaipokeCsId || !draft.date || !draft.startTime || !draft.endTime || !draft.serviceCode || draft.staffUserIds.length === 0) {
     await finishSession(params.session.id, "failed");
     await updateRun(runId, { status: "failed", error_code: "incomplete_shift", finished_at: new Date().toISOString() });

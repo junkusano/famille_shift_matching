@@ -24,21 +24,22 @@ function fixture(action) {
     shift_service_code:[{service_code:'test'}], users:[]
   };
   const rpcCalls=[];
+  const managerIds=['manager-first','manager-second'];
   let nextId=1;
   const db = {rpc:async(name,args)=>{rpcCalls.push({name,args});return {data:{shift_id:99},error:null};},from(table){
     assert.ok(table in tables, table);
-    let filters=[], write=null, single=false, limit=Infinity;
-    const q={select(){return q;},eq(k,v){filters.push(x=>x[k]===v);return q;},in(k,v){filters.push(x=>v.includes(x[k]));return q;},gte(k,v){filters.push(x=>x[k]>=v);return q;},lte(k,v){filters.push(x=>x[k]<=v);return q;},lt(k,v){filters.push(x=>x[k]<v);return q;},not(k,_op,v){filters.push(x=>x[k]!==v);return q;},order(){return q;},limit(n){limit=n;return q;},maybeSingle(){single=true;return q;},single(){single=true;return q;},insert(v){write=['insert',v];return q;},update(v){write=['update',v];return q;},then(resolve,reject){try{
+    let filters=[], orders=[], write=null, single=false, limit=Infinity;
+    const q={select(){return q;},eq(k,v){filters.push(x=>x[k]===v);return q;},in(k,v){filters.push(x=>v.includes(x[k]));return q;},gte(k,v){filters.push(x=>x[k]>=v);return q;},lte(k,v){filters.push(x=>x[k]<=v);return q;},lt(k,v){filters.push(x=>x[k]<v);return q;},not(k,_op,v){filters.push(x=>x[k]!==v);return q;},order(key, options={}){orders.push([key,options.ascending!==false]);return q;},limit(n){limit=n;return q;},maybeSingle(){single=true;return q;},single(){single=true;return q;},insert(v){write=['insert',v];return q;},update(v){write=['update',v];return q;},then(resolve,reject){try{
       let rows=tables[table].filter(x=>filters.every(f=>f(x)));
       if(write?.[0]==='insert'){rows=[{id:'id'+nextId++,...structuredClone(write[1])}];tables[table].push(...rows);}
       if(write?.[0]==='update') rows.forEach(x=>Object.assign(x,structuredClone(write[1])));
-      rows=rows.slice(0,limit);return Promise.resolve({data:structuredClone(single?rows[0]??null:rows),error:null}).then(resolve,reject);
+      rows.sort((a,b)=>{for(const [key,asc] of orders){const cmp=a[key]<b[key]?-1:a[key]>b[key]?1:0;if(cmp)return asc?cmp:-cmp;}return 0;});rows=rows.slice(0,limit);return Promise.resolve({data:structuredClone(single?rows[0]??null:rows),error:null}).then(resolve,reject);
     }catch(e){return Promise.reject(e).then(resolve,reject);}}};return q;
   }};
-  const overrides={'@/lib/supabase/service':{supabaseAdmin:db},'@/lib/lineworks/shiftChangeNotify':{notifyShiftChange:async()=>{}},'@/lib/agent-playbooks/shiftCancellationParser':parser};
+  const overrides={'@/lib/lineworks/resolveClientManagerMentions':{resolveClientManagerMentions:async()=>({managerIds})},'@/lib/supabase/service':{supabaseAdmin:db},'@/lib/lineworks/shiftChangeNotify':{notifyShiftChange:async()=>{}},'@/lib/agent-playbooks/shiftCancellationParser':parser};
   const create=load('../src/lib/agent-playbooks/shiftCreation.ts',overrides);
   const cancel=load('../src/lib/agent-playbooks/shiftCancellation.ts',overrides);
-  return {tables,rpcCalls,create,cancel};
+  return {tables,rpcCalls,create,cancel,managerIds};
 }
 test('提示されたサービス追加依頼は確認を返し、確認前には登録しない',async()=>{
   const f=fixture('shift.create');
@@ -93,4 +94,31 @@ test('受信口から追加・キャンセルへ接続し、実際のメンシ�
     const result=await route.POST({json:async()=>({type:'message',issuedTime:base.issuedAt,source:{userId:'requester',channelId:'room',domainId:'domain'},content})});
     assert.equal(result.handledBy,'shift-cancellation-agent');assert.deepEqual(calls.map(x=>x[0]),['create','delete']);assert.ok(calls.every(x=>x[1].hasBotMention===expectedMention));
   }
+});
+
+const createRequest={...base,message:'10/3 10:00〜16:00 test サービス追加して'};
+function proposedStaff(f){return f.tables.agent_sessions[0].pending_action.shift.staffUserIds;}
+test('servicesuportと別サービスを飛ばして同サービスの直近担当者を選ぶ',async()=>{
+ const f=fixture('shift.create');const old={...f.tables.shift[0]};
+ f.tables.shift=[{...old,shift_id:4,shift_start_date:'2026-10-02',staff_01_user_id:'servicesuport'},{...old,shift_id:3,shift_start_date:'2026-10-01',service_code:'other',staff_01_user_id:'other'},{...old,shift_id:2,shift_start_date:'2026-09-30',staff_01_user_id:'recent'},old];
+ f.tables.user_entry_united_view_single.push(...['servicesuport','other','recent'].map(user_id=>({user_id,status:'lineworks_kaipoke_joined'})));
+ await f.create.handleShiftCreationAgent(createRequest);assert.deepEqual(proposedStaff(f),['recent']);
+ await f.create.handleShiftCreationAgent({...base,message:'OK',hasBotMention:false});assert.equal(f.rpcCalls[0].args.p_row.staff_01_user_id,'recent');
+});
+test('同サービス担当者がいない場合は担当マネジャーの先頭',async()=>{
+ const f=fixture('shift.create');f.tables.shift[0].staff_01_user_id='servicesuport';
+ const result=await f.create.handleShiftCreationAgent(createRequest);assert.deepEqual(proposedStaff(f),['manager-first']);assert.match(result.replyText,/担当マネジャー一覧の先頭/);
+});
+test('マネジャーも見つからなければ担当者を確認する',async()=>{
+ const f=fixture('shift.create');f.tables.shift=[];f.managerIds.length=0;
+ const result=await f.create.handleShiftCreationAgent(createRequest);assert.match(result.replyText,/担当者/);assert.equal(f.tables.agent_sessions[0].status,'awaiting_input');assert.equal(f.rpcCalls.length,0);
+});
+test('確認待ちの古いservicesuport担当は登録直前に拒否する',async()=>{
+ const f=fixture('shift.create');await f.create.handleShiftCreationAgent(createRequest);f.tables.agent_sessions[0].pending_action.shift.staffUserIds=['servicesuport'];
+ const result=await f.create.handleShiftCreationAgent({...base,message:'OK',hasBotMention:false});assert.match(result.replyText,/利用できないアカウント/);assert.equal(f.rpcCalls.length,0);
+});
+test('サービス修正時は自動提案の担当者も選び直す',async()=>{
+ const f=fixture('shift.create');f.tables.shift_service_code.push({service_code:'other'});f.tables.shift.push({...f.tables.shift[0],shift_id:2,service_code:'other',staff_01_user_id:'other-staff'});f.tables.user_entry_united_view_single.push({user_id:'other-staff',status:'lineworks_kaipoke_joined'});
+ await f.create.handleShiftCreationAgent(createRequest);assert.deepEqual(proposedStaff(f),['staff']);
+ await f.create.handleShiftCreationAgent({...base,message:'サービスコードはother',hasBotMention:false});assert.deepEqual(proposedStaff(f),['other-staff']);assert.equal(f.rpcCalls.length,0);
 });

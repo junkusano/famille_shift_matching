@@ -15,7 +15,7 @@ import {
   subMonths,
 } from "date-fns";
 import { ja } from "date-fns/locale";
-import { CalendarRange, Filter, Gauge, RotateCcw, Search, UserX } from "lucide-react";
+import { Filter, Gauge, RotateCcw, Search, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabaseClient";
 import { createTimeAdjustAlertFromShift } from "@/lib/shift/shift_card_alert";
@@ -794,7 +794,7 @@ export default function ShiftRejectPerformanceTestClient() {
                 <Gauge className="h-4 w-4" /> REJECT PERFORMANCE TEST
               </div>
               <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-                シフ子：担当シフト・お休み手続き Beta
+                シフト・訪問記録
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                 担当中のシフト確認、訪問記録、連絡、食事代・駐車許可証申請、シフト辞退をまとめて操作できます。
@@ -1004,11 +1004,6 @@ export default function ShiftRejectPerformanceTestClient() {
             掲示板へ移動 ↗
           </a>
         </section>
-
-        <div className="flex items-center gap-2 rounded-xl border border-purple-100 bg-white px-3 py-2 text-xs text-slate-500">
-          <CalendarRange className="h-4 w-4 text-purple-600" />
-          Betaページです。本番 `/portal/shift` と Request Performance Test 版には変更を加えていません。
-        </div>
       </div>
     </div>
   );
