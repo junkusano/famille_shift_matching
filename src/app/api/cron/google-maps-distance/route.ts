@@ -28,6 +28,8 @@ export async function POST(request: NextRequest) {
   const auth = await authorizedManual(request);
   if (!auth.ok) return NextResponse.json({ error: "管理者またはマネージャー権限が必要です" }, { status: 403 });
   const staffUserId = request.nextUrl.searchParams.get("staff_user_id")?.trim() || undefined;
-  try { return NextResponse.json(await runGoogleMapsDistanceUpdate("manual", auth.userId, staffUserId)); }
+  const targetMonthParam = request.nextUrl.searchParams.get("target_month")?.trim() || undefined;
+  const targetMonth = targetMonthParam && /^\d{4}-\d{2}$/.test(targetMonthParam) ? targetMonthParam : undefined;
+  try { return NextResponse.json(await runGoogleMapsDistanceUpdate("manual", auth.userId, staffUserId, targetMonth)); }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 }); }
 }

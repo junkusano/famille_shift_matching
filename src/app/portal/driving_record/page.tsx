@@ -192,8 +192,9 @@ export default function ManagerDistanceIndexPage() {
     setErrorMessage("");
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      const previousMonth = monthKeys[monthKeys.length - 2];
       const endpoint = staffUserId
-        ? `/api/cron/google-maps-distance?staff_user_id=${encodeURIComponent(staffUserId)}`
+        ? `/api/cron/google-maps-distance?staff_user_id=${encodeURIComponent(staffUserId)}&target_month=${encodeURIComponent(previousMonth)}`
         : "/api/cron/google-maps-distance";
       const response = await fetch(endpoint, {
         method: "POST",
@@ -463,7 +464,9 @@ export default function ManagerDistanceIndexPage() {
                         disabled={loading || updatingDistance || updatingStaffId !== null}
                         className="inline-flex items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {updatingStaffId === manager.userId ? "計算中..." : "この職員を計算"}
+                        {updatingStaffId === manager.userId
+                          ? `${formatMonth(monthKeys[monthKeys.length - 2])}分を計算中...`
+                          : `この職員の${formatMonth(monthKeys[monthKeys.length - 2])}分を計算`}
                       </button>
                     </td>
                   </tr>

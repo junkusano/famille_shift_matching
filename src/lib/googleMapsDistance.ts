@@ -117,6 +117,7 @@ export async function runGoogleMapsDistanceUpdate(
   triggerType: "cron" | "manual",
   createdBy?: string,
   staffUserId?: string,
+  targetMonth?: string,
 ): Promise<DistanceRunResult> {
   const started = Date.now();
   const deadline = started + MAX_RUNTIME_MS;
@@ -235,6 +236,9 @@ export async function runGoogleMapsDistanceUpdate(
 
     if (staffUserId) {
       targets = targets.filter((target) => target.staffId === staffUserId);
+    }
+    if (targetMonth) {
+      targets = targets.filter((target) => target.shift.shift_start_date?.slice(0, 7) === targetMonth);
     }
 
     // 直近の締め月（例：9月なら8月）を優先し、月次集計に必要な過去分を先に確定させる。
