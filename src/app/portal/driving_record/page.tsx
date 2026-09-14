@@ -72,6 +72,7 @@ export default function ManagerDistanceIndexPage() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [priceByMonth, setPriceByMonth] = useState<Record<string, number>>({});
   const [updatingDistance, setUpdatingDistance] = useState(false);
+  const [updatingStaffId, setUpdatingStaffId] = useState<string | null>(null);
 
   const monthKeys = useMemo(() => createRecentMonthKeys(4), []);
 
@@ -182,12 +183,19 @@ export default function ManagerDistanceIndexPage() {
     setLoading(false);
   }, [monthKeys]);
 
-  const updateDistance = async () => {
-    setUpdatingDistance(true);
+  const updateDistance = async (staffUserId?: string) => {
+    if (staffUserId) {
+      setUpdatingStaffId(staffUserId);
+    } else {
+      setUpdatingDistance(true);
+    }
     setErrorMessage("");
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch("/api/cron/google-maps-distance", {
+      const endpoint = staffUserId
+        ? `/api/cron/google-maps-distance?staff_user_id=${encodeURIComponent(staffUserId)}`
+        : "/api/cron/google-maps-distance";
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: session?.access_token ? { "x-supabase-access-token": session.access_token } : {},
       });
@@ -203,7 +211,11 @@ export default function ManagerDistanceIndexPage() {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
     } finally {
-      setUpdatingDistance(false);
+      if (staffUserId) {
+        setUpdatingStaffId(null);
+      } else {
+        setUpdatingDistance(false);
+      }
     }
   };
 
@@ -400,6 +412,9 @@ export default function ManagerDistanceIndexPage() {
                   <th className="min-w-[130px] bg-muted/70 px-4 py-3 text-right font-semibold">
                     4か月合計
                   </th>
+                  <th className="min-w-[170px] px-4 py-3 text-center font-semibold">
+                    操作
+                  </th>
                 </tr>
               </thead>
 
@@ -440,6 +455,16 @@ export default function ManagerDistanceIndexPage() {
 
                     <td className="bg-muted/30 px-4 py-3 text-right font-semibold tabular-nums">
                       {manager.total.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => void updateDistance(manager.userId)}
+                        disabled={loading || updatingDistance || updatingStaffId !== null}
+                        className="inline-flex items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {updatingStaffId === manager.userId ? "計算中..." : "この職員を計算"}
+                      </button>
                     </td>
                   </tr>
                   <tr key={`${manager.userId}-amount`} className="border-b bg-amber-50/40 text-sm">

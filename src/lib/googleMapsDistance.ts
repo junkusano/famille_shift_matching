@@ -113,7 +113,11 @@ async function fetchGoogleDistance(origin: string, destination: string): Promise
   return { distanceMeters: item.distanceMeters, durationSeconds };
 }
 
-export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual", createdBy?: string): Promise<DistanceRunResult> {
+export async function runGoogleMapsDistanceUpdate(
+  triggerType: "cron" | "manual",
+  createdBy?: string,
+  staffUserId?: string,
+): Promise<DistanceRunResult> {
   const started = Date.now();
   const deadline = started + MAX_RUNTIME_MS;
   const { data: run, error: runError } = await supabaseAdmin
@@ -210,7 +214,7 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
       day.push(item);
       shiftsByStaffDay.set(key, day);
     }
-    const targets: RouteTarget[] = [];
+    let targets: RouteTarget[] = [];
     for (const day of shiftsByStaffDay.values()) {
       day.sort((a, b) => (a.shift.shift_start_time ?? "").localeCompare(b.shift.shift_start_time ?? "") || a.shift.shift_id - b.shift.shift_id);
       const first = day[0];
@@ -227,6 +231,10 @@ export async function runGoogleMapsDistanceUpdate(triggerType: "cron" | "manual"
       if (last.client !== last.home) {
         targets.push({ shift: last.shift, staffId: last.staffId, segmentKind: "client_to_home", origin: last.client, destination: last.home });
       }
+    }
+
+    if (staffUserId) {
+      targets = targets.filter((target) => target.staffId === staffUserId);
     }
 
     // 直近の締め月（例：9月なら8月）を優先し、月次集計に必要な過去分を先に確定させる。
