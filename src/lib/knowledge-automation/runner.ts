@@ -14,15 +14,6 @@ import { WordPressApiError } from "@/lib/wordpress/server";
 
 type TriggerSource = "schedule" | "manual" | "retry";
 
-function calculateTaskNextRunAt(task: KnowledgeAutomationTask, from = new Date()) {
-  const scheduledJstWeekday = Number(task.settings?.scheduledJstWeekday);
-  if (Number.isInteger(scheduledJstWeekday) && scheduledJstWeekday >= 0 && scheduledJstWeekday <= 6) {
-    const time = task.schedule.time ?? task.schedule.times?.[0] ?? "09:00";
-    return calculateAutomationNextRunAt("weekly", { dayOfWeek: scheduledJstWeekday, time }, task.is_enabled, from);
-  }
-  return calculateAutomationNextRunAt(task.trigger_type, task.schedule, task.is_enabled, from);
-}
-
 function safeError(error: unknown) {
   if (error instanceof WordPressApiError) {
     return { code: error.code ?? "WORDPRESS_FAILED", message: error.message.slice(0, 1_000) };
@@ -82,7 +73,7 @@ export async function runKnowledgeAutomationTask(input: {
     .single();
   if (insertError?.code === "23505") {
     if (isDailyRewrite && input.triggerSource === "schedule") {
-      await supabaseAdmin.from("knowledge_automation_tasks").update({next_run_at: calculateTaskNextRunAt(task, now)}).eq("id", task.id);
+      await supabaseAdmin.from("knowledge_automation_tasks").update({next_run_at: calculateAutomationNextRunAt(task.trigger_type, task.schedule, task.is_enabled, now)}).eq("id", task.id);
     }
     return { ok: true, status: "skipped" as const, message: "同じ予定分はすでに実行済みです。" };
   }
@@ -90,7 +81,7 @@ export async function runKnowledgeAutomationTask(input: {
 
   if (input.triggerSource === "schedule") {
     await supabaseAdmin.from("knowledge_automation_tasks").update({
-      next_run_at: calculateTaskNextRunAt(task, now),
+      next_run_at: calculateAutomationNextRunAt(task.trigger_type, task.schedule, task.is_enabled, now),
       last_run_at: now.toISOString(),
     }).eq("id", task.id);
   } else {

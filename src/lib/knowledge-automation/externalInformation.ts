@@ -76,14 +76,10 @@ function isUpcomingWeekendDate(month: number, day: number) {
   return upcomingWeekendJst().some((date) => date.getUTCMonth() + 1 === month && date.getUTCDate() === day);
 }
 
-function scheduledJstWeekday(task: KnowledgeAutomationTask) {
-  const value = Number(task.settings?.scheduledJstWeekday);
-  return Number.isInteger(value) && value >= 0 && value <= 6 ? value : null;
-}
-
 function isScheduledEventDigestDay(task: KnowledgeAutomationTask) {
-  const weekday = scheduledJstWeekday(task);
-  if (weekday === null) return true;
+  if (task.trigger_type !== "weekly") return true;
+  const weekday = Number(task.schedule.dayOfWeek);
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) return false;
   const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1_000);
   return jstNow.getUTCDay() === weekday;
 }

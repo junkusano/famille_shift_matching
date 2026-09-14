@@ -61,10 +61,6 @@ function taskInput(task: KnowledgeAutomationTask): KnowledgeAutomationTaskInput 
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 
 function scheduleLabel(task: Pick<KnowledgeAutomationTaskInput, "trigger_type" | "schedule" | "settings">) {
-  const scheduledJstWeekday = Number(task.settings?.scheduledJstWeekday);
-  if (Number.isInteger(scheduledJstWeekday) && scheduledJstWeekday >= 0 && scheduledJstWeekday <= 6) {
-    return `毎週${WEEKDAY_LABELS[scheduledJstWeekday]}曜日 ${task.schedule.time ?? task.schedule.times?.[0] ?? "09:00"}`;
-  }
   if (task.trigger_type === "interval") return `${task.schedule.minutes ?? "—"}分ごと`;
   if (task.trigger_type === "daily") return `毎日 ${(task.schedule.times ?? []).join("・") || "時刻未設定"}`;
   if (task.trigger_type === "weekly") return `毎週${WEEKDAY_LABELS[task.schedule.dayOfWeek ?? -1] ?? "—"}曜日 ${task.schedule.time ?? "時刻未設定"}`;
