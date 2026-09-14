@@ -102,10 +102,10 @@ export function CmFaxDetailHeader({
             onClick={onRunOcr}
             disabled={isRunningOcr}
             className="inline-flex items-center gap-1.5 rounded bg-teal-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-teal-700 disabled:opacity-60"
-            title="未処理ページをABBYYでOCR（完了済みページはスキップ）"
+            title="このFAXの1ページ目をABBYYでOCR"
           >
             <ScanText className={`h-3.5 w-3.5 ${isRunningOcr ? 'animate-pulse' : ''}`} />
-            {isRunningOcr ? 'OCR中...' : 'OCR再実行'}
+            {isRunningOcr ? 'OCR中...' : 'ABBYYテスト'}
           </button>
           <span className="text-gray-500">
             <span className="font-bold text-teal-600">{assignedPages}</span>
