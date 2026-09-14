@@ -152,10 +152,32 @@ export async function runGoogleMapsDistanceUpdate(
     const to = new Date();
     to.setMonth(to.getMonth() + FUTURE_MONTHS);
     const toDate = to.toISOString().slice(0, 10);
-    const { data: shifts, error: shiftError } = await supabaseAdmin
+    let shiftQuery = supabaseAdmin
       .from("shift")
       .select("shift_id, shift_start_date, shift_start_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id")
       .gte("shift_start_date", fromDate).lte("shift_start_date", toDate);
+    if (staffUserId) {
+      shiftQuery = shiftQuery.or(
+        `staff_01_user_id.eq.${staffUserId},staff_02_user_id.eq.${staffUserId},staff_03_user_id.eq.${staffUserId}`
+      );
+    }
+    if (targetMonth && /^\d{4}-\d{2}$/.test(targetMonth)) {
+      const monthStart = new Date(`${targetMonth}-01T00:00:00Z`);
+      if (!Number.isNaN(monthStart.getTime())) {
+        const nextMonth = new Date(Date.UTC(
+          monthStart.getUTCFullYear(),
+          monthStart.getUTCMonth() + 1,
+          1,
+        ));
+        const monthEnd = new Date(nextMonth.getTime() - 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+        shiftQuery = shiftQuery
+          .gte("shift_start_date", `${targetMonth}-01`)
+          .lte("shift_start_date", monthEnd);
+      }
+    }
+    const { data: shifts, error: shiftError } = await shiftQuery;
     if (shiftError) throw new Error(shiftError.message);
 
     const shiftRows = (shifts ?? []) as ShiftRow[];
