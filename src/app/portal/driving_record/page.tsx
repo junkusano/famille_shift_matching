@@ -36,7 +36,7 @@ type MonthlyGasolinePrice = {
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER = 17.5;
+const AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER = 12;
 
 function getMonthKey(value: string): string {
   return value.slice(0, 7);
