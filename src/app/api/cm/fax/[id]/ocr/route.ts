@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { downloadGoogleDriveFile } from "@/lib/google-drive/upload";
+import { downloadGoogleDriveFile, extractGoogleDriveFileId } from "@/lib/google-drive/upload";
 import { extractTextWithAbbyy } from "@/lib/cs-docs-reprocess";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
@@ -23,7 +23,7 @@ export async function POST(
 
     const { data: fax, error: faxError } = await supabaseAdmin
       .from("cm_fax_received")
-      .select("id,file_id,page_count")
+      .select("id,file_id,file_path,page_count")
       .eq("id", faxId)
       .single();
     if (faxError || !fax?.file_id) {
@@ -57,7 +57,8 @@ export async function POST(
       .eq("fax_received_id", faxId)
       .in("id", targetPages.map(({ page }) => page.id));
 
-    const pdf = await downloadGoogleDriveFile(String(fax.file_id));
+    const fileId = extractGoogleDriveFileId(String(fax.file_id));
+    const pdf = await downloadGoogleDriveFile(fileId);
     const ocrText = await extractTextWithAbbyy(pdf);
     if (!ocrText) throw new Error("ABBYY OCR結果が空です");
 
