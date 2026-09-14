@@ -324,7 +324,7 @@ export default function ManagerDistanceIndexPage() {
 
   const monthlyAmountTotals = useMemo(() => {
     const totals: Record<string, number> = {};
-    for (const monthKey of monthKeys) {
+    for (const monthKey of googleMonthKeys) {
       const price = priceByMonth[monthKey];
       totals[monthKey] = price == null
         ? 0
@@ -449,7 +449,7 @@ export default function ManagerDistanceIndexPage() {
                     マネージャー名
                   </th>
 
-                  {monthKeys.map((monthKey) => (
+                  {googleMonthKeys.map((monthKey) => (
                     <th
                       key={monthKey}
                       className="min-w-[120px] px-4 py-3 text-right font-semibold"
@@ -483,7 +483,7 @@ export default function ManagerDistanceIndexPage() {
                       {manager.staffName}
                     </td>
 
-                    {monthKeys.map((monthKey) => {
+                    {googleMonthKeys.map((monthKey) => {
                       const value =
                         manager.monthlyValues[
                           monthKey
@@ -520,7 +520,7 @@ export default function ManagerDistanceIndexPage() {
                     <td className="sticky left-0 z-10 bg-amber-50/70 px-4 py-2 pl-8 text-xs font-medium text-muted-foreground">
                       ガソリン代
                     </td>
-                    {monthKeys.map((monthKey) => {
+                    {googleMonthKeys.map((monthKey) => {
                       const price = priceByMonth[monthKey];
                       const segmentCount = manager.monthlySegmentCounts[monthKey] ?? 0;
                       const amount = (manager.monthlyValues[monthKey] ?? 0) / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * (price ?? 0);
@@ -546,7 +546,7 @@ export default function ManagerDistanceIndexPage() {
                     全体合計
                   </td>
 
-                  {monthKeys.map((monthKey) => (
+                  {googleMonthKeys.map((monthKey) => (
                     <td
                       key={monthKey}
                       className="px-4 py-3 text-right tabular-nums"
@@ -563,7 +563,7 @@ export default function ManagerDistanceIndexPage() {
                 </tr>
                 <tr className="bg-amber-50 font-semibold">
                   <td className="sticky left-0 z-10 bg-amber-50 px-4 py-3">ガソリン代合計</td>
-                  {monthKeys.map((monthKey) => (
+                  {googleMonthKeys.map((monthKey) => (
                     <td key={monthKey} className="px-4 py-3 text-right tabular-nums text-amber-900">
                       {priceByMonth[monthKey] == null ? "単価未登録" : `${Math.round(monthlyAmountTotals[monthKey]).toLocaleString("ja-JP")} 円`}
                     </td>
