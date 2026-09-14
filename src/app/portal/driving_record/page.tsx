@@ -546,6 +546,26 @@ export default function ManagerDistanceIndexPage() {
       <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
         Google Mapsの道路距離をメートル単位で保存し、画面ではキロメートルに変換して表示しています。
       </div>
+
+      <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+        <h2 className="mb-3 text-lg font-semibold text-amber-900">
+          ガソリン代上限額（従来基準）
+        </h2>
+        <div className="grid gap-2 text-sm sm:grid-cols-3">
+          <div className="rounded-md bg-white px-4 py-3 shadow-sm">
+            <div className="font-medium text-gray-700">指数 899以下</div>
+            <div className="mt-1 text-lg font-bold text-gray-900">13,000円</div>
+          </div>
+          <div className="rounded-md bg-white px-4 py-3 shadow-sm">
+            <div className="font-medium text-gray-700">指数 900～1,499</div>
+            <div className="mt-1 text-lg font-bold text-gray-900">16,000円</div>
+          </div>
+          <div className="rounded-md bg-white px-4 py-3 shadow-sm">
+            <div className="font-medium text-gray-700">指数 1,500以上</div>
+            <div className="mt-1 text-lg font-bold text-gray-900">20,000円</div>
+          </div>
+        </div>
+      </div>
     </main>
   );
 }
