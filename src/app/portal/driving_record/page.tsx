@@ -36,6 +36,7 @@ type MonthlyGasolinePrice = {
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER = 17.5;
 
 function getMonthKey(value: string): string {
   return value.slice(0, 7);
@@ -75,6 +76,10 @@ export default function ManagerDistanceIndexPage() {
   const [updatingStaffId, setUpdatingStaffId] = useState<string | null>(null);
 
   const monthKeys = useMemo(() => createRecentMonthKeys(4), []);
+  const googleMonthKeys = useMemo(
+    () => monthKeys.filter((monthKey) => monthKey >= "2026-08"),
+    [monthKeys],
+  );
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -192,9 +197,8 @@ export default function ManagerDistanceIndexPage() {
     setErrorMessage("");
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const previousMonth = monthKeys[monthKeys.length - 2];
       const endpoint = staffUserId
-        ? `/api/cron/google-maps-distance?staff_user_id=${encodeURIComponent(staffUserId)}&target_month=${encodeURIComponent(previousMonth)}`
+        ? `/api/cron/google-maps-distance?staff_user_id=${encodeURIComponent(staffUserId)}`
         : "/api/cron/google-maps-distance";
       const response = await fetch(endpoint, {
         method: "POST",
@@ -324,7 +328,7 @@ export default function ManagerDistanceIndexPage() {
       const price = priceByMonth[monthKey];
       totals[monthKey] = price == null
         ? 0
-        : summaries.reduce((sum, manager) => sum + (manager.monthlyValues[monthKey] ?? 0) * price, 0);
+        : summaries.reduce((sum, manager) => sum + (manager.monthlyValues[monthKey] ?? 0) / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * price, 0);
     }
     return totals;
   }, [monthKeys, priceByMonth, summaries]);
@@ -333,6 +337,41 @@ export default function ManagerDistanceIndexPage() {
     () => Object.values(monthlyAmountTotals).reduce((sum, amount) => sum + amount, 0),
     [monthlyAmountTotals],
   );
+
+  const exportDistanceCsv = () => {
+    const headers = ["職員名"];
+    for (const monthKey of googleMonthKeys) {
+      headers.push(`${formatMonth(monthKey)} 距離(km)`, `${formatMonth(monthKey)} ガソリン代(円)`);
+    }
+    headers.push("合計距離(km)", "合計ガソリン代(円)");
+
+    const escapeCsv = (value: string | number) => {
+      const text = String(value);
+      return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+    };
+    const lines = summaries.map((manager) => {
+      const values: Array<string | number> = [manager.staffName];
+      let totalDistance = 0;
+      let totalAmount = 0;
+      for (const monthKey of googleMonthKeys) {
+        const distance = manager.monthlyValues[monthKey] ?? 0;
+        const amount = Math.round(distance / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * (priceByMonth[monthKey] ?? 0));
+        totalDistance += distance;
+        totalAmount += amount;
+        values.push(distance, amount);
+      }
+      values.push(totalDistance, totalAmount);
+      return values.map(escapeCsv).join(",");
+    });
+
+    const csv = `\uFEFF${[headers.map(escapeCsv).join(","), ...lines].join("\n")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `google-maps距離集計_${googleMonthKeys[0]}-${googleMonthKeys.at(-1)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <main className="space-y-6 p-4 md:p-6">
@@ -348,6 +387,7 @@ export default function ManagerDistanceIndexPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             Google Maps距離　最終更新：{lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString("ja-JP") : "未更新"}
             <br />※移動距離は3日に1回自動更新されます。シフト変更分は次回更新時に反映されます。
+            <br />ガソリン代は平均燃費 {AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER}km/L で計算します（走行距離 ÷ 燃費 × ガソリン単価）。
           </p>
         </div>
 
@@ -368,6 +408,14 @@ export default function ManagerDistanceIndexPage() {
           className="inline-flex h-10 items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {updatingDistance ? "距離更新中..." : "距離データを更新"}
+        </button>
+        <button
+          type="button"
+          onClick={exportDistanceCsv}
+          disabled={loading || googleMonthKeys.length === 0}
+          className="inline-flex h-10 items-center justify-center rounded-md border border-green-200 bg-green-50 px-4 text-sm font-medium text-green-800 shadow-sm transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          一覧をCSV出力
         </button>
       </div>
 
@@ -421,9 +469,9 @@ export default function ManagerDistanceIndexPage() {
 
               <tbody>
                 {summaries.map((manager) => {
-                  const managerAmount = monthKeys.reduce((sum, monthKey) => {
+                  const managerAmount = googleMonthKeys.reduce((sum, monthKey) => {
                     const price = priceByMonth[monthKey];
-                    return sum + (price == null ? 0 : (manager.monthlyValues[monthKey] ?? 0) * price);
+                    return sum + (price == null ? 0 : (manager.monthlyValues[monthKey] ?? 0) / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * price);
                   }, 0);
 
                   return <Fragment key={manager.userId}>
@@ -464,9 +512,7 @@ export default function ManagerDistanceIndexPage() {
                         disabled={loading || updatingDistance || updatingStaffId !== null}
                         className="inline-flex items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {updatingStaffId === manager.userId
-                          ? `${formatMonth(monthKeys[monthKeys.length - 2])}分を計算中...`
-                          : `この職員の${formatMonth(monthKeys[monthKeys.length - 2])}分を計算`}
+                        {updatingStaffId === manager.userId ? "計算中..." : "この職員を計算"}
                       </button>
                     </td>
                   </tr>
@@ -477,13 +523,13 @@ export default function ManagerDistanceIndexPage() {
                     {monthKeys.map((monthKey) => {
                       const price = priceByMonth[monthKey];
                       const segmentCount = manager.monthlySegmentCounts[monthKey] ?? 0;
-                      const amount = (manager.monthlyValues[monthKey] ?? 0) * (price ?? 0);
+                      const amount = (manager.monthlyValues[monthKey] ?? 0) / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * (price ?? 0);
                       return <td key={monthKey} className="px-4 py-2 text-right tabular-nums text-amber-900">
                         {segmentCount === 0 ? "—" : price == null ? "単価未登録" : `${Math.round(amount).toLocaleString("ja-JP")} 円`}
                       </td>;
                     })}
                     <td className="bg-amber-100/70 px-4 py-2 text-right font-semibold tabular-nums text-amber-900">
-                      {managerAmount === 0 && monthKeys.every((monthKey) => (manager.monthlySegmentCounts[monthKey] ?? 0) === 0)
+                      {managerAmount === 0 && googleMonthKeys.every((monthKey) => (manager.monthlySegmentCounts[monthKey] ?? 0) === 0)
                         ? "—"
                         : Object.keys(priceByMonth).length === 0
                           ? "単価未登録"
