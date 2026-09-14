@@ -16,6 +16,7 @@ export const knowledgeAutomationTaskInputSchema = z.object({
   schedule: z.object({
     minutes: z.number().int().min(5).max(1_440).optional(),
     times: z.array(z.string().regex(timePattern)).max(12).optional(),
+    dayOfWeek: z.number().int().min(0).max(6).optional(),
     day: z.number().int().min(1).max(31).optional(),
     time: z.string().regex(timePattern).optional(),
     eventKey: z.string().trim().max(100).optional(),
@@ -34,6 +35,9 @@ export const knowledgeAutomationTaskInputSchema = z.object({
   }
   if (value.trigger_type === "daily" && !value.schedule.times?.length) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["schedule", "times"], message: "実行時刻を入力してください。" });
+  }
+  if (value.trigger_type === "weekly" && (value.schedule.dayOfWeek === undefined || !value.schedule.time)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["schedule"], message: "毎週の曜日と実行時刻を入力してください。" });
   }
   if (value.trigger_type === "monthly" && (value.schedule.day === undefined || !value.schedule.time)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["schedule"], message: "毎月の実行日と時刻を入力してください。" });

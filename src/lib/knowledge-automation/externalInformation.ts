@@ -58,15 +58,51 @@ function isApprovedEventUrl(value: string) {
   }
 }
 
+function upcomingWeekendJst() {
+  const offsetMs = 9 * 60 * 60 * 1_000;
+  const shifted = new Date(Date.now() + offsetMs);
+  const saturdayOffset = (6 - shifted.getUTCDay() + 7) % 7;
+  const saturday = new Date(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate() + saturdayOffset));
+  const sunday = new Date(saturday);
+  sunday.setUTCDate(sunday.getUTCDate() + 1);
+  return [saturday, sunday];
+}
+
+function weekendDateLabel(date: Date) {
+  return `${date.getUTCFullYear()}年${date.getUTCMonth() + 1}月${date.getUTCDate()}日`;
+}
+
+function isUpcomingWeekendDate(month: number, day: number) {
+  return upcomingWeekendJst().some((date) => date.getUTCMonth() + 1 === month && date.getUTCDate() === day);
+}
+
+function scheduledJstWeekday(task: KnowledgeAutomationTask) {
+  const value = Number(task.settings?.scheduledJstWeekday);
+  return Number.isInteger(value) && value >= 0 && value <= 6 ? value : null;
+}
+
+function isScheduledEventDigestDay(task: KnowledgeAutomationTask) {
+  const weekday = scheduledJstWeekday(task);
+  if (weekday === null) return true;
+  const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1_000);
+  return jstNow.getUTCDay() === weekday;
+}
+
 function validateEventDigest(text: string) {
+  if (/今週末は公式情報で条件を満たす候補を確認できませんでした/.test(text)) return;
   if (!/名古屋市/.test(text)) {
     throw new Error("名古屋市内の開催地を公式情報で確認できないため、配信を中止しました。");
   }
   if (/(東京都|大阪府|東京ドーム|阪急うめだ|eplus\.jp)/.test(text)) {
     throw new Error("名古屋市外またはチケット販売サイト由来の候補が含まれるため、配信を中止しました。");
   }
-  if (/(詳細は公式サイトをご確認ください|公式確認が必要)/.test(text)) {
+  if (/(詳細は公式サイトをご確認ください|公式確認が必要|確認が取れませんでした|確認できませんでした|記載されていません|不明|未確認)/.test(text)) {
     throw new Error("料金またはバリアフリー条件を確認できない候補が含まれるため、配信を中止しました。");
+  }
+
+  const dates = Array.from(text.matchAll(/(?:20\d{2}年)?(\d{1,2})月(\d{1,2})日/g), (match) => ({ month: Number(match[1]), day: Number(match[2]) }));
+  if (dates.some((date) => !isUpcomingWeekendDate(date.month, date.day))) {
+    throw new Error(`直近の土日（${upcomingWeekendJst().map(weekendDateLabel).join("・")}）以外の日付が含まれるため、配信を中止しました。`);
   }
 
   const urls = Array.from(text.matchAll(/https?:\/\/[^\s)]+/g), (match) => match[0]);
@@ -113,6 +149,7 @@ function isEventDigest(task: KnowledgeAutomationTask) {
 
 async function createEventDigest(task: KnowledgeAutomationTask) {
   const prioritySources = await priorityEventSources();
+  const weekend = upcomingWeekendJst().map(weekendDateLabel).join("、");
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const response = await openai.responses.create({
     model: process.env.KNOWLEDGE_AUTOMATION_MODEL || "gpt-4.1-mini",
@@ -124,7 +161,8 @@ async function createEventDigest(task: KnowledgeAutomationTask) {
           "あなたは名古屋市の障害福祉事業所の利用者・ヘルパー向け情報担当です。",
           "最初に、依頼文に添えられた優先公式ソース（イオン、ららぽーと、松坂屋）を確認します。そこに今週末の条件を満たす候補があれば、行政系の常設施設より先に扱います。",
           "対象地域は愛知県名古屋市内だけです。名古屋市外（東京・大阪など）は、検索結果に出ても絶対に掲載しません。",
-          "直近の土日に、名古屋市内で実施されるイベントだけを最大3件選びます。件数を埋めるために不適切な候補を加えません。",
+          `対象日は ${weekend} です。この2日以外の日に開催される候補は掲載しません。期間イベントも、対象日の開催が公式情報で確認できる場合だけ掲載します。`,
+          "対象日に、名古屋市内で実施されるイベントだけを最大3件選びます。件数を埋めるために不適切な候補を加えません。",
           "各候補は主催者・会場・自治体の公式ページで、開催日、会場の名古屋市内住所、料金を確認できた場合だけ掲載します。チケット販売サイト、まとめサイト、検索結果だけを根拠にしません。",
           "無料を最優先とし、有料イベントは障害者本人の割引と介護同行者の無料・割引人数を公式ページで確認できる場合だけ掲載します。料金または割引が確認できない候補は除外します。",
           "車いす利用、段差、エレベーター、多目的トイレ、介護同行者の扱いは、公式情報で確認できた事実だけを記載します。不明なら、その候補を除外します。",
@@ -189,8 +227,11 @@ export async function runWeatherAlert(task: KnowledgeAutomationTask): Promise<Au
   return { status: "succeeded", message: "気象庁の一次情報を確認し、LINE WORKSへ注意情報を送信しました。" };
 }
 
-export async function runExternalInformationAutomation(task: KnowledgeAutomationTask): Promise<AutomationResult | null> {
+export async function runExternalInformationAutomation(task: KnowledgeAutomationTask, triggerSource: "schedule" | "manual" | "retry" = "schedule"): Promise<AutomationResult | null> {
   if (task.task_type === "weather_alert") return runWeatherAlert(task);
+  if (isEventDigest(task) && task.destination === "lineworks_message" && triggerSource === "schedule" && !isScheduledEventDigestDay(task)) {
+    return { status: "skipped", message: "週末イベント情報は毎週木曜日の9:00だけ自動配信します。" };
+  }
   if (isEventDigest(task) && task.destination === "lineworks_message") return createEventDigest(task);
   return null;
 }
