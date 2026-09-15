@@ -210,7 +210,7 @@ export default function RosterBoardDaily({
 
     // ====== 表示データ（カードはドラッグ反映のため state に） ======
     const [cards, setCards] = useState<RosterShiftCard[]>(initialView.shifts);
-    const [showAllStaff, setShowAllStaff] = useState(false);
+    const [showAllStaff, setShowAllStaff] = useState(true);
 
     const [selectedShift, setSelectedShift] = useState<RosterShiftDialogData | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -390,7 +390,7 @@ export default function RosterBoardDaily({
   });
 
 return sorted.filter((st) => {
-  if (beta && !showAllStaff && !assignedStaffIds.has(st.id)) {
+  if (!showAllStaff && !assignedStaffIds.has(st.id)) {
     return false;
   }
   // 選択がない場合は全員表示
@@ -875,15 +875,13 @@ const topPx =
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                         {beta && <span className="rounded bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">シフト表 β版</span>}
-                        {beta && (
-                            <button
-                                type="button"
-                                onClick={() => setShowAllStaff((prev) => !prev)}
-                                className="rounded border px-2 py-1 text-sm hover:bg-gray-50"
-                            >
-                                {showAllStaff ? "担当者のみ表示" : "全体表示"}
-                            </button>
-                        )}
+                        <button
+                            type="button"
+                            onClick={() => setShowAllStaff((prev) => !prev)}
+                            className="rounded border px-2 py-1 text-sm hover:bg-gray-50"
+                        >
+                            {showAllStaff ? "担当者のみ表示" : "全体表示"}
+                        </button>
                         <button onClick={prevDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">前日</button>
                         <input type="date" className="px-2 py-1 rounded border text-sm" value={date} onChange={onPickDate} />
                         <button onClick={nextDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">翌日</button>
@@ -928,6 +926,15 @@ const topPx =
           </button>
         </div>
       </div>
+
+      <label className="mb-2 flex items-center gap-2 border-b pb-2 text-sm">
+        <input
+          type="checkbox"
+          checked={!showAllStaff}
+          onChange={(e) => setShowAllStaff(!e.target.checked)}
+        />
+        <span>シフトがあるスタッフのみ</span>
+      </label>
 
       <div className="space-y-1">
         {allTeams.length === 0 ? (
