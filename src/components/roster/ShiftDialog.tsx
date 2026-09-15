@@ -1,6 +1,7 @@
 //components/roster/ShiftDialog.tsx
 'use client';
 import { spotApplicationLabel } from '@/lib/spot-sync/display';
+import { confirmedPhone, taimeeJobUrl } from '@/lib/roster/spotDetails';
 
 
 import { useEffect, useMemo, useState } from 'react';
@@ -70,6 +71,8 @@ type SpotOfferRequestTemplate = {
 };
 
 type SpotConfirmed = {
+    taimee_job_id?: string | null;
+    phone?: string | null;
     applicant_source?: string | null; application_state?: string | null; application_conflict?: boolean;
     applicant_name: string | null;
     applicant_sex: string | null;
@@ -336,6 +339,7 @@ export default function ShiftDialog({
     const [shiftEndTime, setShiftEndTime] = useState("");
     const [spotConfirmed, setSpotConfirmed] =
     useState<SpotConfirmed | null>(null);
+    const [spotError, setSpotError] = useState('');
     const router = useRouter();
 
     const staffSelectOptions = useMemo<SearchableSelectOption[]>(
@@ -398,30 +402,41 @@ export default function ShiftDialog({
     
     }, [open, shift]);
     useEffect(() => {
-    const loadSpotConfirmed = async () => {
-        if (!open || !shift?.shift_id) {
+        let cancelled = false;
+        const loadSpotConfirmed = async () => {
             setSpotConfirmed(null);
-            return;
-        }
-
-        const { data } = await supabase
-            .from('spot_offer_request_table')
-            .select(`
-                applicant_source,application_state,application_conflict,
-                applicant_name,
-                applicant_sex,
-                applicant_control_url,
-                status
-            `)
-            .eq("shift_id", shift.shift_id)
-            .in("status", ["募集中", "確定"])
-            .maybeSingle();
-
-        setSpotConfirmed(data ?? null);
-    };
-
-    loadSpotConfirmed();
-}, [open, shift?.shift_id]);
+            setSpotError('');
+            if (!open || !shift?.shift_id) return;
+            // 新しい同期項目が未導入のDBでも、既存の募集情報を取得する。
+            const { data, error } = await supabase.from('spot_offer_request_table')
+                .select('*').eq('shift_id', shift.shift_id)
+                .in('status', ['募集中', '確定']).maybeSingle();
+            if (cancelled) return;
+            if (error) {
+                setSpotError('タイミー・スポット募集情報を取得できませんでした。画面を開き直してください。');
+                return;
+            }
+            setSpotConfirmed(data ?? null);
+            if (data?.status === '確定' && data.taimee_job_id &&
+                (!data.applicant_source || data.applicant_source === 'taimee')) {
+                const result = await supabase.from('taimee_applicant_jobs')
+                    .select('taimee_applicants(last_name,first_name,phone)')
+                    .eq('taimee_job_id', data.taimee_job_id).eq('work_date', shift.shift_date);
+                if (cancelled) return;
+                if (result.error) {
+                    setSpotError('確定者の連絡先を取得できませんでした。求人・応募者管理画面をご確認ください。');
+                    return;
+                }
+                // 同じ求人の別の勤務者の番号を表示しないよう、確定者名で照合する。
+                const people = (result.data ?? []).flatMap(row => row.taimee_applicants ?? []);
+                setSpotConfirmed({ ...data, phone: confirmedPhone(data.applicant_name, people) });
+            }
+        };
+        void loadSpotConfirmed().catch(() => {
+            if (!cancelled) setSpotError('タイミー・スポット募集情報の取得中にエラーが発生しました。画面を開き直してください。');
+        });
+        return () => { cancelled = true; };
+    }, [open, shift?.shift_id, shift?.shift_date]);
 
     const monthlyHref = useMemo(() => {
         if (!shift?.kaipoke_cs_id || !shift?.shift_date) return '/portal/roster/monthly';
@@ -992,6 +1007,13 @@ const saveShiftOnly = async () => {
                                     ))}
                                 </select>
                             </label>
+{spotError && <p role="alert" className="text-sm text-red-700">{spotError}</p>}
+{(taimeeJobUrl(spotConfirmed?.taimee_job_id) || spotConfirmed?.applicant_control_url) && (
+    <a href={taimeeJobUrl(spotConfirmed?.taimee_job_id) || spotConfirmed?.applicant_control_url || undefined} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+        求人・応募者管理画面を開く
+    </a>
+)}
+{spotConfirmed?.taimee_job_id && <p className="text-sm">タイミー求人：{spotConfirmed.taimee_job_id} ／ {spotConfirmed.status}</p>}
 {spotConfirmed?.status === "募集中" && (
   <div className="rounded border border-orange-300 bg-orange-50 p-3">
     <div className="flex items-center justify-between gap-3">
@@ -1041,10 +1063,13 @@ const saveShiftOnly = async () => {
         </div>
 
         <div className="font-medium">
-            {spotConfirmed.applicant_name}
-            （{spotConfirmed.applicant_sex}）
+            {spotConfirmed.applicant_name || '氏名未取得'}
+            {spotConfirmed.applicant_sex ? '（' + spotConfirmed.applicant_sex + '）' : ''}
         </div>
 
+        <div className="text-sm">
+            連絡先：{spotConfirmed.phone ? <a href={'tel:' + spotConfirmed.phone} className="text-blue-600 underline">{spotConfirmed.phone}</a> : '未取得（求人・応募者管理画面をご確認ください）'}
+        </div>
         {spotConfirmed.applicant_control_url && (
             <a
                 href={spotConfirmed.applicant_control_url}
