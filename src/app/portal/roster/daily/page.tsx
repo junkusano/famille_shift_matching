@@ -116,6 +116,7 @@ export default async function Page({
 
   return (
     <RosterBoardDaily
+      key={date}
       date={date}
       initialView={initialView}
       googleCalendarEvents={googleCalendarEvents}
