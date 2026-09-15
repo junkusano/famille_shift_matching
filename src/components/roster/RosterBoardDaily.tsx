@@ -221,6 +221,9 @@ export default function RosterBoardDaily({
         const loadRpaStatus = async () => {
             const baseCards = initialView.shifts;
 
+            // 日付を切り替えた直後に、前の日のカードが残らないよう即時反映する。
+            setCards(baseCards);
+
             const shiftIds = Array.from(
                 new Set(
                     baseCards
@@ -230,7 +233,6 @@ export default function RosterBoardDaily({
             );
 
             if (shiftIds.length === 0) {
-                setCards(baseCards);
                 return;
             }
 
@@ -241,7 +243,6 @@ export default function RosterBoardDaily({
 
             if (error) {
                 console.error("RPA状態取得エラー:", error);
-                setCards(baseCards);
                 return;
             }
 
@@ -266,9 +267,8 @@ export default function RosterBoardDaily({
                 };
             });
 
-            if (!cancelled) {
-                setCards(nextCards);
-            }
+            if (cancelled) return;
+            setCards(nextCards);
         };
 
         void loadRpaStatus();
