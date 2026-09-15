@@ -389,7 +389,11 @@ export default function RosterBoardDaily({
       })
       .map((card) => card.staff_id),
   );
-  const sorted = [...initialView.staff].sort((a, b) => {
+  // View側の結合結果に同じuser_idが複数行ある場合でも、画面上は1人1行にする。
+  const uniqueStaff = Array.from(
+    new Map(initialView.staff.map((staff) => [staff.id, staff])).values(),
+  );
+  const sorted = uniqueStaff.sort((a, b) => {
     const ra = getRosterSort(a);
     const rb = getRosterSort(b);
 
