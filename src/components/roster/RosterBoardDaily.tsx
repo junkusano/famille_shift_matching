@@ -210,7 +210,8 @@ export default function RosterBoardDaily({
 
     // ====== 表示データ（カードはドラッグ反映のため state に） ======
     const [cards, setCards] = useState<RosterShiftCard[]>(initialView.shifts);
-    const [showAllStaff, setShowAllStaff] = useState(false);
+    const [cardsDate, setCardsDate] = useState(date);
+    const [showAllStaff, setShowAllStaff] = useState(true);
 
     const [selectedShift, setSelectedShift] = useState<RosterShiftDialogData | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -221,6 +222,10 @@ export default function RosterBoardDaily({
         const loadRpaStatus = async () => {
             const baseCards = initialView.shifts;
 
+            // 日付を切り替えた直後に、前の日のカードが残らないよう即時反映する。
+            setCardsDate(date);
+            setCards(baseCards);
+
             const shiftIds = Array.from(
                 new Set(
                     baseCards
@@ -230,7 +235,6 @@ export default function RosterBoardDaily({
             );
 
             if (shiftIds.length === 0) {
-                setCards(baseCards);
                 return;
             }
 
@@ -241,7 +245,6 @@ export default function RosterBoardDaily({
 
             if (error) {
                 console.error("RPA状態取得エラー:", error);
-                setCards(baseCards);
                 return;
             }
 
@@ -266,9 +269,8 @@ export default function RosterBoardDaily({
                 };
             });
 
-            if (!cancelled) {
-                setCards(nextCards);
-            }
+            if (cancelled) return;
+            setCards(nextCards);
         };
 
         void loadRpaStatus();
@@ -374,8 +376,24 @@ export default function RosterBoardDaily({
 
     // 並び順：roster_sort → 氏名
     const displayStaff: RosterStaff[] = useMemo(() => {
-  const assignedStaffIds = new Set(cards.map((card) => card.staff_id));
-  const sorted = [...initialView.staff].sort((a, b) => {
+  // 日付遷移中は旧カードを担当者判定に使わず、現在のサーバー結果を使う。
+  const currentCards = cardsDate === date ? cards : initialView.shifts;
+  const assignedStaffIds = new Set(
+    currentCards
+      .filter((card) => {
+        // スタッフ1は主担当。スタッフ2・3は「同行」がONのときだけ従事者とする。
+        if (card.staff_slot === 1) return true;
+        if (card.staff_slot === 2) return card.dialog?.staff_02_attend_flg === true;
+        if (card.staff_slot === 3) return card.dialog?.staff_03_attend_flg === true;
+        return false;
+      })
+      .map((card) => card.staff_id),
+  );
+  // View側の結合結果に同じuser_idが複数行ある場合でも、画面上は1人1行にする。
+  const uniqueStaff = Array.from(
+    new Map(initialView.staff.map((staff) => [staff.id, staff])).values(),
+  );
+  const sorted = uniqueStaff.sort((a, b) => {
     const ra = getRosterSort(a);
     const rb = getRosterSort(b);
 
@@ -390,7 +408,7 @@ export default function RosterBoardDaily({
   });
 
 return sorted.filter((st) => {
-  if (beta && !showAllStaff && !assignedStaffIds.has(st.id)) {
+  if (!showAllStaff && !assignedStaffIds.has(st.id)) {
     return false;
   }
   // 選択がない場合は全員表示
@@ -427,7 +445,7 @@ return sorted.filter((st) => {
 
   return isSelectedTeam || isManagerOrAdmin;
 });
-}, [initialView.staff, selectedTeams, cards, beta, showAllStaff]);
+}, [initialView.staff, initialView.shifts, selectedTeams, cards, cardsDate, date, showAllStaff]);
 
     const serviceOptions = useMemo(() => {
         const map = new Map<string, string>();
@@ -875,15 +893,13 @@ const topPx =
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                         {beta && <span className="rounded bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">シフト表 β版</span>}
-                        {beta && (
-                            <button
-                                type="button"
-                                onClick={() => setShowAllStaff((prev) => !prev)}
-                                className="rounded border px-2 py-1 text-sm hover:bg-gray-50"
-                            >
-                                {showAllStaff ? "担当者のみ表示" : "全体表示"}
-                            </button>
-                        )}
+                        <button
+                            type="button"
+                            onClick={() => setShowAllStaff((prev) => !prev)}
+                            className="rounded border px-2 py-1 text-sm hover:bg-gray-50"
+                        >
+                            {showAllStaff ? "担当者のみ表示" : "全体表示"}
+                        </button>
                         <button onClick={prevDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">前日</button>
                         <input type="date" className="px-2 py-1 rounded border text-sm" value={date} onChange={onPickDate} />
                         <button onClick={nextDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">翌日</button>
@@ -928,6 +944,15 @@ const topPx =
           </button>
         </div>
       </div>
+
+      <label className="mb-2 flex items-center gap-2 border-b pb-2 text-sm">
+        <input
+          type="checkbox"
+          checked={!showAllStaff}
+          onChange={(e) => setShowAllStaff(!e.target.checked)}
+        />
+        <span>シフトがあるスタッフのみ</span>
+      </label>
 
       <div className="space-y-1">
         {allTeams.length === 0 ? (
@@ -1032,6 +1057,10 @@ const topPx =
 
  {/* MyFamilleのシフトカード */}
 {cards.map((c) => {
+  if (cardsDate !== date) {
+    return null;
+  }
+
   const rowIdx = rowIndexByStaff.get(c.staff_id);
 
   if (rowIdx == null) {
