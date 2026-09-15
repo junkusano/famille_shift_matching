@@ -210,6 +210,7 @@ export default function RosterBoardDaily({
 
     // ====== 表示データ（カードはドラッグ反映のため state に） ======
     const [cards, setCards] = useState<RosterShiftCard[]>(initialView.shifts);
+    const [cardsDate, setCardsDate] = useState(date);
     const [showAllStaff, setShowAllStaff] = useState(true);
 
     const [selectedShift, setSelectedShift] = useState<RosterShiftDialogData | null>(null);
@@ -222,6 +223,7 @@ export default function RosterBoardDaily({
             const baseCards = initialView.shifts;
 
             // 日付を切り替えた直後に、前の日のカードが残らないよう即時反映する。
+            setCardsDate(date);
             setCards(baseCards);
 
             const shiftIds = Array.from(
@@ -374,7 +376,10 @@ export default function RosterBoardDaily({
 
     // 並び順：roster_sort → 氏名
     const displayStaff: RosterStaff[] = useMemo(() => {
-  const assignedStaffIds = new Set(cards.map((card) => card.staff_id));
+  // 日付遷移中は旧カードを担当者判定に使わず、現在のサーバー結果を使う。
+  const assignedStaffIds = new Set(
+    (cardsDate === date ? cards : initialView.shifts).map((card) => card.staff_id),
+  );
   const sorted = [...initialView.staff].sort((a, b) => {
     const ra = getRosterSort(a);
     const rb = getRosterSort(b);
@@ -427,7 +432,7 @@ return sorted.filter((st) => {
 
   return isSelectedTeam || isManagerOrAdmin;
 });
-}, [initialView.staff, selectedTeams, cards, beta, showAllStaff]);
+}, [initialView.staff, initialView.shifts, selectedTeams, cards, cardsDate, date, showAllStaff]);
 
     const serviceOptions = useMemo(() => {
         const map = new Map<string, string>();
@@ -1039,6 +1044,10 @@ const topPx =
 
  {/* MyFamilleのシフトカード */}
 {cards.map((c) => {
+  if (cardsDate !== date) {
+    return null;
+  }
+
   const rowIdx = rowIndexByStaff.get(c.staff_id);
 
   if (rowIdx == null) {
