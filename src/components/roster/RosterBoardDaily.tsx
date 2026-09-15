@@ -377,8 +377,17 @@ export default function RosterBoardDaily({
     // 並び順：roster_sort → 氏名
     const displayStaff: RosterStaff[] = useMemo(() => {
   // 日付遷移中は旧カードを担当者判定に使わず、現在のサーバー結果を使う。
+  const currentCards = cardsDate === date ? cards : initialView.shifts;
   const assignedStaffIds = new Set(
-    (cardsDate === date ? cards : initialView.shifts).map((card) => card.staff_id),
+    currentCards
+      .filter((card) => {
+        // スタッフ1は主担当。スタッフ2・3は「同行」がONのときだけ従事者とする。
+        if (card.staff_slot === 1) return true;
+        if (card.staff_slot === 2) return card.dialog?.staff_02_attend_flg === true;
+        if (card.staff_slot === 3) return card.dialog?.staff_03_attend_flg === true;
+        return false;
+      })
+      .map((card) => card.staff_id),
   );
   const sorted = [...initialView.staff].sort((a, b) => {
     const ra = getRosterSort(a);
