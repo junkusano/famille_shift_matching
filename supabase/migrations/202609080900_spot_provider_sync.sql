@@ -91,9 +91,12 @@ end $$;
 create trigger protect_spot_application_projection before update on public.spot_offer_request_table for each row execute function public.protect_spot_application_projection();
 revoke all on function public.protect_spot_application_projection() from public,anon,authenticated;
 
--- 同時に走るCronでも同じ指示を二重登録しない。既存ジョブには影響させない。
-create unique index rpa_spot_sync_runner_operation on public.rpa_runner_jobs((payload->>'sync_operation_key')) where payload->>'sync_operation_key' is not null;
-create unique index rpa_spot_sync_pad_operation on public.rpa_command_requests((request_details->>'sync_operation_key')) where request_details->>'sync_operation_key' is not null;
+-- 同時に走るCronでも同じ指示を二重登録しない。
+-- 完了・失敗の履歴は保持し、再試行を妨げないよう実行中の指示だけを一意にする。
+create unique index rpa_spot_sync_runner_operation on public.rpa_runner_jobs((payload->>'sync_operation_key'))
+  where payload->>'sync_operation_key' is not null and status in ('pending','claimed');
+create unique index rpa_spot_sync_pad_operation on public.rpa_command_requests((request_details->>'sync_operation_key'))
+  where request_details->>'sync_operation_key' is not null and status in ('pending','claimed');
 create table public.spot_offer_publication_history (
  request_id uuid not null references public.spot_offer_request_table(id) on delete cascade,
  provider text not null references public.spot_offer_providers(code),
