@@ -36,6 +36,7 @@ type MonthlyGasolinePrice = {
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER = 12;
 
 function getMonthKey(value: string): string {
   return value.slice(0, 7);
@@ -72,8 +73,13 @@ export default function ManagerDistanceIndexPage() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [priceByMonth, setPriceByMonth] = useState<Record<string, number>>({});
   const [updatingDistance, setUpdatingDistance] = useState(false);
+  const [updatingStaffId, setUpdatingStaffId] = useState<string | null>(null);
 
   const monthKeys = useMemo(() => createRecentMonthKeys(4), []);
+  const googleMonthKeys = useMemo(
+    () => monthKeys.filter((monthKey) => monthKey >= "2026-08"),
+    [monthKeys],
+  );
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -182,12 +188,19 @@ export default function ManagerDistanceIndexPage() {
     setLoading(false);
   }, [monthKeys]);
 
-  const updateDistance = async () => {
-    setUpdatingDistance(true);
+  const updateDistance = async (staffUserId?: string) => {
+    if (staffUserId) {
+      setUpdatingStaffId(staffUserId);
+    } else {
+      setUpdatingDistance(true);
+    }
     setErrorMessage("");
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch("/api/cron/google-maps-distance", {
+      const endpoint = staffUserId
+        ? `/api/cron/google-maps-distance?staff_user_id=${encodeURIComponent(staffUserId)}`
+        : "/api/cron/google-maps-distance";
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: session?.access_token ? { "x-supabase-access-token": session.access_token } : {},
       });
@@ -203,7 +216,11 @@ export default function ManagerDistanceIndexPage() {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
     } finally {
-      setUpdatingDistance(false);
+      if (staffUserId) {
+        setUpdatingStaffId(null);
+      } else {
+        setUpdatingDistance(false);
+      }
     }
   };
 
@@ -307,11 +324,11 @@ export default function ManagerDistanceIndexPage() {
 
   const monthlyAmountTotals = useMemo(() => {
     const totals: Record<string, number> = {};
-    for (const monthKey of monthKeys) {
+    for (const monthKey of googleMonthKeys) {
       const price = priceByMonth[monthKey];
       totals[monthKey] = price == null
         ? 0
-        : summaries.reduce((sum, manager) => sum + (manager.monthlyValues[monthKey] ?? 0) * price, 0);
+        : summaries.reduce((sum, manager) => sum + (manager.monthlyValues[monthKey] ?? 0) / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * price, 0);
     }
     return totals;
   }, [monthKeys, priceByMonth, summaries]);
@@ -320,6 +337,41 @@ export default function ManagerDistanceIndexPage() {
     () => Object.values(monthlyAmountTotals).reduce((sum, amount) => sum + amount, 0),
     [monthlyAmountTotals],
   );
+
+  const exportDistanceCsv = () => {
+    const headers = ["職員名"];
+    for (const monthKey of googleMonthKeys) {
+      headers.push(`${formatMonth(monthKey)} 距離(km)`, `${formatMonth(monthKey)} ガソリン代(円)`);
+    }
+    headers.push("合計距離(km)", "合計ガソリン代(円)");
+
+    const escapeCsv = (value: string | number) => {
+      const text = String(value);
+      return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+    };
+    const lines = summaries.map((manager) => {
+      const values: Array<string | number> = [manager.staffName];
+      let totalDistance = 0;
+      let totalAmount = 0;
+      for (const monthKey of googleMonthKeys) {
+        const distance = manager.monthlyValues[monthKey] ?? 0;
+        const amount = Math.round(distance / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * (priceByMonth[monthKey] ?? 0));
+        totalDistance += distance;
+        totalAmount += amount;
+        values.push(distance, amount);
+      }
+      values.push(totalDistance, totalAmount);
+      return values.map(escapeCsv).join(",");
+    });
+
+    const csv = `\uFEFF${[headers.map(escapeCsv).join(","), ...lines].join("\n")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `google-maps距離集計_${googleMonthKeys[0]}-${googleMonthKeys.at(-1)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <main className="space-y-6 p-4 md:p-6">
@@ -335,6 +387,7 @@ export default function ManagerDistanceIndexPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             Google Maps距離　最終更新：{lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString("ja-JP") : "未更新"}
             <br />※移動距離は3日に1回自動更新されます。シフト変更分は次回更新時に反映されます。
+            <br />ガソリン代は平均燃費 {AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER}km/L で計算します（走行距離 ÷ 燃費 × ガソリン単価）。
           </p>
         </div>
 
@@ -355,6 +408,14 @@ export default function ManagerDistanceIndexPage() {
           className="inline-flex h-10 items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {updatingDistance ? "距離更新中..." : "距離データを更新"}
+        </button>
+        <button
+          type="button"
+          onClick={exportDistanceCsv}
+          disabled={loading || googleMonthKeys.length === 0}
+          className="inline-flex h-10 items-center justify-center rounded-md border border-green-200 bg-green-50 px-4 text-sm font-medium text-green-800 shadow-sm transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          一覧をCSV出力
         </button>
       </div>
 
@@ -388,7 +449,7 @@ export default function ManagerDistanceIndexPage() {
                     マネージャー名
                   </th>
 
-                  {monthKeys.map((monthKey) => (
+                  {googleMonthKeys.map((monthKey) => (
                     <th
                       key={monthKey}
                       className="min-w-[120px] px-4 py-3 text-right font-semibold"
@@ -400,14 +461,17 @@ export default function ManagerDistanceIndexPage() {
                   <th className="min-w-[130px] bg-muted/70 px-4 py-3 text-right font-semibold">
                     4か月合計
                   </th>
+                  <th className="min-w-[170px] px-4 py-3 text-center font-semibold">
+                    操作
+                  </th>
                 </tr>
               </thead>
 
               <tbody>
                 {summaries.map((manager) => {
-                  const managerAmount = monthKeys.reduce((sum, monthKey) => {
+                  const managerAmount = googleMonthKeys.reduce((sum, monthKey) => {
                     const price = priceByMonth[monthKey];
-                    return sum + (price == null ? 0 : (manager.monthlyValues[monthKey] ?? 0) * price);
+                    return sum + (price == null ? 0 : (manager.monthlyValues[monthKey] ?? 0) / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * price);
                   }, 0);
 
                   return <Fragment key={manager.userId}>
@@ -419,7 +483,7 @@ export default function ManagerDistanceIndexPage() {
                       {manager.staffName}
                     </td>
 
-                    {monthKeys.map((monthKey) => {
+                    {googleMonthKeys.map((monthKey) => {
                       const value =
                         manager.monthlyValues[
                           monthKey
@@ -441,21 +505,31 @@ export default function ManagerDistanceIndexPage() {
                     <td className="bg-muted/30 px-4 py-3 text-right font-semibold tabular-nums">
                       {manager.total.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => void updateDistance(manager.userId)}
+                        disabled={loading || updatingDistance || updatingStaffId !== null}
+                        className="inline-flex items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {updatingStaffId === manager.userId ? "計算中..." : "この職員を計算"}
+                      </button>
+                    </td>
                   </tr>
                   <tr key={`${manager.userId}-amount`} className="border-b bg-amber-50/40 text-sm">
                     <td className="sticky left-0 z-10 bg-amber-50/70 px-4 py-2 pl-8 text-xs font-medium text-muted-foreground">
                       ガソリン代
                     </td>
-                    {monthKeys.map((monthKey) => {
+                    {googleMonthKeys.map((monthKey) => {
                       const price = priceByMonth[monthKey];
                       const segmentCount = manager.monthlySegmentCounts[monthKey] ?? 0;
-                      const amount = (manager.monthlyValues[monthKey] ?? 0) * (price ?? 0);
+                      const amount = (manager.monthlyValues[monthKey] ?? 0) / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * (price ?? 0);
                       return <td key={monthKey} className="px-4 py-2 text-right tabular-nums text-amber-900">
                         {segmentCount === 0 ? "—" : price == null ? "単価未登録" : `${Math.round(amount).toLocaleString("ja-JP")} 円`}
                       </td>;
                     })}
                     <td className="bg-amber-100/70 px-4 py-2 text-right font-semibold tabular-nums text-amber-900">
-                      {managerAmount === 0 && monthKeys.every((monthKey) => (manager.monthlySegmentCounts[monthKey] ?? 0) === 0)
+                      {managerAmount === 0 && googleMonthKeys.every((monthKey) => (manager.monthlySegmentCounts[monthKey] ?? 0) === 0)
                         ? "—"
                         : Object.keys(priceByMonth).length === 0
                           ? "単価未登録"
@@ -472,7 +546,7 @@ export default function ManagerDistanceIndexPage() {
                     全体合計
                   </td>
 
-                  {monthKeys.map((monthKey) => (
+                  {googleMonthKeys.map((monthKey) => (
                     <td
                       key={monthKey}
                       className="px-4 py-3 text-right tabular-nums"
@@ -489,7 +563,7 @@ export default function ManagerDistanceIndexPage() {
                 </tr>
                 <tr className="bg-amber-50 font-semibold">
                   <td className="sticky left-0 z-10 bg-amber-50 px-4 py-3">ガソリン代合計</td>
-                  {monthKeys.map((monthKey) => (
+                  {googleMonthKeys.map((monthKey) => (
                     <td key={monthKey} className="px-4 py-3 text-right tabular-nums text-amber-900">
                       {priceByMonth[monthKey] == null ? "単価未登録" : `${Math.round(monthlyAmountTotals[monthKey]).toLocaleString("ja-JP")} 円`}
                     </td>
@@ -545,6 +619,26 @@ export default function ManagerDistanceIndexPage() {
 
       <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
         Google Mapsの道路距離をメートル単位で保存し、画面ではキロメートルに変換して表示しています。
+      </div>
+
+      <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+        <h2 className="mb-3 text-lg font-semibold text-amber-900">
+          ガソリン代上限額（従来基準）
+        </h2>
+        <div className="grid gap-2 text-sm sm:grid-cols-3">
+          <div className="rounded-md bg-white px-4 py-3 shadow-sm">
+            <div className="font-medium text-gray-700">指数 899以下</div>
+            <div className="mt-1 text-lg font-bold text-gray-900">13,000円</div>
+          </div>
+          <div className="rounded-md bg-white px-4 py-3 shadow-sm">
+            <div className="font-medium text-gray-700">指数 900～1,499</div>
+            <div className="mt-1 text-lg font-bold text-gray-900">16,000円</div>
+          </div>
+          <div className="rounded-md bg-white px-4 py-3 shadow-sm">
+            <div className="font-medium text-gray-700">指数 1,500以上</div>
+            <div className="mt-1 text-lg font-bold text-gray-900">20,000円</div>
+          </div>
+        </div>
       </div>
     </main>
   );

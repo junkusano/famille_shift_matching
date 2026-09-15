@@ -22,6 +22,24 @@ export type GoogleDriveUploadedFile = {
   webViewLink: string;
 };
 
+/** DriveのファイルID、open?id=形式、/file/d/形式のいずれからもIDを取り出す。 */
+export function extractGoogleDriveFileId(value: string): string {
+  const raw = value.trim();
+  if (!raw) return "";
+
+  try {
+    const url = new URL(raw);
+    const queryId = url.searchParams.get("id");
+    if (queryId) return queryId;
+    const pathMatch = url.pathname.match(/\/file\/d\/([^/]+)/);
+    if (pathMatch?.[1]) return pathMatch[1];
+  } catch {
+    // URLではない場合は、既にファイルIDとして扱う。
+  }
+
+  return raw;
+}
+
 function createDriveClient() {
   const rawCredentials = process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.trim();
   if (!rawCredentials) {
@@ -118,9 +136,14 @@ export async function downloadGoogleDriveFile(fileId: string): Promise<Buffer> {
   }
 
   try {
+    const normalizedFileId = extractGoogleDriveFileId(fileId);
+    if (!normalizedFileId) {
+      throw new GoogleDriveFileError("download", "Google DriveのファイルIDが空です");
+    }
+
     const response = await drive.files.get(
       {
-        fileId,
+        fileId: normalizedFileId,
         alt: "media",
         supportsAllDrives: true,
       },
@@ -128,9 +151,16 @@ export async function downloadGoogleDriveFile(fileId: string): Promise<Buffer> {
     );
     return Buffer.from(response.data as ArrayBuffer);
   } catch (cause) {
+    const status = googleStatus(cause);
+    const message =
+      status === 401 || status === 403
+        ? "Google DriveのPDFにアクセスする権限がありません。サービスアカウントへの共有設定を確認してください"
+        : status === 404
+          ? "Google Drive上に対象PDFが見つかりません。保存されているfile_idを確認してください"
+          : "Google DriveからPDFを取得できませんでした";
     throw new GoogleDriveFileError(
       "download",
-      "Google DriveからPDFを取得できませんでした",
+      message,
       cause,
     );
   }

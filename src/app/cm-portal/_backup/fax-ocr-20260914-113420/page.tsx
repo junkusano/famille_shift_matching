@@ -9,7 +9,7 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
 import { useCmFaxDetail } from '@/hooks/cm/fax/useCmFaxDetail';
@@ -22,16 +22,13 @@ export default function CmFaxDetailPage() {
 
   const {
     fax,
-    pages,
     loading,
     error,
     refresh,
     ...rest
   } = useCmFaxDetail(faxId);
 
-  const autoOcrStartedRef = useRef(false);
-
-  const runOcr = useCallback(async () => {
+  const runOcrTest = async () => {
     const response = await fetch(`/api/cm/fax/${faxId}/ocr`, {
       method: 'POST',
       credentials: 'include',
@@ -40,21 +37,7 @@ export default function CmFaxDetailPage() {
     if (!response.ok || !result.ok) throw new Error(result.error || 'OCRに失敗しました');
     await refresh();
     return result;
-  }, [faxId, refresh]);
-
-  // 詳細画面を開いた最初の1回だけ、未処理ページのOCRを開始する。
-  // API側でも完了済みページをスキップするため、再読み込みで二重処理しない。
-  useEffect(() => {
-    if (loading || !fax || autoOcrStartedRef.current) return;
-
-    const hasUnprocessedPage = pages.some((page) => page.ocr_status !== 'completed');
-    if (!hasUnprocessedPage) return;
-
-    autoOcrStartedRef.current = true;
-    void runOcr().catch((error) => {
-      console.error('[cm/fax] 自動OCRエラー:', error);
-    });
-  }, [fax, loading, pages, runOcr]);
+  };
 
   // ---------------------------------------------------------
   // バリデーション
@@ -122,10 +105,9 @@ export default function CmFaxDetailPage() {
   return (
     <CmFaxDetailContent
       fax={fax}
-      pages={pages}
       loading={loading}
       onRefresh={refresh}
-      onRunOcr={runOcr}
+      onRunOcr={runOcrTest}
       {...rest}
     />
   );
