@@ -1,0 +1,4 @@
+const fs=require('fs');require('@next/env').loadEnvConfig(process.cwd());
+const base=new URL(process.env.WORDPRESS_API_URL).origin;if(base!=='https://www.shi-on.net')throw Error('Unexpected host');
+const auth='Basic '+Buffer.from(process.env.WORDPRESS_USERNAME+':'+process.env.WORDPRESS_APP_PASSWORD).toString('base64');
+(async()=>{const r=await fetch(base+'/wp-json/wp/v2/posts?slug=smart-ai-20260915-ce1e94c4&context=edit',{headers:{Authorization:auth},redirect:'error'});if(!r.ok)throw Error('HTTP '+r.status);const p=await r.json();if(p.length!==1)throw Error('Expected one post');fs.mkdirSync('tmp/rewrite-20260915',{recursive:true});fs.writeFileSync('tmp/rewrite-20260915/before.json',JSON.stringify(p[0],null,2));console.log(JSON.stringify({id:p[0].id,title:p[0].title,content:p[0].content,excerpt:p[0].excerpt,status:p[0].status,link:p[0].link}));})().catch(e=>{console.error(e.message);process.exit(1)});
