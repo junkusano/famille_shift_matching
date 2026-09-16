@@ -180,6 +180,8 @@ export async function runDueKnowledgeAutomations(now = new Date()) {
     .from("knowledge_automation_tasks")
     .select("id,next_run_at")
     .eq("is_enabled", true)
+    .neq("task_type", "weather_alert")
+    .or("settings->>operation.is.null,settings->>operation.not.in.(traffic_restrictions,police_enforcement)")
     .not("next_run_at", "is", null)
     .lte("next_run_at", now.toISOString())
     .order("next_run_at", { ascending: true })
@@ -200,4 +202,15 @@ export async function runDueKnowledgeAutomations(now = new Date()) {
     });
   }
   return results;
+}
+
+// Public safety notices are independent of the slow blog-generation queue.
+export async function runDuePublicNotices(now = new Date()) {
+  const { data, error } = await supabaseAdmin.from("knowledge_automation_tasks")
+    .select("id,next_run_at").eq("is_enabled", true)
+    .or("task_type.eq.weather_alert,settings->>operation.in.(traffic_restrictions,police_enforcement)")
+    .not("next_run_at", "is", null).lte("next_run_at", now.toISOString()).order("next_run_at").limit(10);
+  if (error) throw new Error("お知らせの実行予定を取得できませんでした。");
+  return Promise.all((data ?? []).map(async task => ({ taskId: task.id,
+    ...await runKnowledgeAutomationTask({ taskId: task.id, triggerSource: "schedule", scheduledFor: task.next_run_at }) })));
 }

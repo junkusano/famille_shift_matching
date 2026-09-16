@@ -190,41 +190,17 @@ async function createEventDigest(task: KnowledgeAutomationTask) {
   return { status: "succeeded" as const, message: "週末イベント情報をLINE WORKSへ送信しました。" };
 }
 
-function forecastText(payload: unknown) {
-  return JSON.stringify(payload).slice(0, 120_000);
-}
-
 export async function runWeatherAlert(task: KnowledgeAutomationTask): Promise<AutomationResult> {
-  const response = await fetch("https://www.jma.go.jp/bosai/forecast/data/forecast/230000.json", {
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error("気象庁の一次情報を取得できませんでした。");
-
-  const source = forecastText(await response.json());
-  const matched = source.match(/.{0,80}(台風|大雪|暴風雪|風雪).{0,160}/g) ?? [];
-  if (matched.length === 0) {
-    return { status: "skipped", message: "気象庁の愛知県予報に台風・大雪等の影響は確認されませんでした。" };
-  }
-
-  const summary = Array.from(new Set(matched)).slice(0, 3).join("\n");
-  const message = [
-    "【気象のお知らせ】",
-    "気象庁の愛知県予報で、台風・大雪等に関する注意情報を確認しました。",
-    summary,
-    "外出・訪問の前に、気象庁の最新情報と交通機関の運行情報を確認してください。",
-    "気象庁: https://www.jma.go.jp/bosai/#pattern=forecast&area_type=offices&area_code=230000",
-  ].join("\n");
-
-  const delivered = await sendMessage(task, message);
-  if (!delivered) {
-    return { status: "skipped", message: "気象影響は検知しましたが、LINE WORKSの送信先が未設定です。編集画面でチャンネルIDを設定してください。" };
-  }
-  return { status: "succeeded", message: "気象庁の一次情報を確認し、LINE WORKSへ注意情報を送信しました。" };
+  const { runPublicNotice } = await import("./publicNotices");
+  return runPublicNotice(task);
 }
 
 export async function runExternalInformationAutomation(task: KnowledgeAutomationTask, triggerSource: "schedule" | "manual" | "retry" = "schedule"): Promise<AutomationResult | null> {
   if (task.task_type === "weather_alert") return runWeatherAlert(task);
+  if (["traffic_restrictions", "police_enforcement"].includes(String(task.settings.operation))) {
+    const { runPublicNotice } = await import("./publicNotices");
+    return runPublicNotice(task);
+  }
   if (isEventDigest(task) && task.destination === "lineworks_message" && triggerSource === "schedule" && !isScheduledEventDigestDay(task)) {
     return { status: "skipped", message: "週末イベント情報は毎週木曜日の9:00だけ自動配信します。" };
   }

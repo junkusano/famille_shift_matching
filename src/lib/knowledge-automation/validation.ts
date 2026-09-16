@@ -27,6 +27,16 @@ export const knowledgeAutomationTaskInputSchema = z.object({
   settings: z.record(z.unknown()).optional().default({}),
   is_enabled: z.boolean(),
 }).superRefine((value, context) => {
+  const publicNotice = value.task_type === "weather_alert" || ["traffic_restrictions", "police_enforcement"].includes(String(value.settings.operation));
+  if (publicNotice && value.is_enabled && value.destination === "lineworks_board" && !/^\d+$/.test(String(value.settings.lineworksBoardId ?? ""))) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["settings", "lineworksBoardId"], message: "配信先の掲示板IDを入力してください。" });
+  }
+  if (value.settings.operation === "traffic_restrictions" && value.destination !== "lineworks_board") {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["destination"], message: "交通規制はLINE WORKS掲示板を選んでください。" });
+  }
+  if (value.settings.operation === "police_enforcement" && (value.destination !== "lineworks_message" || !String(value.settings.lineworksChannelId ?? "").trim())) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["destination"], message: "取締情報の通知先グループを設定してください。" });
+  }
   if (value.settings.operation === "system_diagnostics" && (value.destination !== "none" || value.task_type !== "custom")) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["destination"], message: "システム診断は「その他の自動化」「保存のみ」で登録してください。" });
   }

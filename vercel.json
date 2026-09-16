@@ -269,6 +269,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/public-notices",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/rpa-log-retention",
       "schedule": "15 18 * * *"
     }
