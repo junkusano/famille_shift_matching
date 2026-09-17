@@ -44,6 +44,11 @@ type DistanceSegmentRow = {
   distance_meters: number | null;
 };
 
+type ShiftStartRow = {
+  shift_id: number;
+  shift_start_time: string | null;
+};
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER = 12;
@@ -433,9 +438,34 @@ export default function ManagerDistanceIndexPage() {
     if (error) {
       setErrorMessage(`距離明細の取得に失敗しました: ${error.message}`);
     } else {
-      setDistanceSegments(((data ?? []) as unknown as DistanceSegmentRow[]).filter((segment) =>
+      const segments = ((data ?? []) as unknown as DistanceSegmentRow[]).filter((segment) =>
         googleMonthKeys.includes(getMonthKey(segment.segment_date))
-      ));
+      );
+      const shiftIds = [...new Set(segments.map((segment) => segment.shift_id))];
+      const { data: shiftData, error: shiftError } = shiftIds.length === 0
+        ? { data: [], error: null }
+        : await supabase
+          .from("shift")
+          .select("shift_id, shift_start_time")
+          .in("shift_id", shiftIds);
+      if (shiftError) {
+        setErrorMessage(`訪問順序の取得に失敗しました: ${shiftError.message}`);
+      }
+      const shiftTimeById = new Map(
+        ((shiftData ?? []) as unknown as ShiftStartRow[]).map((shift) => [shift.shift_id, shift.shift_start_time ?? ""])
+      );
+      const segmentOrder: Record<string, number> = {
+        home_to_client: 0,
+        client_to_client: 1,
+        client_to_home: 2,
+      };
+      segments.sort((a, b) =>
+        a.segment_date.localeCompare(b.segment_date)
+        || (segmentOrder[a.segment_kind] ?? 1) - (segmentOrder[b.segment_kind] ?? 1)
+        || (shiftTimeById.get(a.shift_id) ?? "").localeCompare(shiftTimeById.get(b.shift_id) ?? "")
+        || a.shift_id - b.shift_id
+      );
+      setDistanceSegments(segments);
     }
     setLoadingDistanceSegments(false);
   };
