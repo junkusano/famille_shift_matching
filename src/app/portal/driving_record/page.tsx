@@ -34,9 +34,32 @@ type MonthlyGasolinePrice = {
   fuel_type?: string | null;
 };
 
+type DistanceSegmentRow = {
+  shift_id: number;
+  staff_user_id: string;
+  segment_date: string;
+  segment_kind: string;
+  origin_address: string;
+  destination_address: string;
+  distance_meters: number | null;
+};
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER = 12;
+const MONTHLY_MOVEMENT_ALLOWANCE_YEN = 2000;
+
+function calculateGasolineAmount(distanceKm: number, pricePerLiter: number | null, hasDistance: boolean): number {
+  if (!hasDistance || pricePerLiter == null) return 0;
+  return distanceKm / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * pricePerLiter + MONTHLY_MOVEMENT_ALLOWANCE_YEN;
+}
+
+function formatSegmentKind(kind: string): string {
+  if (kind === "home_to_client") return "自宅から最初の訪問先";
+  if (kind === "client_to_client") return "訪問先から次の訪問先";
+  if (kind === "client_to_home") return "最後の訪問先から自宅";
+  return kind;
+}
 
 function getMonthKey(value: string): string {
   return value.slice(0, 7);
@@ -74,6 +97,11 @@ export default function ManagerDistanceIndexPage() {
   const [priceByMonth, setPriceByMonth] = useState<Record<string, number>>({});
   const [updatingDistance, setUpdatingDistance] = useState(false);
   const [updatingStaffId, setUpdatingStaffId] = useState<string | null>(null);
+  const [currentGasolinePrice, setCurrentGasolinePrice] = useState<number | null>(null);
+  const [selectedManagerId, setSelectedManagerId] = useState<string | null>(null);
+  const [selectedManagerName, setSelectedManagerName] = useState<string | null>(null);
+  const [distanceSegments, setDistanceSegments] = useState<DistanceSegmentRow[]>([]);
+  const [loadingDistanceSegments, setLoadingDistanceSegments] = useState(false);
 
   const monthKeys = useMemo(() => createRecentMonthKeys(4), []);
   const googleMonthKeys = useMemo(
@@ -169,9 +197,12 @@ export default function ManagerDistanceIndexPage() {
     const nextPriceByMonth: Record<string, number> = {};
     const price = latestPrice as MonthlyGasolinePrice | null;
     if (price?.price_yen_per_liter != null) {
+      setCurrentGasolinePrice(Number(price.price_yen_per_liter));
       for (const monthKey of monthKeys) {
         nextPriceByMonth[monthKey] = Number(price.price_yen_per_liter);
       }
+    } else {
+      setCurrentGasolinePrice(null);
     }
     setPriceByMonth(nextPriceByMonth);
 
@@ -313,25 +344,29 @@ export default function ManagerDistanceIndexPage() {
     return totals;
   }, [monthKeys, summaries]);
 
-  const grandTotal = useMemo(
-    () =>
-      summaries.reduce(
-        (sum, manager) => sum + manager.total,
-        0
+  const googleGrandTotal = useMemo(
+    () => summaries.reduce(
+      (sum, manager) => sum + googleMonthKeys.reduce(
+        (monthSum, monthKey) => monthSum + (manager.monthlyValues[monthKey] ?? 0),
+        0,
       ),
-    [summaries]
+      0,
+    ),
+    [googleMonthKeys, summaries],
   );
 
   const monthlyAmountTotals = useMemo(() => {
     const totals: Record<string, number> = {};
     for (const monthKey of googleMonthKeys) {
       const price = priceByMonth[monthKey];
-      totals[monthKey] = price == null
-        ? 0
-        : summaries.reduce((sum, manager) => sum + (manager.monthlyValues[monthKey] ?? 0) / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * price, 0);
+      totals[monthKey] = summaries.reduce((sum, manager) => sum + calculateGasolineAmount(
+        manager.monthlyValues[monthKey] ?? 0,
+        price,
+        (manager.monthlySegmentCounts[monthKey] ?? 0) > 0,
+      ), 0);
     }
     return totals;
-  }, [monthKeys, priceByMonth, summaries]);
+  }, [googleMonthKeys, priceByMonth, summaries]);
 
   const grandTotalAmount = useMemo(
     () => Object.values(monthlyAmountTotals).reduce((sum, amount) => sum + amount, 0),
@@ -355,7 +390,11 @@ export default function ManagerDistanceIndexPage() {
       let totalAmount = 0;
       for (const monthKey of googleMonthKeys) {
         const distance = manager.monthlyValues[monthKey] ?? 0;
-        const amount = Math.round(distance / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * (priceByMonth[monthKey] ?? 0));
+        const amount = Math.round(calculateGasolineAmount(
+          distance,
+          priceByMonth[monthKey] ?? null,
+          (manager.monthlySegmentCounts[monthKey] ?? 0) > 0,
+        ));
         totalDistance += distance;
         totalAmount += amount;
         values.push(distance, amount);
@@ -373,6 +412,43 @@ export default function ManagerDistanceIndexPage() {
     URL.revokeObjectURL(url);
   };
 
+  const loadDistanceDetails = async (manager: ManagerSummary) => {
+    if (selectedManagerId === manager.userId) {
+      setSelectedManagerId(null);
+      setSelectedManagerName(null);
+      setDistanceSegments([]);
+      return;
+    }
+    setSelectedManagerId(manager.userId);
+    setSelectedManagerName(manager.staffName);
+    setLoadingDistanceSegments(true);
+    setDistanceSegments([]);
+    const { data, error } = await supabase
+      .from("manager_distance_segments")
+      .select("shift_id, staff_user_id, segment_date, segment_kind, origin_address, destination_address, distance_meters")
+      .eq("staff_user_id", manager.userId)
+      .eq("status", "success")
+      .order("segment_date", { ascending: true })
+      .order("shift_id", { ascending: true });
+    if (error) {
+      setErrorMessage(`距離明細の取得に失敗しました: ${error.message}`);
+    } else {
+      setDistanceSegments(((data ?? []) as unknown as DistanceSegmentRow[]).filter((segment) =>
+        googleMonthKeys.includes(getMonthKey(segment.segment_date))
+      ));
+    }
+    setLoadingDistanceSegments(false);
+  };
+
+  const distanceSegmentsByDate = Array.from(
+    distanceSegments.reduce((groups, segment) => {
+      const day = groups.get(segment.segment_date) ?? [];
+      day.push(segment);
+      groups.set(segment.segment_date, day);
+      return groups;
+    }, new Map<string, DistanceSegmentRow[]>()).entries()
+  );
+
   return (
     <main className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -387,7 +463,8 @@ export default function ManagerDistanceIndexPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             Google Maps距離　最終更新：{lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString("ja-JP") : "未更新"}
             <br />※移動距離は3日に1回自動更新されます。シフト変更分は次回更新時に反映されます。
-            <br />ガソリン代は平均燃費 {AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER}km/L で計算します（走行距離 ÷ 燃費 × ガソリン単価）。
+            <br />採用中のガソリン単価：{currentGasolinePrice == null ? "未登録" : `${currentGasolinePrice.toLocaleString("ja-JP")}円/L`}（愛知県・レギュラー）
+            <br />ガソリン代は平均燃費 {AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER}km/L で計算します（走行距離 ÷ 燃費 × ガソリン単価）＋{MONTHLY_MOVEMENT_ALLOWANCE_YEN.toLocaleString("ja-JP")}円（シフト外の移動分）。
           </p>
         </div>
 
@@ -471,7 +548,11 @@ export default function ManagerDistanceIndexPage() {
                 {summaries.map((manager) => {
                   const managerAmount = googleMonthKeys.reduce((sum, monthKey) => {
                     const price = priceByMonth[monthKey];
-                    return sum + (price == null ? 0 : (manager.monthlyValues[monthKey] ?? 0) / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * price);
+                    return sum + calculateGasolineAmount(
+                      manager.monthlyValues[monthKey] ?? 0,
+                      price ?? null,
+                      (manager.monthlySegmentCounts[monthKey] ?? 0) > 0,
+                    );
                   }, 0);
 
                   return <Fragment key={manager.userId}>
@@ -495,15 +576,22 @@ export default function ManagerDistanceIndexPage() {
                           key={monthKey}
                           className="px-4 py-3 text-right tabular-nums"
                         >
-                          {segmentCount === 0
-                            ? "未計算"
-                            : `${value.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`}
+                          {segmentCount === 0 ? "未計算" : (
+                            <button
+                              type="button"
+                              onClick={() => void loadDistanceDetails(manager)}
+                              className="font-medium text-blue-700 underline decoration-dotted underline-offset-2 hover:text-blue-900"
+                              title="移動距離の明細を表示"
+                            >
+                              {value.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
+                            </button>
+                          )}
                         </td>
                       );
                     })}
 
                     <td className="bg-muted/30 px-4 py-3 text-right font-semibold tabular-nums">
-                      {manager.total.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
+                      {googleMonthKeys.reduce((sum, monthKey) => sum + (manager.monthlyValues[monthKey] ?? 0), 0).toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button
@@ -523,7 +611,11 @@ export default function ManagerDistanceIndexPage() {
                     {googleMonthKeys.map((monthKey) => {
                       const price = priceByMonth[monthKey];
                       const segmentCount = manager.monthlySegmentCounts[monthKey] ?? 0;
-                      const amount = (manager.monthlyValues[monthKey] ?? 0) / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * (price ?? 0);
+                      const amount = calculateGasolineAmount(
+                        manager.monthlyValues[monthKey] ?? 0,
+                        price ?? null,
+                        segmentCount > 0,
+                      );
                       return <td key={monthKey} className="px-4 py-2 text-right tabular-nums text-amber-900">
                         {segmentCount === 0 ? "—" : price == null ? "単価未登録" : `${Math.round(amount).toLocaleString("ja-JP")} 円`}
                       </td>;
@@ -558,7 +650,7 @@ export default function ManagerDistanceIndexPage() {
                   ))}
 
                   <td className="bg-muted/70 px-4 py-3 text-right tabular-nums">
-                    {grandTotal.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
+                    {googleGrandTotal.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
                   </td>
                 </tr>
                 <tr className="bg-amber-50 font-semibold">
@@ -574,6 +666,53 @@ export default function ManagerDistanceIndexPage() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+        )}
+        {selectedManagerId && (
+          <div className="border-t bg-blue-50/40 p-4">
+            <h2 className="font-semibold text-blue-950">
+              {selectedManagerName}さんの移動距離明細
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              表の距離数をもう一度クリックすると明細を閉じます。
+            </p>
+            {loadingDistanceSegments ? (
+              <p className="mt-4 text-sm text-muted-foreground">明細を読み込んでいます。</p>
+            ) : distanceSegmentsByDate.length === 0 ? (
+              <p className="mt-4 text-sm text-muted-foreground">表示期間の計算済み明細がありません。</p>
+            ) : (
+              <div className="mt-4 space-y-4">
+                {distanceSegmentsByDate.map(([date, segments]) => (
+                  <div key={date} className="rounded-md border bg-white p-3">
+                    <div className="mb-2 font-medium">{date}</div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[760px] text-sm">
+                        <thead>
+                          <tr className="border-b text-left text-muted-foreground">
+                            <th className="px-2 py-2">区間</th>
+                            <th className="px-2 py-2">出発地</th>
+                            <th className="px-2 py-2">到着地</th>
+                            <th className="px-2 py-2 text-right">距離</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {segments.map((segment) => (
+                            <tr key={`${segment.shift_id}-${segment.segment_kind}`} className="border-b last:border-0">
+                              <td className="px-2 py-2">{formatSegmentKind(segment.segment_kind)}</td>
+                              <td className="px-2 py-2">{segment.origin_address}</td>
+                              <td className="px-2 py-2">{segment.destination_address}</td>
+                              <td className="px-2 py-2 text-right tabular-nums">
+                                {segment.distance_meters == null ? "—" : `${(segment.distance_meters / 1000).toFixed(1)} km`}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
