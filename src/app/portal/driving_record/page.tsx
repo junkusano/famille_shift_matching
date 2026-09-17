@@ -668,53 +668,6 @@ export default function ManagerDistanceIndexPage() {
             </table>
           </div>
         )}
-        {selectedManagerId && (
-          <div className="border-t bg-blue-50/40 p-4">
-            <h2 className="font-semibold text-blue-950">
-              {selectedManagerName}さんの移動距離明細
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              表の距離数をもう一度クリックすると明細を閉じます。
-            </p>
-            {loadingDistanceSegments ? (
-              <p className="mt-4 text-sm text-muted-foreground">明細を読み込んでいます。</p>
-            ) : distanceSegmentsByDate.length === 0 ? (
-              <p className="mt-4 text-sm text-muted-foreground">表示期間の計算済み明細がありません。</p>
-            ) : (
-              <div className="mt-4 space-y-4">
-                {distanceSegmentsByDate.map(([date, segments]) => (
-                  <div key={date} className="rounded-md border bg-white p-3">
-                    <div className="mb-2 font-medium">{date}</div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[760px] text-sm">
-                        <thead>
-                          <tr className="border-b text-left text-muted-foreground">
-                            <th className="px-2 py-2">区間</th>
-                            <th className="px-2 py-2">出発地</th>
-                            <th className="px-2 py-2">到着地</th>
-                            <th className="px-2 py-2 text-right">距離</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {segments.map((segment) => (
-                            <tr key={`${segment.shift_id}-${segment.segment_kind}`} className="border-b last:border-0">
-                              <td className="px-2 py-2">{formatSegmentKind(segment.segment_kind)}</td>
-                              <td className="px-2 py-2">{segment.origin_address}</td>
-                              <td className="px-2 py-2">{segment.destination_address}</td>
-                              <td className="px-2 py-2 text-right tabular-nums">
-                                {segment.distance_meters == null ? "—" : `${(segment.distance_meters / 1000).toFixed(1)} km`}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="rounded-lg border bg-card shadow-sm">
@@ -779,6 +732,83 @@ export default function ManagerDistanceIndexPage() {
           </div>
         </div>
       </div>
+
+      {selectedManagerId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="presentation"
+          onClick={() => {
+            setSelectedManagerId(null);
+            setSelectedManagerName(null);
+            setDistanceSegments([]);
+          }}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="distance-detail-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-4 border-b pb-3">
+              <h2 id="distance-detail-title" className="text-lg font-semibold text-blue-950">
+                {selectedManagerName}さんの移動距離明細
+              </h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedManagerId(null);
+                  setSelectedManagerName(null);
+                  setDistanceSegments([]);
+                }}
+                className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
+              >
+                閉じる
+              </button>
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              表示期間：{googleMonthKeys.map(formatMonth).join("・")}／距離数はGoogle Mapsの道路距離です。
+            </p>
+            {loadingDistanceSegments ? (
+              <p className="mt-6 text-sm text-muted-foreground">明細を読み込んでいます。</p>
+            ) : distanceSegmentsByDate.length === 0 ? (
+              <p className="mt-6 text-sm text-muted-foreground">表示期間の計算済み明細がありません。</p>
+            ) : (
+              <div className="mt-4 space-y-4">
+                {distanceSegmentsByDate.map(([date, segments]) => (
+                  <div key={date} className="rounded-md border bg-blue-50/30 p-3">
+                    <div className="mb-2 font-medium">{date}</div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[760px] text-sm">
+                        <thead>
+                          <tr className="border-b text-left text-muted-foreground">
+                            <th className="px-2 py-2">区間</th>
+                            <th className="px-2 py-2">出発地</th>
+                            <th className="px-2 py-2">到着地</th>
+                            <th className="px-2 py-2 text-right">距離</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {segments.map((segment) => (
+                            <tr key={`${segment.shift_id}-${segment.segment_kind}`} className="border-b last:border-0">
+                              <td className="px-2 py-2">{formatSegmentKind(segment.segment_kind)}</td>
+                              <td className="px-2 py-2">{segment.origin_address}</td>
+                              <td className="px-2 py-2">{segment.destination_address}</td>
+                              <td className="px-2 py-2 text-right tabular-nums">
+                                {segment.distance_meters == null ? "—" : `${(segment.distance_meters / 1000).toFixed(1)} km`}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
