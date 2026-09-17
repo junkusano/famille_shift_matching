@@ -105,6 +105,7 @@ export default function ManagerDistanceIndexPage() {
   const [currentGasolinePrice, setCurrentGasolinePrice] = useState<number | null>(null);
   const [selectedManagerId, setSelectedManagerId] = useState<string | null>(null);
   const [selectedManagerName, setSelectedManagerName] = useState<string | null>(null);
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
   const [distanceSegments, setDistanceSegments] = useState<DistanceSegmentRow[]>([]);
   const [loadingDistanceSegments, setLoadingDistanceSegments] = useState(false);
 
@@ -417,15 +418,17 @@ export default function ManagerDistanceIndexPage() {
     URL.revokeObjectURL(url);
   };
 
-  const loadDistanceDetails = async (manager: ManagerSummary) => {
-    if (selectedManagerId === manager.userId) {
+  const loadDistanceDetails = async (manager: ManagerSummary, monthKey: string) => {
+    if (selectedManagerId === manager.userId && selectedMonthKey === monthKey) {
       setSelectedManagerId(null);
       setSelectedManagerName(null);
+      setSelectedMonthKey(null);
       setDistanceSegments([]);
       return;
     }
     setSelectedManagerId(manager.userId);
     setSelectedManagerName(manager.staffName);
+    setSelectedMonthKey(monthKey);
     setLoadingDistanceSegments(true);
     setDistanceSegments([]);
     const { data, error } = await supabase
@@ -439,7 +442,7 @@ export default function ManagerDistanceIndexPage() {
       setErrorMessage(`距離明細の取得に失敗しました: ${error.message}`);
     } else {
       const segments = ((data ?? []) as unknown as DistanceSegmentRow[]).filter((segment) =>
-        googleMonthKeys.includes(getMonthKey(segment.segment_date))
+        getMonthKey(segment.segment_date) === monthKey
       );
       const shiftIds = [...new Set(segments.map((segment) => segment.shift_id))];
       const { data: shiftData, error: shiftError } = shiftIds.length === 0
@@ -609,7 +612,7 @@ export default function ManagerDistanceIndexPage() {
                           {segmentCount === 0 ? "未計算" : (
                             <button
                               type="button"
-                              onClick={() => void loadDistanceDetails(manager)}
+                              onClick={() => void loadDistanceDetails(manager, monthKey)}
                               className="font-medium text-blue-700 underline decoration-dotted underline-offset-2 hover:text-blue-900"
                               title="移動距離の明細を表示"
                             >
@@ -770,6 +773,7 @@ export default function ManagerDistanceIndexPage() {
           onClick={() => {
             setSelectedManagerId(null);
             setSelectedManagerName(null);
+            setSelectedMonthKey(null);
             setDistanceSegments([]);
           }}
         >
@@ -789,6 +793,7 @@ export default function ManagerDistanceIndexPage() {
                 onClick={() => {
                   setSelectedManagerId(null);
                   setSelectedManagerName(null);
+                  setSelectedMonthKey(null);
                   setDistanceSegments([]);
                 }}
                 className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
@@ -797,7 +802,7 @@ export default function ManagerDistanceIndexPage() {
               </button>
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
-              表示期間：{googleMonthKeys.map(formatMonth).join("・")}／距離数はGoogle Mapsの道路距離です。
+              表示月：{selectedMonthKey ? formatMonth(selectedMonthKey) : "—"}／距離数はGoogle Mapsの道路距離です。
             </p>
             {loadingDistanceSegments ? (
               <p className="mt-6 text-sm text-muted-foreground">明細を読み込んでいます。</p>
