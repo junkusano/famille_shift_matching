@@ -496,9 +496,14 @@ export default function ManagerDistanceIndexPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             Google Maps距離　最終更新：{lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString("ja-JP") : "未更新"}
             <br />※移動距離は3日に1回自動更新されます。シフト変更分は次回更新時に反映されます。
-            <br />採用中のガソリン単価：{currentGasolinePrice == null ? "未登録" : `${currentGasolinePrice.toLocaleString("ja-JP")}円/L`}（愛知県・レギュラー）
             <br />ガソリン代は平均燃費 {AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER}km/L で計算します（走行距離 ÷ 燃費 × ガソリン単価）＋{MONTHLY_MOVEMENT_ALLOWANCE_YEN.toLocaleString("ja-JP")}円（シフト外の移動分）。
           </p>
+          <div className="mt-4 rounded-lg border-2 border-amber-400 bg-amber-50 px-5 py-4 shadow-sm">
+            <div className="text-sm font-medium text-amber-900">採用中のガソリン単価（愛知県・レギュラー）</div>
+            <div className="mt-1 text-3xl font-bold tracking-tight text-amber-950">
+              {currentGasolinePrice == null ? "未登録" : `${currentGasolinePrice.toLocaleString("ja-JP")}円/L`}
+            </div>
+          </div>
         </div>
 
         <button
