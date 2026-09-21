@@ -11,6 +11,7 @@ import type {
   MonitoringVisitRecord,
 } from "@/types/monitoring";
 import { cleanMonitoringGoalText, detectMonitoringServiceType, monitoringContactWarnings } from "./core";
+import { validateMonitoringFaxTarget } from "./faxTarget";
 import { getMonitoringMonthlyNotice } from "./notices";
 import { loadMonitoringSignedPlan } from "./signed-plan";
 
@@ -293,6 +294,7 @@ export async function loadMonitoringContext(params: {
 
   if (assessmentResult.error) throw assessmentResult.error;
   if (planResult.error) throw planResult.error;
+  if (supportResult.error) throw supportResult.error;
 
   const plans = ((planResult.data ?? []) as UnknownRecord[]).filter((plan) =>
     overlapsPeriod(plan, periodStart, periodEnd),
@@ -342,11 +344,18 @@ export async function loadMonitoringContext(params: {
 
   const previousMonitorings = await loadPreviousMonitorings(kaipokeCsId, periodStart);
   const careConsultantId = text(client.care_consultant);
+  const supportOfficeRecord = asRecord(supportResult.data);
+  const registeredOfficeName =
+    nullableText(supportOfficeRecord?.office_name) ??
+    nullableText(supportOfficeRecord?.support_center_name);
+  const registeredContactName = nullableText(supportOfficeRecord?.care_manager_name);
   let faxTarget: MonitoringFaxTarget = {
     fax_id: careConsultantId || null,
-    office_name: nullableText(asRecord(supportResult.data)?.office_name),
-    contact_name: nullableText(asRecord(supportResult.data)?.care_manager_name),
+    office_name: registeredOfficeName,
+    contact_name: registeredContactName,
     fax_number: null,
+    registered_office_name: registeredOfficeName,
+    registered_contact_name: registeredContactName,
   };
   if (careConsultantId) {
     const { data: faxRow, error } = await supabaseAdmin
@@ -388,10 +397,12 @@ export async function loadMonitoringContext(params: {
       hasFax: Boolean(faxTarget.fax_number),
     }),
   );
+  const faxTargetValidationError = validateMonitoringFaxTarget(faxTarget);
+  if (faxTargetValidationError) warnings.push(faxTargetValidationError);
   if (!serviceTypeDetected) warnings.push("サービス種別を自動判定できません");
 
   const insurance = asRecord(insuranceResult.data);
-  const supportOffice = asRecord(supportResult.data);
+  const supportOffice = supportOfficeRecord;
   const safeClient: UnknownRecord = {
     id: client.id,
     kaipoke_cs_id: client.kaipoke_cs_id,

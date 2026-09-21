@@ -104,6 +104,8 @@ export type MonitoringFaxTarget = {
   office_name: string | null;
   contact_name: string | null;
   fax_number: string | null;
+  registered_office_name: string | null;
+  registered_contact_name: string | null;
 };
 
 export type MonitoringTeamContact = {
