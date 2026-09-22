@@ -104,7 +104,7 @@ export async function runKnowledgeAutomationTask(input: {
           ? await runKnowledgeDiff({ trigger: "schedule", dryRun: false, taskId: task.id })
           : isRewrite
             ? await rewriteWordPressBlog(task, run.id)
-            : await createWordPressBlogDraft(task);
+            : await createWordPressBlogDraft(task, run.id);
     const finishedAt = new Date().toISOString();
     const diagnosisFailed = "audit" in result && "failed" in result.audit && result.audit.failed === true;
     const status = diagnosisFailed ? "failed" : (result.status === "created" || result.status === "updated" || result.status === "succeeded") ? "succeeded" : "skipped";

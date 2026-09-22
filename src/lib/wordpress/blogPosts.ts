@@ -1,5 +1,6 @@
 import "server-only";
 import { load } from "cheerio";
+import { publicationText } from "@/lib/knowledge-automation/blogDiversity";
 import { wordpressFetch, assertNoInternalReferenceLinks } from "@/lib/wordpress/server";
 import type { RewriteCandidate } from "@/lib/knowledge-automation/rewritePolicy";
 
@@ -34,7 +35,7 @@ export async function updatePublishedBlogPost(original: RewriteCandidate, conten
 export async function verifyPublishedBlogPost(saved:{id:number;link:string},content:string) {
   const {data:publicPost}=await wordpressFetch<{id:number;status:string;content:{rendered:string}}>(`posts/${saved.id}?context=view&_rewrite_check=${Date.now()}`);
   if(publicPost.id!==saved.id || publicPost.status!=="publish" || !publicPost.content?.rendered) throw new Error("公開記事の反映を確認できませんでした。");
-  const text=(html:string)=>load(html).text().replace(/\s+/g,"");
+  const text=publicationText;
   const expected=text(content), rendered=text(publicPost.content.rendered);
   const blocks=load(content)("p,h1,h2,h3,h4,li,td,blockquote").toArray().map(el=>text(load(content).html(el))).filter(value=>value.length>=20);
   const snippets=blocks.length ? blocks : [expected];
