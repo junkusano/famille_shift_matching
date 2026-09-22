@@ -151,21 +151,23 @@ function TreeGroup({ group, pathname, searchParams }: { group: MenuGroup; pathna
   </section>;
 }
 
-function TreeMenu({ role }: { role: string | null }) {
+function TreeMenu({ role, userId }: { role: string | null; userId: string | null }) {
   const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
   const isManagerOrAdmin = ["manager", "admin"].includes((role ?? "").trim().toLowerCase());
+  const isServiceSupport = userId === "servicesuport";
   const visibleManagerMenuGroups = managerMenuGroups.map((group) => ({
     ...group,
     items: group.items.filter((item) => !item.adminOnly || (role ?? "").trim().toLowerCase() === "admin"),
   }));
   const currentYm = getCurrentYmJst();
   const managerFrequentItems: MenuItem[] = [{ label: "ダッシュボード", href: "/portal/dashboard" }, { label: "エントリー一覧", href: "/portal/entry-list" }, { label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "シフト表", href: "/portal/roster/daily" }, { label: "月間シフト", href: "/portal/roster/monthly" }];
+  const serviceSupportFrequentItems: MenuItem[] = isServiceSupport ? [{ label: "居宅介護支援ポータルHome", href: "https://famille-shift-matching-git-master-junkusanos-projects.vercel.app/cm-portal" }] : [];
   const commonFrequentItems: MenuItem[] = [{ label: "ポータルHome", href: "/portal" }, { label: "シフト・訪問記録", href: "/portal/shift" }, { label: "シフ子", href: "/portal/shift-coordinate" }, { label: "実績記録チェック", href: "/portal/disability-check" }, { label: "職員証", href: "/portal/badge" }];
   return <nav className="mt-5 space-y-4" aria-label="ポータルメニュー">
     <div className="rounded-lg border border-sky-300/25 bg-sky-950/25 p-2">
       <h3 className="px-2 pb-1 text-xs font-bold tracking-wide text-sky-200">よく使うメニュー</h3>
-      <div className="space-y-0.5">{isManagerOrAdmin && managerFrequentItems.map((item) => <MenuLink key={item.href} item={item} pathname={pathname} searchParams={searchParams} />)}{commonFrequentItems.map((item) => <MenuLink key={item.href} item={item} pathname={pathname} searchParams={searchParams} />)}</div>
+      <div className="space-y-0.5">{isManagerOrAdmin && managerFrequentItems.map((item) => <MenuLink key={item.href} item={item} pathname={pathname} searchParams={searchParams} />)}{serviceSupportFrequentItems.map((item) => <MenuLink key={item.href} item={item} pathname={pathname} searchParams={searchParams} />)}{commonFrequentItems.map((item) => <MenuLink key={item.href} item={item} pathname={pathname} searchParams={searchParams} />)}</div>
     </div>
     {isManagerOrAdmin && <div className="space-y-2"><h3 className="px-1 text-xs font-bold tracking-wide text-slate-200">管理メニュー</h3>{visibleManagerMenuGroups.map((group) => <TreeGroup key={group.label} group={group} pathname={pathname} searchParams={searchParams} />)}</div>}
     <div className="space-y-2"><h3 className="px-1 text-xs font-bold tracking-wide text-slate-200">全員共通メニュー</h3>{commonMenuGroups(currentYm).map((group) => <TreeGroup key={group.label} group={group} pathname={pathname} searchParams={searchParams} />)}</div>
@@ -173,8 +175,8 @@ function TreeMenu({ role }: { role: string | null }) {
   </nav>;
 }
 
-function NavLinks({ role }: { role: string | null }) {
-  return <TreeMenu role={role} />;
+function NavLinks({ role, userId }: { role: string | null; userId: string | null }) {
+  return <TreeMenu role={role} userId={userId} />;
 }
 
 function UserHeader({ userData, role }: { userData: UserData; role: string | null }) {
@@ -189,11 +191,13 @@ function UserHeader({ userData, role }: { userData: UserData; role: string | nul
 function SidebarContent({
   userData,
   role,
+  userId,
   onDeletePhoto,
   onReuploadPhoto,
 }: {
   userData: UserData;
   role: string | null;
+  userId: string | null;
   onDeletePhoto: () => Promise<void> | void;
   onReuploadPhoto: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void> | void;
 }) {
@@ -204,7 +208,7 @@ function SidebarContent({
         <div className="mt-3">
           <AvatarBlock photoUrl={userData.photo_url} onDelete={onDeletePhoto} onReupload={onReuploadPhoto} size={128} />
         </div>
-        <NavLinks role={role} />
+        <NavLinks role={role} userId={userId} />
       </div>
       <div className="pt-4">
         <hr className="border-white my-2" />
@@ -220,6 +224,7 @@ function MobileNavigationDrawer({
   useNewMobileUi,
   userData,
   role,
+  userId,
   onClose,
   onDeletePhoto,
   onReuploadPhoto,
@@ -228,6 +233,7 @@ function MobileNavigationDrawer({
   useNewMobileUi: boolean;
   userData: UserData;
   role: string | null;
+  userId: string | null;
   onClose: () => void;
   onDeletePhoto: () => Promise<void> | void;
   onReuploadPhoto: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void> | void;
@@ -243,7 +249,7 @@ function MobileNavigationDrawer({
         <button type="button" className="hamburger" aria-label="メニューを閉じる" onClick={onClose}>×</button>
       </header>
       <div className="mobile-drawer-scroll" onClick={handleNavigationClick}>
-        <SidebarContent userData={userData} role={role} onDeletePhoto={onDeletePhoto} onReuploadPhoto={onReuploadPhoto} />
+      <SidebarContent userData={userData} role={role} userId={userId} onDeletePhoto={onDeletePhoto} onReuploadPhoto={onReuploadPhoto} />
       </div>
     </nav>
   );
@@ -297,7 +303,7 @@ function MobileBottomNavigation({ pathname, onNavigate }: { pathname: string; on
 /** ========= Main layout ========= */
 export default function PortalLayout({ children }: Props) {
   const router = useRouter();
-  const { role, loading } = useRoleContext();
+  const { role, userId, loading } = useRoleContext();
   const [userData, setUserData] = useState<UserData | null>(null);
 
   const pathname = usePathname();
@@ -383,7 +389,7 @@ export default function PortalLayout({ children }: Props) {
         </button>
 
         {!isCollapsed && (
-          <SidebarContent userData={userData} role={role} onDeletePhoto={handleDeletePhoto} onReuploadPhoto={handlePhotoReupload} />
+          <SidebarContent userData={userData} role={role} userId={userId} onDeletePhoto={handleDeletePhoto} onReuploadPhoto={handlePhotoReupload} />
         )}
       </aside>
 
@@ -396,6 +402,7 @@ export default function PortalLayout({ children }: Props) {
         useNewMobileUi={useNewMobileUi}
         userData={userData}
         role={role}
+        userId={userId}
         onClose={() => setIsMobileMenuOpen(false)}
         onDeletePhoto={handleDeletePhoto}
         onReuploadPhoto={handlePhotoReupload}

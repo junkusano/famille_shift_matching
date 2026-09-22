@@ -6,6 +6,7 @@ import { recordMonitoringEvent } from "@/lib/monitoring/audit";
 import { loadMonitoringContext } from "@/lib/monitoring/context";
 import { getMonitoringRecord } from "@/lib/monitoring/repository";
 import { downloadGoogleDriveFile } from "@/lib/google-drive/upload";
+import { validateMonitoringFaxTarget } from "@/lib/monitoring/faxTarget";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -52,6 +53,10 @@ export async function POST(request: NextRequest, { params }: Context) {
         },
         { status: 409 },
       );
+    }
+    const targetValidationError = validateMonitoringFaxTarget(target);
+    if (targetValidationError) {
+      return NextResponse.json({ ok: false, error: targetValidationError }, { status: 409 });
     }
 
     const { data: snapshot, error: snapshotError } = await supabaseAdmin

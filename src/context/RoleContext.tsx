@@ -7,6 +7,7 @@ export type Role = 'admin' | 'manager' | 'member' | null;
 
 export interface RoleContextValue {
   role: Role;
+  userId: string | null;
   loading: boolean;
 }
 
@@ -15,6 +16,7 @@ const RoleContext = createContext<RoleContextValue | undefined>(undefined);
 
 export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
   const [role, setRole] = useState<Role>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,7 +28,7 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
 
         const { data, error } = await supabase
           .from('users')
-          .select('system_role')
+          .select('user_id, system_role')
           .eq('auth_user_id', user.id)
           .single();
 
@@ -34,6 +36,7 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
           console.error('Role fetch error:', error);
           if (mounted) setRole('member');
         } else {
+          if (mounted) setUserId(data?.user_id ?? null);
           if (mounted) setRole((data?.system_role as Role) ?? 'member');
         }
       } finally {
@@ -44,7 +47,7 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <RoleContext.Provider value={{ role, loading }}>
+    <RoleContext.Provider value={{ role, userId, loading }}>
       {children}
     </RoleContext.Provider>
   );

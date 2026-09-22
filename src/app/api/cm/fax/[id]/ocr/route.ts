@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { downloadGoogleDriveFile, extractGoogleDriveFileId } from "@/lib/google-drive/upload";
-import { extractTextWithAbbyy } from "@/lib/cs-docs-reprocess";
+import { extractGoogleDriveFileId } from "@/lib/google-drive/upload";
+import { downloadCsDocPdf, extractTextWithAbbyy } from "@/lib/cs-docs-reprocess";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 export const maxDuration = 120;
@@ -58,7 +58,9 @@ export async function POST(
       .in("id", targetPages.map(({ page }) => page.id));
 
     const fileId = extractGoogleDriveFileId(String(fax.file_id));
-    const pdf = await downloadGoogleDriveFile(fileId);
+    // FAXの保存先は、サービスアカウントから直接見えない場合があるため、
+    // 共通のGASゲートウェイ／共有リンクへのフォールバックを利用する。
+    const pdf = await downloadCsDocPdf(fileId, "");
     const ocrText = await extractTextWithAbbyy(pdf);
     if (!ocrText) throw new Error("ABBYY OCR結果が空です");
 
@@ -86,7 +88,6 @@ export async function POST(
       const resultPayload = {
         fax_received_id: faxId,
         page_number: page.page_number,
-        ocr_text: text,
         detected_text: text,
         ocr_engine: "ABBYY",
         processed_at: new Date().toISOString(),

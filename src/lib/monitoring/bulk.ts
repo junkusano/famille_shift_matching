@@ -11,6 +11,7 @@ import { loadMonitoringContext } from "./context";
 import { renderMonitoringPdf, type MonitoringPdfSnapshot } from "./pdf";
 import { getMonitoringGoals, monitoringFilename } from "./repository";
 import { prepareMonitoringSignedPlan } from "./signed-plan";
+import { validateMonitoringFaxTarget } from "./faxTarget";
 import type { MonitoringActor } from "./auth";
 import type { MonitoringContext, MonitoringRecord } from "@/types/monitoring";
 
@@ -325,6 +326,8 @@ export async function processMonitoringBulkItem(params: {
   }
   if (!context.fax_target.fax_number) reasons.push("担当ケアマネジャー・相談支援専門員のFAX番号が登録されていません");
   else if (!/^\d{1,20}$/.test(context.fax_target.fax_number.replace(/[\s()-]/g, ""))) reasons.push("送付先のFAX番号が正しくありません");
+  const faxTargetValidationError = validateMonitoringFaxTarget(context.fax_target);
+  if (faxTargetValidationError) reasons.push(faxTargetValidationError);
   if (!context.team_contacts?.length) reasons.push("担当チームのマネジャー・アシスタントマネジャーを確認できません");
   else if (context.team_contacts.some(contact => !contact.phone)) reasons.push("担当チームのマネジャー・アシスタントマネジャーの電話番号が不足しています");
   if (reasons.length > 0) {
