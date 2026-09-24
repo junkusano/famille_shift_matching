@@ -78,10 +78,11 @@ function errorMessageFor(status: number, code: string | null, fallback: string) 
   if (status === 401 || code === "rest_not_logged_in") {
     return "WordPressの認証に失敗しました。ユーザー名とApplication Passwordを確認してください。";
   }
-  if (status === 403 || code === "rest_forbidden_context" || code === "rest_cannot_edit") {
-    return "WordPress連携ユーザーに固定ページを編集する権限がありません。";
+  if (code === "rest_forbidden_context" || code === "rest_cannot_edit") {
+    return "WordPress連携ユーザーに要求された操作の権限がありません。";
   }
-  if (status === 404) return "WordPressの固定ページが見つかりません。";
+  if (status === 403) return "WordPressへの接続が拒否されました（HTTP 403）。WordPressの権限またはサーバー側のアクセス制限を確認してください。";
+  if (status === 404) return "WordPressの要求されたデータが見つかりません。";
   if (status >= 500) return "WordPress側でエラーが発生しました。時間をおいて再度お試しください。";
   return fallback || "WordPress APIの呼び出しに失敗しました。";
 }
@@ -120,9 +121,9 @@ export async function wordpressFetch<T>(
   } catch {
     if (!response.ok) {
       throw new WordPressApiError(
-        errorMessageFor(response.status, null, "WordPressから不正な応答が返されました。"),
+        `${errorMessageFor(response.status, null, "WordPressから不正な応答が返されました。")} 対象: ${url.pathname}（JSON以外の応答）`,
         response.status,
-        null
+        `wordpress_http_${response.status}`
       );
     }
   }
@@ -132,9 +133,9 @@ export async function wordpressFetch<T>(
     const code = typeof body.code === "string" ? body.code : null;
     const upstreamMessage = typeof body.message === "string" ? body.message : "";
     throw new WordPressApiError(
-      errorMessageFor(response.status, code, upstreamMessage),
+      `${errorMessageFor(response.status, code, upstreamMessage)} 対象: ${url.pathname}`,
       response.status,
-      code
+      code ?? `wordpress_http_${response.status}`
     );
   }
 
