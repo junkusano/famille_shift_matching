@@ -6,11 +6,17 @@ export async function sendEmail({
     subject,
     html,
     from,
+    attachments,
 }: {
     to: string;
     subject: string;
     html: string;
     from?: string;
+    attachments?: Array<{
+        filename: string;
+        content: Buffer;
+        contentType?: string;
+    }>;
 }) {
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASSWORD;
@@ -37,6 +43,7 @@ export async function sendEmail({
             to,
             subject,
             html,
+            attachments,
         });
 
         return { status: "ok", messageId: info.messageId };

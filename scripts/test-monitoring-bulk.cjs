@@ -6,7 +6,7 @@ const source = ts.transpileModule(fs.readFileSync('src/lib/monitoring/bulk.ts', 
 
 async function scenario(options = {}) {
   const calls = [];
-  const context = { signed_plan: { client_request: '希望', family_request: '', issues: '' }, assessment: { assessment_id: 'assessment' }, plan: null, goals: [], visit_records: [{ evidence_id: 'visit' }], service_type_detected: 'disability', fax_target: { fax_id: 'fax', office_name: '相談事業所', registered_office_name: '相談事業所', registered_contact_name: '担当', fax_number: options.noFax ? null : '0312345678' }, team_contacts: [{ name: '担当', phone: '0312345678' }], client: { name: 'テスト利用者' }, office_notice: '共通通知', ...options.context };
+  const context = { signed_plan: { client_request: '希望', family_request: '', issues: '' }, assessment: { assessment_id: 'assessment' }, plan: null, goals: [], visit_records: [{ evidence_id: 'visit' }], service_type_detected: 'disability', fax_target: { fax_id: 'fax', office_name: '相談事業所', registered_office_name: '相談事業所', registered_contact_name: '担当', fax_number: options.noFax ? null : '0312345678', email_address: options.email ? 'office@example.com' : null }, team_contacts: [{ name: '担当', phone: '0312345678' }], client: { name: 'テスト利用者' }, office_notice: '共通通知', ...options.context };
   const db = { from(table) {
     let action = 'select', value;
     const query = new Proxy({}, { get(_, key) {
@@ -32,7 +32,8 @@ async function scenario(options = {}) {
     if (name === './ai') return { generateMonitoringWithAi: async () => { calls.push({ ai: true }); return { summary: '清掃を実施した', notable_observations: [], goals: [], model: 'test' }; } };
     if (name === './audit') return { recordMonitoringEvent: async () => {} };
     if (name === './core') return { effectiveOfficeNotice: (a,b) => a || b };
-    if (name === './faxTarget') return { validateMonitoringFaxTarget: target => (!target.fax_id || !target.office_name || !target.fax_number || !target.registered_office_name) ? 'FAX送信先不備' : null };
+    if (name === './faxTarget') return { validateMonitoringFaxTarget: target => (!target.fax_id || !target.office_name || !target.fax_number) ? 'FAX送信先不備' : null };
+    if (name === './deliveryEmail') return { sendMonitoringPdfEmail: async params => { calls.push({ email: params.to }); return params.to ? { status: 'sent', to: params.to, messageId: 'message' } : { status: 'skipped', to: null }; } };
     if (name === './context') return { loadMonitoringContext: async () => context };
     if (name === './pdf') return { renderMonitoringPdf: async () => Buffer.from('pdf') };
     if (name === './repository') return { getMonitoringGoals: async () => [], monitoringFilename: () => 'test.pdf' };
@@ -59,6 +60,10 @@ async function scenario(options = {}) {
   const success = await scenario();
   assert.equal(success.result?.status, 'sent', success.error?.stack);
   assert.equal(success.calls.filter(c => c.fax).length, 1);
+  const withEmail = await scenario({ email: true });
+  assert.equal(withEmail.result?.status, 'sent', withEmail.error?.stack);
+  assert.equal(withEmail.calls.filter(c => c.email === 'office@example.com').length, 1);
+  assert.match(withEmail.result.note, /メール送信/);
   const migrated = await scenario({ context: { assessment: null, plan: null } });
   assert.equal(migrated.result?.status, 'sent', migrated.error?.stack);
   assert.equal(migrated.calls.filter(c => c.fax).length, 1);

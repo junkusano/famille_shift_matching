@@ -12,6 +12,7 @@ import { renderMonitoringPdf, type MonitoringPdfSnapshot } from "./pdf";
 import { getMonitoringGoals, monitoringFilename } from "./repository";
 import { prepareMonitoringSignedPlan } from "./signed-plan";
 import { validateMonitoringFaxTarget } from "./faxTarget";
+import { sendMonitoringPdfEmail, type MonitoringEmailDeliveryResult } from "./deliveryEmail";
 import type { MonitoringActor } from "./auth";
 import type { MonitoringContext, MonitoringRecord } from "@/types/monitoring";
 
@@ -179,7 +180,7 @@ async function sendFax(params: {
   filename: string;
   actor: MonitoringActor;
   runId: string;
-}): Promise<void> {
+}): Promise<MonitoringEmailDeliveryResult> {
   const target = params.context.fax_target;
   if (!target.fax_number) throw new Error("FAX番号が登録されていません");
   const processKey = `mn${Date.now().toString(36)}${crypto.randomUUID().replaceAll("-", "").slice(0, 6)}`.slice(0, 20);
@@ -254,12 +255,37 @@ async function sendFax(params: {
       supabaseAdmin.from("client_monitorings").update({ status: "fax_sent" }).eq("id", params.monitoring.id),
     ]);
     for (const update of updates) if (update.error) throw new Error("FAX受付後の保存に失敗しました。再送せずFAX履歴を確認してください");
+    const emailDelivery = await sendMonitoringPdfEmail({
+      to: target.email_address,
+      officeName: target.office_name,
+      clientName: String(params.context.client.name ?? "ご利用者"),
+      periodStart: params.monitoring.period_start,
+      periodEnd: params.monitoring.period_end,
+      filename: params.filename,
+      pdf,
+    });
+    if (emailDelivery.status === "failed") {
+      console.error("[monitoring:email] bulk delivery failed", {
+        monitoringId: params.monitoring.id,
+        to: emailDelivery.to,
+        error: emailDelivery.error,
+      });
+    }
     await recordMonitoringEvent({
       monitoringId: params.monitoring.id,
       action: "fax_send",
       actor: params.actor,
-      metadata: { bulk_run_id: params.runId, fax_history_id: history.id, snapshot_id: params.snapshotId },
+      metadata: {
+        bulk_run_id: params.runId,
+        fax_history_id: history.id,
+        snapshot_id: params.snapshotId,
+        email_to: emailDelivery.to,
+        email_status: emailDelivery.status,
+        email_error: emailDelivery.status === "failed" ? emailDelivery.error : null,
+        email_message_id: emailDelivery.status === "sent" ? emailDelivery.messageId : null,
+      },
     });
+    return emailDelivery;
   } catch (error) {
     await supabaseAdmin.from("monitoring_fax_history").update({
       ...(accepted ? { status: "accepted" } : {}), error_message: error instanceof Error ? error.message : String(error),
@@ -401,6 +427,11 @@ export async function processMonitoringBulkItem(params: {
   await recordMonitoringEvent({ monitoringId: monitoring.id, action: "confirm", actor: params.actor, metadata: { bulk_run_id: params.run.id } });
   const confirmedMonitoring = { ...monitoring, ...fields, summary: generated.summary, notable_observations: generated.notable_observations, monitoring_json: { bulk_run_id: params.run.id }, status: "confirmed" as const };
   const pdf = await createPdf({ monitoring: confirmedMonitoring, context, actor: params.actor, runId: params.run.id });
-  await sendFax({ monitoring: confirmedMonitoring, context, snapshotId: pdf.snapshotId, filename: pdf.filename, actor: params.actor, runId: params.run.id });
-  return { status: "sent", monitoringId: monitoring.id, note: "PDFを作成しFAX送付を受け付けました" };
+  const emailDelivery = await sendFax({ monitoring: confirmedMonitoring, context, snapshotId: pdf.snapshotId, filename: pdf.filename, actor: params.actor, runId: params.run.id });
+  const note = emailDelivery.status === "sent"
+    ? "PDFを作成し、FAX送付とメール送信を受け付けました"
+    : emailDelivery.status === "failed"
+      ? `PDFを作成しFAX送付を受け付けました（メール送信失敗: ${emailDelivery.error}）`
+      : "PDFを作成しFAX送付を受け付けました";
+  return { status: "sent", monitoringId: monitoring.id, note };
 }
