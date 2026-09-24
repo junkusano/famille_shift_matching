@@ -7,6 +7,7 @@ import { loadMonitoringContext } from "@/lib/monitoring/context";
 import { getMonitoringRecord } from "@/lib/monitoring/repository";
 import { downloadGoogleDriveFile } from "@/lib/google-drive/upload";
 import { validateMonitoringFaxTarget } from "@/lib/monitoring/faxTarget";
+import { sendMonitoringPdfEmail } from "@/lib/monitoring/deliveryEmail";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -156,6 +157,23 @@ export async function POST(request: NextRequest, { params }: Context) {
       .eq("batch_id", batchId)
       .eq("process_key", sendProcessKey);
 
+    const emailDelivery = await sendMonitoringPdfEmail({
+      to: target.email_address,
+      officeName: target.office_name,
+      clientName: String(context.client.name ?? "ご利用者"),
+      periodStart: monitoring.period_start,
+      periodEnd: monitoring.period_end,
+      filename: snapshot.filename,
+      pdf,
+    });
+    if (emailDelivery.status === "failed") {
+      console.error("[monitoring:email] delivery failed", {
+        monitoringId: id,
+        to: emailDelivery.to,
+        error: emailDelivery.error,
+      });
+    }
+
     const { error: updateMonitoringError } = await supabaseAdmin
       .from("client_monitorings")
       .update({ status: "fax_sent" })
@@ -171,11 +189,20 @@ export async function POST(request: NextRequest, { params }: Context) {
         destination_name: target.office_name,
         fax_number: target.fax_number,
         external_fax_id: result.idxcnt ?? null,
+        email_to: emailDelivery.to,
+        email_status: emailDelivery.status,
+        email_error: emailDelivery.status === "failed" ? emailDelivery.error : null,
+        email_message_id: emailDelivery.status === "sent" ? emailDelivery.messageId : null,
       },
     });
     return NextResponse.json({
       ok: true,
-      data: { history_id: history.id, sent_at: sentAt, external_fax_id: result.idxcnt ?? null },
+      data: {
+        history_id: history.id,
+        sent_at: sentAt,
+        external_fax_id: result.idxcnt ?? null,
+        email: emailDelivery,
+      },
     });
   } catch (error) {
     if (historyId) {

@@ -251,6 +251,7 @@ export default function MonitoringEditorPage() {
       `送信先：${target.office_name ?? "名称未設定"}`,
       `担当：${target.contact_name ?? "未登録"}`,
       `FAX：${target.fax_number}`,
+      `メール：${target.email_address ?? "未登録"}`,
       "",
       `対象期間：${formatMonitoringPeriod(data.monitoring.period_start, data.monitoring.period_end)}`,
       "",
@@ -261,8 +262,15 @@ export default function MonitoringEditorPage() {
     setError("");
     setMessage("");
     try {
-      await api(`/api/monitorings/${monitoringId}/fax`, { method: "POST" });
-      setMessage("FAX送信依頼が受け付けられました");
+      const result = await api(`/api/monitorings/${monitoringId}/fax`, { method: "POST" });
+      const emailStatus = result.data?.email?.status;
+      setMessage(
+        emailStatus === "sent"
+          ? "FAX送信依頼を受け付け、メールも送信しました"
+          : emailStatus === "failed"
+            ? `FAX送信依頼は受け付けましたが、メール送信に失敗しました：${result.data.email.error}`
+            : "FAX送信依頼が受け付けられました",
+      );
       await load();
     } catch (caught) {
       const failure = caught as Error & { detailUrl?: string };
@@ -459,6 +467,7 @@ export default function MonitoringEditorPage() {
                 <div><dt className="text-slate-500">前回モニタリング</dt><dd>{data.context.summary.previous_monitoring_date ?? "なし"}</dd></div>
                 <div><dt className="text-slate-500">担当者</dt><dd>{data.context.summary.care_manager_name ?? "未登録"}</dd></div>
                 <div><dt className="text-slate-500">FAX</dt><dd>{data.context.summary.fax_number ?? "未登録"}</dd></div>
+                <div><dt className="text-slate-500">メール</dt><dd>{data.context.fax_target.email_address ?? "未登録"}</dd></div>
               </dl>
               {data.context.warnings.length > 0 && <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><div className="flex items-center gap-2 font-semibold"><AlertTriangle size={16} />確認事項</div><ul className="mt-2 list-disc pl-5">{data.context.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>{!data.context.fax_target.fax_number && <Link href={`/portal/kaipoke-info-detail/${clientInfoId}`} className="mt-3 inline-block font-semibold text-blue-700 hover:underline">送信先情報を確認</Link>}</div>}
             </section>

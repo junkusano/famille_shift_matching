@@ -11,6 +11,7 @@ import {
   sanitizeEvidenceIds,
   validateMonitoringPeriod,
 } from "../src/lib/monitoring/core.ts";
+import { validateMonitoringFaxTarget } from "../src/lib/monitoring/faxTarget.ts";
 
 test("利用者名・対象年月・版数を含む安全なPDF名を作る", () => {
   assert.equal(
@@ -66,4 +67,29 @@ test("個別の事業所よりを優先し、未入力時だけ月別共通文�
   assert.equal(effectiveOfficeNotice("個別文", "共通文"), "個別文");
   assert.equal(effectiveOfficeNotice("", "共通文"), "共通文");
   assert.equal(effectiveOfficeNotice("   ", "共通文"), "共通文");
+});
+
+
+test("FAX台帳が完全なら契約同期行がなくても送信を許可する", () => {
+  assert.equal(validateMonitoringFaxTarget({
+    fax_id: "fax-id",
+    office_name: "相談支援事業所",
+    fax_number: "0521234567",
+    email_address: "office@example.com",
+    contact_name: null,
+    registered_office_name: null,
+    registered_contact_name: null,
+  }), null);
+});
+
+test("契約情報とFAX台帳の事業所名が明確に異なる場合は送信を止める", () => {
+  assert.match(validateMonitoringFaxTarget({
+    fax_id: "fax-id",
+    office_name: "A相談支援事業所",
+    fax_number: "0521234567",
+    email_address: null,
+    contact_name: null,
+    registered_office_name: "B相談支援事業所",
+    registered_contact_name: null,
+  }) ?? "", /一致しません/);
 });

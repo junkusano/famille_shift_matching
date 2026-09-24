@@ -354,13 +354,14 @@ export async function loadMonitoringContext(params: {
     office_name: registeredOfficeName,
     contact_name: registeredContactName,
     fax_number: null,
+    email_address: null,
     registered_office_name: registeredOfficeName,
     registered_contact_name: registeredContactName,
   };
   if (careConsultantId) {
     const { data: faxRow, error } = await supabaseAdmin
       .from("fax")
-      .select("id,office_name,fax")
+      .select("id,office_name,fax,email")
       .eq("id", careConsultantId)
       .maybeSingle();
     if (error) throw error;
@@ -369,6 +370,7 @@ export async function loadMonitoringContext(params: {
       ...faxTarget,
       office_name: nullableText(faxRecord?.office_name) ?? faxTarget.office_name,
       fax_number: nullableText(faxRecord?.fax),
+      email_address: nullableText(faxRecord?.email),
     };
   }
 
