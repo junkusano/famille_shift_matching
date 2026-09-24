@@ -9,6 +9,15 @@ import { Button } from '@/components/ui/button'
 
 type Step = 'login' | 'verify'
 
+function getPostLoginPath(): string {
+  if (typeof window === 'undefined') return '/portal'
+
+  const next = new URLSearchParams(window.location.search).get('next')
+  if (!next || !next.startsWith('/') || next.startsWith('//')) return '/portal'
+
+  return next
+}
+
 export default function LoginPage() {
   const router = useRouter()
 
@@ -56,7 +65,7 @@ export default function LoginPage() {
           return
         }
 
-        router.push('/portal')
+        router.push(getPostLoginPath())
         return
       }
 
@@ -104,7 +113,7 @@ export default function LoginPage() {
         return
       }
 
-      router.push('/portal')
+      router.push(getPostLoginPath())
     } catch {
       setError('認証処理中にエラーが発生しました。')
     } finally {
