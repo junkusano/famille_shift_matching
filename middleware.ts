@@ -21,6 +21,7 @@ export async function middleware(req: NextRequest) {
     '/signup',
     '/signup/complete',
     '/entry',
+    '/famille-voice/privacy',
     '/auth/callback',
     '/unauthorized',
     '/_next',
