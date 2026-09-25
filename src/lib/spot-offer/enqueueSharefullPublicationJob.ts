@@ -2,10 +2,10 @@ import { providerSyncEnabled, validateSharefullSyncJob } from '@/lib/spot-sync/r
 import { canRecruit } from '@/lib/spot-sync/policy';
 import { isSharefullSyncClient, sharefullRequestTableName, sharefullRpaMode, sharefullSyncClientIds, sharefullSyncScopeLabel, sharefullTargetRunnerId, sharefullTemplateTableName } from '@/lib/spot-sync/sharefullScope';
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { isDuplicateSharefullPublicationJob, SHAREFULL_PUBLICATION_DEDUPE_STATUSES } from "@/lib/spot-offer/publicationJobDedupe";
 
 const JOB_TYPE = "sharefull.create_spot_offer";
 const TEMPLATE_JOB_TYPE = "sharefull.create_template";
-const ACTIVE_STATUSES = ["pending", "claimed", "completed"];
 
 type JsonRecord = Record<string, unknown>;
 
@@ -134,16 +134,11 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
     .from("rpa_runner_jobs")
     .select("payload,status")
     .eq("job_type", JOB_TYPE)
-    .in("status", ACTIVE_STATUSES)
+    .in("status", [...SHAREFULL_PUBLICATION_DEDUPE_STATUSES])
     .limit(5000);
   if (existingError) throw existingError;
 
   const mode = executionMode();
-  const operationKeys = new Set(
-    (existing ?? []).map((row) => text((row.payload as JsonRecord | null)?.operation_key)).filter(Boolean),
-  );
-  const pendingRequests = new Set((existing ?? []).filter(row => ['pending','claimed'].includes(row.status))
-    .map(row => text((row.payload as JsonRecord | null)?.spot_offer_request_id)).filter(Boolean));
   let registeredCount = 0;
   let duplicateJobCount = 0;
   const skipped: string[] = [];
@@ -153,7 +148,11 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
     if (!shiftId) continue;
     const operationKey = `sharefull:create_spot_offer:${mode}:${shiftId}:${row.recruitment_revision ?? 0}`;
     if (!canRecruit(row)) continue;
-    if (operationKeys.has(operationKey) || pendingRequests.has(text(row.id))) {
+    if (isDuplicateSharefullPublicationJob(
+      (existing ?? []) as { status: string; payload: Record<string, unknown> | null }[],
+      operationKey,
+      text(row.id),
+    )) {
       duplicateJobCount += 1;
       skipped.push(`${shiftId}:同じジョブが登録済みです`);
       continue;
@@ -190,7 +189,6 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
       .eq("sharefull_status", "template_review")
       .is("sharefull_job_id", null);
     if (statusError) throw statusError;
-    operationKeys.add(operationKey);
     registeredCount += 1;
   }
 
