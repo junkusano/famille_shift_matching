@@ -42,8 +42,9 @@ test("テストモードは専用テーブルを使い本番の同期対象指�
   });
 
   assert.equal(scope.sharefullRpaMode(), "test");
-  assert.equal(scope.sharefullTemplateTableName(), "sharefull_rpa_test_templates");
-  assert.equal(scope.sharefullRequestTableName(), "sharefull_rpa_test_requests");
+  assert.equal(scope.sharefullTemplateTableName(), "sharefull_rpa_test_spot_offer_template_unified");
+  assert.equal(scope.sharefullRequestTableName(), "sharefull_rpa_test_spot_offer_request_table");
+  assert.equal(scope.sharefullApplicationTableName(), "sharefull_rpa_test_spot_offer_applications");
   assert.equal(scope.sharefullSyncClientIds(), null);
   assert.equal(scope.isSharefullSyncClient("any-client"), true);
   assert.equal(scope.sharefullSyncScopeLabel(), "test");

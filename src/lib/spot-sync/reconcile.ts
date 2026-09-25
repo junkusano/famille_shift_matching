@@ -1,7 +1,7 @@
 import { supabaseAdmin as db } from '@/lib/supabase/service';
 import { createCloseRequest, createOpenRequest } from '@/lib/spot_offer/spot_offer_sync_check';
 import { desiredAction, staffAssigned, type Application } from './policy';
-import { isSharefullSyncClient, sharefullRequestTableName, sharefullRpaMode } from './sharefullScope';
+import { isSharefullSyncClient, sharefullApplicationTableName, sharefullRequestTableName, sharefullRpaMode } from './sharefullScope';
 
 type Row = Record<string, any>;
 function check(error: { message: string; code?: string } | null) { if (error && error.code !== '23505') throw new Error(error.message); }
@@ -11,6 +11,7 @@ export async function reconcileSpotProviders() {
   if (!providerSyncEnabled()) return { enabled: false, processed: 0 };
   const testMode = sharefullRpaMode() === 'test';
   const requestTable = sharefullRequestTableName();
+  const applicationTable = sharefullApplicationTableName();
   let processed = 0;
   const errors: {request_id: string; message: string}[] = [];
   const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
@@ -23,7 +24,7 @@ export async function reconcileSpotProviders() {
     const {data: users, error: userError} = ids.length ? await db.from('user_entry_united_view_single').select('user_id,system_role').in('user_id', ids) : {data: [], error: null};
     check(userError);
     const roles = new Map<string,string>((users ?? []).map(u => [u.user_id,u.system_role]));
-    const {data: applications, error: applicationError} = await db.from('spot_offer_applications').select('request_id,provider,state').in('request_id',requests.map(r=>r.id));
+    const {data: applications, error: applicationError} = await db.from(applicationTable as never).select('request_id,provider,state').in('request_id',requests.map(r=>r.id));
     check(applicationError);
     for (const request of requests) {
       try {
@@ -85,7 +86,7 @@ export async function validateSharefullSyncJob(jobType: string, payload: Row): P
   const {data:r,error}=await db.from(sharefullRequestTableName() as never).select('*').eq('id',payload.spot_offer_request_id).maybeSingle(); check(error);
   if (!r || !isSharefullSyncClient(r.kaipoke_cs_id)) return false;
   const {data:s,error:se}=await db.from('shift').select('*').eq('shift_id',r.shift_id).maybeSingle(); check(se);
-  const {data:apps,error:ae}=await db.from('spot_offer_applications').select('provider,state').eq('request_id',r.id); check(ae);
+  const {data:apps,error:ae}=await db.from(sharefullApplicationTableName() as never).select('provider,state').eq('request_id',r.id); check(ae);
   const ids=s?[s.staff_01_user_id,s.staff_02_user_id,s.staff_03_user_id].filter(Boolean):[];
   const {data:users,error:ue}=ids.length?await db.from('user_entry_united_view_single').select('user_id,system_role').in('user_id',ids):{data:[],error:null};check(ue);
   const action=desiredAction({provider:'sharefull',status:r.status,applications:apps??[],shift:s,assigned:!!s&&staffAssigned(s,new Map((users??[]).map(u=>[u.user_id,u.system_role]))),manualStop:r.recruitment_paused});

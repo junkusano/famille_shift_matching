@@ -17,14 +17,20 @@ export function sharefullRpaMode(): SharefullRpaMode {
 
 export function sharefullTemplateTableName(): string {
   return sharefullRpaMode() === "test"
-    ? "sharefull_rpa_test_templates"
+    ? "sharefull_rpa_test_spot_offer_template_unified"
     : "spot_offer_template_unified";
 }
 
 export function sharefullRequestTableName(): string {
   return sharefullRpaMode() === "test"
-    ? "sharefull_rpa_test_requests"
+    ? "sharefull_rpa_test_spot_offer_request_table"
     : "spot_offer_request_table";
+}
+
+export function sharefullApplicationTableName(): string {
+  return sharefullRpaMode() === "test"
+    ? "sharefull_rpa_test_spot_offer_applications"
+    : "spot_offer_applications";
 }
 
 function configuredValue(): string | undefined {
