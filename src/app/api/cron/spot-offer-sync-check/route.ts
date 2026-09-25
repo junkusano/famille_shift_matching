@@ -2,7 +2,6 @@ import { reconcileSpotProviders } from '@/lib/spot-sync/reconcile';
 import { NextRequest, NextResponse } from "next/server";
 import { assertCronAuth } from "@/lib/cron/auth";
 import { runSpotOfferSyncCheck } from "@/lib/spot_offer/spot_offer_sync_check";
-import { sharefullRpaMode } from "@/lib/spot-sync/sharefullScope";
 
 export const runtime = "nodejs";
 
@@ -11,9 +10,7 @@ export async function GET(req: NextRequest) {
   try {
      assertCronAuth(req);
 
-    const result = sharefullRpaMode() === 'test'
-      ? { ok: true, targetCount: 0, closeCount: 0, alertCount: 0, skipped: 'Sharefull RPA test mode' }
-      : await runSpotOfferSyncCheck({ dryRun: false });
+    const result = await runSpotOfferSyncCheck({ dryRun: false });
 
     const providers = await reconcileSpotProviders();
     return NextResponse.json({
