@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/service';
 import { authenticateRunner, RpaRunnerAuthError } from '@/lib/rpa-runner/auth';
 import { isRecord } from '@/lib/rpa-runner/validation';
 import { resolveRpaFailureAlerts } from '@/lib/rpa-runner/alerts';
+import { sharefullRequestTableName, sharefullRpaMode } from '@/lib/spot-sync/sharefullScope';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const body: unknown = await request.json();
     if (!UUID.test(id) || !isRecord(body) || !isRecord(body.result)) return NextResponse.json({ ok: false, error: 'Invalid request' }, { status: 400 });
     const runner = await authenticateRunner(request, body.runner_id);
-    if (providerSyncEnabled()) {
+    if (providerSyncEnabled() && sharefullRpaMode() !== 'test') {
       const {data: job,error: lookupError} = await supabaseAdmin.from('rpa_runner_jobs').select('job_type').eq('id',id).eq('claimed_runner_id',runner.runnerId).maybeSingle();
       if (lookupError) throw lookupError;
       if (job?.job_type.startsWith('sharefull.')) {
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       const sharefullJobId = typeof result.sharefull_job_id === 'string' ? result.sharefull_job_id.trim() : '';
       if (requestId && sharefullJobId) {
         const { error: sharefullUpdateError } = await supabaseAdmin
-          .from('spot_offer_request_table')
+          .from(sharefullRequestTableName() as never)
           .update({ sharefull_job_id: sharefullJobId, sharefull_status: 'published' })
           .eq('id', requestId)
           .is('sharefull_job_id', null);

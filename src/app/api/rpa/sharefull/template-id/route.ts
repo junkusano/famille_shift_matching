@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
-import { isSharefullSyncClient } from "@/lib/spot-sync/sharefullScope";
+import { isSharefullSyncClient, sharefullRequestTableName, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,11 +11,11 @@ export async function POST(request: NextRequest) {
     const templateId = typeof body.sharefull_template_id === "string" ? body.sharefull_template_id.trim() : "";
     if (!coreId || !templateId || templateId === "428828") return NextResponse.json({ error: "IDが不正です" }, { status: 400 });
     const { data: existing, error: lookupError } = await supabaseAdmin
-      .from("spot_offer_template_unified").select("core_id, kaipoke_cs_id").eq("core_id", coreId).maybeSingle();
+      .from(sharefullTemplateTableName() as never).select("core_id, kaipoke_cs_id").eq("core_id", coreId).maybeSingle();
     if (lookupError) throw lookupError;
     if (!existing || !isSharefullSyncClient(existing.kaipoke_cs_id)) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
     const updatedAt = new Date().toISOString();
-    const { error } = await supabaseAdmin.from("spot_offer_template_unified")
+    const { error } = await supabaseAdmin.from(sharefullTemplateTableName() as never)
     .update({ sharefull_template_id: templateId, sharefull_template_status: "template_review", updated_at: updatedAt })
     .eq("core_id", coreId);
     if (error) throw error;
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     // テンプレート作成直後はSharefull審査中のため、対象案件を保留状態にする。
     // 既存のタイミー募集状態や案件データは変更しない。
     const { error: statusError } = await supabaseAdmin
-      .from("spot_offer_request_table")
+      .from(sharefullRequestTableName() as never)
       .update({ sharefull_status: "template_review", updated_at: updatedAt })
       .eq("core_id", coreId)
       .gte("shift_start_date", updatedAt.slice(0, 10))

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isSharefullSyncClient, sharefullSyncClientIds, sharefullSyncScopeLabel } from "@/lib/spot-sync/sharefullScope";
+import { isSharefullSyncClient, sharefullRequestTableName, sharefullSyncClientIds, sharefullSyncScopeLabel, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     if (observed.size > 1000) return NextResponse.json({ error: "テンプレート数が多すぎます" }, { status: 400 });
 
     let templateQuery = supabaseAdmin
-      .from("spot_offer_template_unified")
+      .from(sharefullTemplateTableName() as never)
       .select("core_id, kaipoke_cs_id, sharefull_template_id")
       .not("sharefull_template_id", "is", null);
     const clientIds = sharefullSyncClientIds();
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     const coreIds = missing.map((template) => template.core_id);
     const { data: published, error: publishedError } = await supabaseAdmin
-      .from("spot_offer_request_table")
+      .from(sharefullRequestTableName() as never)
       .select("core_id")
       .in("core_id", coreIds)
       .not("sharefull_job_id", "is", null);
@@ -57,12 +57,12 @@ export async function POST(request: NextRequest) {
     if (resetCoreIds.length > 0) {
       const updatedAt = new Date().toISOString();
       const { error: resetTemplateError } = await supabaseAdmin
-        .from("spot_offer_template_unified")
+      .from(sharefullTemplateTableName() as never)
         .update({ sharefull_template_id: null, sharefull_template_status: null, updated_at: updatedAt })
         .in("core_id", resetCoreIds);
       if (resetTemplateError) throw resetTemplateError;
       const { error: resetRequestError } = await supabaseAdmin
-        .from("spot_offer_request_table")
+        .from(sharefullRequestTableName() as never)
         .update({ sharefull_status: null, updated_at: updatedAt })
         .in("core_id", resetCoreIds)
         .gte("shift_start_date", todayInJst())

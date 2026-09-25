@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
 import { enqueueSharefullPublicationJobsForTemplate } from "@/lib/spot-offer/enqueueSharefullPublicationJob";
-import { isSharefullSyncClient } from "@/lib/spot-sync/sharefullScope";
+import { isSharefullSyncClient, sharefullRequestTableName, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
 
 const ALLOWED_STATUSES = new Set(["template_review", "ready_for_offer"]);
 
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: template, error: lookupError } = await supabaseAdmin
-      .from("spot_offer_template_unified")
+      .from(sharefullTemplateTableName() as never)
       .select("core_id, kaipoke_cs_id, sharefull_template_id")
       .eq("core_id", coreId)
       .maybeSingle();
@@ -32,14 +32,14 @@ export async function POST(request: NextRequest) {
 
     const updatedAt = new Date().toISOString();
     const { error: updateError } = await supabaseAdmin
-      .from("spot_offer_template_unified")
+      .from(sharefullTemplateTableName() as never)
       .update({ sharefull_template_status: status, updated_at: updatedAt })
       .eq("core_id", coreId);
     if (updateError) throw updateError;
 
     // 既存の案件単位ステータスも互換のため同期する。
     const { error: requestUpdateError } = await supabaseAdmin
-      .from("spot_offer_request_table")
+      .from(sharefullRequestTableName() as never)
       .update({ sharefull_status: status, updated_at: updatedAt })
       .eq("core_id", coreId)
       .is("sharefull_job_id", null)

@@ -34,3 +34,17 @@ test("全利用者化には対象指定と明示許可の両方を必要とす�
   assert.equal(allowed.sharefullSyncClientIds(), null);
   assert.equal(allowed.isSharefullSyncClient("99999999"), true);
 });
+
+test("テストモードは専用テーブルを使い本番の同期対象指定を無視する", () => {
+  const scope = loadScope({
+    SHAREFULL_RPA_MODE: "test",
+    SHAREFULL_SYNC_KAIPOKE_CS_IDS: "99999999",
+  });
+
+  assert.equal(scope.sharefullRpaMode(), "test");
+  assert.equal(scope.sharefullTemplateTableName(), "sharefull_rpa_test_templates");
+  assert.equal(scope.sharefullRequestTableName(), "sharefull_rpa_test_requests");
+  assert.equal(scope.sharefullSyncClientIds(), null);
+  assert.equal(scope.isSharefullSyncClient("any-client"), true);
+  assert.equal(scope.sharefullSyncScopeLabel(), "test");
+});

@@ -1,6 +1,6 @@
 import { providerSyncEnabled, validateSharefullSyncJob } from '@/lib/spot-sync/reconcile';
 import { canRecruit } from '@/lib/spot-sync/policy';
-import { isSharefullSyncClient, sharefullSyncClientIds, sharefullSyncScopeLabel } from '@/lib/spot-sync/sharefullScope';
+import { isSharefullSyncClient, sharefullRequestTableName, sharefullRpaMode, sharefullSyncClientIds, sharefullSyncScopeLabel, sharefullTemplateTableName } from '@/lib/spot-sync/sharefullScope';
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 const JOB_TYPE = "sharefull.create_spot_offer";
@@ -62,7 +62,7 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
   };
 
   const { data: template, error: templateError } = await supabaseAdmin
-    .from("spot_offer_template_unified")
+    .from(sharefullTemplateTableName() as never)
     .select("core_id, kaipoke_cs_id, sharefull_template_id, sharefull_template_status")
     .eq("core_id", coreId)
     .maybeSingle();
@@ -104,7 +104,7 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
 
   const today = todayInJst();
   let requestQuery = supabaseAdmin
-    .from("spot_offer_request_table")
+    .from(sharefullRequestTableName() as never)
     .select("id, core_id, kaipoke_cs_id, shift_id, shift_start_date, shift_start_time, shift_end_time, unit_amount, commute_fee, status, taimee_job_id, sharefull_job_id, sharefull_status, recruitment_revision")
     .eq("core_id", coreId)
     .eq("status", "募集中")
@@ -176,14 +176,15 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
       commute_fee: row.commute_fee,
       headcount: requiredStaffCountByShiftId.get(row.shift_id) ?? 1,
       execution_mode: mode,
+      rpa_mode: sharefullRpaMode(),
       created_from: source,
     };
-    if (providerSyncEnabled() && !await validateSharefullSyncJob(JOB_TYPE, payload)) continue;
+    if (providerSyncEnabled() && sharefullRpaMode() !== "test" && !await validateSharefullSyncJob(JOB_TYPE, payload)) continue;
     const { error } = await supabaseAdmin.from("rpa_runner_jobs").insert({ job_type: JOB_TYPE, status: "pending", payload });
     if (error?.code === "23505") continue;
     if (error) throw error;
     const { error: statusError } = await supabaseAdmin
-      .from("spot_offer_request_table")
+      .from(sharefullRequestTableName() as never)
       .update({ sharefull_status: "ready_for_offer", updated_at: new Date().toISOString() })
       .eq("id", row.id)
       .eq("sharefull_status", "template_review")
@@ -217,7 +218,7 @@ export async function enqueueSharefullPublicationJobsForReadyTemplates(source: s
 
   const today = todayInJst();
   let query = supabaseAdmin
-    .from("spot_offer_request_table")
+    .from(sharefullRequestTableName() as never)
     .select("core_id, kaipoke_cs_id")
     .eq("status", "募集中")
     .gte("shift_start_date", today)
