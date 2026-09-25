@@ -9,6 +9,12 @@ const DEFAULT_TEST_CLIENT_IDS = ["12782561"];
 
 export type SharefullRpaMode = "production" | "test";
 
+export function sharefullTargetRunnerId(): string | null {
+  if (sharefullRpaMode() !== "test") return null;
+  const id = process.env.SHAREFULL_TEST_RUNNER_ID?.trim();
+  return id || "sharefull-test-runner";
+}
+
 export function sharefullRpaMode(): SharefullRpaMode {
   return process.env.SHAREFULL_RPA_MODE?.trim().toLowerCase() === "test"
     ? "test"

@@ -8,7 +8,7 @@ export async function POST(request:NextRequest) {
  try {
   const raw=await request.text();if(raw.length>200000)return NextResponse.json({error:'Too large'},{status:413});
   const body=JSON.parse(raw);let runnerId:string|null=null;
-  if(body.runner_id)runnerId=(await authenticateRunner(request,body.runner_id)).runnerId;
+  if(body.runner_id)runnerId=(await authenticateRunner(request,body.runner_id,body.runner_environment)).runnerId;
   else await requireTaimeeRpaOperator(request);
   if(!Array.isArray(body.events)||body.events.length>100)return NextResponse.json({error:'Invalid batch'},{status:400});
   const events=body.events.map(cleanEvent);

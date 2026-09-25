@@ -1,6 +1,6 @@
 import { providerSyncEnabled, validateSharefullSyncJob } from '@/lib/spot-sync/reconcile';
 import { canRecruit } from '@/lib/spot-sync/policy';
-import { isSharefullSyncClient, sharefullRequestTableName, sharefullRpaMode, sharefullSyncClientIds, sharefullSyncScopeLabel, sharefullTemplateTableName } from '@/lib/spot-sync/sharefullScope';
+import { isSharefullSyncClient, sharefullRequestTableName, sharefullRpaMode, sharefullSyncClientIds, sharefullSyncScopeLabel, sharefullTargetRunnerId, sharefullTemplateTableName } from '@/lib/spot-sync/sharefullScope';
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 const JOB_TYPE = "sharefull.create_spot_offer";
@@ -44,7 +44,7 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
   const alreadyQueued = (existing ?? []).some((row) => text((row.payload as JsonRecord | null)?.operation_key) === operationKey);
   if (alreadyQueued) return { registeredCount: 0, skipped: ["テンプレート作成ジョブが登録済みです"] };
   const payload = { action: "create_sharefull_template", command: "create_template", core_id: coreId, operation_key: operationKey, sync_operation_key: operationKey, created_from: source };
-  const { error } = await supabaseAdmin.from("rpa_runner_jobs").insert({ job_type: TEMPLATE_JOB_TYPE, status: "pending", payload, timeout_ms: 300_000 });
+  const { error } = await supabaseAdmin.from("rpa_runner_jobs").insert({ job_type: TEMPLATE_JOB_TYPE, status: "pending", payload, timeout_ms: 300_000, target_runner_id: sharefullTargetRunnerId() });
   if (error?.code === "23505") return { registeredCount: 0, skipped: ["テンプレート作成ジョブが登録済みです"] };
   if (error) throw error;
   return { registeredCount: 1, skipped: [] };
@@ -180,7 +180,7 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
       created_from: source,
     };
     if (providerSyncEnabled() && sharefullRpaMode() !== "test" && !await validateSharefullSyncJob(JOB_TYPE, payload)) continue;
-    const { error } = await supabaseAdmin.from("rpa_runner_jobs").insert({ job_type: JOB_TYPE, status: "pending", payload });
+    const { error } = await supabaseAdmin.from("rpa_runner_jobs").insert({ job_type: JOB_TYPE, status: "pending", payload, target_runner_id: sharefullTargetRunnerId() });
     if (error?.code === "23505") continue;
     if (error) throw error;
     const { error: statusError } = await supabaseAdmin

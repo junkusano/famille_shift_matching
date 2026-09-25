@@ -57,7 +57,7 @@ export async function reconcileSpotProviders() {
         if (sharefullInScope && sharefullAction === 'close' && request.sharefull_job_id && request.sharefull_status !== 'closed') {
           if (!request.sharefull_order_id) throw new Error('シェアフルのURL管理番号が未取得です。求人詳細の確認が必要です。');
           const key = `spot-sync:sharefull:close:${request.sharefull_order_id}:${request.recruitment_revision}`;
-          const {error: insertError} = await db.from('rpa_runner_jobs').insert({job_type:'sharefull.close_spot_offer',status:'pending',payload:{
+          const {error: insertError} = await db.from('rpa_runner_jobs').insert({job_type:'sharefull.close_spot_offer',status:'pending',target_runner_id:testMode ? (process.env.SHAREFULL_TEST_RUNNER_ID?.trim() || 'sharefull-test-runner') : null,payload:{
             spot_offer_request_id:request.id, sharefull_order_id:request.sharefull_order_id,sharefull_job_id:request.sharefull_job_id,
             sync_operation_key:key,created_from:'cron.spot-offer-sync-check'
           }});

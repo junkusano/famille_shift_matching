@@ -13,7 +13,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const { id } = await context.params;
     const body: unknown = await request.json();
     if (!UUID.test(id) || !isRecord(body) || !isRecord(body.result)) return NextResponse.json({ ok: false, error: 'Invalid request' }, { status: 400 });
-    const runner = await authenticateRunner(request, body.runner_id);
+      const runner = await authenticateRunner(request, body.runner_id, body.runner_environment);
     if (providerSyncEnabled() && sharefullRpaMode() !== 'test') {
       const {data: job,error: lookupError} = await supabaseAdmin.from('rpa_runner_jobs').select('job_type').eq('id',id).eq('claimed_runner_id',runner.runnerId).maybeSingle();
       if (lookupError) throw lookupError;
