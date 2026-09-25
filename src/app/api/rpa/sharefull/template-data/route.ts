@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
-import { isSharefullSyncClient } from "@/lib/spot-sync/sharefullScope";
+import { isSharefullSyncClient, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const coreId = request.nextUrl.searchParams.get("core_id")?.trim();
     if (!coreId) return NextResponse.json({ error: "core_id is required" }, { status: 400 });
     const [{ data, error }, { data: env, error: envError }] = await Promise.all([
-      supabaseAdmin.from("spot_offer_template_unified").select("*").eq("core_id", coreId).maybeSingle(),
+      supabaseAdmin.from(sharefullTemplateTableName() as never).select("*").eq("core_id", coreId).maybeSingle(),
       supabaseAdmin.from("env_variables").select("key_name,value").eq("group_key", "sukima"),
     ]);
     if (error || envError) throw error ?? envError;

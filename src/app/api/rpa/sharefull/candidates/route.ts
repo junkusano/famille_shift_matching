@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
-import { isSharefullSyncClient } from "@/lib/spot-sync/sharefullScope";
+import { isSharefullSyncClient, sharefullRequestTableName, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
     const { data: requests, error: requestError } = await supabaseAdmin
-      .from("spot_offer_request_table")
+      .from(sharefullRequestTableName() as never)
       .select(
         "id, core_id, kaipoke_cs_id, shift_id, shift_start_date, shift_start_time, shift_end_time, unit_amount, commute_fee, status, taimee_job_id, sharefull_job_id, sharefull_status"
       )
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
     const { data: templates, error: templateError } = coreIds.length
       ? await supabaseAdmin
-          .from("spot_offer_template_unified")
+          .from(sharefullTemplateTableName() as never)
           .select("core_id, template_title, sharefull_template_id, sharefull_template_status, kaipoke_cs_id")
           .in("core_id", coreIds)
       : { data: [], error: null };

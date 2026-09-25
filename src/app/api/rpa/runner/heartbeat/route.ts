@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const body: unknown = await request.json();
     if (!isRecord(body)) return NextResponse.json({ ok: false, error: 'Invalid request body' }, { status: 400 });
-    const runner = await authenticateRunner(request, body.runner_id);
+    const runner = await authenticateRunner(request, body.runner_id, body.runner_environment);
     const runnerName = text(body.runner_name, 100);
     const status = body.status === 'online' || body.status === 'busy' ? body.status : null;
     const currentJobId = body.current_job_id === null ? null : text(body.current_job_id, 64);

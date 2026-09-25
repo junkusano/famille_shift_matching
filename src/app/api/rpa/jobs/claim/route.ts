@@ -12,8 +12,8 @@ export async function POST(request: NextRequest) {
   try {
     const body: unknown = await request.json();
     if (!isRecord(body)) return NextResponse.json({ ok: false, error: 'Invalid request body' }, { status: 400 });
-    const runner = await authenticateRunner(request, body.runner_id);
-    const { data, error } = await supabaseAdmin.rpc('claim_rpa_runner_job', { p_runner_id: runner.runnerId });
+    const runner = await authenticateRunner(request, body.runner_id, body.runner_environment);
+    const { data, error } = await supabaseAdmin.rpc('claim_rpa_runner_job', { p_runner_id: runner.runnerId, p_runner_environment: runner.environment });
     if (error) return NextResponse.json({ ok: false, error: 'Job claim failed' }, { status: 500 });
     const job = Array.isArray(data) ? data[0] as ClaimedJob | undefined : undefined;
     if (job && providerSyncEnabled() && ['sharefull.create_spot_offer','sharefull.close_spot_offer'].includes(job.job_type)) {

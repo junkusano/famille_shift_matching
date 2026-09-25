@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/service';
 import { authenticateRunner, RpaRunnerAuthError } from '@/lib/rpa-runner/auth';
 import { isRecord } from '@/lib/rpa-runner/validation';
 import { resolveRpaFailureAlerts } from '@/lib/rpa-runner/alerts';
+import { sharefullRequestTableName, sharefullRpaMode } from '@/lib/spot-sync/sharefullScope';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -12,14 +13,46 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const { id } = await context.params;
     const body: unknown = await request.json();
     if (!UUID.test(id) || !isRecord(body) || !isRecord(body.result)) return NextResponse.json({ ok: false, error: 'Invalid request' }, { status: 400 });
-    const runner = await authenticateRunner(request, body.runner_id);
-    if (providerSyncEnabled()) {
+      const runner = await authenticateRunner(request, body.runner_id, body.runner_environment);
+    if (providerSyncEnabled() && sharefullRpaMode() !== 'test') {
       const {data: job,error: lookupError} = await supabaseAdmin.from('rpa_runner_jobs').select('job_type').eq('id',id).eq('claimed_runner_id',runner.runnerId).maybeSingle();
       if (lookupError) throw lookupError;
       if (job?.job_type.startsWith('sharefull.')) {
         const {data: completed,error: completeError} = await supabaseAdmin.rpc('complete_sharefull_sync_job',{p_job_id:id,p_runner_id:runner.runnerId,p_result:body.result});
         if (completeError) return NextResponse.json({ok:false,error:'Sharefull completion failed'},{status:500});
         return NextResponse.json({ok:completed===true},{status:completed?200:409});
+      }
+    }
+    if (sharefullRpaMode() === 'test') {
+      const { data: claimedJob, error: claimedJobError } = await supabaseAdmin
+        .from('rpa_runner_jobs')
+        .select('job_type, payload')
+        .eq('id', id)
+        .eq('claimed_runner_id', runner.runnerId)
+        .eq('status', 'claimed')
+        .maybeSingle();
+      if (claimedJobError) throw claimedJobError;
+      if (claimedJob?.job_type === 'sharefull.close_spot_offer') {
+        const payload = isRecord(claimedJob.payload) ? claimedJob.payload : {};
+        const result = isRecord(body.result) ? body.result : {};
+        const requestId = typeof payload.spot_offer_request_id === 'string' ? payload.spot_offer_request_id.trim() : '';
+        const expectedJobId = typeof payload.sharefull_job_id === 'string' ? payload.sharefull_job_id.trim() : '';
+        const expectedOrderId = typeof payload.sharefull_order_id === 'string' ? payload.sharefull_order_id.trim() : '';
+        const actualJobId = typeof result.sharefull_job_id === 'string' ? result.sharefull_job_id.trim() : '';
+        const actualOrderId = typeof result.sharefull_order_id === 'string' ? result.sharefull_order_id.trim() : '';
+        if (result.closed !== true || !requestId || actualJobId !== expectedJobId || actualOrderId !== expectedOrderId) {
+          return NextResponse.json({ ok: false, error: 'Sharefull終了結果のID照合に失敗しました' }, { status: 409 });
+        }
+        const { data: closedRequest, error: closeUpdateError } = await supabaseAdmin
+          .from(sharefullRequestTableName() as never)
+          .update({ sharefull_status: 'closed', sharefull_sync_error: null })
+          .eq('id', requestId)
+          .eq('sharefull_job_id', actualJobId)
+          .eq('sharefull_order_id', actualOrderId)
+          .select('id')
+          .maybeSingle();
+        if (closeUpdateError) return NextResponse.json({ ok: false, error: 'Sharefull終了状態の保存に失敗しました' }, { status: 500 });
+        if (!closedRequest) return NextResponse.json({ ok: false, error: 'Sharefull対象案件のID照合に失敗しました' }, { status: 409 });
       }
     }
     const { data, error } = await supabaseAdmin
@@ -36,7 +69,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       const sharefullJobId = typeof result.sharefull_job_id === 'string' ? result.sharefull_job_id.trim() : '';
       if (requestId && sharefullJobId) {
         const { error: sharefullUpdateError } = await supabaseAdmin
-          .from('spot_offer_request_table')
+          .from(sharefullRequestTableName() as never)
           .update({ sharefull_job_id: sharefullJobId, sharefull_status: 'published' })
           .eq('id', requestId)
           .is('sharefull_job_id', null);

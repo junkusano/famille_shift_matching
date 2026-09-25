@@ -17,7 +17,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const errorCategory = text(body.error_category, 100) ?? errorType;
     const retryCount = typeof body.retry_count === 'number' && Number.isSafeInteger(body.retry_count) && body.retry_count >= 0 && body.retry_count <= 100 ? body.retry_count : 0;
     if (!errorCode || !errorType || !errorMessage || !errorCategory) return NextResponse.json({ ok: false, error: 'Invalid failure payload' }, { status: 400 });
-    const runner = await authenticateRunner(request, body.runner_id);
+    const runner = await authenticateRunner(request, body.runner_id, body.runner_environment);
     const safeMessage = sanitizeRpaAlertText(errorMessage);
     const { data, error } = await supabaseAdmin
       .from('rpa_runner_jobs')
