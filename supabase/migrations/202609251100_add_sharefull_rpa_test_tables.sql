@@ -7,6 +7,23 @@ CREATE TABLE IF NOT EXISTS public.sharefull_rpa_test_spot_offer_template_unified
 CREATE TABLE IF NOT EXISTS public.sharefull_rpa_test_spot_offer_request_table
   (LIKE public.spot_offer_request_table INCLUDING DEFAULTS);
 
+-- LIKE ... INCLUDING DEFAULTS does not copy the source primary key.
+-- The test child tables use request_id as a foreign key, so restore the
+-- request identity constraint explicitly before creating those tables.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_constraint
+     WHERE conrelid = 'public.sharefull_rpa_test_spot_offer_request_table'::regclass
+       AND contype = 'p'
+  ) THEN
+    ALTER TABLE public.sharefull_rpa_test_spot_offer_request_table
+      ADD CONSTRAINT sharefull_rpa_test_spot_offer_request_table_pkey PRIMARY KEY (id);
+  END IF;
+END;
+$$;
+
 CREATE TABLE IF NOT EXISTS public.sharefull_rpa_test_spot_offer_applications (
   request_id uuid NOT NULL REFERENCES public.sharefull_rpa_test_spot_offer_request_table(id) ON DELETE CASCADE,
   provider text NOT NULL,
@@ -90,8 +107,7 @@ BEGIN
    WHERE kaipoke_cs_id = p_source_kaipoke_cs_id;
 
   UPDATE public.sharefull_rpa_test_spot_offer_template_unified
-     SET core_id = 'test-' || core_id,
-         template_title = CASE WHEN template_title IS NULL THEN NULL ELSE '【テスト】' || template_title END,
+     SET template_title = CASE WHEN template_title IS NULL THEN NULL ELSE '【テスト】' || template_title END,
          internal_label = CASE WHEN internal_label IS NULL THEN NULL ELSE '【テスト】' || internal_label END,
          work_description = CASE WHEN work_description IS NULL THEN NULL ELSE '【テスト】' || work_description END,
          matching_place_name = CASE WHEN matching_place_name IS NULL THEN NULL ELSE '【テスト】' || matching_place_name END,
@@ -114,7 +130,6 @@ BEGIN
 
   UPDATE public.sharefull_rpa_test_spot_offer_request_table
      SET id = gen_random_uuid(),
-         core_id = CASE WHEN core_id IS NULL THEN NULL ELSE 'test-' || core_id END,
          template_title = CASE WHEN template_title IS NULL THEN NULL ELSE '【テスト】' || template_title END,
          shift_start_date = CASE WHEN shift_start_date IS NULL THEN NULL ELSE (shift_start_date::date + v_date_delta) END,
          start_at = CASE WHEN start_at IS NULL THEN NULL ELSE start_at + make_interval(days => v_date_delta) END,
