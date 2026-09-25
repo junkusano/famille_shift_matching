@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { areSharefullAutomationCronsEnabled, testDeploymentCronSkippedResponse } from "@/lib/cron/testDeployment";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 export const dynamic = "force-dynamic";
@@ -637,6 +638,10 @@ export async function GET(
         },
         401
       );
+    }
+
+    if (!areSharefullAutomationCronsEnabled()) {
+      return json(testDeploymentCronSkippedResponse());
     }
 
     const current =

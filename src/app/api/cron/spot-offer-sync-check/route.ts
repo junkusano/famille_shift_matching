@@ -1,6 +1,7 @@
 import { reconcileSpotProviders } from '@/lib/spot-sync/reconcile';
 import { NextRequest, NextResponse } from "next/server";
 import { assertCronAuth } from "@/lib/cron/auth";
+import { areSharefullAutomationCronsEnabled, testDeploymentCronSkippedResponse } from "@/lib/cron/testDeployment";
 import { runSpotOfferSyncCheck } from "@/lib/spot_offer/spot_offer_sync_check";
 
 export const runtime = "nodejs";
@@ -9,6 +10,10 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   try {
      assertCronAuth(req);
+
+    if (!areSharefullAutomationCronsEnabled()) {
+      return NextResponse.json(testDeploymentCronSkippedResponse());
+    }
 
     const result = await runSpotOfferSyncCheck({ dryRun: false });
 

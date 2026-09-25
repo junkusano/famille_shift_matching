@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { areSharefullAutomationCronsEnabled, testDeploymentCronSkippedResponse } from '@/lib/cron/testDeployment';
 import { supabaseAdmin } from '@/lib/supabase/service';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,7 @@ function jstMinute(now = new Date()): { key: string; scheduledFor: string } {
 
 export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+  if (!areSharefullAutomationCronsEnabled()) return NextResponse.json(testDeploymentCronSkippedResponse());
   const now = jstMinute();
   const { data, error } = await supabaseAdmin.from('rpa_job_definitions').select('id,name,job_type,timeout_ms,schedule,payload').eq('is_enabled', true).eq('trigger_type', 'schedule').eq('execution_mode', 'famille_rpa');
   if (error) return NextResponse.json({ ok: false, error: 'Job definitions could not be loaded' }, { status: 500 });
