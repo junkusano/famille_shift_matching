@@ -1,7 +1,7 @@
 import { supabaseAdmin as db } from '@/lib/supabase/service';
 import { createCloseRequest, createOpenRequest } from '@/lib/spot_offer/spot_offer_sync_check';
 import { desiredAction, staffAssigned, type Application } from './policy';
-import { isSharefullSyncClient } from './sharefullScope';
+import { isSharefullSyncClient, sharefullRequestTableName, sharefullRpaMode } from './sharefullScope';
 
 type Row = Record<string, any>;
 function check(error: { message: string; code?: string } | null) { if (error && error.code !== '23505') throw new Error(error.message); }
@@ -9,11 +9,13 @@ export function providerSyncEnabled() { return process.env.SPOT_PROVIDER_SYNC_EN
 
 export async function reconcileSpotProviders() {
   if (!providerSyncEnabled()) return { enabled: false, processed: 0 };
+  const testMode = sharefullRpaMode() === 'test';
+  const requestTable = sharefullRequestTableName();
   let processed = 0;
   const errors: {request_id: string; message: string}[] = [];
   const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
   for (let offset = 0; ; offset += 500) {
-    const {data: requests, error} = await db.from('spot_offer_request_table').select('*').gte('shift_start_date', today).order('id').range(offset, offset + 499);
+    const {data: requests, error} = await db.from(requestTable as never).select('*').gte('shift_start_date', today).order('id').range(offset, offset + 499);
     check(error); if (!requests?.length) break;
     const {data: shifts, error: shiftError} = await db.from('shift').select('*').in('shift_id', requests.map(r => r.shift_id).filter(Boolean));
     check(shiftError);
@@ -28,14 +30,14 @@ export async function reconcileSpotProviders() {
         const shift = shifts?.find(s => String(s.shift_id) === String(request.shift_id)) ?? null;
         const apps = (applications ?? []).filter(a => a.request_id === request.id) as Application[];
         const action = (provider: string) => desiredAction({provider, status:request.status, applications:apps, shift, assigned:!!shift && staffAssigned(shift,roles), manualStop:request.recruitment_paused});
-        if (action('taimee') === 'close' && apps.some(a => a.provider !== 'taimee' && ['applied','confirmed'].includes(a.state))) await createCloseRequest(request, 'other_application');
-        if (action('taimee') !== 'close') {
+        if (!testMode && action('taimee') === 'close' && apps.some(a => a.provider !== 'taimee' && ['applied','confirmed'].includes(a.state))) await createCloseRequest(request, 'other_application');
+        if (!testMode && action('taimee') !== 'close') {
           const {error: cancelError} = await db.from('rpa_command_requests').update({status:'cancelled'})
             .eq('request_details->>shift_id',String(request.shift_id)).eq('request_details->>reason','other_application')
             .in('status',['pending','approved']);
           check(cancelError);
         }
-        if (action('taimee') === 'open' && shift) {
+        if (!testMode && action('taimee') === 'open' && shift) {
           const {data: closed, error: closeError} = await db.from('rpa_command_requests').select('id,status').eq('request_details->>shift_id', String(request.shift_id)).eq('request_details->>reason','other_application').order('created_at',{ascending:false}).limit(1);
           check(closeError);
           if (closed?.[0]?.status === 'done') {
@@ -62,14 +64,14 @@ export async function reconcileSpotProviders() {
         }
         if (sharefullInScope && sharefullAction === 'open' && request.sharefull_status === 'closed') {
           // 終了求人のIDは履歴に保存済み。新しい募集として作り直す。
-          const {error: resetError} = await db.from('spot_offer_request_table').update({sharefull_job_id:null,sharefull_order_id:null,sharefull_status:'ready_for_offer',sharefull_sync_error:null}).eq('id',request.id).eq('sharefull_status','closed').eq('status','募集中');
+          const {error: resetError} = await db.from(requestTable as never).update({sharefull_job_id:null,sharefull_order_id:null,sharefull_status:'ready_for_offer',sharefull_sync_error:null}).eq('id',request.id).eq('sharefull_status','closed').eq('status','募集中');
           check(resetError);
         }
         processed++;
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         errors.push({request_id:request.id,message});
-        await db.from('spot_offer_request_table').update({sharefull_sync_error:message}).eq('id',request.id);
+        await db.from(requestTable as never).update({sharefull_sync_error:message}).eq('id',request.id);
       }
     }
     if (requests.length < 500) break;
@@ -80,7 +82,7 @@ export async function reconcileSpotProviders() {
 /** 実行待ちの間に応募・担当者確定・時間切れになっていないか再確認する。 */
 export async function validateSharefullSyncJob(jobType: string, payload: Row): Promise<boolean> {
   if (!payload.spot_offer_request_id) return true; // 既存の手動ジョブは互換性維持
-  const {data:r,error}=await db.from('spot_offer_request_table').select('*').eq('id',payload.spot_offer_request_id).maybeSingle(); check(error);
+  const {data:r,error}=await db.from(sharefullRequestTableName() as never).select('*').eq('id',payload.spot_offer_request_id).maybeSingle(); check(error);
   if (!r || !isSharefullSyncClient(r.kaipoke_cs_id)) return false;
   const {data:s,error:se}=await db.from('shift').select('*').eq('shift_id',r.shift_id).maybeSingle(); check(se);
   const {data:apps,error:ae}=await db.from('spot_offer_applications').select('provider,state').eq('request_id',r.id); check(ae);

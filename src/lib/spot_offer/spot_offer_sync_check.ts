@@ -1,7 +1,7 @@
 //lib/spot_offer/spot_offer_sync_check.ts
 import { createClient } from "@supabase/supabase-js";
 import { createRpaRequestDetails } from "@/lib/spot_offer/createRpaRequestDetails";
-import { isSharefullSyncClient } from "@/lib/spot-sync/sharefullScope";
+import { isSharefullSyncClient, sharefullRpaMode } from "@/lib/spot-sync/sharefullScope";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -331,7 +331,7 @@ export async function createCloseRequest(
 }
 
 // タイミーの既存停止理由をシェアフルにも渡す（日付変更前の情報を保持）。
-if (process.env.SPOT_PROVIDER_SYNC_ENABLED === "true" && isSharefullSyncClient(spotOfferRequest["kaipoke_cs_id"]) && spotOfferRequest["sharefull_job_id"] && spotOfferRequest["sharefull_order_id"] && reason !== "other_application") {
+if (process.env.SPOT_PROVIDER_SYNC_ENABLED === "true" && sharefullRpaMode() !== "test" && isSharefullSyncClient(spotOfferRequest["kaipoke_cs_id"]) && spotOfferRequest["sharefull_job_id"] && spotOfferRequest["sharefull_order_id"] && reason !== "other_application") {
   const payload = {
     spot_offer_request_id: spotOfferRequest["id"], sharefull_job_id: spotOfferRequest["sharefull_job_id"], sharefull_order_id: spotOfferRequest["sharefull_order_id"],
     reason, original_shift_start_date: spotOfferRequest["shift_start_date"], original_shift_start_time: spotOfferRequest["shift_start_time"],

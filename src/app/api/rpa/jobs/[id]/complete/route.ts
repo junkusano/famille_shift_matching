@@ -23,6 +23,38 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         return NextResponse.json({ok:completed===true},{status:completed?200:409});
       }
     }
+    if (sharefullRpaMode() === 'test') {
+      const { data: claimedJob, error: claimedJobError } = await supabaseAdmin
+        .from('rpa_runner_jobs')
+        .select('job_type, payload')
+        .eq('id', id)
+        .eq('claimed_runner_id', runner.runnerId)
+        .eq('status', 'claimed')
+        .maybeSingle();
+      if (claimedJobError) throw claimedJobError;
+      if (claimedJob?.job_type === 'sharefull.close_spot_offer') {
+        const payload = isRecord(claimedJob.payload) ? claimedJob.payload : {};
+        const result = isRecord(body.result) ? body.result : {};
+        const requestId = typeof payload.spot_offer_request_id === 'string' ? payload.spot_offer_request_id.trim() : '';
+        const expectedJobId = typeof payload.sharefull_job_id === 'string' ? payload.sharefull_job_id.trim() : '';
+        const expectedOrderId = typeof payload.sharefull_order_id === 'string' ? payload.sharefull_order_id.trim() : '';
+        const actualJobId = typeof result.sharefull_job_id === 'string' ? result.sharefull_job_id.trim() : '';
+        const actualOrderId = typeof result.sharefull_order_id === 'string' ? result.sharefull_order_id.trim() : '';
+        if (result.closed !== true || !requestId || actualJobId !== expectedJobId || actualOrderId !== expectedOrderId) {
+          return NextResponse.json({ ok: false, error: 'Sharefull終了結果のID照合に失敗しました' }, { status: 409 });
+        }
+        const { data: closedRequest, error: closeUpdateError } = await supabaseAdmin
+          .from(sharefullRequestTableName() as never)
+          .update({ sharefull_status: 'closed', sharefull_sync_error: null })
+          .eq('id', requestId)
+          .eq('sharefull_job_id', actualJobId)
+          .eq('sharefull_order_id', actualOrderId)
+          .select('id')
+          .maybeSingle();
+        if (closeUpdateError) return NextResponse.json({ ok: false, error: 'Sharefull終了状態の保存に失敗しました' }, { status: 500 });
+        if (!closedRequest) return NextResponse.json({ ok: false, error: 'Sharefull対象案件のID照合に失敗しました' }, { status: 409 });
+      }
+    }
     const { data, error } = await supabaseAdmin
       .from('rpa_runner_jobs')
       .update({ status: 'completed', result: body.result, completed_at: new Date().toISOString() })
