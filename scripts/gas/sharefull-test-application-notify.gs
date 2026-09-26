@@ -53,6 +53,7 @@ function parseSharefullTestMail_(message) {
   var text = subject + "\n" + body;
   var jobId = capture_(text, /(?:求人ID|求人番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   var orderId = capture_(text, /(?:管理番号|URL管理番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
+  var applicationId = capture_(text, /(?:応募ID|応募番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   var applicant = capture_(text, /(?:応募者|氏名)\s*[：:]?\s*([^\n\r]+)/i);
   if (!jobId && !orderId) return null;
 
@@ -60,12 +61,17 @@ function parseSharefullTestMail_(message) {
     sharefull_job_id: jobId || undefined,
     sharefull_order_id: orderId || undefined,
     provider: "sharefull",
-    application_key: message.getId(),
+    // 応募メールと応募確定メールが同じ応募を更新できるよう、message IDとは分離した安定キーにする。
+    application_key: applicationId || [jobId || orderId, applicant || "unknown"].join("::"),
     event_id: message.getId(),
-    state: "applied",
+    state: detectState_(text),
     applicant_name: applicant || null,
     occurred_at: message.getDate().toISOString()
   };
+}
+
+function detectState_(text) {
+  return /応募確定|採用決定|マッチング成立|確定/.test(text) ? "confirmed" : "applied";
 }
 
 function sendLineWorks_(config, text) {
@@ -84,6 +90,7 @@ function sendLineWorks_(config, text) {
 function buildNotificationText_(event, request) {
   return [
     "【テスト】シェアフル応募通知",
+    "状態: " + event.state,
     "応募者: " + (event.applicant_name || "不明"),
     "求人ID: " + (request.sharefull_job_id || event.sharefull_job_id || "不明"),
     "管理番号: " + (request.sharefull_order_id || event.sharefull_order_id || "不明"),

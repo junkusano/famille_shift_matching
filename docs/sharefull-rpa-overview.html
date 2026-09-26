@@ -95,7 +95,7 @@
                              │
                              ▼
                        Sharefull画面
-                             │ 応募
+                             │ 応募・応募確定
                              ▼
                     Sharefull応募通知メール
                              │
@@ -154,20 +154,21 @@
   </section>
 
   <section id="notifications">
-    <h2>5. 応募通知（Gmail → GAS → LINE WORKS）</h2>
+    <h2>5. 応募・応募確定通知（Gmail → Google Apps Script → LINE WORKS）</h2>
     <div class="flow">
       <div class="step"><span class="num">1</span><strong>Sharefullで応募</strong><p>掲載済み求人に応募が発生</p></div>
-      <div class="step"><span class="num">2</span><strong>Gmailで受信</strong><p>応募通知メールを専用ラベルで管理</p></div>
-      <div class="step"><span class="num">3</span><strong>GASが取得</strong><p>Gmail検索・送信元・件名・本文を確認</p></div>
-      <div class="step"><span class="num">4</span><strong>重複防止</strong><p>Gmail message ID等を記録して再通知を防止</p></div>
-      <div class="step"><span class="num">5</span><strong>LINE WORKS通知</strong><p>テスト用グループへ案件・応募情報を送信</p></div>
+      <div class="step"><span class="num">2</span><strong>Gmailで受信</strong><p>応募・応募確定メールを受信</p></div>
+      <div class="step"><span class="num">3</span><strong>Google Apps Scriptがチェック</strong><p>送信元・件名・求人ID・管理番号・本文を確認</p></div>
+      <div class="step"><span class="num">4</span><strong>応募状態を判定</strong><p><code>applied</code>または<code>confirmed</code>として登録・更新</p></div>
+      <div class="step"><span class="num">5</span><strong>重複防止</strong><p>Gmail message IDと応募識別キーを記録</p></div>
+      <div class="step"><span class="num">6</span><strong>LINE WORKS通知</strong><p>テスト／本番の対応グループへ通知</p></div>
     </div>
     <table><thead><tr><th>処理</th><th>テスト環境</th><th>本番切替条件</th></tr></thead><tbody>
       <tr><td>メール取得</td><td>テスト用Gmailアカウント／専用ラベル</td><td>対象メール、送信元、件名、求人IDの確認が完了</td></tr>
-      <tr><td>判定・記録</td><td>GASのPropertiesService等に処理済みIDと実行結果を記録</td><td>再実行・失敗時の重複通知がないことを確認</td></tr>
-      <tr><td>通知先</td><td>テスト用LINE WORKSグループ</td><td>送信内容・権限・障害時の再送方針を確認</td></tr>
+      <tr><td>判定・記録</td><td>GASのPropertiesService等に処理済みGmail message IDを記録し、同一応募の状態を更新</td><td>応募から応募確定への更新と、再実行時の重複通知がないことを確認</td></tr>
+      <tr><td>通知先</td><td>テスト用LINE WORKSグループ</td><td>本番LINE WORKSへの切替前に送信内容・権限・再送方針を確認</td></tr>
     </tbody></table>
-    <div class="notice"><strong>安全条件:</strong> テスト中は本番Gmailを検索せず、本番LINE WORKSへ送信しません。メール本文・アクセストークン等の機密情報はログに残さず、GASの失敗時は再実行しても同じ応募を二重通知しない設計にします。</div>
+    <div class="notice"><strong>安全条件:</strong> テスト中は本番Gmailを検索せず、本番LINE WORKSへ送信しません。応募メールは<code>applied</code>、応募確定メールは<code>confirmed</code>として同じ応募識別キーを更新します。メール本文・アクセストークン等の機密情報はログに残しません。</div>
   </section>
 
   <section id="publication">
@@ -217,7 +218,7 @@
 
   <section id="summary">
     <h2>8. 最終的な一連の流れ</h2>
-    <div class="flow"><div class="step"><span class="num">1</span>案件・シフト存在</div><div class="step"><span class="num">2</span>テンプレート作成</div><div class="step"><span class="num">3</span>審査完了</div><div class="step"><span class="num">4</span>Sharefull掲載</div><div class="step"><span class="num">5</span>ID・管理番号保存</div><div class="step"><span class="num">6</span>応募発生・Gmail受信</div><div class="step"><span class="num">7</span>GAS検証・重複除外</div><div class="step"><span class="num">8</span>LINE WORKS通知</div><div class="step"><span class="num">9</span>応募・状態変化検知</div><div class="step"><span class="num">10</span>open / close / hold判定</div><div class="step"><span class="num">11</span>Runnerが照合・実行</div><div class="step"><span class="num">12</span>DB履歴保存</div></div>
+    <div class="flow"><div class="step"><span class="num">1</span>案件・シフト存在</div><div class="step"><span class="num">2</span>テンプレート作成</div><div class="step"><span class="num">3</span>審査完了</div><div class="step"><span class="num">4</span>Sharefull掲載</div><div class="step"><span class="num">5</span>ID・管理番号保存</div><div class="step"><span class="num">6</span>応募・応募確定／Gmail受信</div><div class="step"><span class="num">7</span>GASで状態判定・重複除外</div><div class="step"><span class="num">8</span>LINE WORKS通知</div><div class="step"><span class="num">9</span>応募・状態変化検知</div><div class="step"><span class="num">10</span>open / close / hold判定</div><div class="step"><span class="num">11</span>Runnerが照合・実行</div><div class="step"><span class="num">12</span>DB履歴保存</div></div>
     <table><thead><tr><th>構成要素</th><th>責務</th></tr></thead><tbody><tr><td>テーブル</td><td>状態・業務データを保存</td></tr><tr><td>TypeScript関数</td><td>状態を読み取り、次の処理を判断</td></tr><tr><td>cron</td><td>TypeScript関数を定期起動</td></tr><tr><td>job</td><td>Runnerへ渡す具体的な作業指示</td></tr><tr><td>Runner</td><td>jobを取得して実行</td></tr><tr><td>Chrome拡張</td><td>Sharefull画面を操作</td></tr><tr><td>GAS</td><td>Gmail応募通知を取得・検証・重複防止し、LINE WORKS通知を呼び出す</td></tr><tr><td>LINE WORKS</td><td>応募情報を担当者へ通知</td></tr></tbody></table>
   </section>
 

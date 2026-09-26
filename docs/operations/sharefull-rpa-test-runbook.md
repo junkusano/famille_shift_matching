@@ -26,7 +26,8 @@ SHAREFULL_AUTO_POST_MODE=save
 10. 応募通知処理に失敗した場合、再実行で二重通知されず、エラーが記録されることを確認する。
 11. 応募なし・`募集なし`の案件でクローズ処理を確認する。
 12. 求人ID・管理番号不一致時に即時中止されることを確認する。
-13. `applied`、`confirmed`、複数媒体応募の順に応募状態を確認する。
+13. `applied`（応募）→`confirmed`（応募確定）の順に同じ応募識別キーが更新されることを確認する。
+14. 複数媒体応募時に応募元と競合状態が正しく記録されることを確認する。
 
 ### テスト用GASとMyFamille API
 
@@ -38,7 +39,7 @@ Authorization: Bearer ${MYFAMILLE_TEST_API_TOKEN}
 Content-Type: application/json
 ```
 
-送信項目は `provider=sharefull`、`event_id`、`application_key`、`state`、`occurred_at` と、Sharefullの求人IDまたは管理番号を基本とする。APIはテストモードでのみ有効で、`record_sharefull_rpa_test_application()`を通じてテスト応募テーブルへ登録する。本番モードでは404を返す。
+送信項目は `provider=sharefull`、`event_id`、`application_key`、`state`（`applied`または`confirmed`）、`occurred_at` と、Sharefullの求人IDまたは管理番号を基本とする。応募メールと応募確定メールは同じ`application_key`で更新し、`event_id`（Gmail message ID）は受信イベントの重複防止に使う。APIはテストモードでのみ有効で、`record_sharefull_rpa_test_application()`を通じてテスト応募テーブルへ登録する。本番モードでは404を返す。
 
 GAS側のScript Propertiesにはテスト用URL、テストAPIトークン、Gmail検索条件、テストLINE WORKS API URL・アクセストークン・チャンネルIDだけを設定する。GmailメッセージIDは処理済みキーとして保存し、LINE WORKS送信が成功した後に処理済みとして記録する。
 
