@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sharefull RPA 本番・テスト環境全体像</title>
+  <style>
+    :root { --ink:#172033; --muted:#64748b; --line:#dbe3ef; --bg:#f6f8fc; --card:#fff; --blue:#2563eb; --cyan:#0891b2; --green:#15803d; --orange:#c2410c; --purple:#7c3aed; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--bg); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif; line-height:1.7; }
+    .wrap { max-width:1180px; margin:auto; padding:32px 22px 72px; }
+    header { background:linear-gradient(135deg,#172554,#1d4ed8); color:white; border-radius:22px; padding:42px 44px; box-shadow:0 14px 32px #1e3a8a2b; }
+    h1 { margin:0 0 10px; font-size:clamp(27px,4vw,42px); letter-spacing:.02em; }
+    h2 { margin:46px 0 16px; padding-bottom:8px; border-bottom:2px solid var(--line); font-size:27px; }
+    h3 { margin:26px 0 10px; font-size:19px; }
+    p { margin:8px 0 14px; }
+    .lead { color:#dbeafe; font-size:18px; }
+    .meta { display:flex; flex-wrap:wrap; gap:9px; margin-top:22px; }
+    .pill { display:inline-block; padding:4px 11px; border-radius:999px; background:#ffffff20; border:1px solid #ffffff40; font-size:13px; }
+    nav { position:sticky; top:12px; z-index:3; margin:18px 0; padding:12px 16px; background:#fffffff2; border:1px solid var(--line); border-radius:14px; box-shadow:0 5px 16px #17203312; }
+    nav a { color:#1d4ed8; text-decoration:none; margin-right:16px; font-size:14px; white-space:nowrap; }
+    .notice { margin:22px 0; padding:16px 18px; background:#eff6ff; border-left:5px solid var(--blue); border-radius:9px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; box-shadow:0 4px 14px #17203308; }
+    .card h3 { margin-top:0; }
+    .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:10px; margin:18px 0; }
+    .step { flex:1 1 155px; min-width:145px; padding:16px; background:var(--card); border:1px solid var(--line); border-radius:12px; position:relative; }
+    .step:not(:last-child)::after { content:"→"; position:absolute; right:-17px; top:35%; color:var(--blue); font-size:23px; font-weight:700; }
+    .num { display:inline-grid; place-items:center; width:28px; height:28px; border-radius:50%; background:var(--blue); color:white; font-weight:700; margin-bottom:8px; }
+    .diagram { overflow:auto; padding:20px; background:#101827; border-radius:14px; color:#dbeafe; font:14px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace; white-space:pre; }
+    .diagram .accent { color:#67e8f9; }
+    code { padding:2px 6px; border-radius:5px; background:#eef2ff; color:#3730a3; font-size:.93em; }
+    table { width:100%; border-collapse:collapse; background:var(--card); border-radius:12px; overflow:hidden; }
+    th,td { text-align:left; vertical-align:top; padding:12px 14px; border-bottom:1px solid var(--line); }
+    th { background:#eef4ff; color:#1e3a8a; }
+    .tag-prod { color:var(--green); font-weight:700; } .tag-test { color:var(--orange); font-weight:700; }
+    .small { color:var(--muted); font-size:13px; }
+    footer { margin-top:52px; color:var(--muted); font-size:13px; text-align:center; }
+    @media (max-width:700px) { header { padding:28px 24px; } .step:not(:last-child)::after { content:"↓"; right:48%; top:auto; bottom:-20px; } .step { margin-bottom:12px; } nav { line-height:2.2; } }
+    @media print { body { background:white; } nav { display:none; } header { box-shadow:none; break-after:avoid; } .card,table { box-shadow:none; } h2 { break-after:avoid; } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Sharefull RPA 本番・テスト環境全体像</h1>
+    <p class="lead">本番・テスト環境における案件同期、Sharefull掲載・クローズ、応募通知（Gmail→GAS→LINE WORKS）までの最新版構成</p>
+    <div class="meta"><span class="pill">本番・テスト比較</span><span class="pill">応募通知経路を追加</span><span class="pill">確定テスト応募テーブル: sharefull_rpa_test_spot_offer_applications</span></div>
+  </header>
+
+  <nav>
+    <a href="#environments">環境境界</a><a href="#architecture">共通構成</a><a href="#typescript">TypeScript処理</a><a href="#events">応募イベント</a><a href="#notifications">応募通知</a><a href="#publication">掲載・クローズ</a><a href="#test-mode">データ分離</a><a href="#summary">要点</a>
+  </nav>
+
+  <div class="notice"><strong>前提:</strong> これは本番環境とテスト環境を並べた現時点の全体図です。本番は通常運用（cron有効・本番Runner・本番通知先）、テストは分離運用（cron停止・テストRunner・テスト通知先）とします。GAS・LINE WORKSの送信設定や認証情報はこの資料では変更しません。</div>
+
+  <section id="environments">
+    <h2>0. 本番・テスト環境の境界</h2>
+    <table><thead><tr><th>項目</th><th>本番環境</th><th>テスト環境</th></tr></thead><tbody>
+      <tr><td>Vercel</td><td class="tag-prod"><code>famille-shift-matching</code><br><code>https://famille-shift-matching.vercel.app</code></td><td class="tag-test"><code>famille-shift-matching-test</code><br><code>https://famille-shift-matching-test.vercel.app</code></td></tr>
+      <tr><td>データ</td><td class="tag-prod">本番テーブル</td><td class="tag-test">Sharefull用テストテーブル</td></tr>
+      <tr><td>cron</td><td class="tag-prod">通常運用として有効</td><td class="tag-test">自動cron停止、手動テスト</td></tr>
+      <tr><td>Chrome Runner</td><td class="tag-prod"><code>tenpaku-rpa-02</code>（production）</td><td class="tag-test"><code>sharefull-test-runner</code>（test）</td></tr>
+      <tr><td>応募通知</td><td class="tag-prod">本番Gmail → 本番GAS → 本番LINE WORKS</td><td class="tag-test">テストGmail → テストGAS → テストLINE WORKS</td></tr>
+    </tbody></table>
+    <div class="notice"><strong>分離の原則:</strong> テスト処理は本番テーブル・本番Runner・本番Gmail・本番LINE WORKSへ接続しません。本番の運用を止めずに検証できる専用境界を維持します。</div>
+    <div class="grid"><div class="card"><h3>本番の通常運用</h3><p>MyFamilleの案件・シフト → 本番cron → 本番テーブルを参照 → <code>rpa_runner_jobs</code> / <code>rpa_command_requests</code> → <code>tenpaku-rpa-02</code>またはタイミーPAD → Sharefull・タイミー。Sharefull応募は本番Gmailから本番GASを経由して本番LINE WORKSへ通知します。</p></div><div class="card"><h3>テストの手動運用</h3><p>テストVercel → テストテーブル → 専用Runner <code>sharefull-test-runner</code> → テスト用Chrome拡張 → Sharefull。応募通知はテストGmail → テストGAS → テストLINE WORKSへ送ります。</p></div></div>
+  </section>
+
+  <section id="architecture">
+    <h2>1. 共通処理の全体構成</h2>
+    <div class="diagram">外部・業務データ
+  MyFamille ── shift（シフト）
+       │
+       └──── 案件・募集情報（spot_offer_request_table）
+                         │
+                         │ 案件の中心レコード
+                         ▼
+              ┌────────────────────────────┐
+              │ spot_offer_request_table   │
+              │ id / shift_id              │
+              │ 日付・時間・金額・媒体ID等 │
+              └──────────────┬─────────────┘
+                             │ request_id
+              ┌──────────────┴──────────────┐
+              ▼                             ▼
+  spot_offer_application_events     spot_offer_applications
+  重複防止用の受信イベント            媒体ごとの応募状態
+              └──────────────┬──────────────┘
+                             ▼
+                 TypeScript処理・cron/API
+                             │
+                             ▼
+                    PAD / Chrome Runner
+                             │
+                             ▼
+                       Sharefull画面
+                             │ 応募
+                             ▼
+                    Sharefull応募通知メール
+                             │
+                             ▼
+                       テスト用Gmail
+                             │
+                             ▼
+                テスト用GAS（取得・検証・重複防止）
+                             │
+                             ▼
+                    テスト用LINE WORKS</div>
+    <div class="grid">
+      <div class="card"><h3>案件テーブル</h3><p>案件の中心レコード。シフト、掲載情報、Sharefullの求人ID・管理番号・状態を保持します。</p></div>
+      <div class="card"><h3>応募イベント</h3><p>媒体から受信したイベントを保存し、<code>provider + event_id</code>で重複を防止します。</p></div>
+      <div class="card"><h3>応募テーブル</h3><p>媒体ごとの応募状態を保持します。テストモードでは専用テーブルを利用予定です。</p></div>
+      <div class="card"><h3>応募通知</h3><p>Sharefullの応募メールをGASが取得・検証し、重複を除外してLINE WORKSへ通知します。Runnerの監視処理とは別経路です。</p></div>
+    </div>
+  </section>
+
+  <section id="typescript">
+    <h2>2. TypeScript処理の関係</h2>
+    <div class="flow">
+      <div class="step"><span class="num">1</span><strong>/api/cron/spot-offer-sync-check</strong><p class="small">定期起動</p></div>
+      <div class="step"><span class="num">2</span><strong>runSpotOfferSyncCheck()</strong><p>シフト・案件そのものの変化を検出</p></div>
+      <div class="step"><span class="num">3</span><strong>reconcileSpotProviders()</strong><p>媒体間の応募・募集状態を比較</p></div>
+      <div class="step"><span class="num">4</span><strong>open / close / hold</strong><p>Sharefullの次の状態を判定</p></div>
+    </div>
+    <table><thead><tr><th>関数</th><th>主な観点</th><th>検出・比較するもの</th></tr></thead><tbody>
+      <tr><td><code>runSpotOfferSyncCheck()</code></td><td>シフト・案件の変化</td><td>シフト削除、担当者確定、日付変更、勤務時間変更、タイミー停止条件</td></tr>
+      <tr><td><code>reconcileSpotProviders()</code></td><td>媒体ごとの状態比較</td><td>応募状態、募集停止、担当者、Sharefull掲載状態、開始までの時間</td></tr>
+    </tbody></table>
+    <p>完全に別物ではありません。どちらもSharefullクローズのきっかけになり得ますが、見ている観点が異なります。</p>
+  </section>
+
+  <section id="jobs">
+    <h2>3. DBへの書き込み先と実行基盤</h2>
+    <div class="grid">
+      <div class="card"><h3>runSpotOfferSyncCheck()</h3><p>タイミー停止依頼 → <code>rpa_command_requests</code><br>Sharefull終了依頼 → <code>rpa_runner_jobs</code></p></div>
+      <div class="card"><h3>reconcileSpotProviders()</h3><p>タイミー側の同期 → <code>rpa_command_requests</code><br>Sharefull掲載・クローズ → <code>rpa_runner_jobs</code></p></div>
+    </div>
+    <table><thead><tr><th>キュー</th><th>主な用途</th><th>後続処理</th></tr></thead><tbody>
+      <tr><td><code>rpa_command_requests</code></td><td>主にタイミーPAD用。<code>close_job</code>、<code>open_job</code></td><td>タイミーPAD</td></tr>
+      <tr><td><code>rpa_runner_jobs</code></td><td>Chrome Runner用。<code>sharefull.create_template</code>、<code>sharefull.create_spot_offer</code>、<code>sharefull.close_spot_offer</code></td><td>famille-rpa-runner → Chrome拡張 → Sharefull画面</td></tr>
+    </tbody></table>
+  </section>
+
+  <section id="events">
+    <h2>4. 応募イベントの処理</h2>
+    <div class="flow">
+      <div class="step"><span class="num">1</span><strong>イベント受信</strong><p>provider、event_id、request_id、received_at</p></div>
+      <div class="step"><span class="num">2</span><strong>重複確認</strong><p><code>provider + event_id</code>で判定</p></div>
+      <div class="step"><span class="num">3</span><strong>新規のみ登録</strong><p><code>spot_offer_applications</code>へ登録</p></div>
+      <div class="step"><span class="num">4</span><strong>代表状態を更新</strong><p><code>spot_offer_request_table</code>へ反映</p></div>
+    </div>
+    <div class="card"><h3>テーブル間の関係</h3><p><code>spot_offer_request_table.id</code> ← <code>request_id</code> — <code>spot_offer_applications</code></p><p><code>spot_offer_request_table.id</code> ← <code>request_id</code> — <code>spot_offer_application_events</code></p><p class="small"><code>request_id</code>は案件IDを参照する列であり、案件テーブルの中に組み込まれているわけではありません。</p></div>
+  </section>
+
+  <section id="notifications">
+    <h2>5. 応募通知（Gmail → GAS → LINE WORKS）</h2>
+    <div class="flow">
+      <div class="step"><span class="num">1</span><strong>Sharefullで応募</strong><p>掲載済み求人に応募が発生</p></div>
+      <div class="step"><span class="num">2</span><strong>Gmailで受信</strong><p>応募通知メールを専用ラベルで管理</p></div>
+      <div class="step"><span class="num">3</span><strong>GASが取得</strong><p>Gmail検索・送信元・件名・本文を確認</p></div>
+      <div class="step"><span class="num">4</span><strong>重複防止</strong><p>Gmail message ID等を記録して再通知を防止</p></div>
+      <div class="step"><span class="num">5</span><strong>LINE WORKS通知</strong><p>テスト用グループへ案件・応募情報を送信</p></div>
+    </div>
+    <table><thead><tr><th>処理</th><th>テスト環境</th><th>本番切替条件</th></tr></thead><tbody>
+      <tr><td>メール取得</td><td>テスト用Gmailアカウント／専用ラベル</td><td>対象メール、送信元、件名、求人IDの確認が完了</td></tr>
+      <tr><td>判定・記録</td><td>GASのPropertiesService等に処理済みIDと実行結果を記録</td><td>再実行・失敗時の重複通知がないことを確認</td></tr>
+      <tr><td>通知先</td><td>テスト用LINE WORKSグループ</td><td>送信内容・権限・障害時の再送方針を確認</td></tr>
+    </tbody></table>
+    <div class="notice"><strong>安全条件:</strong> テスト中は本番Gmailを検索せず、本番LINE WORKSへ送信しません。メール本文・アクセストークン等の機密情報はログに残さず、GASの失敗時は再実行しても同じ応募を二重通知しない設計にします。</div>
+  </section>
+
+  <section id="publication">
+    <h2>6. Sharefullテンプレート作成・案件掲載・クローズ</h2>
+    <h3>テンプレート作成</h3>
+    <div class="flow"><div class="step"><strong>テンプレート情報を取得</strong><p><code>spot_offer_template_unified</code></p></div><div class="step"><strong>ジョブ登録</strong><p><code>sharefull.create_template</code></p></div><div class="step"><strong>Runnerがclaim</strong><p>Chrome拡張を操作</p></div><div class="step"><strong>結果保存</strong><p>テンプレートID・状態を保存</p></div></div>
+    <h3>案件掲載</h3>
+    <div class="flow"><div class="step"><strong>審査完了を確認</strong><p>対象案件・重複ジョブを確認</p></div><div class="step"><strong>掲載ジョブ登録</strong><p><code>enqueueSharefullPublicationJobsForReadyTemplates()</code></p></div><div class="step"><strong>Sharefullへ入力</strong><p>日付、時間、時給、人数、交通費等</p></div><div class="step"><strong>結果を保存</strong><p><code>sharefull_job_id</code>、<code>sharefull_order_id</code>、<code>published</code></p></div></div>
+    <p class="small">掲載ジョブ作成関数の呼び出し元: <code>/api/cron/open-sharefull-jobs</code>、<code>/api/rpa/sharefull/cases</code></p>
+    <h3>Sharefullクローズ</h3>
+    <div class="diagram">案件・シフト・応募状態の変化
+          │
+          ▼
+  runSpotOfferSyncCheck() / reconcileSpotProviders()
+          │
+          ▼
+  close判定 → rpa_runner_jobsへ登録
+  job_type = sharefull.close_spot_offer
+          │
+          ▼
+  Runnerが実行前に再確認
+  ・案件が存在するか ・求人IDが一致するか
+  ・管理番号が一致するか ・現在もclose条件か
+          │
+       ┌──┴──┐
+     有効    無効
+       │       └→ ジョブ中止
+       ▼
+  URL管理番号・画面上の求人IDを照合
+       │
+    一致 → 「募集終了」→ 終了状態確認 → sharefull_status = closed
+    不一致 → 即時中止</div>
+  </section>
+
+  <section id="test-mode">
+    <h2>7. テストモードのデータ分離</h2>
+    <table><thead><tr><th>対象</th><th>production</th><th>test</th></tr></thead><tbody>
+      <tr><td>テンプレート</td><td class="tag-prod">spot_offer_template_unified</td><td class="tag-test">sharefull_rpa_test_spot_offer_template_unified</td></tr>
+      <tr><td>案件</td><td class="tag-prod">spot_offer_request_table</td><td class="tag-test">sharefull_rpa_test_spot_offer_request_table</td></tr>
+      <tr><td>応募</td><td class="tag-prod">本番の応募テーブル</td><td class="tag-test">sharefull_rpa_test_spot_offer_applications</td></tr>
+      <tr><td>応募イベント</td><td class="tag-prod">spot_offer_application_events</td><td class="tag-test">sharefull_rpa_test_spot_offer_application_events</td></tr>
+    </tbody></table>
+    <div class="notice"><strong>確定事項:</strong> テスト用応募テーブル名は <code>sharefull_rpa_test_spot_offer_applications</code> です。</div>
+    <div class="grid"><div class="card"><h3>本番で継続するもの</h3><p>本番cron、タイミーPAD、本番テーブル、本番Runner <code>tenpaku-rpa-02</code>、本番通知先</p></div><div class="card"><h3>テストで分離するもの</h3><p>Sharefullテンプレート作成、掲載、クローズ、応募イベント、応募状態、テスト用Gmail→GAS→LINE WORKS通知</p></div><div class="card"><h3>共有Runnerへの安全策</h3><p>テストは専用Runner <code>sharefull-test-runner</code> を使用します。やむを得ず<code>rpa_runner_jobs</code>を共有する場合は、本番の<code>pending</code>・<code>claimed</code>を0件にし、本番cronを停止してから実行します。</p></div></div>
+    <p class="small">テスト用Vercel: <code>https://famille-shift-matching-test.vercel.app</code> ／ テストモード: <code>SHAREFULL_RPA_MODE=test</code> ／ 本番モード: <code>SHAREFULL_RPA_MODE=production</code></p>
+  </section>
+
+  <section id="summary">
+    <h2>8. 最終的な一連の流れ</h2>
+    <div class="flow"><div class="step"><span class="num">1</span>案件・シフト存在</div><div class="step"><span class="num">2</span>テンプレート作成</div><div class="step"><span class="num">3</span>審査完了</div><div class="step"><span class="num">4</span>Sharefull掲載</div><div class="step"><span class="num">5</span>ID・管理番号保存</div><div class="step"><span class="num">6</span>応募発生・Gmail受信</div><div class="step"><span class="num">7</span>GAS検証・重複除外</div><div class="step"><span class="num">8</span>LINE WORKS通知</div><div class="step"><span class="num">9</span>応募・状態変化検知</div><div class="step"><span class="num">10</span>open / close / hold判定</div><div class="step"><span class="num">11</span>Runnerが照合・実行</div><div class="step"><span class="num">12</span>DB履歴保存</div></div>
+    <table><thead><tr><th>構成要素</th><th>責務</th></tr></thead><tbody><tr><td>テーブル</td><td>状態・業務データを保存</td></tr><tr><td>TypeScript関数</td><td>状態を読み取り、次の処理を判断</td></tr><tr><td>cron</td><td>TypeScript関数を定期起動</td></tr><tr><td>job</td><td>Runnerへ渡す具体的な作業指示</td></tr><tr><td>Runner</td><td>jobを取得して実行</td></tr><tr><td>Chrome拡張</td><td>Sharefull画面を操作</td></tr><tr><td>GAS</td><td>Gmail応募通知を取得・検証・重複防止し、LINE WORKS通知を呼び出す</td></tr><tr><td>LINE WORKS</td><td>応募情報を担当者へ通知</td></tr></tbody></table>
+  </section>
+
+  <footer>Sharefull RPA 本番・テスト環境全体像 — 設計整理資料</footer>
+</div>
+</body>
+</html>
