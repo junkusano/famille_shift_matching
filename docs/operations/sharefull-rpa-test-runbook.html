@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sharefull RPA テスト手順</title>
+  <style>
+    :root{--ink:#172033;--muted:#5f6b7d;--line:#dbe3ef;--bg:#f4f7fb;--blue:#2563eb;--dark:#172554;--orange:#c2410c}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(180deg,#eef4ff 0,#fff 420px);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",Meiryo,sans-serif;line-height:1.75}.wrap{width:min(1000px,calc(100% - 32px));margin:auto;padding-bottom:60px}header{margin-top:28px;padding:38px clamp(22px,5vw,50px);color:#fff;border-radius:22px;background:linear-gradient(135deg,#172554,#1d4ed8);box-shadow:0 14px 32px #1e3a8a2b}h1{margin:0 0 10px;font-size:clamp(28px,4vw,42px);line-height:1.2}h2{margin:42px 0 14px;padding-bottom:7px;border-bottom:2px solid var(--line);font-size:27px}h3{margin:26px 0 8px;font-size:19px}p{margin:8px 0 14px}.lead{color:#dbeafe;font-size:18px}.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}.pill{padding:4px 11px;border:1px solid #ffffff40;border-radius:999px;background:#ffffff20;font-size:13px}nav{position:sticky;top:10px;z-index:2;display:flex;flex-wrap:wrap;gap:4px 16px;margin:16px 0;padding:12px 15px;background:#fffffff2;border:1px solid var(--line);border-radius:14px;box-shadow:0 5px 16px #17203312}nav a{color:var(--blue);text-decoration:none;font-size:14px;font-weight:600}.notice{margin:20px 0;padding:15px 17px;border-left:5px solid var(--blue);border-radius:9px;background:#eff6ff}.notice.warn{border-left-color:var(--orange);background:#fff7ed}.card,table{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 6px 18px #1720330d}.card{padding:18px}code{padding:2px 6px;color:#3730a3;background:#eef2ff;border-radius:5px;font-size:.92em;overflow-wrap:anywhere}pre{padding:17px;overflow:auto;color:#dbeafe;background:#101827;border-radius:12px;line-height:1.6}ol{padding-left:25px}li{margin:7px 0}table{width:100%;border-collapse:collapse;overflow:hidden}th,td{padding:11px 13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{color:#1e3a8a;background:#eef4ff}tr:last-child td{border-bottom:0}.small{color:var(--muted);font-size:13px}footer{margin-top:50px;color:var(--muted);text-align:center;font-size:13px}@media(max-width:700px){.wrap{width:min(100% - 20px,1000px)}header{margin-top:10px;padding:28px 22px}nav{top:5px}}
+  </style>
+</head>
+<body><main class="wrap">
+  <header><h1>Sharefull RPA テスト手順</h1><p class="lead">テンプレート作成、案件掲載、応募・応募確定通知、クローズを安全に段階検証するための実行手順</p><div class="meta"><span class="pill">テストモード</span><span class="pill">応募通知: Gmail → GAS → テストAPI → LINE WORKS</span><span class="pill">コード実装済み・認証設定待ち</span></div></header>
+  <nav><a href="../sharefull-rpa-roadmap.html">全体ロードマップ</a><a href="#mode">モード設定</a><a href="#sequence">実行順序</a><a href="#notify">応募通知</a><a href="#migration">本番移行条件</a><a href="#safety">安全条件</a></nav>
+  <div class="notice warn"><strong>注意:</strong> テスト用応募イベントAPIとGASコードは実装済みです。GASのScript Properties、LINE WORKS送信先・アクセストークンを設定してから、テスト用Gmailとテスト用LINE WORKSだけで実送信を確認します。本番Gmailや本番LINE WORKSグループは使用しません。</div>
+  <section id="mode"><h2>モード設定</h2><p>Sharefull RPAは環境変数でモードを切り替えます。通常画面からの自由なモード切替は行いません。</p><pre>SHAREFULL_RPA_MODE=test
+SHAREFULL_AUTO_POST_ENABLED=false
+SHAREFULL_AUTO_POST_MODE=save</pre><p>テストモードではSharefull専用テストテーブルだけを読み書きします。タイミー側の通常同期は停止しません。</p></section>
+  <section id="sequence"><h2>実行順序</h2><ol><li>テスト用マイグレーションを適用する。</li><li><code>seed_sharefull_rpa_test_data('12782561')</code>でテストデータを作成する。</li><li>テスト用テンプレート作成ジョブを実行する。</li><li>審査完了後、案件掲載ジョブの登録だけを確認する。</li><li><code>SHAREFULL_AUTO_POST_MODE=save</code>で入力・保存を確認する。</li><li>問題がなければ<code>publish</code>へ変更して実掲載を確認する。</li><li>テスト案件への応募を発生させ、Sharefullから応募通知メールが届くことを確認する。</li><li>テスト用GASが対象メールを取得し、重複除外してテスト用LINE WORKSグループへ通知することを確認する。</li><li>応募者・求人ID・管理番号・受信日時・GmailメッセージIDを通知内容とログで照合する。</li><li>応募通知処理に失敗した場合、再実行で二重通知されず、エラーが記録されることを確認する。</li><li>応募なし・<code>募集なし</code>の案件でクローズ処理を確認する。</li><li>求人ID・管理番号不一致時に即時中止されることを確認する。</li><li><code>applied</code>、<code>confirmed</code>、複数媒体応募の順に応募状態を確認する。</li></ol></section>
+  <section id="notify"><h2>応募通知フロー</h2><p>案件掲載後の応募・応募確定通知は、Sharefull画面をRunnerで監視するのではなく、Sharefullから届くGmail通知を入口にします。</p><pre>Sharefullへの応募・応募確定
+    ↓
+SharefullからGmailへ通知メール
+    ↓
+Google Apps Script（時間主導トリガー）
+    ↓ 対象送信元・件名・求人ID・管理番号・応募者・状態を検証
+    ↓ applied / confirmedを判定してテストAPIへ登録
+    ↓ GmailメッセージID・応募識別キーで重複除外
+    ├─ テスト用LINE WORKSグループへ通知
+    └─ 処理結果・エラーをGAS実行ログへ記録</pre>
+    <h3>GASの責務</h3><ul><li>Gmailの対象ラベルまたは検索条件から未処理メールを取得する。</li><li>送信元、件名、求人IDまたは管理番号、応募者情報、応募状態を検証する。</li><li><code>applied</code>と<code>confirmed</code>を同じ応募識別キーで更新する。</li><li>テストAPIへイベントを登録し、APIが重複と判定した場合は再通知しない。</li><li>GmailメッセージIDと応募識別キーを処理済みキーとして保存する。</li><li>テスト時はテスト用LINE WORKSグループだけへ通知する。</li><li>LINE WORKS APIの失敗時は再試行し、最終失敗を実行ログへ残す。</li><li>メール本文全体や認証情報をログへ保存しない。</li></ul>
+  </section>
+  <section id="migration"><h2>本番移行条件</h2><ul><li>テスト用Gmailで応募・応募確定通知を受信できること。</li><li>テスト用LINE WORKSグループへ、同一応募を一度だけ通知できること。</li><li>GmailメッセージIDと応募識別キーによる重複除外が確認できること。</li><li><code>applied</code>から<code>confirmed</code>への状態更新を確認できること。</li><li>API失敗時の再試行・失敗記録を確認できること。</li><li>本番用GASプロジェクト、LINE WORKS送信先、OAuth情報をテスト用と分離すること。</li></ul><div class="notice"><strong>方針:</strong> 本番送信先への切替は、テスト用送信先での通知確認と、状態更新・重複防止・再試行・失敗記録の確認が完了した後に段階的に行います。</div></section>
+  <section id="safety"><h2>テストデータの安全条件</h2><ul><li>表示項目には<code>【テスト】</code>が付く。</li><li>日付は元データの間隔を維持したまま、実行日の翌日を初日とする。</li><li>Sharefullの求人ID・管理番号・掲載状態は初期化される。</li><li>本番の<code>spot_offer_*</code>テーブルはテストモードから参照しない。</li><li>応募通知はテスト用Gmailラベル／テスト用GAS／テスト用LINE WORKSグループを使用する。</li><li>テスト用GASの処理済みキーはGmailメッセージIDとし、本番GASの保存領域と分離する。</li><li>テスト通知に本番の応募者情報・本番LINE WORKS送信先を混在させない。</li></ul></section>
+  <footer>Sharefull RPA テスト手順</footer>
+</main></body></html>
