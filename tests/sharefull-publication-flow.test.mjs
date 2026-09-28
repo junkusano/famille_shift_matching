@@ -10,6 +10,7 @@ const ts = require("typescript");
 function loadPublisher({ env = {}, template = null, requests = [], shifts = [], existingJobs = [] } = {}) {
   const insertedJobs = [];
   const usedTables = [];
+  const policyCode = readFileSync(new URL("../src/lib/spot-sync/sharefullContentPolicy.ts", import.meta.url), "utf8");
   const code = readFileSync(new URL("../src/lib/spot-offer/enqueueSharefullPublicationJob.ts", import.meta.url), "utf8")
     .replace(/^import .*;\r?\n/gm, "")
     .replace(/export async function/g, "async function")
@@ -76,7 +77,10 @@ function loadPublisher({ env = {}, template = null, requests = [], shifts = [], 
   const output = ts.transpileModule(code, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  vm.runInContext(`${output}\nexports.enqueueSharefullPublicationJobsForTemplate = enqueueSharefullPublicationJobsForTemplate;`, context);
+  const policyOutput = ts.transpileModule(policyCode, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  vm.runInContext(`${policyOutput}\n${output}\nexports.enqueueSharefullPublicationJobsForTemplate = enqueueSharefullPublicationJobsForTemplate;`, context);
   return { publisher: context.exports, insertedJobs, usedTables };
 }
 
@@ -133,4 +137,25 @@ test("同じ案件の既存掲載ジョブがある場合は再登録しない",
   assert.equal(result.registeredCount, 0);
   assert.equal(result.diagnostic.duplicate_job_count, 1);
   assert.equal(insertedJobs.length, 0);
+});
+
+test("テスト環境では公開前検査で要確認文言を含む案件掲載ジョブを登録しない", async () => {
+  const { publisher, insertedJobs } = loadPublisher({
+    env: baseEnv,
+    template: {
+      core_id: "core-1",
+      kaipoke_cs_id: "12782561",
+      sharefull_template_id: "template-1",
+      sharefull_template_status: "ready_for_offer",
+      template_title: "女性ヘルパー活躍中",
+      work_description: "女性の下着の洗濯等あるため応募には考慮お願いします。",
+    },
+    requests: [{ id: "request-1", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 42, shift_start_date: "2099-01-02", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: "taimee-1", sharefull_job_id: null, sharefull_status: "template_review", recruitment_revision: 3 }],
+  });
+
+  const result = await publisher.enqueueSharefullPublicationJobsForTemplate("core-1", "test");
+
+  assert.equal(result.registeredCount, 0);
+  assert.equal(insertedJobs.length, 0);
+  assert.equal(result.contentPolicy.status, "blocked");
 });

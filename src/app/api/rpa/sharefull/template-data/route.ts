@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
-import { isSharefullSyncClient, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
+import { isSharefullSyncClient, sharefullRpaMode, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
+import { applySharefullContentPolicy } from "@/lib/spot-sync/sharefullContentPolicy";
 
 export const dynamic = "force-dynamic";
 
@@ -15,12 +16,23 @@ export async function GET(request: NextRequest) {
       supabaseAdmin.from("env_variables").select("key_name,value").eq("group_key", "sukima"),
     ]);
     if (error || envError) throw error ?? envError;
-    if (!data || !isSharefullSyncClient(data.kaipoke_cs_id)) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
+    const template = data as Record<string, unknown> | null;
+    if (!template || !isSharefullSyncClient(template.kaipoke_cs_id)) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
     const values = Object.fromEntries((env ?? []).map((row) => [row.key_name, row.value ?? ""]));
-    return NextResponse.json({ data: { ...data, env: {
+    const rawData = { ...template, env: {
       sukima_detail: String(values.sukima_detail ?? ""), sukima_automsg: String(values.sukima_automsg ?? ""),
       sukima_koudou: String(values.sukima_koudou ?? ""), sukima_caution: String(values.sukima_caution ?? ""),
-    } } });
+    } };
+    const policy = sharefullRpaMode() === "test"
+      ? applySharefullContentPolicy(rawData)
+      : { data: rawData, report: { status: "clean" as const, findings: [] } };
+    if (policy.report.status === "blocked") {
+      return NextResponse.json({
+        error: "公開本文の事前検査で停止しました",
+        content_policy: policy.report,
+      }, { status: 422 });
+    }
+    return NextResponse.json({ data: policy.data, content_policy: policy.report });
   } catch (error) {
     if (isRpaTaimeeError(error)) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[rpa/sharefull/template-data] failed", error);

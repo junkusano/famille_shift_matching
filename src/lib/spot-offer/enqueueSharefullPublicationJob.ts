@@ -3,6 +3,7 @@ import { canRecruit } from '@/lib/spot-sync/policy';
 import { isSharefullSyncClient, sharefullRequestTableName, sharefullRpaMode, sharefullSyncClientIds, sharefullSyncScopeLabel, sharefullTargetRunnerId, sharefullTemplateTableName } from '@/lib/spot-sync/sharefullScope';
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isDuplicateSharefullPublicationJob, SHAREFULL_PUBLICATION_DEDUPE_STATUSES } from "@/lib/spot-offer/publicationJobDedupe";
+import { applySharefullContentPolicy } from "@/lib/spot-sync/sharefullContentPolicy";
 
 const JOB_TYPE = "sharefull.create_spot_offer";
 const TEMPLATE_JOB_TYPE = "sharefull.create_template";
@@ -63,11 +64,12 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
 
   const { data: template, error: templateError } = await supabaseAdmin
     .from(sharefullTemplateTableName() as never)
-    .select("core_id, kaipoke_cs_id, sharefull_template_id, sharefull_template_status")
+    .select("core_id, kaipoke_cs_id, sharefull_template_id, sharefull_template_status, template_title, work_description, cautions, auto_message, matching_msg, internal_label")
     .eq("core_id", coreId)
     .maybeSingle();
   if (templateError) throw templateError;
-  if (template && !isSharefullSyncClient(template.kaipoke_cs_id)) {
+  const templateRecord = template as unknown as JsonRecord | null;
+  if (templateRecord && !isSharefullSyncClient(templateRecord.kaipoke_cs_id)) {
     return {
       enabled: true,
       registeredCount: 0,
@@ -75,8 +77,8 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
       diagnostic: { core_id: coreId, candidate_request_count: 0, duplicate_job_count: 0, registered_count: 0, skipped_count: 1 },
     };
   }
-  if (!template || text(template.sharefull_template_status) !== "ready_for_offer") {
-    const canCreateTemplate = Boolean(template && !text(template.sharefull_template_id));
+  if (!templateRecord || text(templateRecord.sharefull_template_status) !== "ready_for_offer") {
+    const canCreateTemplate = Boolean(templateRecord && !text(templateRecord.sharefull_template_id));
     const templateJob = canCreateTemplate
       ? await enqueueSharefullTemplateCreationJob(coreId, source)
       : { registeredCount: 0, skipped: ["テンプレートが審査完了状態ではありません"] };
@@ -86,7 +88,7 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
       skipped: templateJob.skipped,
       diagnostic: {
         core_id: coreId,
-        template_status: text(template?.sharefull_template_status) || "missing",
+        template_status: text(templateRecord?.sharefull_template_status) || "missing",
         candidate_request_count: 0,
         duplicate_job_count: 0,
         registered_count: templateJob.registeredCount,
@@ -94,13 +96,33 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
       },
     };
   }
-  const sharefullTemplateId = text(template.sharefull_template_id);
+  const sharefullTemplateId = text(templateRecord.sharefull_template_id);
   if (!sharefullTemplateId) return {
     enabled: true,
     registeredCount: 0,
     skipped: ["SharefullテンプレートIDがありません"],
     diagnostic: { core_id: coreId, template_status: "ready_for_offer", candidate_request_count: 0, duplicate_job_count: 0, registered_count: 0, skipped_count: 1 },
   };
+
+  if (sharefullRpaMode() === "test") {
+    const policy = applySharefullContentPolicy(templateRecord);
+    if (policy.report.status === "blocked") {
+      return {
+        enabled: true,
+        registeredCount: 0,
+        skipped: ["公開本文の事前検査で停止しました"],
+        diagnostic: {
+          core_id: coreId,
+          template_status: "ready_for_offer",
+          candidate_request_count: 0,
+          duplicate_job_count: 0,
+          registered_count: 0,
+          skipped_count: 1,
+        },
+        contentPolicy: policy.report,
+      };
+    }
+  }
 
   const today = todayInJst();
   let requestQuery = supabaseAdmin
