@@ -4,6 +4,7 @@ import { isSharefullSyncClient, sharefullRequestTableName, sharefullRpaMode, sha
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isDuplicateSharefullPublicationJob, SHAREFULL_PUBLICATION_DEDUPE_STATUSES } from "@/lib/spot-offer/publicationJobDedupe";
 import { applySharefullContentPolicy } from "@/lib/spot-sync/sharefullContentPolicy";
+import { recordSharefullContentPolicyBlock } from "@/lib/spot-sync/sharefullContentPolicyAlert";
 
 const JOB_TYPE = "sharefull.create_spot_offer";
 const TEMPLATE_JOB_TYPE = "sharefull.create_template";
@@ -77,6 +78,28 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
       diagnostic: { core_id: coreId, candidate_request_count: 0, duplicate_job_count: 0, registered_count: 0, skipped_count: 1 },
     };
   }
+  if (sharefullRpaMode() === "test" && templateRecord) {
+    const policy = applySharefullContentPolicy(templateRecord);
+    if (policy.report.status === "blocked") {
+      const notification = await recordSharefullContentPolicyBlock({
+        coreId,
+        source,
+        templateId: text(templateRecord.sharefull_template_id) || null,
+        templateTitle: text(templateRecord.template_title) || null,
+        sourceData: templateRecord,
+        report: policy.report,
+      });
+      return {
+        enabled: true,
+        registeredCount: 0,
+        skipped: [notification.notified ? "公開本文の事前検査で停止しました" : "公開本文の事前検査で停止しました（LINE WORKS通知失敗）"],
+        diagnostic: { core_id: coreId, template_status: text(templateRecord.sharefull_template_status) || "missing", candidate_request_count: 0, duplicate_job_count: 0, registered_count: 0, skipped_count: 1 },
+        contentPolicy: policy.report,
+        notification,
+      };
+    }
+  }
+
   if (!templateRecord || text(templateRecord.sharefull_template_status) !== "ready_for_offer") {
     const canCreateTemplate = Boolean(templateRecord && !text(templateRecord.sharefull_template_id));
     const templateJob = canCreateTemplate
@@ -103,26 +126,6 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
     skipped: ["SharefullテンプレートIDがありません"],
     diagnostic: { core_id: coreId, template_status: "ready_for_offer", candidate_request_count: 0, duplicate_job_count: 0, registered_count: 0, skipped_count: 1 },
   };
-
-  if (sharefullRpaMode() === "test") {
-    const policy = applySharefullContentPolicy(templateRecord);
-    if (policy.report.status === "blocked") {
-      return {
-        enabled: true,
-        registeredCount: 0,
-        skipped: ["公開本文の事前検査で停止しました"],
-        diagnostic: {
-          core_id: coreId,
-          template_status: "ready_for_offer",
-          candidate_request_count: 0,
-          duplicate_job_count: 0,
-          registered_count: 0,
-          skipped_count: 1,
-        },
-        contentPolicy: policy.report,
-      };
-    }
-  }
 
   const today = todayInJst();
   let requestQuery = supabaseAdmin

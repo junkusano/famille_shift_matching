@@ -10,6 +10,7 @@ const ts = require("typescript");
 function loadPublisher({ env = {}, template = null, requests = [], shifts = [], existingJobs = [] } = {}) {
   const insertedJobs = [];
   const usedTables = [];
+  const policyBlocks = [];
   const policyCode = readFileSync(new URL("../src/lib/spot-sync/sharefullContentPolicy.ts", import.meta.url), "utf8");
   const code = readFileSync(new URL("../src/lib/spot-offer/enqueueSharefullPublicationJob.ts", import.meta.url), "utf8")
     .replace(/^import .*;\r?\n/gm, "")
@@ -72,6 +73,10 @@ function loadPublisher({ env = {}, template = null, requests = [], shifts = [], 
     isDuplicateSharefullPublicationJob: (jobs, operationKey, requestId) => jobs.some((job) =>
       ["pending", "claimed", "completed", "failed", "cancelled"].includes(job.status) &&
       (job.payload?.operation_key === operationKey || job.payload?.spot_offer_request_id === requestId)),
+    recordSharefullContentPolicyBlock: async (input) => {
+      policyBlocks.push(input);
+      return { recorded: true, notified: true };
+    },
   });
 
   const output = ts.transpileModule(code, {
@@ -81,7 +86,7 @@ function loadPublisher({ env = {}, template = null, requests = [], shifts = [], 
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   vm.runInContext(`${policyOutput}\n${output}\nexports.enqueueSharefullPublicationJobsForTemplate = enqueueSharefullPublicationJobsForTemplate;`, context);
-  return { publisher: context.exports, insertedJobs, usedTables };
+  return { publisher: context.exports, insertedJobs, usedTables, policyBlocks };
 }
 
 const baseEnv = {
@@ -140,13 +145,13 @@ test("同じ案件の既存掲載ジョブがある場合は再登録しない",
 });
 
 test("テスト環境では公開前検査で要確認文言を含む案件掲載ジョブを登録しない", async () => {
-  const { publisher, insertedJobs } = loadPublisher({
+  const { publisher, insertedJobs, policyBlocks } = loadPublisher({
     env: baseEnv,
     template: {
       core_id: "core-1",
       kaipoke_cs_id: "12782561",
-      sharefull_template_id: "template-1",
-      sharefull_template_status: "ready_for_offer",
+      sharefull_template_id: null,
+      sharefull_template_status: null,
       template_title: "女性ヘルパー活躍中",
       work_description: "女性の下着の洗濯等あるため応募には考慮お願いします。",
     },
@@ -158,4 +163,7 @@ test("テスト環境では公開前検査で要確認文言を含む案件掲�
   assert.equal(result.registeredCount, 0);
   assert.equal(insertedJobs.length, 0);
   assert.equal(result.contentPolicy.status, "blocked");
+  assert.equal(policyBlocks.length, 1);
+  assert.equal(policyBlocks[0].coreId, "core-1");
+  assert.equal(policyBlocks[0].report.findings[0].ruleId, "gender-sensitive-recruiting");
 });

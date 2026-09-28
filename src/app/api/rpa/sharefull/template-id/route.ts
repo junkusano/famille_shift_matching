@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
-import { isSharefullSyncClient, sharefullRequestTableName, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
+import { isSharefullSyncClient, sharefullRequestTableName, sharefullRpaMode, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
+import { applySharefullContentPolicy } from "@/lib/spot-sync/sharefullContentPolicy";
+import { recordSharefullContentPolicyBlock } from "@/lib/spot-sync/sharefullContentPolicyAlert";
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,9 +13,25 @@ export async function POST(request: NextRequest) {
     const templateId = typeof body.sharefull_template_id === "string" ? body.sharefull_template_id.trim() : "";
     if (!coreId || !templateId || templateId === "428828") return NextResponse.json({ error: "IDが不正です" }, { status: 400 });
     const { data: existing, error: lookupError } = await supabaseAdmin
-      .from(sharefullTemplateTableName() as never).select("core_id, kaipoke_cs_id").eq("core_id", coreId).maybeSingle();
+      .from(sharefullTemplateTableName() as never).select("core_id, kaipoke_cs_id, sharefull_template_id, template_title, work_description, cautions, auto_message, matching_msg").eq("core_id", coreId).maybeSingle();
     if (lookupError) throw lookupError;
-    if (!existing || !isSharefullSyncClient(existing.kaipoke_cs_id)) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
+    const existingRecord = existing as unknown as Record<string, unknown> | null;
+    if (!existingRecord || !isSharefullSyncClient(existingRecord.kaipoke_cs_id)) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
+    if (sharefullRpaMode() === "test") {
+      const source = existingRecord;
+      const policy = applySharefullContentPolicy(source);
+      if (policy.report.status === "blocked") {
+        const notification = await recordSharefullContentPolicyBlock({
+          coreId,
+          source: "rpa.sharefull.template-id",
+          templateId,
+          templateTitle: typeof source.template_title === "string" ? source.template_title : null,
+          sourceData: source,
+          report: policy.report,
+        });
+        return NextResponse.json({ error: "公開本文の事前検査で停止しました", content_policy: policy.report, notification }, { status: 422 });
+      }
+    }
     const updatedAt = new Date().toISOString();
     const { error } = await supabaseAdmin.from(sharefullTemplateTableName() as never)
     .update({ sharefull_template_id: templateId, sharefull_template_status: "template_review", updated_at: updatedAt })
