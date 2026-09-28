@@ -67,10 +67,16 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       const result = isRecord(body.result) ? body.result : {};
       const requestId = typeof payload.spot_offer_request_id === 'string' ? payload.spot_offer_request_id.trim() : '';
       const sharefullJobId = typeof result.sharefull_job_id === 'string' ? result.sharefull_job_id.trim() : '';
+      const sharefullOrderId = typeof result.sharefull_order_id === 'string' ? result.sharefull_order_id.trim() : '';
       if (requestId && sharefullJobId) {
         const { error: sharefullUpdateError } = await supabaseAdmin
           .from(sharefullRequestTableName() as never)
-          .update({ sharefull_job_id: sharefullJobId, sharefull_status: 'published' })
+          .update({
+            sharefull_job_id: sharefullJobId,
+            sharefull_order_id: sharefullOrderId || null,
+            sharefull_status: 'published',
+            sharefull_sync_error: sharefullOrderId ? null : 'URL管理番号が未取得です',
+          })
           .eq('id', requestId)
           .is('sharefull_job_id', null);
         if (sharefullUpdateError) return NextResponse.json({ ok: false, error: 'Sharefull案件IDの保存に失敗しました' }, { status: 500 });

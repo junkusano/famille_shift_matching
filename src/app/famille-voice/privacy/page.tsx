@@ -62,7 +62,7 @@ export default function FamilleVoicePrivacyPage() {
           </section>
           <section>
             <h2 className="text-xl font-bold text-[#244534]">9. お問い合わせ先</h2>
-            <p className="mt-3">本ポリシーおよび個人情報の取扱いに関するお問い合わせは、合同会社施恩の<a className="ml-1 font-semibold text-[#347b43] underline underline-offset-2" href="https://www.shi-on.net/#contact">お問い合わせ窓口</a>からご連絡ください。</p>
+            <p className="mt-3">本ポリシーおよび個人情報の取扱いに関するお問い合わせは、合同会社施恩の<a className="ml-1 font-semibold text-[#347b43] underline underline-offset-2" href="https://shi-on.net/contactus/">お問い合わせ窓口</a>からご連絡ください。</p>
           </section>
         </div>
       </article>
