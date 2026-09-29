@@ -204,15 +204,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, groupId, affectedDates: 1, affectedShifts: shiftIds.length });
     }
 
-    if (existingGroup) {
-      const { error } = await supabaseAdmin
-        .from("shift")
-        .update({ head_shift_id: null })
-        .eq("head_shift_id", existingGroup)
-        .gte("shift_start_date", effectiveFrom);
-      if (error) throw new Error(error.message);
-    }
-
     const patternRows = await Promise.all(rows.map((row) => futureRowsForPattern(row, effectiveFrom)));
     const rowsByDate = new Map<string, ShiftRow[]>();
 
@@ -240,7 +231,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const futureShiftIds = completeOccurrences.flatMap((occurrence) => occurrence.rows.map((row) => row.shift_id));
+    const futureShiftIds = Array.from(
+      new Set(completeOccurrences.flatMap((occurrence) => occurrence.rows.map((row) => row.shift_id))),
+    );
+
+    if (existingGroup) {
+      const [{ error: clearShiftError }, { error: clearTemplateError }] = await Promise.all([
+        supabaseAdmin
+          .from("shift")
+          .update({ head_shift_id: null })
+          .eq("head_shift_id", existingGroup)
+          .gte("shift_start_date", effectiveFrom),
+        supabaseAdmin
+          .from("shift_weekly_template")
+          .update({ multiple_service_group_id: null })
+          .eq("multiple_service_group_id", existingGroup),
+      ]);
+      if (clearShiftError) throw new Error(clearShiftError.message);
+      if (clearTemplateError) throw new Error(clearTemplateError.message);
+    }
+
     const { error: updateError } = await supabaseAdmin
       .from("shift")
       .update({ head_shift_id: groupId })
