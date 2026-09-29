@@ -10,8 +10,6 @@ export const revalidate = 0;
 type RequestBody = {
   shiftIds?: Array<number | string>;
   groupId?: string;
-  requestedByUserId?: string;
-  requestedKaipokeUserId?: string | null;
   attendRequest?: boolean;
   timeAdjustNote?: string | null;
 };
@@ -32,10 +30,19 @@ export async function POST(req: NextRequest) {
       ),
     );
     const groupId = String(body.groupId ?? "");
-    const requestedByUserId = String(body.requestedByUserId ?? "").trim();
 
-    if (!groupId.startsWith(MULTIPLE_SERVICE_PREFIX) || shiftIds.length < 2 || !requestedByUserId) {
+    if (!groupId.startsWith(MULTIPLE_SERVICE_PREFIX) || shiftIds.length < 2) {
       return NextResponse.json({ ok: false, error: "複数サービスの申請内容が不正です" }, { status: 400 });
+    }
+
+    const { data: actor, error: actorError } = await supabaseAdmin
+      .from("users")
+      .select("user_id,kaipoke_user_id")
+      .eq("auth_user_id", auth.user.id)
+      .maybeSingle();
+    if (actorError) throw new Error(actorError.message);
+    if (!actor?.user_id) {
+      return NextResponse.json({ ok: false, error: "職員情報を確認できません" }, { status: 403 });
     }
 
     const { data: rows, error: shiftError } = await supabaseAdmin
@@ -57,9 +64,9 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabaseAdmin.rpc("assign_user_to_multiple_service_v1", {
       p_shift_ids: shiftIds,
-      p_user_id: requestedByUserId,
+      p_user_id: String(actor.user_id),
       p_requester_id: auth.user.id,
-      p_requested_kaipoke_user_id: body.requestedKaipokeUserId ?? null,
+      p_requested_kaipoke_user_id: actor.kaipoke_user_id ?? null,
       p_accompany: body.attendRequest === true,
       p_time_adjust_note: body.timeAdjustNote?.trim() || null,
     });
