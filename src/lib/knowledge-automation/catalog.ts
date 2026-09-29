@@ -50,6 +50,22 @@ export type AutomationTemplate = {
 
 export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
   {
+    key: "traffic-restrictions", label: "名古屋市周辺の交通規制",
+    summary: "大会・マラソン・道路規制の公式情報を確認し、同じ案件はお知らせ掲示板を更新します。",
+    input: { name: "名古屋市周辺の交通規制", description: "名古屋市周辺の公式交通規制情報と訪問ルートへの注意をお知らせ掲示板へ反映します。",
+      task_type: "custom", trigger_type: "daily", schedule: { times: ["06:30"] }, destination: "lineworks_board", approval_mode: "automatic",
+      condition_summary: "今後45日以内の公式交通規制。新規・変更時のみ掲示し、開催済み情報は除外。",
+      settings: { operation: "traffic_restrictions" }, is_enabled: false },
+  },
+  {
+    key: "police-enforcement", label: "愛知県警の交通取締情報",
+    summary: "毎朝7時、当月の県警公式取締カレンダーを全社員グループに案内します。",
+    input: { name: "愛知県警の交通取締情報", description: "公式の当月カレンダーを確認し、安全運転の注意とともに通知します。",
+      task_type: "custom", trigger_type: "daily", schedule: { times: ["07:00"] }, destination: "lineworks_message", approval_mode: "automatic",
+      condition_summary: "当月の公式予定表を確認できた場合に1日1回通知。取得失敗・前月情報は送信しない。",
+      settings: { operation: "police_enforcement", lineworksChannelId: "c6053e0d-883d-eea9-616f-a856d8817f86" }, is_enabled: false },
+  },
+  {
     key: "knowledge-diff", label: "週次の差分ナレッジ抽出",
     summary: "前回の正常実行以降に変わったナレッジを横断し、判断に必要な変化だけを保存します。",
     input: { name: "週次の差分ナレッジ抽出", description: "新規・更新ナレッジをまとめ、今回の変化と根拠を差分ナレッジとして保存します。", task_type: "knowledge_diff", trigger_type: "weekly", schedule: { dayOfWeek: 1, time: "03:30" }, destination: "none", approval_mode: "review_required", condition_summary: "前回正常終了以降に追加・更新された、個人情報を含まない現行ナレッジを対象にします。", settings: { operation: "knowledge_diff_extract", initial_lookback_days: 7, max_source_items: 200 }, is_enabled: true },
