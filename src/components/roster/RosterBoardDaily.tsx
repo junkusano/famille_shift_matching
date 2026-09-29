@@ -608,13 +608,33 @@ console.log(
         // mouseup 時のPATCHに src_staff_id を追加
         function onUp() {
             if (!drag) return;
-            const { cardId, ghostStartMin, ghostEndMin, ghostRowIdx, srcStaffId } = drag;
+            const {
+                cardId,
+                ghostStartMin,
+                ghostEndMin,
+                ghostRowIdx,
+                srcStaffId,
+                origStartMin,
+                origEndMin,
+                origRowIdx,
+            } = drag;
             const { shiftId } = parseCardCompositeId(cardId);
             const targetStaff = displayStaff[ghostRowIdx];
             if (!targetStaff) { setDrag(null); return; }
             const start_at = toHHmm(ghostStartMin);
             const end_at = toHHmm(ghostEndMin);
             const staff_id = targetStaff.id;    // ← dst
+            const unchanged =
+                ghostStartMin === origStartMin &&
+                ghostEndMin === origEndMin &&
+                ghostRowIdx === origRowIdx &&
+                staff_id === srcStaffId;
+
+            // クリックやダブルクリックだけでは保存処理・LINE WORKS通知を起動しない。
+            if (unchanged) {
+                setDrag(null);
+                return;
+            }
 
             setCards((prev) =>
                 prev.map((c) => (c.id === cardId ? { ...c, id: `${shiftId}_${staff_id}`, staff_id, start_at, end_at } : c))
