@@ -10,6 +10,7 @@ import type {
     RosterStaff,
 } from "@/types/roster";
 import ShiftDialog from "@/components/roster/ShiftDialog";
+import MultipleServicesBetaPanel from "@/components/roster/MultipleServicesBetaPanel";
 import { useRouter, useSearchParams } from "next/navigation";
 //import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { supabase } from "@/lib/supabaseClient";
@@ -212,6 +213,7 @@ export default function RosterBoardDaily({
     const [cards, setCards] = useState<RosterShiftCard[]>(initialView.shifts);
     const [cardsDate, setCardsDate] = useState(date);
     const [showAllStaff, setShowAllStaff] = useState(true);
+    const [multipleServiceSelectedIds, setMultipleServiceSelectedIds] = useState<number[]>([]);
 
     const [selectedShift, setSelectedShift] = useState<RosterShiftDialogData | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -225,6 +227,7 @@ export default function RosterBoardDaily({
             // 日付を切り替えた直後に、前の日のカードが残らないよう即時反映する。
             setCardsDate(date);
             setCards(baseCards);
+            setMultipleServiceSelectedIds([]);
 
             const shiftIds = Array.from(
                 new Set(
@@ -520,6 +523,7 @@ console.log(
 
     // 既存 onCardMouseDownMove / ResizeEnd 内でセット
     const onCardMouseDownMove = (e: React.MouseEvent, card: RosterShiftCard) => {
+        if (e.detail > 1) return;
         const target = e.target as HTMLElement | null;
         if (target && target.closest('a')) return; // リンク操作時はドラッグ開始しない
         e.preventDefault();
@@ -1010,6 +1014,15 @@ const topPx =
   </div>
 </div>
 
+{beta ? (
+  <MultipleServicesBetaPanel
+    date={date}
+    cards={cardsDate === date ? cards : initialView.shifts}
+    selectedIds={multipleServiceSelectedIds}
+    setSelectedIds={setMultipleServiceSelectedIds}
+  />
+) : null}
+
 {/* 盤面 */}
 <div style={gridStyle} ref={outerScrollRef}>
                     {/* 左：氏名列 */}
@@ -1067,19 +1080,49 @@ const topPx =
     return null;
   }
 
+  const { shiftId } = parseCardCompositeId(c.id);
+  const selectionIndex = multipleServiceSelectedIds.indexOf(shiftId);
+
   return (
     <div
       key={c.id}
-      style={cardStyle(c)}
+      style={{
+        ...cardStyle(c),
+        ...(selectionIndex >= 0
+          ? { outline: "3px solid #7c3aed", outlineOffset: "1px" }
+          : {}),
+      }}
       title={[
         `${dispHHmm(c.start_at)}-${dispHHmm(c.end_at)}`,
         `${c.client_name}：${c.service_code ?? c.service_name ?? ""}`,
-      ].join("\n")}
+        beta ? "ダブルクリックで複数サービスへ選択" : "",
+      ].filter(Boolean).join("\n")}
       onMouseDown={(e) => onCardMouseDownMove(e, c)}
+      onDoubleClick={(e) => {
+        if (!beta) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setMultipleServiceSelectedIds((current) =>
+          current.includes(shiftId)
+            ? current.filter((id) => id !== shiftId)
+            : [...current, shiftId],
+        );
+      }}
     >
-      <div className="text-[15px] font-semibold">
+      <div className="flex items-center gap-1 text-[15px] font-semibold">
         {dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}
+        {beta && c.multiple_service_group_id?.startsWith("ms:") ? (
+          <span className="rounded bg-violet-700 px-1 py-0.5 text-[9px] font-bold leading-none text-white">
+            複数
+          </span>
+        ) : null}
       </div>
+
+      {beta && selectionIndex >= 0 ? (
+        <div className="absolute bottom-1 right-2 z-20 rounded bg-violet-700 px-1.5 py-0.5 text-[9px] font-bold text-white shadow">
+          {selectionIndex + 1}件目選択
+        </div>
+      ) : null}
 
       <button
         type="button"
