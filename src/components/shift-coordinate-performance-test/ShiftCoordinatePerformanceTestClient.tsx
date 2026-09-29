@@ -594,8 +594,6 @@ export default function ShiftCoordinatePerformanceTestClient({ multipleServicesB
           body: JSON.stringify({
             groupId: group.id,
             shiftIds: group.shifts.map((shift) => shift.shift_id),
-            requestedByUserId: accountId,
-            requestedKaipokeUserId: kaipokeUserId || null,
             attendRequest,
             timeAdjustNote: timeAdjustNote ?? null,
           }),
