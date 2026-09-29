@@ -580,7 +580,7 @@ export default function ShiftCoordinatePerformanceTestClient({ multipleServicesB
       try {
         const session = await supabase.auth.getSession();
         const accessToken = session.data.session?.access_token;
-        if (!accessToken || !accountId) {
+        if (!accessToken) {
           alert("ログイン情報を取得できません");
           return;
         }
@@ -612,7 +612,7 @@ export default function ShiftCoordinatePerformanceTestClient({ multipleServicesB
         setCreatingShiftRequest(false);
       }
     },
-    [accountId, kaipokeUserId],
+    [],
   );
 
   const start = (currentPage - 1) * PAGE_SIZE;
