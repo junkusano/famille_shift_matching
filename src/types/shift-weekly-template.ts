@@ -23,6 +23,7 @@ export interface ShiftWeeklyTemplate {
   is_biweekly: boolean | null
   nth_weeks: number[] | null    // [1..5]
   holiday_off: boolean
+  multiple_service_group_id?: string | null
 }
 
 // upsert の受け取り用（template_id は省略可）
@@ -49,4 +50,5 @@ export interface ShiftRow {
   staff_01_role_code: string | null
   staff_02_role_code: string | null
   staff_03_role_code: string | null
+  head_shift_id?: string | null
 }

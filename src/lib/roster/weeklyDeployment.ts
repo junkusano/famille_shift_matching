@@ -12,7 +12,7 @@ export interface ExistingShift extends ShiftRow { shift_id: number }
 
 export interface Candidate extends ShiftRow { template_id: number }
 
-const shiftColumns = 'shift_id,kaipoke_cs_id,shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count,two_person_work_flg,judo_ido,staff_01_user_id,staff_02_user_id,staff_03_user_id,staff_02_attend_flg,staff_03_attend_flg,staff_01_role_code,staff_02_role_code,staff_03_role_code'
+const shiftColumns = 'shift_id,kaipoke_cs_id,shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count,two_person_work_flg,judo_ido,staff_01_user_id,staff_02_user_id,staff_03_user_id,staff_02_attend_flg,staff_03_attend_flg,staff_01_role_code,staff_02_role_code,staff_03_role_code,head_shift_id'
 
 export function monthBounds(month: string) {
   const [year, monthNumber] = month.split('-').map(Number)
@@ -41,6 +41,7 @@ function toShiftRow(template: ShiftWeeklyTemplate, date: string): ShiftRow {
     staff_03_user_id: template.staff_03_user_id, staff_02_attend_flg: template.staff_02_attend_flg,
     staff_03_attend_flg: template.staff_03_attend_flg, staff_01_role_code: template.staff_01_role_code,
     staff_02_role_code: template.staff_02_role_code, staff_03_role_code: template.staff_03_role_code,
+    head_shift_id: template.multiple_service_group_id ?? null,
   }
 }
 

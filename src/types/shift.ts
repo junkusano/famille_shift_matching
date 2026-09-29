@@ -38,6 +38,7 @@ export interface SupabaseShiftRaw {
   applicant_sex?: string | null;
   applicant_control_url?: string | null;
   document_summary?: string | null;
+  multiple_service_group_id?: string | null;
   sms_phone_number?: string | null;
   sms_reply_phone_numbers?: string[];
 }
@@ -86,6 +87,7 @@ export interface ShiftData {
   applicant_sex?: string | null;
   applicant_control_url?: string | null;
   document_summary?: string | null;
+  multiple_service_group_id?: string | null;
   sms_phone_number?: string | null;
   sms_reply_phone_numbers?: string[];
   has_roster_error?: boolean;
