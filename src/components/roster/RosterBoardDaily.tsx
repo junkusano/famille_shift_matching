@@ -606,7 +606,7 @@ console.log(
         }
 
         // mouseup 時のPATCHに src_staff_id を追加
-        function onUp() {
+        function onUp(ev: MouseEvent) {
             if (!drag) return;
             const {
                 cardId,
@@ -617,6 +617,8 @@ console.log(
                 origStartMin,
                 origEndMin,
                 origRowIdx,
+                pointerStartX,
+                pointerStartY,
             } = drag;
             const { shiftId } = parseCardCompositeId(cardId);
             const targetStaff = displayStaff[ghostRowIdx];
@@ -630,8 +632,13 @@ console.log(
                 ghostRowIdx === origRowIdx &&
                 staff_id === srcStaffId;
 
-            // クリックやダブルクリックだけでは保存処理・LINE WORKS通知を起動しない。
-            if (unchanged) {
+            const pointerDistance = Math.hypot(
+                ev.clientX - pointerStartX,
+                ev.clientY - pointerStartY,
+            );
+
+            // クリック・ダブルクリック・小さな手ぶれでは保存処理やLINE WORKS通知を起動しない。
+            if (unchanged || pointerDistance < 8) {
                 setDrag(null);
                 return;
             }
