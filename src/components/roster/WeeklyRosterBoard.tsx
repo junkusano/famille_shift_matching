@@ -2,12 +2,16 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/SearchableSelect";
+
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
-const VIEW_START = 6 * 60;
+const VIEW_START = 0;
 const VIEW_END = 24 * 60;
-const PX_PER_MIN = 1.05;
-const ROW_HEIGHT = 54;
-const NAME_WIDTH = 126;
+const PX_PER_MIN = 2;
+const ROW_HEIGHT = 60;
+const NAME_WIDTH = 112;
+const HEADER_HEIGHT = 40;
+const CARD_VPAD = 4;
 const MIN_DURATION = 10;
 const UNASSIGNED = "__unassigned__";
 
@@ -129,6 +133,14 @@ function WeeklyEditDialog({ value, clients, staff, services, onClose, onSave, on
   const [saving, setSaving] = useState(false);
   const errors = validationErrors(draft);
   const patch = (next: Partial<WeeklyTemplate>) => setDraft((current) => ({ ...current, ...next }));
+  const staffSelectOptions = useMemo<SearchableSelectOption[]>(
+    () => staff.map((person) => ({
+      value: person.id,
+      label: person.name || person.id,
+      searchText: `${person.name} ${person.id}`,
+    })),
+    [staff],
+  );
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
@@ -194,12 +206,16 @@ function WeeklyEditDialog({ value, clients, staff, services, onClose, onSave, on
             const attend = slot === 2 ? "staff_02_attend_flg" : slot === 3 ? "staff_03_attend_flg" : null;
             return (
               <div key={slot} className="rounded-xl border p-3">
-                <label className="text-sm font-medium text-slate-700">担当{slot}
-                  <select className="mt-1 w-full rounded-lg border px-3 py-2" value={draft[field] ?? ""} onChange={(event) => patch({ [field]: event.target.value || null } as Partial<WeeklyTemplate>)}>
-                    <option value="">-- 未設定 --</option>
-                    {staff.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
-                  </select>
-                </label>
+                <div className="text-sm font-medium text-slate-700">担当{slot}</div>
+                <SearchableSelect
+                  className="mt-1"
+                  options={staffSelectOptions}
+                  value={draft[field]}
+                  onChange={(value) => patch({ [field]: value } as Partial<WeeklyTemplate>)}
+                  placeholder="未設定"
+                  searchPlaceholder="担当者名・IDで検索"
+                  ariaLabel={`担当${slot}`}
+                />
                 {attend ? <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={Boolean(draft[attend])} onChange={(event) => patch({ [attend]: event.target.checked } as Partial<WeeklyTemplate>)} />同行</label> : <span className="mt-2 block text-xs text-slate-400">主担当</span>}
               </div>
             );
@@ -266,7 +282,7 @@ export default function WeeklyRosterBoard() {
       const [templateRows, userRows, clientRows, serviceRows] = await Promise.all([
         requestJson<WeeklyTemplate[]>("/api/roster/weekly/templates?active=false"),
         requestJson<Array<Record<string, unknown>>>("/api/users"),
-        requestJson<ClientInfo[]>("/api/kaipoke-info"),
+        requestJson<ClientInfo[]>("/api/roster/weekly/clients"),
         requestJson<Array<Record<string, unknown>>>("/api/shift-service-code"),
       ]);
       setTemplates(templateRows.map(cleanRow));
@@ -445,14 +461,14 @@ export default function WeeklyRosterBoard() {
             </div>
             <div className="grid" style={{ gridTemplateColumns: `${NAME_WIDTH}px minmax(0, 1fr)` }}>
               <div className="border-r bg-white">
-                <div className="flex h-8 items-center border-b px-2 text-xs font-semibold text-slate-500">スタッフ</div>
+                <div className="flex items-center border-b px-2 text-xs font-semibold text-slate-500" style={{ height: HEADER_HEIGHT }}>スタッフ</div>
                 {staffRows.map((person) => <div key={person.id} className={`flex items-center border-b px-2 text-xs ${person.id === UNASSIGNED ? "bg-amber-50 font-semibold text-amber-800" : ""}`} style={{ height: ROW_HEIGHT }} title={person.name}><span className="truncate">{person.name}</span></div>)}
               </div>
               <div className="overflow-x-auto">
-                <div className="relative h-8 border-b bg-white" style={{ width: timeWidth }}>
-                  {Array.from({ length: 19 }, (_, index) => index + 6).map((hour) => <span key={hour} className="absolute top-2 text-[10px] text-slate-500" style={{ left: (hour * 60 - VIEW_START) * PX_PER_MIN + 3 }}>{String(hour).padStart(2, "0")}:00</span>)}
+                <div className="relative border-b bg-white" style={{ width: timeWidth, height: HEADER_HEIGHT }}>
+                  {Array.from({ length: 25 }, (_, hour) => hour).map((hour) => <span key={hour} className="absolute top-2 text-[10px] text-slate-500" style={{ left: (hour * 60 - VIEW_START) * PX_PER_MIN + 3 }}>{String(hour).padStart(2, "0")}:00</span>)}
                 </div>
-                <div className="relative" style={{ width: timeWidth, height: staffRows.length * ROW_HEIGHT, backgroundImage: "repeating-linear-gradient(to right,#e5e7eb 0,#e5e7eb 1px,transparent 1px,transparent 63px)" }}>
+                <div className="relative" style={{ width: timeWidth, height: staffRows.length * ROW_HEIGHT, backgroundImage: "repeating-linear-gradient(to right,#f3f4f6 0,#f3f4f6 1px,transparent 1px,transparent 120px)" }}>
                   {staffRows.map((person, index) => <div key={person.id} className="absolute left-0 right-0 border-b" style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }} />)}
                   {selectedCards.map((card) => {
                     const personIndex = staffRows.findIndex((person) => person.id === card.staffId);
@@ -463,15 +479,15 @@ export default function WeeklyRosterBoard() {
                     const activeDrag = drag && rowKey(drag.row) === rowKey(card.row) && drag.slot === card.slot;
                     const start = activeDrag ? drag.nextStart : toMinutes(card.row.start_time);
                     const end = activeDrag ? drag.nextEnd : toMinutes(card.row.end_time);
-                    const top = (activeDrag ? drag.nextRow : personIndex) * ROW_HEIGHT + 5;
+                    const top = (activeDrag ? drag.nextRow : personIndex) * ROW_HEIGHT + CARD_VPAD;
                     return (
-                      <div key={`${rowKey(card.row)}-${card.slot}`} className="absolute z-10 flex cursor-grab select-none flex-col items-start justify-start gap-0.5 overflow-hidden rounded-md px-2 py-1 text-[10px] text-slate-800 shadow-sm" style={{ left: Math.max(0, start - VIEW_START) * PX_PER_MIN, top, width: Math.max(58, (end - start) * PX_PER_MIN), height: ROW_HEIGHT - 10, opacity: activeDrag ? 0.62 : 0.88, background: cardBackground(card.slot), border: clientGenderBorder(client), mixBlendMode: "multiply" }} title={`${card.row.start_time}-${card.row.end_time} ${client?.name ?? card.row.kaipoke_cs_id}\n${card.row.service_code}\n${recurrenceLabel(card.row)}${errors.length ? `\n不備: ${errors.join("、")}` : ""}`} onMouseDown={(event) => beginDrag(event, card, "move")}>
-                        <strong className="text-[11px]">{card.row.start_time}-{card.row.end_time}</strong>
-                        <button type="button" className={`max-w-[calc(100%_-_18px)] truncate text-left text-[11px] font-semibold underline underline-offset-2 ${errors.length ? "text-red-700 decoration-red-500" : "text-blue-800 decoration-blue-500"}`} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setEditor(card.row); }}>
+                      <div key={`${rowKey(card.row)}-${card.slot}`} className="absolute z-10 flex cursor-grab select-none flex-col items-start justify-start gap-0.5 overflow-hidden rounded-md px-2 py-1 text-slate-800 shadow-sm" style={{ left: Math.max(0, start - VIEW_START) * PX_PER_MIN, top, width: Math.max(2, (end - start) * PX_PER_MIN), height: ROW_HEIGHT - CARD_VPAD * 2, opacity: activeDrag ? 0.62 : 1, background: cardBackground(card.slot), border: clientGenderBorder(client), mixBlendMode: "multiply" }} title={`${card.row.start_time}-${card.row.end_time} ${client?.name ?? card.row.kaipoke_cs_id}\n${card.row.service_code}\n${recurrenceLabel(card.row)}${errors.length ? `\n不備: ${errors.join("、")}` : ""}`} onMouseDown={(event) => beginDrag(event, card, "move")}>
+                        <strong className="text-[15px] leading-[1.15]">{card.row.start_time}-{card.row.end_time}</strong>
+                        <button type="button" className={`max-w-[calc(100%_-_18px)] truncate text-left text-[17px] leading-[1.15] underline underline-offset-2 ${errors.length ? "font-semibold text-red-600 decoration-red-500 hover:text-red-700" : "text-blue-700 decoration-blue-500"}`} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setEditor(card.row); }}>
                           {client?.name ?? card.row.kaipoke_cs_id}：{card.row.service_code}
                         </button>
-                        {errors.length ? <span className="absolute right-3 top-0.5 font-bold text-red-600">!</span> : null}
-                        {area ? <span title={`地域: ${area}`} className="pointer-events-none absolute bottom-px right-px inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full border border-gray-400 bg-white/90 px-1 text-[11px] font-bold leading-none text-gray-700">{area}</span> : null}
+                        {errors.length ? <span className="absolute right-3 top-0.5 text-sm font-bold text-red-600">!</span> : null}
+                        {area ? <span title={`地域: ${area}`} aria-label={`地域 ${area}`} className="pointer-events-none absolute bottom-px right-px z-20 inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full border border-gray-400 bg-white/[0.92] px-1 text-[11px] font-bold leading-none text-gray-700">{area}</span> : null}
                         <span className="absolute right-0 top-0 h-full w-2 cursor-e-resize bg-blue-500/20" onMouseDown={(event) => beginDrag(event, card, "resize")} />
                       </div>
                     );
