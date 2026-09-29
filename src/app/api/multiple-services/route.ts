@@ -114,9 +114,19 @@ function samePattern(left: ShiftRow, right: ShiftRow) {
   );
 }
 
-async function requireUser(req: NextRequest) {
+async function requireManager(req: NextRequest) {
   const auth = await getUserFromBearer(req);
   if (!auth.token || !auth.user?.id) return null;
+
+  const { data: actor, error } = await supabaseAdmin
+    .from("users")
+    .select("system_role")
+    .eq("auth_user_id", auth.user.id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+
+  const role = String(actor?.system_role ?? "").toLowerCase();
+  if (!["admin", "manager"].includes(role)) return null;
   return auth.user;
 }
 
@@ -172,7 +182,7 @@ async function updateWeeklyTemplates(members: ShiftRow[], groupId: string | null
 
 export async function POST(req: NextRequest) {
   try {
-    if (!(await requireUser(req))) {
+    if (!(await requireManager(req))) {
       return NextResponse.json({ ok: false, error: "ログインが必要です" }, { status: 401 });
     }
 
@@ -298,7 +308,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    if (!(await requireUser(req))) {
+    if (!(await requireManager(req))) {
       return NextResponse.json({ ok: false, error: "ログインが必要です" }, { status: 401 });
     }
 
