@@ -194,6 +194,15 @@ export async function POST(req: NextRequest) {
       ? body.groupId
       : null;
     const groupId = existingGroup ?? `${MULTIPLE_SERVICE_PREFIX}${crypto.randomUUID()}`;
+    const selectedConflict = rows.find(
+      (row) => row.head_shift_id && row.head_shift_id !== existingGroup,
+    );
+    if (selectedConflict) {
+      return NextResponse.json(
+        { ok: false, error: "別のグループに登録済みのシフトが含まれています。先にその構成を編集してください" },
+        { status: 409 },
+      );
+    }
 
     if (scope === "single") {
       const { error } = await supabaseAdmin
@@ -228,6 +237,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { ok: false, error: "変更日以降に同じ曜日・時間構成のシフトが見つかりません" },
         { status: 404 },
+      );
+    }
+
+    const futureConflict = completeOccurrences
+      .flatMap((occurrence) => occurrence.rows)
+      .find((row) => row.head_shift_id && row.head_shift_id !== existingGroup);
+    if (futureConflict) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `${futureConflict.shift_start_date}に別グループ登録済みのシフトがあります。その日以降の構成を確認してください`,
+        },
+        { status: 409 },
       );
     }
 
