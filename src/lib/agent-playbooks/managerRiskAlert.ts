@@ -8,7 +8,7 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 const PLAYBOOK_NAME = "草野対応案件のマネジャーアラート";
 const ACTION_NAME = "lineworks.send_manager_risk_alert";
 const MANAGER_CHANNEL_ID = "99142491";
-const KUSANO_LW_USER_ID = "junkusano";
+const KUSANO_USER_ID = "junkusano";
 const EXCLUDED_CHANNEL_IDS = new Set(["135380569"]);
 const EXCLUDED_GROUP_IDS = new Set(["a03bd56b-0433-2139-ec9f-c8fee15cebeb"]);
 
@@ -115,10 +115,10 @@ function isBotAlert(text: string) {
   return /【草野対応案件アラート】|メンション付きの依頼事項に、\d+分以上対応がありません/.test(text);
 }
 
-function isPotentialRiskMessage(log: MessageLog) {
+export function isPotentialRiskMessage(log: MessageLog, kusanoLwUserId: string) {
   const text = cleanText(log.message).replace(/\s+/g, " ");
   if (text.length < 6 || isBotAlert(text)) return false;
-  if (log.user_id === KUSANO_LW_USER_ID
+  if (log.user_id === kusanoLwUserId
     && /(?:してください|して下さい|お願いします|確認|対応|修正|作成|変更|削除|追加|報告|連絡|調べ|進め|止め|やって)/.test(text)) {
     return true;
   }
@@ -208,8 +208,21 @@ function isEligibleRoom(room: Room | undefined) {
     && !room.groupName.includes("【特秘】"));
 }
 
-async function getUserNames(userIds: string[]) {
-  const names = new Map<string, string>([[KUSANO_LW_USER_ID, "草野淳"]]);
+export async function getKusanoLwUserId() {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("lw_userid")
+    .eq("user_id", KUSANO_USER_ID)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  const lwUserId = String(data?.lw_userid ?? "").trim();
+  if (!lwUserId) throw new Error("草野代表のLINE WORKSメンションIDを取得できませんでした。");
+  return lwUserId;
+}
+
+async function getUserNames(userIds: string[], kusanoLwUserId: string) {
+  const names = new Map<string, string>([[kusanoLwUserId, "草野淳"]]);
   for (const chunk of chunks([...new Set(userIds.filter(Boolean))])) {
     const { data, error } = await supabaseAdmin
       .from("user_entry_united_view_single")
@@ -307,7 +320,7 @@ function reasoningEffort(value: string): "low" | "medium" | "high" {
   return value === "high" ? "high" : value === "medium" ? "medium" : "low";
 }
 
-async function analyzePackets(packets: ChannelPacket[], knowledge: KnowledgeItem[]) {
+async function analyzePackets(packets: ChannelPacket[], knowledge: KnowledgeItem[], kusanoLwUserId: string) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const response = await openai.responses.create({
     model: OPENAI_PROFILES.standard.model,
@@ -318,7 +331,7 @@ async function analyzePackets(packets: ChannelPacket[], knowledge: KnowledgeItem
       "あなたは障害福祉事業を運営するファミーユグループの経営リスク確認担当です。",
       "LINE WORKS会話から、草野代表が把握し、判断・指示・介入する必要性が高い具体的案件だけを抽出します。単なる可能性、雑談、通常連絡、お礼、既に解決した事項は出しません。",
       "対象分類は、苦情・トラブル、サービス品質（バックオフィス案件を含む）、草野代表の直接指示が10分以上未回答・未完了、法律・コンプライアンスの疑い、コスト・効率化の懸念、サービス内容の適否など行政確認が必要な事項です。",
-      "草野代表の直接指示はsenderIdがjunkusanoの発言だけです。後続会話で回答・着手・完了が確認できれば対象外です。",
+      `草野代表の直接指示はsenderIdが${kusanoLwUserId}の発言だけです。後続会話で回答・着手・完了が確認できれば対象外です。`,
       "trigger_message_idは各roomのfocusMessageIdsにあるIDだけを使います。同じ案件は1件にまとめ、確度が低い案件は出しません。",
       "関与者は会話に明記された人だけを氏名で列挙し、メンション記法を使いません。責任や違反を断定せず、会話で確認できる事実と疑いを分けます。",
       "incident、impact、preventionは、提供された草野ナレッジ・キーナレッジの判断原則を踏まえます。ナレッジにない事実、法律要件、人物情報を作りません。",
@@ -389,10 +402,10 @@ function formatJst(timestamp: string) {
   }).format(new Date(timestamp));
 }
 
-function alertText(alert: RiskAlert, room: Room, trigger: MessageLog) {
+export function alertText(alert: RiskAlert, room: Room, trigger: MessageLog, kusanoLwUserId: string) {
   const people = alert.involved_people.length > 0 ? alert.involved_people.join("、") : "会話上で特定できず";
   return [
-    `<m userId="${KUSANO_LW_USER_ID}">代表`,
+    `<m userId="${kusanoLwUserId}">代表`,
     "【草野対応案件アラート】",
     `分類：${CATEGORY_LABELS[alert.category]}`,
     `検出時刻：${formatJst(trigger.timestamp)}`,
@@ -444,7 +457,8 @@ export async function runManagerRiskAlerts(options: { now?: Date; dryRun?: boole
   }
 
   const contextMinutes = Math.max(playbook.context_minutes, playbook.session_ttl_minutes);
-  const [recentLogs, processed] = await Promise.all([
+  const [kusanoLwUserId, recentLogs, processed] = await Promise.all([
+    getKusanoLwUserId(),
     getRecentLogs(contextMinutes, now),
     getProcessedMessageIds(playbook.id, new Date(now.getTime() - 24 * 60 * 60_000).toISOString()),
   ]);
@@ -454,14 +468,17 @@ export async function runManagerRiskAlerts(options: { now?: Date; dryRun?: boole
   const focusLogs = eligibleLogs.filter((log) => (
     toMillis(log.timestamp) <= cutoff
     && !processed.has(log.id)
-    && isPotentialRiskMessage(log)
+    && isPotentialRiskMessage(log, kusanoLwUserId)
   ));
   if (focusLogs.length === 0) {
     console.log("[manager-risk-alert] completed: no candidate messages", { recent: recentLogs.length, eligible: eligibleLogs.length });
     return { ok: true, candidates: 0, alerts: 0, sent: 0 };
   }
 
-  const names = await getUserNames(eligibleLogs.flatMap((log) => log.user_id ? [log.user_id] : []));
+  const names = await getUserNames(
+    eligibleLogs.flatMap((log) => log.user_id ? [log.user_id] : []),
+    kusanoLwUserId,
+  );
   const packets = buildPackets({
     logs: eligibleLogs,
     focusLogs,
@@ -481,7 +498,7 @@ export async function runManagerRiskAlerts(options: { now?: Date; dryRun?: boole
   if (!options.dryRun) runId = await createRun(playbook.id, [...focusIds], packets, knowledge);
   let alerts: RiskAlert[];
   try {
-    alerts = (await analyzePackets(packets, knowledge))
+    alerts = (await analyzePackets(packets, knowledge, kusanoLwUserId))
       .filter((alert) => focusIds.has(alert.trigger_message_id))
       .filter((alert, index, values) => values.findIndex((item) => item.trigger_message_id === alert.trigger_message_id) === index);
   } catch (error) {
@@ -528,7 +545,7 @@ export async function runManagerRiskAlerts(options: { now?: Date; dryRun?: boole
     const room = roomByTriggerId.get(alert.trigger_message_id);
     if (!trigger || !room || !accessToken) continue;
     try {
-      await sendLWBotMessage(MANAGER_CHANNEL_ID, alertText(alert, room, trigger), accessToken);
+      await sendLWBotMessage(MANAGER_CHANNEL_ID, alertText(alert, room, trigger, kusanoLwUserId), accessToken);
       sentAlerts.push({ triggerMessageId: alert.trigger_message_id, category: alert.category, groupName: room.groupName });
     } catch (error) {
       failedTriggerIds.add(alert.trigger_message_id);

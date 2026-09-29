@@ -281,16 +281,23 @@ export default function KnowledgeAutomationPage() {
                 {Object.entries(DESTINATION_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
-            {(form.destination === "lineworks_message" || form.destination === "lineworks_board") && (
+            {form.destination === "lineworks_message" && (
               <label className="text-sm font-medium md:col-span-2">LINE WORKSチャンネルID
                 <input
                   value={typeof form.settings?.lineworksChannelId === "string" ? form.settings.lineworksChannelId : ""}
                   onChange={(event) => setForm({ ...form, settings: { ...(form.settings ?? {}), lineworksChannelId: event.target.value.trim() } })}
-                  inputMode="numeric"
                   className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5"
                   placeholder="例：146763225"
                 />
-                <span className="mt-1 block text-xs font-normal text-slate-500">LINE WORKSへ送信するグループまたは掲示先のチャンネルIDです。</span>
+                <span className="mt-1 block text-xs font-normal text-slate-500">LINE WORKSへ送信するグループのチャンネルIDです。</span>
+              </label>
+            )}
+            {form.destination === "lineworks_board" && (
+              <label className="text-sm font-medium md:col-span-2">LINE WORKS掲示板ID
+                <input value={typeof form.settings?.lineworksBoardId === "string" ? form.settings.lineworksBoardId : ""}
+                  onChange={(event) => setForm({ ...form, settings: { ...(form.settings ?? {}), lineworksBoardId: event.target.value.trim() } })}
+                  inputMode="numeric" className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" />
+                <span className="mt-1 block text-xs font-normal text-slate-500">お知らせを掲載する掲示板のIDです。トークのチャンネルIDとは異なります。</span>
               </label>
             )}
             <label className="text-sm font-medium md:col-span-2">説明
