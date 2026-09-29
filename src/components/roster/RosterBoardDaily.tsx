@@ -10,6 +10,7 @@ import type {
     RosterStaff,
 } from "@/types/roster";
 import ShiftDialog from "@/components/roster/ShiftDialog";
+import MultipleServicesBetaPanel from "@/components/roster/MultipleServicesBetaPanel";
 import { useRouter, useSearchParams } from "next/navigation";
 //import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { supabase } from "@/lib/supabaseClient";
@@ -1010,6 +1011,13 @@ const topPx =
   </div>
 </div>
 
+{beta ? (
+  <MultipleServicesBetaPanel
+    date={date}
+    cards={cardsDate === date ? cards : initialView.shifts}
+  />
+) : null}
+
 {/* 盤面 */}
 <div style={gridStyle} ref={outerScrollRef}>
                     {/* 左：氏名列 */}
@@ -1077,8 +1085,13 @@ const topPx =
       ].join("\n")}
       onMouseDown={(e) => onCardMouseDownMove(e, c)}
     >
-      <div className="text-[15px] font-semibold">
+      <div className="flex items-center gap-1 text-[15px] font-semibold">
         {dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}
+        {beta && c.multiple_service_group_id?.startsWith("ms:") ? (
+          <span className="rounded bg-violet-700 px-1 py-0.5 text-[9px] font-bold leading-none text-white">
+            複数
+          </span>
+        ) : null}
       </div>
 
       <button
