@@ -10,7 +10,9 @@ import { createTimeAdjustAlertFromShift } from "@/lib/shift/shift_card_alert";
 import type { ServiceKey } from "@/lib/certificateJudge";
 import type { ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 import type { ShiftData } from "@/types/shift";
+import { buildMultipleServiceItems, type MultipleServiceGroup } from "@/lib/multiple-services";
 import GroupAddButtonPerformanceTest from "./GroupAddButtonPerformanceTest";
+import MultipleServiceShiftCard from "./MultipleServiceShiftCard";
 import ShiftCardPerformanceTest from "./ShiftCardPerformanceTest";
 
 const PAGE_SIZE = 100;
@@ -127,7 +129,11 @@ function summarizeAppliedFilters(filters: AppliedFilters, options: ShiftFilterOp
   return parts;
 }
 
-export default function ShiftCoordinatePerformanceTestClient() {
+type Props = {
+  multipleServicesBeta?: boolean;
+};
+
+export default function ShiftCoordinatePerformanceTestClient({ multipleServicesBeta = false }: Props) {
   const didFetchRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -240,30 +246,48 @@ export default function ShiftCoordinatePerformanceTestClient() {
     };
   }, []);
 
-  const filteredShifts = useMemo(() => {
-    return shifts.filter((shift) => {
-      const shiftDate = parseISO(shift.shift_start_date);
-      const shiftWeekday = String(shiftDate.getDay());
+  const matchesAppliedFilters = useCallback((shift: PerformanceShiftData) => {
+    const shiftDate = parseISO(shift.shift_start_date);
+    const shiftWeekday = String(shiftDate.getDay());
+    const matchesDateFilter =
+      appliedFilters.dateFilterType === "date"
+        ? !appliedFilters.filterDate.length || appliedFilters.filterDate.includes(shift.shift_start_date)
+        : !appliedFilters.filterWeekday.length || appliedFilters.filterWeekday.includes(shiftWeekday);
 
-      const matchesDateFilter =
-        appliedFilters.dateFilterType === "date"
-          ? !appliedFilters.filterDate.length || appliedFilters.filterDate.includes(shift.shift_start_date)
-          : !appliedFilters.filterWeekday.length || appliedFilters.filterWeekday.includes(shiftWeekday);
+    return (
+      matchesDateFilter &&
+      (!appliedFilters.filterService.length || appliedFilters.filterService.includes(shift.service_code)) &&
+      (!appliedFilters.filterPostal.length || appliedFilters.filterPostal.includes(shift.postal_code_3)) &&
+      (!appliedFilters.filterName.length || appliedFilters.filterName.includes(shift.client_name)) &&
+      (!appliedFilters.filterGender.length || appliedFilters.filterGender.includes(shift.gender_request_name))
+    );
+  }, [appliedFilters]);
 
-      return (
-        matchesDateFilter &&
-        (!appliedFilters.filterService.length || appliedFilters.filterService.includes(shift.service_code)) &&
-        (!appliedFilters.filterPostal.length || appliedFilters.filterPostal.includes(shift.postal_code_3)) &&
-        (!appliedFilters.filterName.length || appliedFilters.filterName.includes(shift.client_name)) &&
-        (!appliedFilters.filterGender.length || appliedFilters.filterGender.includes(shift.gender_request_name))
-      );
-    });
-  }, [appliedFilters, shifts]);
+  const filteredShifts = useMemo(
+    () => shifts.filter(matchesAppliedFilters),
+    [matchesAppliedFilters, shifts],
+  );
+
+  const multipleServiceItems = useMemo(
+    () => buildMultipleServiceItems(shifts).filter((item) =>
+      item.kind === "single"
+        ? matchesAppliedFilters(item.shift)
+        : item.shifts.some(matchesAppliedFilters),
+    ),
+    [matchesAppliedFilters, shifts],
+  );
 
   const paginatedShifts = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
     return filteredShifts.slice(start, start + PAGE_SIZE);
   }, [currentPage, filteredShifts]);
+
+  const paginatedMultipleServiceItems = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return multipleServiceItems.slice(start, start + PAGE_SIZE);
+  }, [currentPage, multipleServiceItems]);
+
+  const visibleItemCount = multipleServicesBeta ? multipleServiceItems.length : filteredShifts.length;
 
   const applyFilters = useCallback(() => {
     setAppliedFilters({
@@ -546,6 +570,53 @@ export default function ShiftCoordinatePerformanceTestClient() {
     [accountId, kaipokeUserId],
   );
 
+  const handleMultipleServiceRequest = useCallback(
+    async (
+      group: MultipleServiceGroup<PerformanceShiftData>,
+      attendRequest: boolean,
+      timeAdjustNote?: string,
+    ) => {
+      setCreatingShiftRequest(true);
+      try {
+        const session = await supabase.auth.getSession();
+        const accessToken = session.data.session?.access_token;
+        if (!accessToken || !accountId) {
+          alert("ログイン情報を取得できません");
+          return;
+        }
+
+        const response = await fetch("/api/multiple-services/request", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            groupId: group.id,
+            shiftIds: group.shifts.map((shift) => shift.shift_id),
+            requestedByUserId: accountId,
+            requestedKaipokeUserId: kaipokeUserId || null,
+            attendRequest,
+            timeAdjustNote: timeAdjustNote ?? null,
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+        if (!response.ok || payload?.ok !== true) {
+          throw new Error(payload?.error ?? "複数サービスをまとめて取得できませんでした");
+        }
+
+        const assignedIds = new Set(group.shifts.map((shift) => String(shift.shift_id)));
+        setShifts((current) => current.filter((shift) => !assignedIds.has(String(shift.shift_id))));
+        alert(`${group.title}をまとめて希望しました！`);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "複数サービスをまとめて取得できませんでした");
+      } finally {
+        setCreatingShiftRequest(false);
+      }
+    },
+    [accountId, kaipokeUserId],
+  );
+
   const start = (currentPage - 1) * PAGE_SIZE;
   const selectedFilterCount = [filterDate, filterWeekday, filterService, filterPostal, filterName, filterGender].reduce(
     (total, values) => total + values.length,
@@ -595,6 +666,9 @@ export default function ShiftCoordinatePerformanceTestClient() {
               <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
                 シフ子
                 <span className="ml-2 text-cm-primary-700">シフトコーディネート</span>
+                {multipleServicesBeta ? (
+                  <span className="ml-2 rounded bg-violet-100 px-2 py-1 align-middle text-xs font-bold text-violet-800">複数サービス β版</span>
+                ) : null}
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
                 条件からシフトを探して、入りたい案件をすばやく確認できます。
@@ -602,7 +676,7 @@ export default function ShiftCoordinatePerformanceTestClient() {
             </div>
             <div className="hidden shrink-0 rounded-2xl border border-white/80 bg-white/80 px-4 py-3 text-right shadow-sm sm:block">
               <div className="text-xs font-semibold text-slate-500">該当シフト</div>
-              <div className="mt-1 text-2xl font-bold tabular-nums text-cm-primary-700">{filteredShifts.length}<span className="ml-1 text-sm font-semibold">件</span></div>
+              <div className="mt-1 text-2xl font-bold tabular-nums text-cm-primary-700">{visibleItemCount}<span className="ml-1 text-sm font-semibold">件</span></div>
             </div>
           </div>
         </section>
@@ -846,7 +920,7 @@ export default function ShiftCoordinatePerformanceTestClient() {
             </div>
             <div className="flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm shadow-sm sm:self-auto">
               <span className="text-slate-500">表示件数</span>
-              <span className="font-bold tabular-nums text-slate-900">{filteredShifts.length}件</span>
+              <span className="font-bold tabular-nums text-slate-900">{visibleItemCount}件</span>
             </div>
           </div>
 
@@ -855,23 +929,50 @@ export default function ShiftCoordinatePerformanceTestClient() {
             実際の給与は、個人別時給、同日に複数サービスへ入る場合の移動時間加算等により変動します。
           </div>
 
-          {paginatedShifts.length > 0 ? (
+          {visibleItemCount > 0 ? (
             <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {paginatedShifts.map((shift) => (
-                <ShiftCardPerformanceTest
-                  key={shift.shift_id}
-                  shift={shift}
-                  staffMap={staffMap}
-                  myServiceKeys={myServiceKeys}
-                  userRole={userRole}
-                  creatingRequest={creatingShiftRequest}
-                  onRequest={(attend, note, regular, weeklyShiftId) => {
-                    void handleShiftRequest(shift, attend, note, regular, weeklyShiftId);
-                  }}
-                  enableRegularShiftRequest
-                  extraActions={<GroupAddButtonPerformanceTest shift={shift} />}
-                />
-              ))}
+              {multipleServicesBeta
+                ? paginatedMultipleServiceItems.map((item) =>
+                    item.kind === "multiple-service" ? (
+                      <MultipleServiceShiftCard
+                        key={`${item.date}:${item.id}`}
+                        group={item}
+                        creatingRequest={creatingShiftRequest}
+                        onRequest={(attend, note) => {
+                          void handleMultipleServiceRequest(item, attend, note);
+                        }}
+                      />
+                    ) : (
+                      <ShiftCardPerformanceTest
+                        key={item.shift.shift_id}
+                        shift={item.shift}
+                        staffMap={staffMap}
+                        myServiceKeys={myServiceKeys}
+                        userRole={userRole}
+                        creatingRequest={creatingShiftRequest}
+                        onRequest={(attend, note, regular, weeklyShiftId) => {
+                          void handleShiftRequest(item.shift, attend, note, regular, weeklyShiftId);
+                        }}
+                        enableRegularShiftRequest
+                        extraActions={<GroupAddButtonPerformanceTest shift={item.shift} />}
+                      />
+                    ),
+                  )
+                : paginatedShifts.map((shift) => (
+                    <ShiftCardPerformanceTest
+                      key={shift.shift_id}
+                      shift={shift}
+                      staffMap={staffMap}
+                      myServiceKeys={myServiceKeys}
+                      userRole={userRole}
+                      creatingRequest={creatingShiftRequest}
+                      onRequest={(attend, note, regular, weeklyShiftId) => {
+                        void handleShiftRequest(shift, attend, note, regular, weeklyShiftId);
+                      }}
+                      enableRegularShiftRequest
+                      extraActions={<GroupAddButtonPerformanceTest shift={shift} />}
+                    />
+                  ))}
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500">
@@ -885,7 +986,7 @@ export default function ShiftCoordinatePerformanceTestClient() {
             </Button>
             <span className="text-xs text-slate-500">{currentPage}ページ目</span>
             <Button
-              disabled={start + PAGE_SIZE >= filteredShifts.length}
+              disabled={start + PAGE_SIZE >= visibleItemCount}
               onClick={() => setCurrentPage((page) => page + 1)}
             >
               次へ
