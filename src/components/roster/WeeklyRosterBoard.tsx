@@ -86,18 +86,21 @@ const recurrenceLabel = (row: WeeklyTemplate) => {
   if (row.is_biweekly) return "隔週 1・3・5";
   return "毎週";
 };
-const clientGender = (client?: ClientInfo) => {
-  if (!client) return null;
-  const named = String(client.gender_request_name ?? client.gender_request ?? "").trim();
-  if (named) return named;
-  if (client.female_flg === true && client.male_flg !== true) return "女性限定";
-  if (client.male_flg === true && client.female_flg !== true) return "男性限定";
-  return null;
-};
 const clientArea = (client?: ClientInfo) => {
   if (!client) return null;
   const value = client.dsp_short ?? client.area_short ?? client.area_name ?? client.municipality;
   return value ? String(value) : null;
+};
+const clientGenderBorder = (client?: ClientInfo) => {
+  if (client?.female_flg === true && client?.male_flg === false) return "2px solid #ef4444";
+  if (client?.male_flg === true && client?.female_flg === false) return "2px solid #3b82f6";
+  if (client?.male_flg === true && client?.female_flg === true) return "2px solid #111827";
+  return "1px solid rgba(59, 130, 246, 0.55)";
+};
+const cardBackground = (slot: CardRef["slot"]) => {
+  if (slot === 2) return "rgba(134, 239, 172, 0.45)";
+  if (slot === 3) return "rgba(244, 114, 182, 0.42)";
+  return "rgba(59, 130, 246, 0.28)";
 };
 const cleanRow = (row: WeeklyTemplate): WeeklyTemplate => ({
   ...row,
@@ -111,17 +114,6 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: "no-store", ...init });
   if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
   return response.json() as Promise<T>;
-}
-
-function GenderBadge({ value }: { value: string | null }) {
-  if (!value) return null;
-  const female = value.includes("女");
-  const male = value.includes("男");
-  return (
-    <span title={value} className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${female ? "bg-pink-500" : male ? "bg-blue-500" : "bg-violet-500"}`}>
-      {female ? "♀" : male ? "♂" : "限"}
-    </span>
-  );
 }
 
 function WeeklyEditDialog({ value, clients, staff, services, onClose, onSave, onDelete }: {
@@ -258,6 +250,7 @@ export default function WeeklyRosterBoard() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [clients, setClients] = useState<ClientInfo[]>([]);
   const [services, setServices] = useState<ServiceOption[]>([]);
+  const [selectedDay, setSelectedDay] = useState(1);
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [editor, setEditor] = useState<WeeklyTemplate | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -293,26 +286,32 @@ export default function WeeklyRosterBoard() {
 
   const clientMap = useMemo(() => new Map(clients.map((client) => [String(client.kaipoke_cs_id), client])), [clients]);
   const visibleTemplates = useMemo(() => templates.filter((row) => row.active && visibleInWeek(row, selectedWeek)), [templates, selectedWeek]);
-  const invalidCount = useMemo(() => visibleTemplates.filter((row) => validationErrors(row).length).length, [visibleTemplates]);
+  const dayCounts = useMemo(() => WEEKDAYS.map((_, weekday) => visibleTemplates.filter((row) => row.weekday === weekday).length), [visibleTemplates]);
+  const invalidCount = useMemo(() => visibleTemplates.filter((row) => row.weekday === selectedDay && validationErrors(row).length).length, [visibleTemplates, selectedDay]);
   const timeWidth = (VIEW_END - VIEW_START) * PX_PER_MIN;
 
   const saveRow = useCallback(async (row: WeeklyTemplate) => {
     setSaving(true);
     setMessage(null);
     try {
-      await requestJson("/api/roster/weekly/templates/bulk_upsert", {
+      const result = await requestJson<{ ok: boolean; rows?: WeeklyTemplate[] }>("/api/roster/weekly/templates/bulk_upsert", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows: [cleanRow(row)] }),
       });
+      const saved = cleanRow(result.rows?.[0] ?? row);
+      setTemplates((current) => {
+        const index = current.findIndex((item) => row.template_id ? item.template_id === row.template_id : rowKey(item) === rowKey(row));
+        if (index < 0) return [...current, saved];
+        return current.map((item, itemIndex) => itemIndex === index ? saved : item);
+      });
       setEditor(null);
-      await load();
       setMessage("週間シフトを保存しました");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "保存に失敗しました");
       throw error;
     } finally { setSaving(false); }
-  }, [load]);
+  }, []);
 
   const deleteRow = useCallback(async (row: WeeklyTemplate) => {
     if (!row.template_id || !window.confirm("この週間シフトを削除しますか？")) return;
@@ -321,10 +320,10 @@ export default function WeeklyRosterBoard() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ template_ids: [row.template_id] }),
     });
+    setTemplates((current) => current.filter((item) => item.template_id !== row.template_id));
     setEditor(null);
-    await load();
     setMessage("週間シフトを削除しました");
-  }, [load]);
+  }, []);
 
   const cardRefsForDay = useCallback((weekday: number) => {
     const refs: CardRef[] = [];
@@ -373,18 +372,22 @@ export default function WeeklyRosterBoard() {
       if (current.slot === 0) updated.staff_01_user_id = target.id === UNASSIGNED ? null : target.id;
       else updated[`staff_0${current.slot}_user_id` as "staff_01_user_id" | "staff_02_user_id" | "staff_03_user_id"] = target.id === UNASSIGNED ? null : target.id;
       setTemplates((rows) => rows.map((row) => rowKey(row) === rowKey(updated) ? updated : row));
-      void saveRow(updated).catch(() => load());
+      void saveRow(updated).catch(() => {
+        setTemplates((rows) => rows.map((row) => rowKey(row) === rowKey(updated) ? current.row : row));
+      });
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp, { once: true });
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
-  }, [drag, staffRows, saveRow, load]);
+  }, [drag, staffRows, saveRow]);
 
   const addTemplate = () => setEditor({
-    kaipoke_cs_id: "", weekday: 1, start_time: "09:00", end_time: "10:00", service_code: "", required_staff_count: 1,
+    kaipoke_cs_id: "", weekday: selectedDay, start_time: "09:00", end_time: "10:00", service_code: "", required_staff_count: 1,
     two_person_work_flg: false, judo_ido: null, staff_01_user_id: null, staff_02_user_id: null, staff_03_user_id: null,
     staff_02_attend_flg: false, staff_03_attend_flg: false, active: true, is_biweekly: false, nth_weeks: null, holiday_off: false,
   });
+  const selectedCards = useMemo(() => cardRefsForDay(selectedDay), [cardRefsForDay, selectedDay]);
+  const selectedDayLabel = WEEKDAYS[selectedDay];
 
   return (
     <div className="space-y-3 p-3">
@@ -393,29 +396,52 @@ export default function WeeklyRosterBoard() {
           <h1 className="text-xl font-bold text-slate-900">週間シフト表</h1>
           <p className="text-xs text-slate-500">カードをドラッグして担当・時間を変更、右端をドラッグして所要時間を変更できます</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-slate-600">表示週</span>
-          {[1, 2, 3, 4, 5].map((week) => <button key={week} type="button" onClick={() => setSelectedWeek(week)} className={`rounded-lg border px-3 py-1.5 text-sm ${selectedWeek === week ? "border-blue-600 bg-blue-600 text-white" : "bg-white hover:bg-slate-50"}`}>第{week}週目</button>)}
-          <button type="button" onClick={addTemplate} className="ml-2 rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700">＋ シフト追加</button>
-          <button type="button" onClick={() => void load()} className="rounded-lg border px-3 py-1.5 text-sm hover:bg-slate-50">再読込</button>
-        </div>
+        <button type="button" onClick={addTemplate} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">＋ シフト追加</button>
       </div>
 
+      <section className="rounded-2xl border-2 border-slate-300 bg-gradient-to-b from-white to-slate-50 p-3 shadow-sm">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold tracking-[0.18em] text-slate-500">曜日を選択</p>
+            <p className="text-sm text-slate-600">選んだ曜日だけを表示します</p>
+          </div>
+          <span className="rounded-full bg-slate-900 px-3 py-1 text-sm font-bold text-white">{selectedDayLabel}曜日</span>
+        </div>
+        <div className="overflow-x-auto pb-1">
+          <div className="grid min-w-[560px] grid-cols-7 gap-2">
+            {WEEKDAYS.map((day, weekday) => (
+              <button
+                key={day}
+                type="button"
+                aria-pressed={selectedDay === weekday}
+                onClick={() => setSelectedDay(weekday)}
+                className={`min-h-16 rounded-xl border-2 px-3 py-2 text-lg font-black transition ${selectedDay === weekday ? "border-slate-900 bg-slate-900 text-white shadow-md" : weekday === 0 ? "border-red-200 bg-red-50 text-red-700 hover:border-red-400" : weekday === 6 ? "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-400" : "border-slate-200 bg-white text-slate-800 hover:border-slate-400"}`}
+              >
+                <span className="block">{day}</span>
+                <span className={`mt-0.5 block text-[11px] font-semibold ${selectedDay === weekday ? "text-slate-200" : "text-slate-500"}`}>{dayCounts[weekday]}件</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
+          <span className="mr-1 text-sm font-bold text-slate-700">表示週</span>
+          {[1, 2, 3, 4, 5].map((week) => <button key={week} type="button" aria-pressed={selectedWeek === week} onClick={() => setSelectedWeek(week)} className={`rounded-lg border px-4 py-2 text-sm font-semibold ${selectedWeek === week ? "border-blue-600 bg-blue-600 text-white shadow-sm" : "bg-white hover:bg-slate-50"}`}>第{week}週目</button>)}
+          <span className="ml-auto text-xs text-violet-700">隔週は第1・3・5週に表示</span>
+        </div>
+      </section>
+
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="rounded-full border bg-slate-50 px-2 py-1">表示 {visibleTemplates.length}件</span>
-        <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-violet-700">隔週は第1・3・5週に表示</span>
+        <span className="rounded-full border bg-slate-50 px-2 py-1">{selectedDayLabel}曜日・第{selectedWeek}週目：{selectedCards.length}枠</span>
         {invalidCount ? <span className="rounded-full border border-red-200 bg-red-50 px-2 py-1 font-semibold text-red-700">入力不備 {invalidCount}件</span> : null}
         {saving ? <span className="text-blue-600">保存中…</span> : null}
         {message ? <span className={message.includes("失敗") || message.startsWith("HTTP") ? "text-red-600" : "text-emerald-700"}>{message}</span> : null}
       </div>
 
-      {loading ? <div className="rounded-xl border bg-white p-10 text-center text-slate-500">週間シフトを読み込んでいます…</div> : WEEKDAYS.map((day, weekday) => {
-        const cards = cardRefsForDay(weekday);
-        return (
-          <section key={day} className="overflow-hidden rounded-xl border bg-white shadow-sm">
-            <div className={`sticky top-0 z-20 flex items-center justify-between border-b px-3 py-2 ${weekday === 0 ? "bg-red-50" : weekday === 6 ? "bg-blue-50" : "bg-slate-50"}`}>
-              <h2 className={`font-bold ${weekday === 0 ? "text-red-700" : weekday === 6 ? "text-blue-700" : "text-slate-800"}`}>{day}曜日</h2>
-              <span className="text-xs text-slate-500">{cards.length}枠</span>
+      {loading ? <div className="rounded-xl border bg-white p-10 text-center text-slate-500">週間シフトを読み込んでいます…</div> : (
+          <section className="overflow-hidden rounded-xl border bg-white shadow-sm">
+            <div className={`sticky top-0 z-20 flex items-center justify-between border-b px-4 py-3 ${selectedDay === 0 ? "bg-red-50" : selectedDay === 6 ? "bg-blue-50" : "bg-slate-50"}`}>
+              <h2 className={`text-lg font-bold ${selectedDay === 0 ? "text-red-700" : selectedDay === 6 ? "text-blue-700" : "text-slate-800"}`}>{selectedDayLabel}曜日</h2>
+              <span className="text-sm text-slate-500">{selectedCards.length}枠</span>
             </div>
             <div className="grid" style={{ gridTemplateColumns: `${NAME_WIDTH}px minmax(0, 1fr)` }}>
               <div className="border-r bg-white">
@@ -428,23 +454,24 @@ export default function WeeklyRosterBoard() {
                 </div>
                 <div className="relative" style={{ width: timeWidth, height: staffRows.length * ROW_HEIGHT, backgroundImage: "repeating-linear-gradient(to right,#e5e7eb 0,#e5e7eb 1px,transparent 1px,transparent 63px)" }}>
                   {staffRows.map((person, index) => <div key={person.id} className="absolute left-0 right-0 border-b" style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }} />)}
-                  {cards.map((card) => {
+                  {selectedCards.map((card) => {
                     const personIndex = staffRows.findIndex((person) => person.id === card.staffId);
                     if (personIndex < 0) return null;
                     const client = clientMap.get(String(card.row.kaipoke_cs_id));
                     const errors = validationErrors(card.row);
-                    const gender = clientGender(client);
                     const area = clientArea(client);
                     const activeDrag = drag && rowKey(drag.row) === rowKey(card.row) && drag.slot === card.slot;
                     const start = activeDrag ? drag.nextStart : toMinutes(card.row.start_time);
                     const end = activeDrag ? drag.nextEnd : toMinutes(card.row.end_time);
                     const top = (activeDrag ? drag.nextRow : personIndex) * ROW_HEIGHT + 5;
                     return (
-                      <div key={`${rowKey(card.row)}-${card.slot}`} className={`absolute z-10 flex cursor-grab select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 py-1 text-[10px] shadow-sm ${errors.length ? "border-red-500 bg-red-50 text-red-800" : "border-blue-300 bg-blue-100 text-slate-800"}`} style={{ left: Math.max(0, start - VIEW_START) * PX_PER_MIN, top, width: Math.max(58, (end - start) * PX_PER_MIN), height: ROW_HEIGHT - 10, opacity: activeDrag ? 0.7 : 1 }} title={`${card.row.start_time}-${card.row.end_time} ${client?.name ?? card.row.kaipoke_cs_id}\n${card.row.service_code}\n${recurrenceLabel(card.row)}${errors.length ? `\n不備: ${errors.join("、")}` : ""}`} onMouseDown={(event) => beginDrag(event, card, "move")}>
-                        <GenderBadge value={gender} />
-                        {area ? <span title={`地域: ${area}`} className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-emerald-400 bg-white px-1 font-bold text-emerald-700">{area.slice(0, 2)}</span> : null}
-                        <span className="min-w-0 flex-1 truncate"><strong>{card.row.start_time}-{card.row.end_time}</strong><br />{client?.name ?? card.row.kaipoke_cs_id}・{card.row.service_code}</span>
-                        {errors.length ? <span className="font-bold text-red-600">!</span> : null}
+                      <div key={`${rowKey(card.row)}-${card.slot}`} className="absolute z-10 flex cursor-grab select-none flex-col items-start justify-start gap-0.5 overflow-hidden rounded-md px-2 py-1 text-[10px] text-slate-800 shadow-sm" style={{ left: Math.max(0, start - VIEW_START) * PX_PER_MIN, top, width: Math.max(58, (end - start) * PX_PER_MIN), height: ROW_HEIGHT - 10, opacity: activeDrag ? 0.62 : 0.88, background: cardBackground(card.slot), border: clientGenderBorder(client), mixBlendMode: "multiply" }} title={`${card.row.start_time}-${card.row.end_time} ${client?.name ?? card.row.kaipoke_cs_id}\n${card.row.service_code}\n${recurrenceLabel(card.row)}${errors.length ? `\n不備: ${errors.join("、")}` : ""}`} onMouseDown={(event) => beginDrag(event, card, "move")}>
+                        <strong className="text-[11px]">{card.row.start_time}-{card.row.end_time}</strong>
+                        <button type="button" className={`max-w-[calc(100%_-_18px)] truncate text-left text-[11px] font-semibold underline underline-offset-2 ${errors.length ? "text-red-700 decoration-red-500" : "text-blue-800 decoration-blue-500"}`} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setEditor(card.row); }}>
+                          {client?.name ?? card.row.kaipoke_cs_id}：{card.row.service_code}
+                        </button>
+                        {errors.length ? <span className="absolute right-3 top-0.5 font-bold text-red-600">!</span> : null}
+                        {area ? <span title={`地域: ${area}`} className="pointer-events-none absolute bottom-px right-px inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full border border-gray-400 bg-white/90 px-1 text-[11px] font-bold leading-none text-gray-700">{area}</span> : null}
                         <span className="absolute right-0 top-0 h-full w-2 cursor-e-resize bg-blue-500/20" onMouseDown={(event) => beginDrag(event, card, "resize")} />
                       </div>
                     );
@@ -453,8 +480,7 @@ export default function WeeklyRosterBoard() {
               </div>
             </div>
           </section>
-        );
-      })}
+      )}
 
       {editor ? <WeeklyEditDialog value={editor} clients={clients} staff={staff} services={services} onClose={() => setEditor(null)} onSave={saveRow} onDelete={deleteRow} /> : null}
     </div>
