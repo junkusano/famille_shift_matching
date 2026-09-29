@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import type { RosterShiftCard } from "@/types/roster";
 import { supabase } from "@/lib/supabaseClient";
 import {
@@ -18,6 +18,8 @@ type PanelShift = MultipleServiceSource & {
 type Props = {
   date: string;
   cards: RosterShiftCard[];
+  selectedIds: number[];
+  setSelectedIds: Dispatch<SetStateAction<number[]>>;
 };
 
 function uniqueShifts(cards: RosterShiftCard[]): PanelShift[] {
@@ -43,13 +45,12 @@ function uniqueShifts(cards: RosterShiftCard[]): PanelShift[] {
   );
 }
 
-export default function MultipleServicesBetaPanel({ date, cards }: Props) {
+export default function MultipleServicesBetaPanel({ date, cards, selectedIds, setSelectedIds }: Props) {
   const shifts = useMemo(() => uniqueShifts(cards), [cards]);
   const items = useMemo(() => buildMultipleServiceItems(shifts), [shifts]);
   const groups = items.filter(
     (item): item is MultipleServiceGroup<PanelShift> => item.kind === "multiple-service",
   );
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [scope, setScope] = useState<"single" | "future">("future");
   const [saving, setSaving] = useState(false);
@@ -150,7 +151,7 @@ export default function MultipleServicesBetaPanel({ date, cards }: Props) {
             </span>
           </div>
           <p className="mt-1 text-xs text-violet-800">
-            名称・時間・利用者・サービスは自動生成します。個別シフトの編集は下のシフト表から従来どおり行えます。
+            シフトカードをダブルクリックすると、1件目・2件目の順に選択できます。名称・時間・利用者・サービスは自動生成します。
           </p>
         </div>
         <span className="rounded-full border border-violet-200 bg-white px-2 py-1 text-xs text-violet-800">
