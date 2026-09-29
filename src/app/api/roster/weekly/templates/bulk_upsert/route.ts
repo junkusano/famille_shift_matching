@@ -17,6 +17,27 @@ export async function POST(req: Request) {
 
     const rows: ShiftWeeklyTemplateUpsert[] = body.rows;
 
+    // 週間シフト表からの1件更新はIDを維持したまま更新する。
+    // 画面側は返却行だけを差し替えられるため、全件再読込は不要になる。
+    if (rows.length === 1 && typeof rows[0].template_id === "number") {
+      const { template_id, ...changes } = rows[0];
+      const { data: savedRow, error: updateErr } = await supabaseAdmin
+        .from("shift_weekly_template")
+        .update({ holiday_off: false, ...changes })
+        .eq("template_id", template_id)
+        .select("*")
+        .single();
+
+      if (updateErr) {
+        return NextResponse.json(
+          { error: `update failed: ${updateErr.message}` },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ ok: true, rows: savedRow ? [savedRow] : [] });
+    }
+
     // 1) 既存ID（上書き対象の旧レコード）を削除
     const idsToDelete = rows
       .map((r) => r.template_id)
@@ -46,18 +67,19 @@ export async function POST(req: Request) {
       }
     );
 
-    const { error: upsertErr } = await supabaseAdmin
+    const { data: savedRows, error: upsertErr } = await supabaseAdmin
       .from("shift_weekly_template")
       .upsert(upsertRows, {
         onConflict: "kaipoke_cs_id, weekday, start_time, required_staff_count",
         ignoreDuplicates: false,
-      });
+      })
+      .select("*");
 
     if (upsertErr) {
       return NextResponse.json({ error: upsertErr.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, rows: savedRows ?? [] });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "unexpected error";
     return NextResponse.json({ error: message }, { status: 500 });
