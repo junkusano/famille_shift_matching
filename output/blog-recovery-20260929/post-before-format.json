@@ -1,0 +1,200 @@
+{
+  "id": 2055,
+  "date": "2026-09-29T11:28:31",
+  "date_gmt": "2026-09-29T02:28:31",
+  "guid": {
+    "rendered": "https://shi-on.net/smart-ai-20260929-7cb7b764/",
+    "raw": "https://shi-on.net/smart-ai-20260929-7cb7b764/"
+  },
+  "modified": "2026-09-29T11:28:31",
+  "modified_gmt": "2026-09-29T02:28:31",
+  "password": "",
+  "slug": "smart-ai-20260929-7cb7b764",
+  "status": "publish",
+  "type": "post",
+  "link": "https://shi-on.net/smart-ai-20260929-7cb7b764/",
+  "title": {
+    "raw": "AI小説が「説明的で面白くない」とき、足りないのは想像力ではなく設計かもしれない",
+    "rendered": "AI小説が「説明的で面白くない」とき、足りないのは想像力ではなく設計かもしれない"
+  },
+  "content": {
+    "raw": "<p><strong>現在のAIが説明を補いすぎることと、AIに創作的な表現ができないことは同じではない。経営でも創作でも、AIの出力を固定的な能力として採点するのではなく、役割、情報、工程、評価基準をどう設計するかが使い手の仕事になる。</strong></p>\n<h2>AIを一括で完成品へ向かわせない製品設計が、すでに始まっている</h2>\n<p>2026年9月、LM StudioはAIエージェント「Bionic」に、利用者とAIが同じ画面で編集できるインタラクティブなキャンバスを追加したと発表しました。PC Watchが報じた内容によれば、利用者はキャンバス上で図を作成・編集し、その図を基にAIへ実装を指示できます。<br><br>これは小説生成のために作られた機能ではありません。しかし、一つ重要な示唆があります。AIへ最初から完成品を求めるのではなく、構想を置く段階、形にする段階、実装する段階を分け、人が途中で関わる設計が製品にも現れ始めているということです。<br><br>OpenRouterが公開した匿名モデル「Space Bunny Alpha」も、長いコンテキストや推論強度の調整を掲げています。これだけで創作力が証明されるわけではありませんが、AIの出力はモデル名だけで決まらず、どれだけの背景を渡すか、どのような推論設定で動かすかによって変わり得ます。</p>\n<h2>「説明的」は、AIの本質ではなく標準設定の副作用ではないか</h2>\n<p>AIが書く小説について、「状況も感情も説明しすぎる」「行間がなく、読者が考える余地がない」という評価があります。その違和感自体はもっともです。人物が悲しい理由、相手の表情の意味、場面の結論まで文章が先回りして説明すれば、読者は物語に参加しにくくなります。<br><br>ただし、ここで区別すべきことがあります。現在のAIがそう書きがちであることと、AIが本質的に想像力を持てないことは別です。<br><br>多くの対話AIは、質問に対して不足のない、親切で分かりやすい答えを返すように使われます。通常の業務なら、前提を補い、理由を説明し、誤解を減らす出力は価値になります。しかし小説では、その親切さが余計になることがある。登場人物が「私は裏切られて悲しかった」と語るより、湯気の消えたカップを片付けずにいる姿だけを置いた方が、読者に届くことがあるからです。<br><br>AIが説明を増やす傾向を見て、創作には使えないと結論づけるのは、表計算ソフトへ詩を書かせて「文学が苦手だ」と評することに近い面があります。用途に対して、出力の設計が合っていない可能性を先に疑うべきです。</p>\n<h2>創作で設計すべきなのは、言葉の巧拙より「読者に渡す情報の順番」である</h2>\n<p>私は、AIに創作をさせるときに最初に決めるべきなのは、「面白く書いて」という抽象的な指示ではないと考えます。誰が何を知っているのか。読者には何をまだ知らせないのか。感情は言葉にさせるのか、行動や物だけで見せるのか。その情報設計です。<br><br>例えば、家族の間に起きた対立を描く場面を考えます。AIへ最初から「家族の秘密が明らかになる感動的な場面を書いて」と依頼すれば、秘密の内容、登場人物の感情、和解の意味まで、整然と説明した文章を返しやすいでしょう。<br><br>代わりに、工程を分けます。最初の工程では、読者に見せる物だけを決めます。食卓に人数分より一つ少ない皿がある。玄関に濡れた傘が二本ある。誰かがスマートフォンを伏せて置く。次の工程では、登場人物の内面を書かず、視線、手の動き、沈黙、音だけで短い場面を書く。そして最後に、人が読んで「この説明は読者が推測できる」と判断した部分を削るのです。<br><br>このときAIに求めているのは、完成した作品を一度で提出することではありません。制約の中で複数の可能性を出すことです。人は、その中から物語に残す沈黙を選ぶ。AIが文章量を増やす役なら、人は余白を守る編集者になります。<br><br>さらに、章ごとにAIへ許可する情報を変えることもできます。第一章では、主人公が知っている事実だけを書く。第二章では、別の人物の行動を見せるが、その理由は説明しない。終盤になって初めて、前の場面に別の意味を与える情報を出す。この順番を守らせれば、AIが持つ情報を先回りして全部語ってしまう問題を抑えられます。<br><br>重要なのは、AIに「想像力があるか、ないか」という二択を迫ることではありません。何を想像させるか、どこで止めるか、どの出力を不採用にするかを、人が具体的に決めることです。</p>\n<h2>AIの不得手を見つけたとき、経営者や編集者が先に問うべきこと</h2>\n<ul><li>能力不足と判定する前に、AIへ渡した情報、出力形式、途中の確認工程を分解する。「一度で完成させる」依頼になっていないかを見直す。</li>\n<li>創作や企画では、完成原稿を最初に求めない。素材の列挙、視点の選択、情報開示の順番、場面の下書き、説明の削除というように、仕事を工程へ分ける。</li>\n<li>感情を説明する文章を減らしたいなら、「悲しい」「不安」「安心した」といった感情語を使わず、目に見える動作、物、音、会話だけで書くなど、守れる制約に変える。</li>\n<li>評価基準を「自然な文章か」だけにしない。読者が推測できる余地を残せているか、早すぎる種明かしがないか、削っても意味が残る説明はないかを別々に見る。`,`AIの弱点を発見したら、その弱点を恒久的な限界として社内方針にしない。モデル、ツール、指示方法、評価方法のどこを変えれば改善する余地があるかを、小さく試して判断する。</li></ul>\n<h2>結論</h2>\n<p>AIが書いた文章が説明的で面白くないなら、まず疑うべきはAIの想像力ではなく、私たちがAIへ与えた仕事の設計です。AIを避けるか、人間の代わりに完成品を書かせるかという二択ではなく、想像させる範囲、説明させない範囲、情報を開示する順番、人が削るべき箇所を設計する。その仕事ができる側ほど、技術の進歩を自分たちの表現と経営の力へ変えられると考えます。<br><br>これは創作だけの話ではありません。AIが「今は苦手」に見える業務に出会ったとき、そこで利用を止めるのか、役割を分け、途中で人が判断し、改善できる工程をつくるのか。後者を選べる組織は、現在の出力を限界だと誤認せず、変化する技術を使いこなしていけるはずです。</p>\n<h2>外部参考情報</h2>\n<ul><li><a href=\"https://openrouter.ai/stealth/space-bunny-alpha\" target=\"_blank\" rel=\"noopener noreferrer\">Space Bunny Alpha - API Pricing &amp; Providers | OpenRouter</a></li>\n<li><a href=\"https://pc.watch.impress.co.jp/docs/news/2143914.html\" target=\"_blank\" rel=\"noopener noreferrer\">LM Studio、Bionicに共同キャンバス。図から直接実装可能に - PC Watch</a></li>\n<li><a href=\"https://opencode.ai/ja/data/unknown/space-bunny\" target=\"_blank\" rel=\"noopener noreferrer\">space-bunnyの使用量、コスト、ランク | OpenCodeデータ</a></li></ul>",
+    "rendered": "<p><strong>現在のAIが説明を補いすぎることと、AIに創作的な表現ができないことは同じではない。経営でも創作でも、AIの出力を固定的な能力として採点するのではなく、役割、情報、工程、評価基準をどう設計するかが使い手の仕事になる。</strong></p>\n<h2>AIを一括で完成品へ向かわせない製品設計が、すでに始まっている</h2>\n<p>2026年9月、LM StudioはAIエージェント「Bionic」に、利用者とAIが同じ画面で編集できるインタラクティブなキャンバスを追加したと発表しました。PC Watchが報じた内容によれば、利用者はキャンバス上で図を作成・編集し、その図を基にAIへ実装を指示できます。</p>\n<p>これは小説生成のために作られた機能ではありません。しかし、一つ重要な示唆があります。AIへ最初から完成品を求めるのではなく、構想を置く段階、形にする段階、実装する段階を分け、人が途中で関わる設計が製品にも現れ始めているということです。</p>\n<p>OpenRouterが公開した匿名モデル「Space Bunny Alpha」も、長いコンテキストや推論強度の調整を掲げています。これだけで創作力が証明されるわけではありませんが、AIの出力はモデル名だけで決まらず、どれだけの背景を渡すか、どのような推論設定で動かすかによって変わり得ます。</p>\n<h2>「説明的」は、AIの本質ではなく標準設定の副作用ではないか</h2>\n<p>AIが書く小説について、「状況も感情も説明しすぎる」「行間がなく、読者が考える余地がない」という評価があります。その違和感自体はもっともです。人物が悲しい理由、相手の表情の意味、場面の結論まで文章が先回りして説明すれば、読者は物語に参加しにくくなります。</p>\n<p>ただし、ここで区別すべきことがあります。現在のAIがそう書きがちであることと、AIが本質的に想像力を持てないことは別です。</p>\n<p>多くの対話AIは、質問に対して不足のない、親切で分かりやすい答えを返すように使われます。通常の業務なら、前提を補い、理由を説明し、誤解を減らす出力は価値になります。しかし小説では、その親切さが余計になることがある。登場人物が「私は裏切られて悲しかった」と語るより、湯気の消えたカップを片付けずにいる姿だけを置いた方が、読者に届くことがあるからです。</p>\n<p>AIが説明を増やす傾向を見て、創作には使えないと結論づけるのは、表計算ソフトへ詩を書かせて「文学が苦手だ」と評することに近い面があります。用途に対して、出力の設計が合っていない可能性を先に疑うべきです。</p>\n<h2>創作で設計すべきなのは、言葉の巧拙より「読者に渡す情報の順番」である</h2>\n<p>私は、AIに創作をさせるときに最初に決めるべきなのは、「面白く書いて」という抽象的な指示ではないと考えます。誰が何を知っているのか。読者には何をまだ知らせないのか。感情は言葉にさせるのか、行動や物だけで見せるのか。その情報設計です。</p>\n<p>例えば、家族の間に起きた対立を描く場面を考えます。AIへ最初から「家族の秘密が明らかになる感動的な場面を書いて」と依頼すれば、秘密の内容、登場人物の感情、和解の意味まで、整然と説明した文章を返しやすいでしょう。</p>\n<p>代わりに、工程を分けます。最初の工程では、読者に見せる物だけを決めます。食卓に人数分より一つ少ない皿がある。玄関に濡れた傘が二本ある。誰かがスマートフォンを伏せて置く。次の工程では、登場人物の内面を書かず、視線、手の動き、沈黙、音だけで短い場面を書く。そして最後に、人が読んで「この説明は読者が推測できる」と判断した部分を削るのです。</p>\n<p>このときAIに求めているのは、完成した作品を一度で提出することではありません。制約の中で複数の可能性を出すことです。人は、その中から物語に残す沈黙を選ぶ。AIが文章量を増やす役なら、人は余白を守る編集者になります。</p>\n<p>さらに、章ごとにAIへ許可する情報を変えることもできます。第一章では、主人公が知っている事実だけを書く。第二章では、別の人物の行動を見せるが、その理由は説明しない。終盤になって初めて、前の場面に別の意味を与える情報を出す。この順番を守らせれば、AIが持つ情報を先回りして全部語ってしまう問題を抑えられます。</p>\n<p>重要なのは、AIに「想像力があるか、ないか」という二択を迫ることではありません。何を想像させるか、どこで止めるか、どの出力を不採用にするかを、人が具体的に決めることです。</p>\n<h2>AIの不得手を見つけたとき、経営者や編集者が先に問うべきこと</h2>\n<ul>\n<li>能力不足と判定する前に、AIへ渡した情報、出力形式、途中の確認工程を分解する。「一度で完成させる」依頼になっていないかを見直す。</li>\n<li>創作や企画では、完成原稿を最初に求めない。素材の列挙、視点の選択、情報開示の順番、場面の下書き、説明の削除というように、仕事を工程へ分ける。</li>\n<li>感情を説明する文章を減らしたいなら、「悲しい」「不安」「安心した」といった感情語を使わず、目に見える動作、物、音、会話だけで書くなど、守れる制約に変える。</li>\n<li>評価基準を「自然な文章か」だけにしない。読者が推測できる余地を残せているか、早すぎる種明かしがないか、削っても意味が残る説明はないかを別々に見る。`,`AIの弱点を発見したら、その弱点を恒久的な限界として社内方針にしない。モデル、ツール、指示方法、評価方法のどこを変えれば改善する余地があるかを、小さく試して判断する。</li>\n</ul>\n<h2>結論</h2>\n<p>AIが書いた文章が説明的で面白くないなら、まず疑うべきはAIの想像力ではなく、私たちがAIへ与えた仕事の設計です。AIを避けるか、人間の代わりに完成品を書かせるかという二択ではなく、想像させる範囲、説明させない範囲、情報を開示する順番、人が削るべき箇所を設計する。その仕事ができる側ほど、技術の進歩を自分たちの表現と経営の力へ変えられると考えます。</p>\n<p>これは創作だけの話ではありません。AIが「今は苦手」に見える業務に出会ったとき、そこで利用を止めるのか、役割を分け、途中で人が判断し、改善できる工程をつくるのか。後者を選べる組織は、現在の出力を限界だと誤認せず、変化する技術を使いこなしていけるはずです。</p>\n<h2>外部参考情報</h2>\n<ul>\n<li><a href=\"https://openrouter.ai/stealth/space-bunny-alpha\" target=\"_blank\" rel=\"noopener noreferrer\">Space Bunny Alpha &#8211; API Pricing &amp; Providers | OpenRouter</a></li>\n<li><a href=\"https://pc.watch.impress.co.jp/docs/news/2143914.html\" target=\"_blank\" rel=\"noopener noreferrer\">LM Studio、Bionicに共同キャンバス。図から直接実装可能に &#8211; PC Watch</a></li>\n<li><a href=\"https://opencode.ai/ja/data/unknown/space-bunny\" target=\"_blank\" rel=\"noopener noreferrer\">space-bunnyの使用量、コスト、ランク | OpenCodeデータ</a></li>\n</ul>\n",
+    "protected": false,
+    "block_version": 0
+  },
+  "excerpt": {
+    "raw": "AIが書く文章を「説明的で面白くない」と感じたとき、それをAIの創造性の限界と決めつけるのは早い。AIに何を想像させ、何を説明させず、読者へいつ情報を渡すかまで設計して初めて、生成AIは創作の道具として評価できる。",
+    "rendered": "<p>AIが書く文章を「説明的で面白くない」と感じたとき、それをAIの創造性の限界と決めつけるのは早い。AIに何を想像させ、何を説明させず、読者へいつ情報を渡すかまで設計して初めて、生成AIは創作の道具として評価できる。</p>\n",
+    "protected": false
+  },
+  "author": 1,
+  "featured_media": 2054,
+  "comment_status": "open",
+  "ping_status": "open",
+  "sticky": false,
+  "template": "",
+  "format": "standard",
+  "meta": {
+    "_monsterinsights_skip_tracking": false,
+    "_themeisle_gutenberg_block_has_review": false,
+    "_jetpack_newsletter_access": "",
+    "_jetpack_dont_email_post_to_subs": false,
+    "_jetpack_newsletter_tier_id": 0,
+    "_jetpack_memberships_contains_paywalled_content": false,
+    "_jetpack_feature_clip_id": 0,
+    "_jetpack_memberships_contains_paid_content": false,
+    "footnotes": "",
+    "jetpack_publicize_message": "",
+    "jetpack_publicize_feature_enabled": true,
+    "jetpack_social_post_already_shared": true,
+    "jetpack_social_options": {
+      "image_generator_settings": {
+        "template": "highway",
+        "default_image_id": 0,
+        "font": "",
+        "enabled": false
+      },
+      "version": 2
+    },
+    "jetpack_post_was_ever_published": false
+  },
+  "categories": [
+    26,
+    24
+  ],
+  "tags": [],
+  "permalink_template": "https://shi-on.net/%postname%/",
+  "generated_slug": "ai小説が「説明的で面白くない」とき、足りないの",
+  "class_list": [
+    "post-2055",
+    "post",
+    "type-post",
+    "status-publish",
+    "format-standard",
+    "has-post-thumbnail",
+    "hentry",
+    "category-dx-operations",
+    "category-column"
+  ],
+  "jetpack_publicize_connections": [],
+  "jetpack_likes_enabled": true,
+  "jetpack_shortlink": "https://wp.me/pbtA3X-x9",
+  "jetpack-related-posts": [],
+  "jetpack_sharing_enabled": true,
+  "jetpack_featured_media_url": "https://i0.wp.com/shi-on.net/wp-content/uploads/2026/09/smart-ai-20260929-7cb7b764.webp?fit=1536%2C1024&ssl=1",
+  "_links": {
+    "self": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2055",
+        "targetHints": {
+          "allow": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/types/post"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/comments?post=2055"
+      }
+    ],
+    "version-history": [
+      {
+        "count": 0,
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2055/revisions"
+      }
+    ],
+    "wp:featuredmedia": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/media/2054"
+      }
+    ],
+    "wp:attachment": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/media?parent=2055"
+      }
+    ],
+    "wp:term": [
+      {
+        "taxonomy": "category",
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/categories?post=2055"
+      },
+      {
+        "taxonomy": "post_tag",
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/tags?post=2055"
+      }
+    ],
+    "wp:action-publish": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2055"
+      }
+    ],
+    "wp:action-unfiltered-html": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2055"
+      }
+    ],
+    "wp:action-sticky": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2055"
+      }
+    ],
+    "wp:action-assign-author": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2055"
+      }
+    ],
+    "wp:action-create-categories": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2055"
+      }
+    ],
+    "wp:action-assign-categories": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2055"
+      }
+    ],
+    "wp:action-create-tags": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2055"
+      }
+    ],
+    "wp:action-assign-tags": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2055"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

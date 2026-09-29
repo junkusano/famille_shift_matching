@@ -19,6 +19,10 @@ import {
     calculateTeamServiceHoursScore,
     calculateTeamVisitRecordScore,
 } from "@/lib/performance/teamScoreRules";
+import {
+    findStaleTeamSummaryIds,
+    resolveLatestTeamOrgunitId,
+} from "@/lib/teamScoreRosterSync";
 
 const EXCLUDED_PERFORMANCE_SCORE_USER_IDS = [
     "satominishio",
@@ -1005,10 +1009,12 @@ export async function GET(req: NextRequest) {
 
         const serviceHoursMap = new Map<string, number>();
         const userTeamMap = new Map<string, string>();
+        const latestTeamByUserId = new Map<string, string | null>();
         const staffNameMap = new Map<string, string>();
         const teamNameMap = new Map<string, string>();
         for (const user of userRows ?? []) {
             if (!user.user_id) continue;
+            latestTeamByUserId.set(user.user_id, user.org_unit_id ?? null);
             staffNameMap.set(
                 user.user_id,
                 `${user.last_name_kanji ?? ""}${user.first_name_kanji ?? ""}` || user.user_id
@@ -1017,10 +1023,7 @@ export async function GET(req: NextRequest) {
             userTeamMap.set(user.user_id, user.org_unit_id);
             if (user.orgunitname) teamNameMap.set(user.org_unit_id, user.orgunitname);
         }
-        // 一度保存した月次所属スナップショットは、過去月再計算でも現在所属で上書きしない。
-        for (const row of rows) {
-            if (row.team_orgunitid) userTeamMap.set(row.user_id, row.team_orgunitid);
-        }
+        // チーム成績は現在の組織編成を正とする。保存済み月次レコードの旧所属では上書きしない。
         const teamIds = Array.from(new Set(userTeamMap.values()));
         const scoreEligibleTeamIds = new Set<string>();
         if (teamIds.length > 0) {
@@ -1537,11 +1540,35 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
             .sort((a, b) => b.team_score - a.team_score)
             .map((row, index) => ({ ...row, rank_no: index + 1 }));
 
+        const { data: existingTeamSummaryRows, error: existingTeamSummaryError } = await supabaseAdmin
+            .from("team_monthly_score_summaries")
+            .select("orgunitid")
+            .eq("target_month", targetMonth)
+            .returns<Array<{ orgunitid: string }>>();
+        if (existingTeamSummaryError) throw existingTeamSummaryError;
+
+        const existingTeamIds = (existingTeamSummaryRows ?? []).map((row) => row.orgunitid);
+        const existingTeamIdSet = new Set(existingTeamIds);
+        const currentTeamIds = teamSummaryRows.map((row) => row.orgunitid);
+        const staleTeamSummaryIds = findStaleTeamSummaryIds(existingTeamIds, currentTeamIds);
+        const addedTeamSummaryCount = currentTeamIds.filter(
+            (teamId) => !existingTeamIdSet.has(teamId),
+        ).length;
+
         if (teamSummaryRows.length > 0) {
             const { error: teamSummaryError } = await supabaseAdmin
                 .from("team_monthly_score_summaries")
                 .upsert(teamSummaryRows, { onConflict: "target_month,orgunitid" });
             if (teamSummaryError) throw teamSummaryError;
+        }
+
+        if (staleTeamSummaryIds.length > 0) {
+            const { error: staleTeamSummaryError } = await supabaseAdmin
+                .from("team_monthly_score_summaries")
+                .delete()
+                .eq("target_month", targetMonth)
+                .in("orgunitid", staleTeamSummaryIds);
+            if (staleTeamSummaryError) throw staleTeamSummaryError;
         }
 
         const scoredRows = (rows ?? [])
@@ -1593,7 +1620,11 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
                 };
 
                 const individualScore = calcTotalScore(rowWithIncompleteCounts);
-                const teamOrgunitId = row.team_orgunitid ?? userTeamMap.get(row.user_id) ?? null;
+                const teamOrgunitId = resolveLatestTeamOrgunitId(
+                    latestTeamByUserId,
+                    row.user_id,
+                    row.team_orgunitid,
+                );
                 const teamScore = teamOrgunitId ? teamScoreById.get(teamOrgunitId) ?? 0 : 0;
                 const projectedTotalScore = individualScore + teamScore;
                 const newSchemeOfficial = isNewPerformanceSchemeOfficial(targetMonth);
@@ -1702,6 +1733,9 @@ const teamVisitIncompleteDetailsMap = new Map<string, TeamScoreDetail[]>();
             deadline_target_date: deadlineTargetDate,
             houmon_unregistered_count: deadlineIncompleteShifts.length,
             team_visit_record_penalty: -deadlineIncompleteShifts.length,
+            team_summary_count: teamSummaryRows.length,
+            team_summary_added_count: addedTeamSummaryCount,
+            team_summary_deleted_count: staleTeamSummaryIds.length,
             updated_count: updates.length,
         });
     } catch (e: unknown) {

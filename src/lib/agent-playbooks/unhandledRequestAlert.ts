@@ -26,11 +26,13 @@ type MessageLog = {
 type DirectoryUser = {
   lwUserId: string;
   name: string;
+  isManager: boolean;
 };
 
 type MentionTarget = {
   userId: string;
   label: string;
+  isManager: boolean;
 };
 
 type Candidate = {
@@ -112,8 +114,19 @@ export function resolveMentionTargets(log: MessageLog, directory: DirectoryUser[
   const targets = [...ids].map((userId) => ({
     userId,
     label: byId.get(userId)?.name ?? userId,
+    isManager: byId.get(userId)?.isManager ?? false,
   }));
   return { mentionAll: hasAllMention(text), targets };
+}
+
+export function resolveAlertDestinationIds(candidate: Pick<Candidate, "request" | "targets">) {
+  const sourceChannelId = candidate.request.channel_id;
+  if (!sourceChannelId) return [];
+  const destinationIds = [sourceChannelId];
+  if (candidate.targets.some((target) => target.isManager)) {
+    destinationIds.push(MANAGER_CHANNEL_ID);
+  }
+  return [...new Set(destinationIds)];
 }
 
 function toMillis(value: string) {
@@ -141,7 +154,7 @@ async function getEnabledPlaybook(): Promise<Playbook | null> {
 async function getDirectory(): Promise<DirectoryUser[]> {
   const { data, error } = await supabaseAdmin
     .from("user_entry_united_view_single")
-    .select("lw_userid,last_name_kanji,first_name_kanji")
+    .select("lw_userid,last_name_kanji,first_name_kanji,system_role")
     .not("lw_userid", "is", null)
     .limit(3000);
   if (error) throw error;
@@ -151,6 +164,7 @@ async function getDirectory(): Promise<DirectoryUser[]> {
     return [{
       lwUserId,
       name: `${row.last_name_kanji ?? ""}${row.first_name_kanji ?? ""}`.trim(),
+      isManager: String(row.system_role ?? "").trim().toLowerCase() === "manager",
     }];
   });
 }
@@ -445,7 +459,7 @@ export async function runUnhandledRequestAlerts(options: { now?: Date; dryRun?: 
     const sourceChannelId = candidate.request.channel_id;
     if (!sourceChannelId) return false;
     const previous = recentSends.get(candidate.request.id) ?? {};
-    return [...new Set([sourceChannelId, MANAGER_CHANNEL_ID])]
+    return resolveAlertDestinationIds(candidate)
       .some((channelId) => now.getTime() - toMillis(previous[channelId] ?? "") >= cooldownMs);
   });
   console.log("[unhandled-request-alert] candidates", {
@@ -477,6 +491,7 @@ export async function runUnhandledRequestAlerts(options: { now?: Date; dryRun?: 
         sourceChannelId: candidate.request.channel_id,
         mentionedUserCount: candidate.targets.length,
         mentionAll: candidate.mentionAll,
+        destinationIds: resolveAlertDestinationIds(candidate),
       })),
     };
   }
@@ -499,7 +514,7 @@ export async function runUnhandledRequestAlerts(options: { now?: Date; dryRun?: 
     if (!sourceChannelId) continue;
     const decision = decisionById.get(candidate.request.id)!;
     const previous = recentSends.get(candidate.request.id) ?? {};
-    const destinations = [...new Set([sourceChannelId, MANAGER_CHANNEL_ID])]
+    const destinations = resolveAlertDestinationIds(candidate)
       .filter((channelId) => now.getTime() - toMillis(previous[channelId] ?? "") >= cooldownMs);
     if (destinations.length === 0) continue;
 

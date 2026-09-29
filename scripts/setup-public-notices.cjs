@@ -15,7 +15,7 @@ async function main() {
   const weather = current.data.filter(t=>t.task_type==='weather_alert');
   if (weather.length!==1) throw Error('Weather task is ambiguous');
   const configurations=[
-    {...weather[0],schedule:{minutes:30},description:'気象庁Atomと愛知県の天気概況から台風・大雨・大雪・暴風・浸水等を確認し、お知らせ掲示板に案件ごとの記事を作成し、同じ案件の続報は更新します。',condition_summary:'愛知県・東海地方の公式発表に台風・大雨・大雪・暴風・浸水等の注意情報がある場合。別の台風・気象案件は新規記事、同じ案件の続報は更新。同一内容は重複投稿しない。',
+    {...weather[0],schedule:{minutes:30},description:'気象庁Atomと愛知県の天気概況から台風・大雨・大雪・暴風・浸水等を確認し、お知らせ掲示板に案件ごとの記事を作成し、同じ案件の続報は更新します。',condition_summary:'愛知県・東海地方の公式発表に台風・大雨・大雪・暴風・浸水等の注意情報がある場合。別の台風・気象案件は新規記事、同じ案件の続報は更新。同一内容は重複投稿しない。毎回、市営地下鉄・市バス、JR東海在来線・新幹線、名鉄、その他鉄道各線の運行情報リンクを掲載する。',
       settings:{...weather[0].settings,lineworksBoardId:'4090000000000291076',existingPosts:{}}},
     ...['traffic-restrictions','police-enforcement'].map(key=>{
       const input=AUTOMATION_TEMPLATES.find(t=>t.key===key).input;
