@@ -35,6 +35,7 @@ const SHIFT_SELECT = [
   "address",
   "postal_code",
   "estimated_pay_amount",
+  "multiple_service_group_id",
   "name",
   "gender_request_name",
   "male_flg",
@@ -425,6 +426,8 @@ function buildBaseShiftRows(
       postal_code: shift.postal_code || "",
       estimated_pay_amount:
         typeof shift.estimated_pay_amount === "number" ? shift.estimated_pay_amount : null,
+      multiple_service_group_id:
+        typeof shift.multiple_service_group_id === "string" ? shift.multiple_service_group_id : null,
       client_name: shift.name || "",
       gender_request_name: shift.gender_request_name || "",
       male_flg: shift.male_flg || false,

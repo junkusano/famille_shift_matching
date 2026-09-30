@@ -70,6 +70,7 @@ interface ShiftRowView {
   roster_error_transport_info?: boolean | null;
   roster_error_kodoengo_plan?: boolean | null;
   shift_event_alerts?: unknown;
+  multiple_service_group_id?: string | null;
 }
 
 interface ShiftRowFallback {
@@ -150,6 +151,7 @@ const makeDialog = (r: ShiftRowView): RosterShiftDialogData => ({
   roster_error_transport_info: Boolean(r.roster_error_transport_info),
   roster_error_kodoengo_plan: Boolean(r.roster_error_kodoengo_plan),
   shift_event_alerts: normalizeShiftEventAlerts(r.shift_event_alerts),
+  multiple_service_group_id: r.multiple_service_group_id ?? null,
 });
 
 const makeCard = (
@@ -174,6 +176,7 @@ const makeCard = (
     r.has_roster_error || normalizeShiftEventAlerts(r.shift_event_alerts).length,
   ),
   dialog: makeDialog(r),
+  multiple_service_group_id: r.multiple_service_group_id ?? null,
 });
 
 export async function getDailyRosterView(date: string): Promise<RosterDailyView> {
@@ -262,6 +265,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     "roster_error_transport_info",
     "roster_error_kodoengo_plan",
     "shift_event_alerts",
+    "multiple_service_group_id",
   ].join(",");
 
   let shiftRows: ShiftRowView[] | null = null;
@@ -342,6 +346,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
         roster_error_transport_info: false,
         roster_error_kodoengo_plan: false,
         shift_event_alerts: [],
+        multiple_service_group_id: null,
       }));
     }
   }

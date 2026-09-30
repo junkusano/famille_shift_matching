@@ -55,6 +55,7 @@ export type RosterShiftDialogData = {
   roster_error_transport_info?: boolean;
   roster_error_kodoengo_plan?: boolean;
   shift_event_alerts?: ShiftEventAlert[];
+  multiple_service_group_id?: string | null;
 };
 
 export type RosterShiftCard = {
@@ -77,6 +78,7 @@ export type RosterShiftCard = {
   has_roster_error?: boolean;
   has_rpa_request?: boolean;
   spot_status?: string | null;
+  multiple_service_group_id?: string | null;
 };
 
 export type RosterDailyView = {
