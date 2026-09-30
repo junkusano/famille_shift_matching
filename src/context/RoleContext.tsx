@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-export type Role = 'admin' | 'manager' | 'member' | null;
+export type Role = 'admin' | 'manager' | 'member' | 'occupational_physician' | null;
 
 export interface RoleContextValue {
   role: Role;
