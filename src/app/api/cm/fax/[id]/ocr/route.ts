@@ -7,6 +7,30 @@ export const maxDuration = 120;
 
 type FaxPage = { id: number; page_number: number; ocr_status: string | null };
 
+function formatOcrError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const value = error as Record<string, unknown>;
+    const preferred = ["message", "error", "details", "hint", "code", "status"]
+      .map((key) => value[key])
+      .filter((item) => item !== undefined && item !== null && item !== "");
+
+    if (preferred.length > 0) {
+      return preferred
+        .map((item) => (typeof item === "string" ? item : JSON.stringify(item)))
+        .join(" | ");
+    }
+
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return Object.prototype.toString.call(error);
+    }
+  }
+  return String(error);
+}
+
 /**
  * ABBYYのtxt結果をFAXページへ割り当てる。
  *
@@ -172,8 +196,12 @@ export async function POST(
       await supabaseAdmin.from("cm_fax_pages").update({ ocr_status: "error" }).eq("fax_received_id", faxId).eq("page_number", 1);
       await supabaseAdmin.from("cm_fax_received").update({ status: "error" }).eq("id", faxId);
     }
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[api][cm][fax][ocr] error", { faxId, message });
+    const message = formatOcrError(error);
+    console.error("[api][cm][fax][ocr] error", {
+      faxId,
+      message,
+      error: error instanceof Error ? { name: error.name, stack: error.stack } : error,
+    });
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
