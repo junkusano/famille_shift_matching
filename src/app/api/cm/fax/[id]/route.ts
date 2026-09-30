@@ -269,14 +269,14 @@ export async function GET(
     if (pageIds.length > 0) {
       const { data: ocrData } = await supabaseAdmin
         .from("cm_fax_ocr_results")
-        .select("fax_page_id, ocr_text, extracted_client_name, suggested_reason")
+        .select("fax_page_id, ocr_text, detected_text, extracted_client_name, suggested_reason")
         .in("fax_page_id", pageIds);
 
       for (const ocr of ocrData || []) {
         const page = (pagesData || []).find((p) => p.id === ocr.fax_page_id);
         if (page) {
           ocrByPage.set(page.page_number, {
-            text: ocr.ocr_text,
+            text: ocr.ocr_text || ocr.detected_text || null,
             clientName: ocr.extracted_client_name,
             reason: ocr.suggested_reason,
           });
