@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { extractGoogleDriveFileId } from "@/lib/google-drive/upload";
 import { downloadCsDocPdf, extractTextWithAbbyy } from "@/lib/cs-docs-reprocess";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { notifyFaxOcrCompleted } from "@/lib/alert_add/fax_ocr_lineworks";
 
 export const maxDuration = 120;
 
@@ -87,7 +88,7 @@ export async function POST(
 
     const { data: fax, error: faxError } = await supabaseAdmin
       .from("cm_fax_received")
-      .select("id,file_id,file_path,page_count")
+      .select("id,file_id,file_path,page_count,fax_number,file_name,received_at")
       .eq("id", faxId)
       .single();
     if (faxError || !fax?.file_id) {
@@ -138,7 +139,7 @@ export async function POST(
 
     // 本番DBには旧生成型にない列が存在するため、ここだけ実行時スキーマとして扱う。
     const db = supabaseAdmin as any;
-    const processed: Array<{ pageNumber: number; textLength: number }> = [];
+    const processed: Array<{ pageNumber: number; text: string; textLength: number }> = [];
 
     for (const { page } of targetPages) {
       const text = pageTexts.get(page.id) ?? "";
@@ -173,7 +174,7 @@ export async function POST(
         .from("cm_fax_pages")
         .update({ ocr_status: "completed", ocr_result_id: result.data.id })
         .eq("id", page.id);
-      processed.push({ pageNumber: page.page_number, textLength: text.length });
+      processed.push({ pageNumber: page.page_number, text, textLength: text.length });
     }
 
     const remaining = targetPages.length - processed.length;
@@ -182,12 +183,33 @@ export async function POST(
       .update({ status: remaining === 0 ? "pending" : "OCR要確認" })
       .eq("id", faxId);
 
+    let lineworks: { sent: boolean; groupName?: string; error?: string } = { sent: false };
+    if (remaining === 0 && processed.length > 0) {
+      try {
+        lineworks = await notifyFaxOcrCompleted({
+          faxId,
+          faxNumber: fax.fax_number ?? null,
+          receivedAt: fax.received_at ?? null,
+          fileName: fax.file_name ?? null,
+          pages: processed.map(({ pageNumber, text }) => ({ pageNumber, text })),
+        });
+      } catch (notificationError) {
+        const notificationMessage = formatOcrError(notificationError);
+        console.error("[api][cm][fax][ocr] LINE WORKS notification error", {
+          faxId,
+          message: notificationMessage,
+        });
+        lineworks = { sent: false, error: notificationMessage };
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       faxId,
       processedPages: processed.length,
       remainingPages: remaining,
       textLength: processed.reduce((total, page) => total + page.textLength, 0),
+      lineworks,
     });
   } catch (error) {
     if (faxId > 0) {
