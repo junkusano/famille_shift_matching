@@ -157,6 +157,7 @@ export async function POST(
         .maybeSingle();
       const resultPayload = {
         fax_received_id: faxId,
+        fax_page_id: page.id,
         page_number: page.page_number,
         // The production schema stores OCR text in detected_text.
         detected_text: text,
