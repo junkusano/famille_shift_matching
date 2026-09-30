@@ -23,6 +23,7 @@ type PageForSummary = {
 type OcrRow = {
   fax_page_id: number;
   ocr_text: string | null;
+  detected_text: string | null;
   extracted_client_name: string | null;
   suggested_reason: string | null;
 };
@@ -89,11 +90,11 @@ async function getOcrText(
   if (ids.length > 0) {
     const { data: ocrRows } = await supabaseAdmin
       .from("cm_fax_ocr_results")
-      .select("fax_page_id, ocr_text, extracted_client_name, suggested_reason")
+      .select("fax_page_id, ocr_text, detected_text, extracted_client_name, suggested_reason")
       .in("fax_page_id", ids);
     const existing = (ocrRows ?? []) as OcrRow[];
     const text = existing
-      .map((row) => row.ocr_text?.trim() ?? "")
+      .map((row) => (row.ocr_text || row.detected_text || "").trim())
       .filter(Boolean)
       .join("\n\n");
     if (text) return { text, source: "既存OCR結果" };

@@ -88,6 +88,9 @@ export async function POST(
       const resultPayload = {
         fax_received_id: faxId,
         page_number: page.page_number,
+        // Keep the canonical column and the legacy column in sync. Existing
+        // detail/summary readers may encounter either schema during rollout.
+        ocr_text: text,
         detected_text: text,
         ocr_engine: "ABBYY",
         processed_at: new Date().toISOString(),

@@ -485,6 +485,33 @@ export function CmFaxDetailContent({
             </button>
           </div>
 
+          {/* OCR結果（現在表示中のページ） */}
+          <div className="border-b bg-slate-50 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-slate-700">OCR結果（ページ {currentPage}）</span>
+              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-slate-500">
+                {currentPageData?.ocr_status === 'completed'
+                  ? '完了'
+                  : currentPageData?.ocr_status === 'processing'
+                    ? '処理中'
+                    : currentPageData?.ocr_status === 'error'
+                      ? 'エラー'
+                      : '未処理'}
+              </span>
+            </div>
+            {currentPageData?.ocr_status === 'completed' && currentPageData.ocr_text ? (
+              <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded border bg-white p-2 text-xs leading-5 text-slate-700">
+                {currentPageData.ocr_text}
+              </pre>
+            ) : currentPageData?.ocr_status === 'processing' ? (
+              <p className="text-xs text-slate-500">OCR処理中です。しばらくお待ちください。</p>
+            ) : currentPageData?.ocr_status === 'error' ? (
+              <p className="text-xs text-red-600">OCRに失敗しました。「OCR再実行」をお試しください。</p>
+            ) : (
+              <p className="text-xs text-slate-500">OCR結果はまだありません。「OCR実行」を押してください。</p>
+            )}
+          </div>
+
           {/* タブコンテンツ */}
           <div className="flex-1 overflow-y-auto">
             {activeTab === 'assign' ? (
