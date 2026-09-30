@@ -269,7 +269,7 @@ export async function GET(
     if (pageIds.length > 0) {
       const { data: ocrData } = await supabaseAdmin
         .from("cm_fax_ocr_results")
-        .select("fax_received_id, page_number, detected_text, extracted_client_name, suggested_reason")
+        .select("fax_received_id, page_number, detected_text")
         .eq("fax_received_id", faxId)
         .in("page_number", (pagesData || []).map((p) => p.page_number));
 
@@ -278,8 +278,8 @@ export async function GET(
         if (page) {
           ocrByPage.set(page.page_number, {
             text: ocr.detected_text || null,
-            clientName: ocr.extracted_client_name,
-            reason: ocr.suggested_reason,
+            clientName: null,
+            reason: null,
           });
         }
       }
