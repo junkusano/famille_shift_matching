@@ -5,6 +5,8 @@ import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { FAX_UNHANDLED_GROUP_NAME } from "@/lib/alert_add/fax_unhandled_lineworks";
 
 const MAX_OCR_TEXT_LENGTH = 7000;
+// LINE WORKSのcontent.text制限を超えないよう、UTF-8換算でも余裕を持たせる。
+const MAX_LINEWORKS_MESSAGE_LENGTH = 1000;
 
 type FaxOcrNotificationInput = {
   faxId: number;
@@ -43,6 +45,17 @@ function buildMessage(input: FaxOcrNotificationInput): string {
   ].join("\n");
 }
 
+function splitMessage(message: string): string[] {
+  const characters = Array.from(message);
+  const chunks: string[] = [];
+
+  for (let index = 0; index < characters.length; index += MAX_LINEWORKS_MESSAGE_LENGTH) {
+    chunks.push(characters.slice(index, index + MAX_LINEWORKS_MESSAGE_LENGTH).join(""));
+  }
+
+  return chunks.length > 0 ? chunks : ["読み取れる内容はありません。"];
+}
+
 export async function notifyFaxOcrCompleted(
   input: FaxOcrNotificationInput,
 ): Promise<FaxOcrNotificationResult> {
@@ -64,7 +77,12 @@ export async function notifyFaxOcrCompleted(
   }
 
   const accessToken = await getAccessToken();
-  await sendLWBotMessage(group.channel_id, buildMessage(input), accessToken);
+  const messages = splitMessage(buildMessage(input));
+
+  for (const [index, message] of messages.entries()) {
+    const partLabel = messages.length > 1 ? `\n[${index + 1}/${messages.length}]` : "";
+    await sendLWBotMessage(group.channel_id, `${message}${partLabel}`, accessToken);
+  }
 
   return { sent: true, groupName: FAX_UNHANDLED_GROUP_NAME };
 }
