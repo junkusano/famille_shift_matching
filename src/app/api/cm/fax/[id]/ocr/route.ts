@@ -5,6 +5,46 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 
 export const maxDuration = 120;
 
+type FaxPage = { id: number; page_number: number; ocr_status: string | null };
+
+/**
+ * ABBYYのtxt結果をFAXページへ割り当てる。
+ *
+ * ABBYYはPDFによってフォームフィードを返さないことがあるため、
+ * ページ数と単純に同じ長さだと決めつけない。ページ数が一致する場合は
+ * PDF全体のページ位置を優先し、それ以外は未処理ページへ順番に割り当て、
+ * 判定できない残りは「未処理」のままにする。
+ */
+function mapOcrTextToPages(
+  ocrText: string,
+  allPages: FaxPage[],
+  targetPages: FaxPage[],
+): Map<number, string> {
+  const chunks = ocrText.split(/\f+/).map((text) => text.trim());
+  const pageTexts = new Map<number, string>();
+
+  if (chunks.length === allPages.length) {
+    allPages.forEach((page, index) => {
+      if (targetPages.some((target) => target.id === page.id)) {
+        pageTexts.set(page.id, chunks[index] ?? "");
+      }
+    });
+    return pageTexts;
+  }
+
+  targetPages.forEach((page, index) => {
+    pageTexts.set(page.id, chunks[index] ?? "");
+  });
+
+  // 区切りがなく全文が1チャンクの場合は、全文を最初の未処理ページに保存する。
+  // 他ページをエラー扱いにせず、必要なら個別に再実行できる状態を保つ。
+  if (chunks.length === 1 && targetPages[0]) {
+    pageTexts.set(targetPages[0].id, chunks[0]);
+  }
+
+  return pageTexts;
+}
+
 /** ABBYYへFAX PDFを送り、未処理ページのOCR結果を保存するAPI。 */
 export async function POST(
   _req: NextRequest,
@@ -66,16 +106,22 @@ export async function POST(
 
     // ABBYYのtxt出力は通常、ページ区切りをフォームフィードで返す。
     // 区切りがない場合は全文を1ページ目に保存し、他ページは再確認対象に残す。
-    const pageTexts = ocrText.split(/\f+/).map((text) => text.trim());
+    const pageTexts = mapOcrTextToPages(
+      ocrText,
+      pages as FaxPage[],
+      targetPages.map(({ page }) => page),
+    );
 
     // 本番DBには旧生成型にない列が存在するため、ここだけ実行時スキーマとして扱う。
     const db = supabaseAdmin as any;
     const processed: Array<{ pageNumber: number; textLength: number }> = [];
 
-    for (const { page, index } of targetPages) {
-      const text = pageTexts[index] || (index === 0 ? ocrText : "");
+    for (const { page } of targetPages) {
+      const text = pageTexts.get(page.id) ?? "";
       if (!text) {
-        await supabaseAdmin.from("cm_fax_pages").update({ ocr_status: "error" }).eq("id", page.id);
+        // ABBYYのページ区切りが取得できない場合に、未判定ページを
+        // 誤って「OCR失敗」にしない。次回の再実行対象として残す。
+        await supabaseAdmin.from("cm_fax_pages").update({ ocr_status: "pending" }).eq("id", page.id);
         continue;
       }
 
