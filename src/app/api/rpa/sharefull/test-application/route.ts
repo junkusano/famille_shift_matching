@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { notifySharefullApplication } from "@/lib/spot-sync/sharefullApplicationNotification";
 
 export const dynamic = "force-dynamic";
 
@@ -84,9 +85,25 @@ export async function POST(request: NextRequest) {
     });
     if (error) throw error;
 
+    const notificationText = [
+      "【テスト】シェアフル応募通知",
+      `状態: ${state}`,
+      `応募者: ${applicantName || "不明"}`,
+      `求人ID: ${target.sharefull_job_id || sharefullJobId || "不明"}`,
+      `管理番号: ${target.sharefull_order_id || sharefullOrderId || "不明"}`,
+      `勤務日: ${target.shift_start_date || "不明"}`,
+      `勤務開始: ${target.shift_start_time || "不明"}`,
+      `受信日時: ${new Date(occurredAt).toISOString()}`,
+    ].join("\n");
+    const notification = await notifySharefullApplication({ provider, eventId, text: notificationText });
+    if (!notification.sent) {
+      return NextResponse.json({ ok: false, error: "通知を別処理が送信中です", notification }, { status: 503 });
+    }
+
     return NextResponse.json({
       ok: true,
       duplicate: Boolean((data as Record<string, unknown> | null)?.duplicate),
+      notification,
       result: data,
       request: {
         request_id: target.id,
