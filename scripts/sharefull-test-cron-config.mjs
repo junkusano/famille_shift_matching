@@ -11,9 +11,11 @@ export function buildSharefullTestVercelConfig(sharedConfig, testOverrides = {})
     throw new Error("The test-only decision cron must not be added to shared vercel.json");
   }
 
+  // Vercel's CRON_SECRET is project-wide. Keep this project deliberately
+  // isolated so that it cannot activate authentication/behavior for any of
+  // the legacy schedules in the main test project.
   return {
-    ...sharedConfig,
     ...testOverrides,
-    crons: [...sharedConfig.crons, { ...SHAREFULL_DECISION_CRON }],
+    crons: [{ ...SHAREFULL_DECISION_CRON }],
   };
 }
