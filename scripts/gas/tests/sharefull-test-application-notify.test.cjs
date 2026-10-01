@@ -110,6 +110,11 @@ test("合成テストメールは設定済みのテスト案件を含め、自�
   assert.match(email.args[2], /TEST-ORDER-42/);
 });
 
+test("応募取消メールはcancelled状態として検出する", () => {
+  const { context } = createHarness();
+  assert.equal(context.detectState_("応募キャンセルのお知らせ"), "cancelled");
+});
+
 test("本番API URL・ラベルなし検索・既知の本番チャンネルを拒否する", () => {
   for (const options of [
     { apiBaseUrl: "https://myfamille.shi-on.net" },

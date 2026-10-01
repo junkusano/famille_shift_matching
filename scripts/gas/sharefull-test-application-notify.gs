@@ -94,6 +94,7 @@ function parseSharefullTestMail_(message, config) {
 }
 
 function detectState_(text) {
+  if (/応募取消|応募キャンセル|辞退/.test(text)) return "cancelled";
   return /応募確定|採用決定|マッチング成立|確定/.test(text) ? "confirmed" : "applied";
 }
 
