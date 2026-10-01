@@ -21,13 +21,18 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       .eq('id', id).eq('claimed_runner_id', runner.runnerId).maybeSingle();
     if (claimedLookupError) throw claimedLookupError;
     if (claimedJob?.job_type === 'sharefull.check_decision_status') {
-      if (!process.env.SHAREFULL_DECISION_RUNNER_ID?.trim()
+      const testMode = sharefullRpaMode() === 'test';
+      if (process.env.SHAREFULL_DECISION_MONITOR_ENABLED?.trim().toLowerCase() !== 'true'
+        || !process.env.SHAREFULL_DECISION_RUNNER_ID?.trim()
         || runner.runnerId !== process.env.SHAREFULL_DECISION_RUNNER_ID.trim()
-        || runner.environment !== 'production') {
+        || runner.environment !== sharefullRpaMode()) {
         return NextResponse.json({ ok: false, error: 'Dedicated decision runner required' }, { status: 403 });
       }
       if (claimedJob.status !== 'claimed' || !isRecord(claimedJob.payload)) {
         return NextResponse.json({ ok: false, error: 'Decision job is not claimed' }, { status: 409 });
+      }
+      if (claimedJob.payload.environment !== sharefullRpaMode()) {
+        return NextResponse.json({ ok: false, error: 'Decision job environment mismatch' }, { status: 403 });
       }
       const targets = claimedJob.payload.targets;
       const submitted = body.result.observations;
@@ -54,7 +59,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       }
       const { data: pendingNotifications, error: decisionCompleteError } = await supabaseAdmin.rpc(
         'complete_sharefull_decision_check',
-        { p_job_id: id, p_runner_id: runner.runnerId, p_result: { observations: sanitized } },
+        { p_job_id: id, p_runner_id: runner.runnerId, p_result: { observations: sanitized }, p_is_test: testMode, p_enable_notifications: !testMode },
       );
       if (decisionCompleteError) {
         console.error('[rpa/jobs/complete] decision result rejected', { code: decisionCompleteError.code });
@@ -68,7 +73,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         : [];
       const channelId = process.env.SHAREFULL_DECISION_CHANNEL_ID?.trim();
       let notified = 0;
-      if (channelId && notificationTargets.length) {
+      if (!testMode && channelId && notificationTargets.length) {
         try {
           const jobIds = notificationTargets.map((target) => target.sharefull_job_id);
           await sendLWBotMessage(channelId, [

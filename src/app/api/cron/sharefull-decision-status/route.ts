@@ -25,9 +25,7 @@ export async function GET(request: NextRequest) {
   if (process.env.SHAREFULL_DECISION_MONITOR_ENABLED?.trim().toLowerCase() !== "true") {
     return NextResponse.json({ ok: true, skipped: true, reason: "decision_monitor_disabled" });
   }
-  if (sharefullRpaMode() !== "production") {
-    return NextResponse.json({ ok: true, skipped: true, reason: "test_rpa_mode" });
-  }
+  const environment = sharefullRpaMode();
   const runnerId = process.env.SHAREFULL_DECISION_RUNNER_ID?.trim();
   if (!runnerId) return NextResponse.json({ ok: false, error: "Dedicated decision runner is not configured" }, { status: 503 });
 
@@ -67,7 +65,7 @@ export async function GET(request: NextRequest) {
     status: "pending",
     target_runner_id: runnerId,
     timeout_ms: 120_000,
-    payload: { sync_operation_key: key, targets },
+    payload: { sync_operation_key: key, environment, targets },
   });
   if (insertError?.code === "23505") {
     return NextResponse.json({ ok: true, registered: 0, duplicate: true, target_count: targets.length, batch_index: batchIndex });
