@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { authenticateRunner, RpaRunnerAuthError } from '@/lib/rpa-runner/auth';
 import { isRecord } from '@/lib/rpa-runner/validation';
+import { sharefullRpaMode } from '@/lib/spot-sync/sharefullScope';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,14 +18,17 @@ export async function POST(request: NextRequest) {
     if (error) return NextResponse.json({ ok: false, error: 'Job claim failed' }, { status: 500 });
     const job = Array.isArray(data) ? data[0] as ClaimedJob | undefined : undefined;
     if (job?.job_type === 'sharefull.check_decision_status'
-      && (runner.environment !== 'production'
+      && (process.env.SHAREFULL_DECISION_MONITOR_ENABLED?.trim().toLowerCase() !== 'true'
+        || runner.environment !== sharefullRpaMode()
+        || !isRecord(job.payload)
+        || job.payload.environment !== sharefullRpaMode()
         || !process.env.SHAREFULL_DECISION_RUNNER_ID?.trim()
         || runner.runnerId !== process.env.SHAREFULL_DECISION_RUNNER_ID.trim())) {
       const { error: releaseError } = await supabaseAdmin.from('rpa_runner_jobs')
         .update({ status: 'pending', claimed_runner_id: null, claimed_at: null })
         .eq('id', job.id).eq('status', 'claimed').eq('claimed_runner_id', runner.runnerId);
       if (releaseError) throw releaseError;
-      return NextResponse.json({ ok: false, error: 'Dedicated production decision runner is not configured' }, { status: 503 });
+      return NextResponse.json({ ok: false, error: 'Dedicated decision runner is not configured for this environment' }, { status: 503 });
     }
     if (job && providerSyncEnabled() && ['sharefull.create_spot_offer','sharefull.close_spot_offer'].includes(job.job_type)) {
       let valid: boolean;

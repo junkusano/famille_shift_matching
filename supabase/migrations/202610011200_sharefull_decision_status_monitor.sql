@@ -1,6 +1,7 @@
 -- Store only listing-level decision state. No applicant identity or profile data.
 create table public.sharefull_decision_status (
-  request_id uuid primary key references public.spot_offer_request_table(id) on delete cascade,
+  -- Request IDs originate in either the production or test request table.
+  request_id uuid primary key,
   sharefull_job_id text not null,
   sharefull_order_id text not null,
   decision_state text not null check (decision_state in ('decided','undecided','unknown')),
@@ -13,7 +14,8 @@ revoke all on public.sharefull_decision_status from public, anon, authenticated;
 grant all on public.sharefull_decision_status to service_role;
 
 create or replace function public.complete_sharefull_decision_check(
-  p_job_id uuid, p_runner_id text, p_result jsonb
+  p_job_id uuid, p_runner_id text, p_result jsonb,
+  p_is_test boolean default false, p_enable_notifications boolean default true
 ) returns jsonb language plpgsql security definer set search_path=public,pg_temp as $$
 declare
   j public.rpa_runner_jobs;
@@ -53,8 +55,13 @@ begin
       limit 1;
     if target is null then raise exception 'Decision target mismatch'; end if;
     request_uuid := (target->>'spot_offer_request_id')::uuid;
-    if not exists (select 1 from public.spot_offer_request_table r
-      where r.id=request_uuid and r.sharefull_job_id=job_id and r.sharefull_order_id=order_id) then
+    if p_is_test and not exists (select 1 from public.sharefull_rpa_test_spot_offer_request_table r
+      where r.id=request_uuid and r.sharefull_job_id=job_id and r.sharefull_order_id=order_id
+        and r.status='募集中' and r.sharefull_status='published') then
+      raise exception 'Test decision target no longer matches published listing';
+    elsif not p_is_test and not exists (select 1 from public.spot_offer_request_table r
+      where r.id=request_uuid and r.sharefull_job_id=job_id and r.sharefull_order_id=order_id
+        and r.status='募集中' and r.sharefull_status='published') then
       raise exception 'Decision target no longer matches published listing';
     end if;
 
@@ -67,7 +74,7 @@ begin
       decision_state=excluded.decision_state,
       last_checked_at=excluded.last_checked_at;
 
-    if state='decided' then
+    if state='decided' and p_enable_notifications then
       update public.sharefull_decision_status
         set lineworks_claimed_at=now()
         where request_id=request_uuid and lineworks_notified_at is null
@@ -87,5 +94,5 @@ begin
     where id=p_job_id and status='claimed';
   return notifications;
 end $$;
-revoke all on function public.complete_sharefull_decision_check(uuid,text,jsonb) from public,anon,authenticated;
-grant execute on function public.complete_sharefull_decision_check(uuid,text,jsonb) to service_role;
+revoke all on function public.complete_sharefull_decision_check(uuid,text,jsonb,boolean,boolean) from public,anon,authenticated;
+grant execute on function public.complete_sharefull_decision_check(uuid,text,jsonb,boolean,boolean) to service_role;
