@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
-import { sharefullSyncClientIds, sharefullRequestTableName, sharefullRpaMode } from "@/lib/spot-sync/sharefullScope";
+import { sharefullSyncClientIds, sharefullRequestTableName, sharefullRpaMode, shouldRunSharefullDecisionMonitor } from "@/lib/spot-sync/sharefullScope";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,8 +22,8 @@ function jstSlot(now = new Date()): string {
 
 export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-  if (process.env.SHAREFULL_DECISION_MONITOR_ENABLED?.trim().toLowerCase() !== "true") {
-    return NextResponse.json({ ok: true, skipped: true, reason: "decision_monitor_disabled" });
+  if (!shouldRunSharefullDecisionMonitor()) {
+    return NextResponse.json({ ok: true, skipped: true, reason: "test_only_monitor_disabled_or_wrong_environment" });
   }
   const environment = sharefullRpaMode();
   const runnerId = process.env.SHAREFULL_DECISION_RUNNER_ID?.trim();
