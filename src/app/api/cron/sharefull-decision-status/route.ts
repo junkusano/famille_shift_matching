@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { sharefullSyncClientIds, sharefullRequestTableName, sharefullRpaMode, shouldRunSharefullDecisionMonitor } from "@/lib/spot-sync/sharefullScope";
@@ -6,8 +7,12 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 function authorized(request: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET?.trim();
-  return Boolean(secret && request.headers.get("authorization") === `Bearer ${secret}`);
+  const secret = process.env.SHAREFULL_DECISION_CRON_TOKEN?.trim();
+  const supplied = request.nextUrl.searchParams.get("decision_token")?.trim();
+  if (!secret || !supplied) return false;
+  const expectedBytes = Buffer.from(secret);
+  const suppliedBytes = Buffer.from(supplied);
+  return expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes);
 }
 
 function jstSlot(now = new Date()): string {
@@ -65,7 +70,7 @@ export async function GET(request: NextRequest) {
     status: "pending",
     target_runner_id: runnerId,
     timeout_ms: 120_000,
-    payload: { sync_operation_key: key, environment, targets },
+    payload: { sync_operation_key: key, environment, rpa_mode: environment, targets },
   });
   if (insertError?.code === "23505") {
     return NextResponse.json({ ok: true, registered: 0, duplicate: true, target_count: targets.length, batch_index: batchIndex });
