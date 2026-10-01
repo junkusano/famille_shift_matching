@@ -39,6 +39,12 @@ export function sharefullApplicationTableName(): string {
     : "spot_offer_applications";
 }
 
+export function sharefullDecisionStatusTableName(): string {
+  return sharefullRpaMode() === "test"
+    ? "sharefull_rpa_test_decision_status"
+    : "sharefull_decision_status";
+}
+
 function configuredValue(): string | undefined {
   const value = process.env.SHAREFULL_SYNC_KAIPOKE_CS_IDS?.trim();
   return value || undefined;

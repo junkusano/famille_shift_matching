@@ -1,17 +1,17 @@
--- Store only listing-level decision state. No applicant identity or profile data.
-create table public.sharefull_decision_status (
-  -- Request IDs originate in either the production or test request table.
+-- Test-only listing state. This deliberately stays in a test-prefixed table
+-- even though it is hosted by the production Supabase project.
+create table public.sharefull_rpa_test_decision_status (
   request_id uuid primary key,
   sharefull_job_id text not null,
   sharefull_order_id text not null,
   decision_state text not null check (decision_state in ('decided','undecided','unknown')),
-  last_checked_at timestamptz not null default now(),
-  lineworks_claimed_at timestamptz,
-  lineworks_notified_at timestamptz
+  last_checked_at timestamptz not null default now()
 );
-alter table public.sharefull_decision_status enable row level security;
-revoke all on public.sharefull_decision_status from public, anon, authenticated;
-grant all on public.sharefull_decision_status to service_role;
+alter table public.sharefull_rpa_test_decision_status enable row level security;
+revoke all on public.sharefull_rpa_test_decision_status from public, anon, authenticated;
+grant all on public.sharefull_rpa_test_decision_status to service_role;
+comment on table public.sharefull_rpa_test_decision_status is
+  'Sharefull応募決定状態のRPA検証用。応募者の個人情報は保存しない。';
 
 create or replace function public.complete_sharefull_decision_check(
   p_job_id uuid, p_runner_id text, p_result jsonb,
@@ -25,9 +25,11 @@ declare
   state text;
   job_id text;
   order_id text;
-  claimed_request uuid;
   notifications jsonb := '[]'::jsonb;
 begin
+  if not p_is_test or p_enable_notifications then
+    raise exception 'This migration enables test-only decision checks with notifications disabled';
+  end if;
   select * into j from public.rpa_runner_jobs
     where id=p_job_id and claimed_runner_id=p_runner_id for update;
   if not found then return null; end if;
@@ -65,7 +67,7 @@ begin
       raise exception 'Decision target no longer matches published listing';
     end if;
 
-    insert into public.sharefull_decision_status
+    insert into public.sharefull_rpa_test_decision_status
       (request_id,sharefull_job_id,sharefull_order_id,decision_state,last_checked_at)
     values (request_uuid,job_id,order_id,state,now())
     on conflict (request_id) do update set
@@ -74,19 +76,6 @@ begin
       decision_state=excluded.decision_state,
       last_checked_at=excluded.last_checked_at;
 
-    if state='decided' and p_enable_notifications then
-      update public.sharefull_decision_status
-        set lineworks_claimed_at=now()
-        where request_id=request_uuid and lineworks_notified_at is null
-          and (lineworks_claimed_at is null or lineworks_claimed_at < now()-interval '10 minutes')
-        returning request_id into claimed_request;
-      if claimed_request is not null then
-        notifications := notifications || jsonb_build_array(jsonb_build_object(
-          'request_id',claimed_request::text,'sharefull_job_id',job_id
-        ));
-      end if;
-    end if;
-    claimed_request := null;
     target := null;
   end loop;
 
