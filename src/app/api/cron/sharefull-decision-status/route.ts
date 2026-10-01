@@ -62,7 +62,10 @@ export async function GET(request: NextRequest) {
   const slotNumber = Math.floor(Date.now() / 300_000);
   const batchIndex = slotNumber % batchCount;
   const targets = validTargets.slice(batchIndex * batchSize, (batchIndex + 1) * batchSize);
-  if (!targets.length) return NextResponse.json({ ok: true, registered: 0, target_count: 0 });
+  if (!targets.length) {
+    console.info("[cron/sharefull-decision-status] no targets", { target_count: validTargets.length, batch_index: batchIndex });
+    return NextResponse.json({ ok: true, registered: 0, target_count: 0 });
+  }
 
   const key = `sharefull:decision:${jstSlot()}:${batchIndex}`;
   const { error: insertError } = await supabaseAdmin.from("rpa_runner_jobs").insert({
@@ -73,11 +76,13 @@ export async function GET(request: NextRequest) {
     payload: { sync_operation_key: key, environment, rpa_mode: environment, targets },
   });
   if (insertError?.code === "23505") {
+    console.info("[cron/sharefull-decision-status] duplicate batch", { target_count: targets.length, batch_index: batchIndex });
     return NextResponse.json({ ok: true, registered: 0, duplicate: true, target_count: targets.length, batch_index: batchIndex });
   }
   if (insertError) {
     console.error("[cron/sharefull-decision-status] job enqueue failed", { code: insertError.code });
     return NextResponse.json({ ok: false, error: "Decision job enqueue failed" }, { status: 500 });
   }
+  console.info("[cron/sharefull-decision-status] job registered", { target_count: targets.length, batch_index: batchIndex, batch_count: batchCount });
   return NextResponse.json({ ok: true, registered: 1, target_count: targets.length, batch_index: batchIndex, batch_count: batchCount });
 }

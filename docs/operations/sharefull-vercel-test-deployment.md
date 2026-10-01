@@ -24,7 +24,7 @@ SHAREFULL_TEST_GAS_TOKEN=<テスト用GASからの受信用ランダムトーク
 
 共有の`vercel.json`には既存Cronだけを残し、応募決定監視Cronは追加しない。これにより通常の本番デプロイでは新Cronが登録されない。
 
-テスト用デプロイでは`vercel.test.json`の設定を使い、`vercel.json`にある既存Cron全件をそのまま引き継いだうえで、応募決定監視Cronだけを足した一時設定を生成する。専用スクリプトはVercel CLIにテスト用プロジェクト名とチームを明示し、この一時設定でテスト用プロジェクトだけをデプロイする。既存Cronのパス・スケジュールは本番・テスト双方で変更しない。
+テスト用デプロイでは`vercel.test.json`の設定を使い、`vercel.json`にある既存Cron全件をそのまま引き継いだうえで、応募決定監視Cronだけを追加した設定を生成する。Cronのpathにはクエリ文字列を使わず、トークン付きURLを受けるNext.js動的Route Handlerを用意する。Cron登録がアップロードされる正規の`vercel.json`を基準に行われるため、専用スクリプトはデプロイ中だけ同ファイルをテスト用設定に置き換え、成功・失敗にかかわらず元の内容へバイト単位で復元する。Vercel CLIにはテスト用プロジェクト名とチームを明示し、テスト用プロジェクトだけをデプロイする。既存Cronのパス・スケジュールは本番・テスト双方で変更しない。
 
 ```powershell
 node scripts/deploy-sharefull-test-cron.mjs

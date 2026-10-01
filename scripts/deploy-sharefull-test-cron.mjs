@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON } from "./sharefull-test-cron-config.mjs";
@@ -12,31 +11,43 @@ const sharedConfig = JSON.parse(await readFile(join(repoRoot, "vercel.json"), "u
 const testOverrides = JSON.parse(await readFile(join(repoRoot, "vercel.test.json"), "utf8"));
 const decisionToken = process.env.SHAREFULL_DECISION_CRON_TOKEN;
 const deployConfig = buildSharefullTestVercelConfig(sharedConfig, testOverrides, decisionToken);
-const tempDirectory = await mkdtemp(join(tmpdir(), "myfamille-sharefull-test-cron-"));
-const localConfigPath = join(tempDirectory, "vercel.test.generated.json");
+const rootConfigPath = join(repoRoot, "vercel.json");
+const originalRootConfig = await readFile(rootConfigPath);
+const generatedRootConfig = Buffer.from(`${JSON.stringify(deployConfig, null, 2)}\n`, "utf8");
+let rootConfigTemporarilyReplaced = false;
 
 try {
-  await writeFile(localConfigPath, `${JSON.stringify(deployConfig, null, 2)}\n`, "utf8");
   const addedCron = deployConfig.crons.at(-1);
   if (deployConfig.crons.length !== sharedConfig.crons.length + 1
-    || !addedCron?.path.startsWith(`${SHAREFULL_DECISION_CRON.path}?decision_token=`)
+    || !addedCron?.path.startsWith(`${SHAREFULL_DECISION_CRON.path}/`)
     || deployConfig.crons.slice(0, -1).some((cron, index) => JSON.stringify(cron) !== JSON.stringify(sharedConfig.crons[index]))) {
-    throw new Error("Refusing deployment: preserve the test project's existing crons and add only the decision monitor cron");
+    throw new Error("Refusing deployment: preserve existing crons and add only the tokenized test decision cron");
   }
   console.log(`Deploying ${deployConfig.crons.length} schedules to test project ${projectName}; preserving its ${sharedConfig.crons.length} existing schedules.`);
   console.log(`Only ${SHAREFULL_DECISION_CRON.path} is added. No project-wide CRON_SECRET is configured by this script.`);
+
+  // Cron registration is derived from the vercel.json included in the upload.
+  // Temporarily put the test-only config at that canonical path, then restore
+  // the exact original bytes even if deployment fails.
+  await writeFile(rootConfigPath, generatedRootConfig);
+  rootConfigTemporarilyReplaced = true;
 
   const npx = process.platform === "win32" ? "npx.cmd" : "npx";
   const result = spawnSync(npx, [
     "--yes", "vercel@latest", "deploy", "--prod",
     "--project", projectName,
     "--scope", teamScope,
-    "--local-config", localConfigPath,
   ], { cwd: repoRoot, stdio: "inherit", shell: process.platform === "win32" });
 
   if (result.error) throw result.error;
   if (result.signal) throw new Error(`Vercel CLI terminated by ${result.signal}`);
   if (result.status !== 0) process.exitCode = result.status ?? 1;
 } finally {
-  await rm(tempDirectory, { recursive: true, force: true });
+  if (rootConfigTemporarilyReplaced) {
+    const currentRootConfig = await readFile(rootConfigPath);
+    if (!currentRootConfig.equals(generatedRootConfig)) {
+      throw new Error("Refusing to restore vercel.json because it changed during deployment; preserve the concurrent change and recover the original config manually.");
+    }
+    await writeFile(rootConfigPath, originalRootConfig);
+  }
 }
