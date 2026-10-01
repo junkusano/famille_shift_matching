@@ -6,7 +6,7 @@
  * - MYFAMILLE_TEST_API_TOKEN
  * - SHAREFULL_TEST_GMAIL_QUERY（必須: label:SharefullTest を含む、実メール用検索条件）
  * - SHAREFULL_TEST_ALLOWED_SENDERS (comma-separated exact email addresses)
- * - SHAREFULL_TEST_JOB_ID or SHAREFULL_TEST_ORDER_ID (test fixture for synthetic mail)
+ * - SHAREFULL_TEST_JOB_ID, SHAREFULL_TEST_ORDER_ID, or SHAREFULL_TEST_REQUEST_ID (test fixture)
  *
  * LINE WORKS認証情報はGASに置かず、テストAPI側で既存の送信設定を使う。
  */
@@ -71,17 +71,19 @@ function parseSharefullTestMail_(message, config) {
   if (!/(応募|マッチング|採用)/i.test(subject)) return null;
   var jobId = capture_(text, /(?:求人ID|求人番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   var orderId = capture_(text, /(?:管理番号|URL管理番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
+  var requestId = capture_(text, /(?:テスト案件ID|request_id)\s*[：:]?\s*([0-9a-f-]{36})/i);
   var applicationId = capture_(text, /(?:応募ID|応募番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   var applicant = capture_(text, /(?:応募者|氏名)\s*[：:]?\s*([^\n\r]+)/i);
-  if (!jobId && !orderId) return null;
-  if (syntheticTestMail && (jobId !== config.testJobId && orderId !== config.testOrderId)) return null;
+  if (!jobId && !orderId && !requestId) return null;
+  if (syntheticTestMail && (jobId !== config.testJobId && orderId !== config.testOrderId && requestId !== config.testRequestId)) return null;
 
   return {
+    request_id: requestId || undefined,
     sharefull_job_id: jobId || undefined,
     sharefull_order_id: orderId || undefined,
     provider: "sharefull",
     // 応募メールと応募確定メールが同じ応募を更新できるよう、message IDとは分離した安定キーにする。
-    application_key: applicationId || [jobId || orderId, applicant || "unknown"].join("::"),
+    application_key: applicationId || [jobId || orderId || requestId, applicant || "unknown"].join("::"),
     event_id: message.getId(),
     state: detectState_(subject + "\n" + body),
     applicant_name: applicant || null,
@@ -102,7 +104,8 @@ function readConfig_() {
     gmailQuery: required_(props, "SHAREFULL_TEST_GMAIL_QUERY"),
     allowedSenders: (props.getProperty("SHAREFULL_TEST_ALLOWED_SENDERS") || "").split(",").map(function(value) { return value.trim().toLowerCase(); }).filter(Boolean),
     testJobId: (props.getProperty("SHAREFULL_TEST_JOB_ID") || "").trim(),
-    testOrderId: (props.getProperty("SHAREFULL_TEST_ORDER_ID") || "").trim()
+    testOrderId: (props.getProperty("SHAREFULL_TEST_ORDER_ID") || "").trim(),
+    testRequestId: (props.getProperty("SHAREFULL_TEST_REQUEST_ID") || "").trim()
   };
   if (!/^https:\/\/famille-shift-matching-test\.vercel\.app\/?$/.test(config.apiBaseUrl)) {
     throw new Error("テスト用Vercel URL以外は設定できません");
@@ -139,7 +142,7 @@ function markNotificationSent_(messageId) {
 }
 
 /**
- * 実メール形式の疎通確認用。テスト案件ID/管理番号が設定済みの場合だけ、
+ * 実メール形式の疎通確認用。テスト案件ID/管理番号/テスト案件UUIDが設定済みの場合だけ、
  * ログイン中のGoogleアカウント自身へ合成テストメールを1通送信する。
  * 外部送信を伴うため、検証者が明示的に手動実行する。
  */
@@ -147,11 +150,12 @@ function sendSharefullSyntheticTestEmail() {
   var config = readConfig_();
   var recipient = Session.getActiveUser().getEmail();
   if (!recipient) throw new Error("送信先アカウントを特定できません");
-  if (!config.testJobId && !config.testOrderId) throw new Error("テスト案件IDまたは管理番号が未設定です");
+  if (!config.testJobId && !config.testOrderId && !config.testRequestId) throw new Error("テスト求人ID・管理番号・案件UUIDのいずれかが未設定です");
   var applicationId = "GAS-TEST-" + Utilities.getUuid();
   var lines = [
     "SHAREFULL_TEST_EVENT",
     "応募ID: " + applicationId,
+    config.testRequestId ? "テスト案件ID: " + config.testRequestId : null,
     config.testJobId ? "求人ID: " + config.testJobId : null,
     config.testOrderId ? "管理番号: " + config.testOrderId : null,
     "応募者: テスト応募者",

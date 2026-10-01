@@ -48,11 +48,11 @@ GASソースは `scripts/gas/sharefull-test-application-notify.gs` に置き、A
 - `SHAREFULL_TEST_GMAIL_QUERY`：`label:SharefullTest newer_than:7d` のようにテスト専用Gmailラベルを必須にした検索条件
 - LINE WORKSのBot認証情報はGASに保存しない。テストAPIが既存の性別表現停止通知と同じ`getAccessToken()`、`sendLWBotMessage()`、`SHAREFULL_CONTENT_POLICY_CHANNEL_ID`設定を使う（未設定時は既定の`99142491`）。
 - `SHAREFULL_TEST_ALLOWED_SENDERS`：実メールで許可する送信元アドレス（完全一致、複数はカンマ区切り）
-- `SHAREFULL_TEST_JOB_ID` または `SHAREFULL_TEST_ORDER_ID`：合成メールで照合する既存のテスト案件ID／管理番号
+- `SHAREFULL_TEST_JOB_ID`、`SHAREFULL_TEST_ORDER_ID`、または`SHAREFULL_TEST_REQUEST_ID`：合成メールで照合するテスト案件。まだSharefull求人IDがない場合はテスト案件表のUUIDを指定できる
 
 GmailメッセージIDはテストAPIによるテストDB登録とLINE WORKS送信の両方が成功してから処理済みとして記録する。LINE WORKS送信状態はテスト応募イベント行のclaim・通知済み列で管理し、送信失敗時はclaimを解除してGASの再試行を可能にする。処理の同時起動はScript Lockで抑止する。
 
-`sendSharefullSyntheticTestEmail` は手動実行専用で、ログイン中アカウント自身へ `[テスト] Sharefull応募通知` を1通送る。テスト案件ID／管理番号が設定されていないと送信しない。テスト先や値が確定するまで時間主導トリガーは作成しない。実メール処理の検索条件は専用Gmailラベルに制限し、本番受信箱全体検索は許可しない。
+`sendSharefullSyntheticTestEmail` は手動実行専用で、ログイン中アカウント自身へ `[テスト] Sharefull応募通知` を1通送る。テスト求人ID／管理番号／案件UUIDが設定されていないと送信しない。Sharefull求人IDがない段階では`SHAREFULL_TEST_REQUEST_ID`にテスト案件表のUUIDを設定する。テスト先や値が確定するまで時間主導トリガーは作成しない。実メール処理の検索条件は専用Gmailラベルに制限し、本番受信箱全体検索は許可しない。
 
 ## 応募通知フロー
 
