@@ -19,16 +19,15 @@ function processSharefullTestApplicationNotifications() {
   try {
     var config = readConfig_();
     var processed = notificationState_();
-    var threadsById = {};
-    GmailApp.search(config.gmailQuery, 0, 50).forEach(function(thread) { threadsById[thread.getId()] = thread; });
+    var messagesById = {};
+    searchGmailMessages_(config.gmailQuery, 50).forEach(function(message) { messagesById[message.id] = message; });
     // 実メール検索とは別に、合成メールは自分宛て・専用件名だけを追加取得する。
-    GmailApp.search('in:anywhere from:me to:me subject:"[テスト] Sharefull応募通知" newer_than:2d', 0, 20)
-      .forEach(function(thread) { threadsById[thread.getId()] = thread; });
-    var threads = Object.keys(threadsById).map(function(id) { return threadsById[id]; });
+    searchGmailMessages_('from:me to:me subject:"[テスト] Sharefull応募通知" newer_than:2d', 20)
+      .forEach(function(message) { messagesById[message.id] = message; });
+    var messages = Object.keys(messagesById).map(function(id) { return messagesById[id]; });
 
-    threads.forEach(function(thread) {
-      thread.getMessages().forEach(function(message) {
-        var messageId = message.getId();
+    messages.forEach(function(message) {
+        var messageId = message.id;
         if (processed[messageId] === "sent") return;
 
         var event = parseSharefullTestMail_(message, config);
@@ -52,7 +51,6 @@ function processSharefullTestApplicationNotifications() {
         // LINE WORKSの資格情報・チャンネル選択はAPI側で既存設定を共有する。
         markNotificationSent_(messageId);
         processed[messageId] = "sent";
-      });
     });
   } finally {
     lock.releaseLock();
@@ -60,11 +58,11 @@ function processSharefullTestApplicationNotifications() {
 }
 
 function parseSharefullTestMail_(message, config) {
-  var body = message.getPlainBody();
-  var subject = message.getSubject();
+  var body = message.body;
+  var subject = message.subject;
   var text = subject + "\n" + body;
-  var from = String(message.getFrom() || "").match(/<([^>]+)>/);
-  from = (from ? from[1] : String(message.getFrom() || "")).trim().toLowerCase();
+  var from = String(message.from || "").match(/<([^>]+)>/);
+  from = (from ? from[1] : String(message.from || "")).trim().toLowerCase();
   var senderAllowed = config.allowedSenders.indexOf(from) >= 0;
   var syntheticTestMail = /^\[テスト\]\s*sharefull応募通知/i.test(subject) && /SHAREFULL_TEST_EVENT/.test(body);
   if (!senderAllowed && !syntheticTestMail) return null;
@@ -73,7 +71,6 @@ function parseSharefullTestMail_(message, config) {
   var orderId = capture_(text, /(?:管理番号|URL管理番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   var requestId = capture_(text, /(?:テスト案件ID|request_id)\s*[：:]?\s*([0-9a-f-]{36})/i);
   var applicationId = capture_(text, /(?:応募ID|応募番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
-  var applicant = capture_(text, /(?:応募者|氏名)\s*[：:]?\s*([^\n\r]+)/i);
   if (!jobId && !orderId && !requestId) return null;
   if (syntheticTestMail && (jobId !== config.testJobId && orderId !== config.testOrderId && requestId !== config.testRequestId)) return null;
 
@@ -83,12 +80,48 @@ function parseSharefullTestMail_(message, config) {
     sharefull_order_id: orderId || undefined,
     provider: "sharefull",
     // 応募メールと応募確定メールが同じ応募を更新できるよう、message IDとは分離した安定キーにする。
-    application_key: applicationId || [jobId || orderId || requestId, applicant || "unknown"].join("::"),
-    event_id: message.getId(),
+    application_key: applicationId || [jobId || orderId || requestId, detectState_(subject + "\n" + body)].join("::"),
+    event_id: message.id,
     state: detectState_(subject + "\n" + body),
-    applicant_name: applicant || null,
-    occurred_at: message.getDate().toISOString()
+    occurred_at: message.date
   };
+}
+
+function searchGmailMessages_(query, limit) {
+  var list = gmailApiRequest_("messages?q=" + encodeURIComponent(query) + "&maxResults=" + limit);
+  return (list.messages || []).map(function(item) {
+    var message = gmailApiRequest_("messages/" + encodeURIComponent(item.id) + "?format=full");
+    var headers = {};
+    ((message.payload && message.payload.headers) || []).forEach(function(header) {
+      headers[String(header.name || "").toLowerCase()] = header.value || "";
+    });
+    return {
+      id: message.id,
+      from: headers.from || "",
+      subject: headers.subject || "",
+      date: message.internalDate ? new Date(Number(message.internalDate)).toISOString() : new Date().toISOString(),
+      body: plainTextFromPayload_(message.payload)
+    };
+  });
+}
+
+function gmailApiRequest_(path, options) {
+  var response = UrlFetchApp.fetch("https://gmail.googleapis.com/gmail/v1/users/me/" + path, Object.assign({
+    method: "get",
+    headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true
+  }, options || {}));
+  var code = response.getResponseCode();
+  if (code < 200 || code >= 300) throw new Error("Gmail API request failed: " + code);
+  return JSON.parse(response.getContentText() || "{}");
+}
+
+function plainTextFromPayload_(payload) {
+  if (!payload) return "";
+  if (payload.mimeType === "text/plain" && payload.body && payload.body.data) {
+    return Utilities.newBlob(Utilities.base64DecodeWebSafe(payload.body.data)).getDataAsString();
+  }
+  return (payload.parts || []).map(plainTextFromPayload_).filter(Boolean).join("\n");
 }
 
 function detectState_(text) {
@@ -158,9 +191,24 @@ function sendSharefullSyntheticTestEmail() {
     config.testRequestId ? "テスト案件ID: " + config.testRequestId : null,
     config.testJobId ? "求人ID: " + config.testJobId : null,
     config.testOrderId ? "管理番号: " + config.testOrderId : null,
-    "応募者: テスト応募者",
     "応募日時: " + new Date().toISOString()
   ].filter(Boolean);
-  GmailApp.sendEmail(recipient, "[テスト] Sharefull応募通知", lines.join("\n"));
+  sendGmailMessage_(recipient, "[テスト] Sharefull応募通知", lines.join("\n"));
   console.info("合成テストメールを自身のアカウントへ送信しました。応募ID: " + applicationId);
+}
+
+function sendGmailMessage_(recipient, subject, body) {
+  if (!/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(recipient)) throw new Error("送信先メールアドレスが不正です");
+  var encodedSubject = Utilities.base64Encode(Utilities.newBlob(subject).getBytes());
+  var mime = [
+    "To: " + recipient,
+    "Subject: =?UTF-8?B?" + encodedSubject + "?=",
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    body
+  ].join("\r\n");
+  var raw = Utilities.base64EncodeWebSafe(Utilities.newBlob(mime).getBytes()).replace(/=+$/, "");
+  gmailApiRequest_("messages/send", { method: "post", contentType: "application/json", payload: JSON.stringify({ raw: raw }) });
 }

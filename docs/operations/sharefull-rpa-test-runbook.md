@@ -22,7 +22,7 @@ SHAREFULL_AUTO_POST_MODE=save
 6. 問題がなければ`publish`へ変更して実掲載を確認する。
 7. テスト案件への応募を発生させ、Sharefullから応募通知メールが届くことを確認する。
 8. テスト用GASが対象メールを取得し、重複除外してテスト用LINE WORKSグループへ通知することを確認する。
-9. 応募者・求人ID・管理番号・受信日時・GmailメッセージIDを通知内容とログで照合する。
+9. 個人情報を含めず、求人ID・管理番号・状態・受信日時とGmailメッセージIDで処理を照合する。
 10. 応募通知処理に失敗した場合、再実行で二重通知されず、エラーが記録されることを確認する。
 11. 応募なし・`募集なし`の案件でクローズ処理を確認する。
 12. 求人ID・管理番号不一致時に即時中止されることを確認する。
@@ -41,7 +41,7 @@ Content-Type: application/json
 
 送信項目は `provider=sharefull`、`event_id`、`application_key`、`state`（`applied`または`confirmed`）、`occurred_at` と、Sharefullの求人IDまたは管理番号を基本とする。応募メールと応募確定メールは同じ`application_key`で更新し、`event_id`（Gmail message ID）は受信イベントの重複防止に使う。APIはテストモードでのみ有効で、`record_sharefull_rpa_test_application()`を通じてテスト応募テーブルへ登録する。本番モードでは404を返す。
 
-GASソースは `scripts/gas/sharefull-test-application-notify.gs` に置き、Apps Scriptプロジェクトへ反映する。Script Propertiesには次だけを設定する。
+GASソースは `scripts/gas/sharefull-test-application-notify.gs` に置き、Apps Scriptプロジェクトへ反映する。マニフェスト `scripts/gas/appsscript.json` の明示スコープを使い、Gmail読み取り専用と送信だけを許可する。`GmailApp` は完全メールボックスアクセスを要求するため使わず、Gmail APIをUrlFetch経由で呼び出す。メッセージの既読化・ラベル変更・削除は行わない。認可画面で完全削除やメール変更権限が表示された場合は承認しない。応募者名・性別・プロフィールURLはDB・LINE WORKS・ログへ送信しない。Script Propertiesには次だけを設定する。
 
 - `MYFAMILLE_TEST_API_BASE_URL`：`https://famille-shift-matching-test.vercel.app`
 - `MYFAMILLE_TEST_API_TOKEN`：テストVercelの `SHAREFULL_TEST_GAS_TOKEN` と同じ値
@@ -73,7 +73,7 @@ SharefullからGmailへ通知メール
 ### GASの責務
 
 - Gmailの対象ラベルまたは検索条件から未処理メールを取得する。
-- 送信元、件名、求人IDまたは管理番号、応募者情報を検証する。
+- 送信元、件名、求人IDまたは管理番号を検証する。応募者名・性別・プロフィールURLは利用・保存・通知しない。
 - GmailメッセージID（必要に応じてスレッドID）を処理済みキーとして保存する。
 - テスト時は承認済みの性別表現停止通知と同じLINE WORKSチャンネルへ、`【テスト】`付きで通知する。
 - LINE WORKS APIの失敗時は通知claimを解放し、GASの再実行で再試行する。
