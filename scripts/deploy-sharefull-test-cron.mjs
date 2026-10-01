@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON } from "./sharefull-test-cron-config.mjs";
 
-const projectName = "famille-shift-matching-test";
+const projectName = "famille-sharefull-decision-cron-test";
 const teamScope = "junkusanos-projects";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sharedConfig = JSON.parse(await readFile(join(repoRoot, "vercel.json"), "utf8"));
@@ -16,8 +16,11 @@ const localConfigPath = join(tempDirectory, "vercel.test.generated.json");
 
 try {
   await writeFile(localConfigPath, `${JSON.stringify(deployConfig, null, 2)}\n`, "utf8");
-  console.log(`Deploying ${deployConfig.crons.length} schedules to test project ${projectName}.`);
-  console.log(`The ${sharedConfig.crons.length} shared schedules are preserved; only ${SHAREFULL_DECISION_CRON.path} is added.`);
+  if (deployConfig.crons.length !== 1 || deployConfig.crons[0].path !== SHAREFULL_DECISION_CRON.path) {
+    throw new Error("Refusing deployment: isolated test project must contain only the decision monitor cron");
+  }
+  console.log(`Deploying only ${SHAREFULL_DECISION_CRON.path} to isolated test project ${projectName}.`);
+  console.log(`Legacy project ${"famille-shift-matching-test"} and production project are not deployment targets.`);
 
   const npx = process.platform === "win32" ? "npx.cmd" : "npx";
   const result = spawnSync(npx, [
