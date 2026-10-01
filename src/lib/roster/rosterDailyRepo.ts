@@ -94,6 +94,15 @@ interface ShiftRowFallback {
   female_flg?: boolean | null;
 }
 
+interface ShiftDetailsRow {
+  shift_id: number;
+  required_staff_count: number | null;
+  two_person_work_flg: boolean | null;
+  judo_ido: string | number | null;
+  staff_02_attend_flg: boolean | null;
+  staff_03_attend_flg: boolean | null;
+}
+
 interface ClientDetailsRow {
   kaipoke_cs_id: string | number | null;
   postal_code: string | null;
@@ -403,6 +412,52 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
               : details.postal_code
                 ? `https://www.google.com/maps/search/${details.postal_code}`
                 : null),
+        };
+      });
+    }
+  }
+
+  // 旧 fallback view にはシフト側の編集項目が含まれないため、
+  // 重度移動（judo_ido）などを shift テーブルから補完する。
+  // shift_daily_dialog_view が利用できる場合も、欠落した値だけを補完して
+  // ビュー由来の最新表示を優先する。
+  const shiftIds = Array.from(
+    new Set((shiftRows ?? []).map((row) => row.shift_id).filter((id) => Number.isFinite(id))),
+  );
+
+  if (shiftIds.length > 0) {
+    const { data: shiftDetailsRaw, error: shiftDetailsErr } = await SB
+      .from("shift")
+      .select(
+        "shift_id,required_staff_count,two_person_work_flg,judo_ido,staff_02_attend_flg,staff_03_attend_flg",
+      )
+      .in("shift_id", shiftIds);
+
+    if (shiftDetailsErr) {
+      console.warn("[roster] shift detail enrichment query error", shiftDetailsErr);
+    } else {
+      const shiftDetails = new Map<number, ShiftDetailsRow>();
+      for (const raw of shiftDetailsRaw ?? []) {
+        const row = raw as unknown as ShiftDetailsRow;
+        shiftDetails.set(row.shift_id, row);
+      }
+
+      shiftRows = (shiftRows ?? []).map((row) => {
+        const details = shiftDetails.get(row.shift_id);
+        if (!details) return row;
+
+        return {
+          ...row,
+          required_staff_count: row.required_staff_count ?? details.required_staff_count,
+          two_person_work_flg: row.two_person_work_flg ?? details.two_person_work_flg,
+          judo_ido:
+            row.judo_ido != null && String(row.judo_ido).trim() !== ""
+              ? row.judo_ido
+              : details.judo_ido != null
+                ? String(details.judo_ido)
+                : null,
+          staff_02_attend_flg: row.staff_02_attend_flg ?? details.staff_02_attend_flg,
+          staff_03_attend_flg: row.staff_03_attend_flg ?? details.staff_03_attend_flg,
         };
       });
     }
