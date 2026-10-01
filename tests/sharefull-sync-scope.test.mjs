@@ -50,3 +50,27 @@ test("テストモードは専用テーブルを使い本番の同期対象指�
   assert.equal(scope.isSharefullSyncClient("any-client"), true);
   assert.equal(scope.sharefullSyncScopeLabel(), "test");
 });
+
+test("応募決定監視はテスト配置・テストモード・明示有効化のすべてが必要", () => {
+  assert.equal(loadScope({
+    SHAREFULL_DECISION_MONITOR_ENABLED: "true",
+    SHAREFULL_TEST_DEPLOYMENT: "true",
+    SHAREFULL_RPA_MODE: "production",
+  }).shouldRunSharefullDecisionMonitor(), false);
+
+  assert.equal(loadScope({
+    SHAREFULL_DECISION_MONITOR_ENABLED: "true",
+    SHAREFULL_RPA_MODE: "test",
+  }).shouldRunSharefullDecisionMonitor(), false);
+
+  assert.equal(loadScope({
+    SHAREFULL_TEST_DEPLOYMENT: "true",
+    SHAREFULL_RPA_MODE: "test",
+  }).shouldRunSharefullDecisionMonitor(), false);
+
+  assert.equal(loadScope({
+    SHAREFULL_DECISION_MONITOR_ENABLED: "true",
+    SHAREFULL_TEST_DEPLOYMENT: "true",
+    SHAREFULL_RPA_MODE: "test",
+  }).shouldRunSharefullDecisionMonitor(), true);
+});

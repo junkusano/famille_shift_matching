@@ -11,18 +11,26 @@ SHAREFULL_AUTOMATION_CRONS_ENABLED=false
 SHAREFULL_AUTO_POST_ENABLED=true
 SHAREFULL_AUTO_POST_MODE=save
 SHAREFULL_TEST_RUNNER_ID=sharefull-test-runner
+SHAREFULL_DECISION_MONITOR_ENABLED=true
+SHAREFULL_DECISION_RUNNER_ID=<稼働中の専用テストRunner ID>
 SHAREFULL_TEST_GAS_TOKEN=<テスト用GASからの受信用ランダムトークン>
 ```
+
+`SHAREFULL_DECISION_MONITOR_ENABLED`と`SHAREFULL_DECISION_RUNNER_ID`はテスト用VercelプロジェクトのProduction環境だけに登録する。値を本番Vercelへ追加しない。
 
 `SHAREFULL_AUTO_POST_MODE=save`により、まずはSharefull画面で保存までを確認し、募集開始は行わない。
 
 ## デプロイ
 
-`vercel.test.json`はcronを含まない。Vercel CLIでこの設定を明示して、既存のテスト用プロジェクトへデプロイする。
+共有の`vercel.json`には既存Cronだけを残し、応募決定監視Cronは追加しない。これにより通常の本番デプロイでは新Cronが登録されない。
+
+テスト用デプロイでは`vercel.test.json`の設定を使い、`vercel.json`にある既存Cron全件をそのまま引き継いだうえで、応募決定監視Cronだけを足した一時設定を生成する。専用スクリプトはVercel CLIにテスト用プロジェクト名とチームを明示し、この一時設定でテスト用プロジェクトだけをデプロイする。既存Cronのパス・スケジュールは本番・テスト双方で変更しない。
 
 ```powershell
-npx vercel deploy --prod --scope junkusanos-projects --yes --local-config vercel.test.json
+node scripts/deploy-sharefull-test-cron.mjs
 ```
+
+実行前にVercel CLIの認証状態と、接続先が`famille-shift-matching-test`であることを確認する。`--prod`はこのテスト用プロジェクト内のProductionデプロイを指す。本番プロジェクトへこのコマンドを向けない。
 
 テスト用プロジェクトは `famille-shift-matching-test`、URLは `https://famille-shift-matching-test.vercel.app` である。Runnerのテスト設定ではこのURLとテスト用APIベースURLを使用し、本番URLを設定しない。
 
@@ -95,3 +103,5 @@ order by created_at asc;
 - `/api/cron/rpa-scheduler`
 
 停止時はジョブ登録を行わず、`skipped: true`を返す。Vercel側でcronなしにする設定と合わせた二重防護である。
+
+応募決定監視は、`SHAREFULL_DECISION_MONITOR_ENABLED=true`だけでは実行しない。さらに`SHAREFULL_TEST_DEPLOYMENT=true`かつ`SHAREFULL_RPA_MODE=test`を必須とし、いずれかが欠ける本番環境・その他環境ではRunner Jobを登録しない。テスト用VercelにだけCronを登録するCLI設定と、この実行時ガードを併用する。
