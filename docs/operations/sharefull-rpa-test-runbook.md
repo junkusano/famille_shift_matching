@@ -41,7 +41,18 @@ Content-Type: application/json
 
 送信項目は `provider=sharefull`、`event_id`、`application_key`、`state`（`applied`または`confirmed`）、`occurred_at` と、Sharefullの求人IDまたは管理番号を基本とする。応募メールと応募確定メールは同じ`application_key`で更新し、`event_id`（Gmail message ID）は受信イベントの重複防止に使う。APIはテストモードでのみ有効で、`record_sharefull_rpa_test_application()`を通じてテスト応募テーブルへ登録する。本番モードでは404を返す。
 
-GAS側のScript Propertiesにはテスト用URL、テストAPIトークン、Gmail検索条件、テストLINE WORKS API URL・アクセストークン・チャンネルIDだけを設定する。GmailメッセージIDは処理済みキーとして保存し、LINE WORKS送信が成功した後に処理済みとして記録する。
+GASソースは `scripts/gas/sharefull-test-application-notify.gs` に置き、Apps Scriptプロジェクトへ反映する。Script Propertiesには次だけを設定する。
+
+- `MYFAMILLE_TEST_API_BASE_URL`：`https://famille-shift-matching-test.vercel.app`
+- `MYFAMILLE_TEST_API_TOKEN`：テストVercelの `SHAREFULL_TEST_GAS_TOKEN` と同じ値
+- `SHAREFULL_TEST_GMAIL_QUERY`：`label:SharefullTest newer_than:7d` のようにテスト専用Gmailラベルを必須にした検索条件
+- `SHAREFULL_TEST_LINEWORKS_BOT_ID`、`SHAREFULL_TEST_LINEWORKS_ACCESS_TOKEN`、`SHAREFULL_TEST_LINEWORKS_CHANNEL_ID`：テスト通知先の値。本番チャンネルIDはコードで拒否する
+- `SHAREFULL_TEST_ALLOWED_SENDERS`：実メールで許可する送信元アドレス（完全一致、複数はカンマ区切り）
+- `SHAREFULL_TEST_JOB_ID` または `SHAREFULL_TEST_ORDER_ID`：合成メールで照合する既存のテスト案件ID／管理番号
+
+GmailメッセージIDはLINE WORKS送信成功後に処理済みとして記録する。DB側ですでにイベント登録済みでも、GASに送信済み記録がなければLINE WORKS通知を再試行する（送信と記録の間でプロセスが落ちる極小時間帯は重複通知の可能性がある）。処理の同時起動はScript Lockで抑止する。
+
+`sendSharefullSyntheticTestEmail` は手動実行専用で、ログイン中アカウント自身へ `[テスト] Sharefull応募通知` を1通送る。テスト案件ID／管理番号が設定されていないと送信しない。テスト先や値が確定するまで時間主導トリガーは作成しない。実メール処理の検索条件は専用Gmailラベルに制限し、本番受信箱全体検索は許可しない。
 
 ## 応募通知フロー
 
