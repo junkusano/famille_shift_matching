@@ -12,6 +12,12 @@ type CalendarLink = {
   calendar_name: string | null;
 };
 
+type ManagerCalendarUser = {
+  user_id: string;
+  google_calendar_id: string | null;
+  google_calendar_sync: boolean;
+};
+
 type GoogleEventRow = {
   google_calendar_id: string;
   google_event_id: string;
@@ -70,6 +76,110 @@ function getGoogleCalendarApi() {
     version: "v3",
     auth: oauth2Client,
   });
+}
+
+function getUserIdCandidate(calendarId: string): string | null {
+  const localPart = calendarId.split("@")[0]?.trim();
+
+  return localPart || null;
+}
+
+async function autoRegisterManagerCalendars(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  calendarApi: calendar_v3.Calendar,
+): Promise<number> {
+  const { data: managers, error: managersError } =
+    await supabase
+      .from("users")
+      .select(
+        "user_id,google_calendar_id,google_calendar_sync",
+      )
+      .eq("system_role", "manager");
+
+  if (managersError) {
+    console.warn(
+      "[google-calendar-sync] manager calendar auto-registration lookup failed",
+      managersError.message,
+    );
+    return 0;
+  }
+
+  const managerRows = (managers ?? []) as ManagerCalendarUser[];
+  const pendingManagers = managerRows.filter(
+    (manager) =>
+      !manager.google_calendar_id ||
+      !manager.google_calendar_sync,
+  );
+
+  if (pendingManagers.length === 0) {
+    return 0;
+  }
+
+  const calendars: calendar_v3.Schema$CalendarListEntry[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const response = await calendarApi.calendarList.list({
+      minAccessRole: "reader",
+      maxResults: 250,
+      pageToken,
+    });
+
+    calendars.push(...(response.data.items ?? []));
+    pageToken = response.data.nextPageToken ?? undefined;
+  } while (pageToken);
+
+  let registeredCount = 0;
+
+  for (const manager of pendingManagers) {
+    const matches = calendars.filter(
+      (calendar) =>
+        calendar.id &&
+        getUserIdCandidate(calendar.id) === manager.user_id,
+    );
+
+    if (matches.length !== 1 || !matches[0]?.id) {
+      console.warn(
+        "[google-calendar-sync] manager calendar auto-registration skipped",
+        {
+          userId: manager.user_id,
+          matchCount: matches.length,
+        },
+      );
+      continue;
+    }
+
+    const googleCalendarId = matches[0].id;
+    const { error: updateError } = await supabase
+      .from("users")
+      .update({
+        google_calendar_id: googleCalendarId,
+        google_calendar_sync: true,
+      })
+      .eq("user_id", manager.user_id);
+
+    if (updateError) {
+      console.warn(
+        "[google-calendar-sync] manager calendar auto-registration failed",
+        {
+          userId: manager.user_id,
+          error: updateError.message,
+        },
+      );
+      continue;
+    }
+
+    registeredCount++;
+    console.log(
+      "[google-calendar-sync] manager calendar auto-registered",
+      {
+        userId: manager.user_id,
+        calendarId: googleCalendarId,
+      },
+    );
+  }
+
+  return registeredCount;
 }
 
 /**
@@ -261,6 +371,18 @@ async function syncGoogleCalendars() {
 
   const supabase = getSupabaseAdmin();
   const calendarApi = getGoogleCalendarApi();
+
+  try {
+    await autoRegisterManagerCalendars(
+      supabase,
+      calendarApi,
+    );
+  } catch (error) {
+    console.warn(
+      "[google-calendar-sync] manager calendar auto-registration unavailable",
+      error instanceof Error ? error.message : error,
+    );
+  }
 
   const { data: links, error: linksError } =
   await supabase
