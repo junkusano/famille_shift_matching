@@ -6,14 +6,11 @@ const assert = require("node:assert/strict");
 
 const source = fs.readFileSync(path.join(__dirname, "..", "sharefull-test-application-notify.gs"), "utf8");
 
-function createHarness({ apiDuplicate = false, lineworksStatus = 201, orderId = "TEST-ORDER-42", apiBaseUrl, gmailQuery, channelId } = {}) {
+function createHarness({ apiDuplicate = false, apiStatus = 200, orderId = "TEST-ORDER-42", apiBaseUrl, gmailQuery } = {}) {
   const properties = {
     MYFAMILLE_TEST_API_BASE_URL: apiBaseUrl || "https://famille-shift-matching-test.vercel.app",
     MYFAMILLE_TEST_API_TOKEN: "test-token-not-a-secret",
     SHAREFULL_TEST_GMAIL_QUERY: gmailQuery || 'label:SharefullTest newer_than:7d',
-    SHAREFULL_TEST_LINEWORKS_BOT_ID: "6807751",
-    SHAREFULL_TEST_LINEWORKS_ACCESS_TOKEN: "test-lineworks-token",
-    SHAREFULL_TEST_LINEWORKS_CHANNEL_ID: channelId || "test-channel-id",
     SHAREFULL_TEST_ALLOWED_SENDERS: "sharefull@example.test",
     SHAREFULL_TEST_ORDER_ID: orderId,
   };
@@ -56,12 +53,12 @@ function createHarness({ apiDuplicate = false, lineworksStatus = 201, orderId = 
     UrlFetchApp: { fetch: (url, options) => {
       calls.push({ type: "fetch", url, options });
       if (url.endsWith("/api/rpa/sharefull/test-application")) {
-        return response(200, { ok: true, duplicate: apiDuplicate, request: {
+        return response(apiStatus, { ok: apiStatus < 300, duplicate: apiDuplicate, request: {
           sharefull_job_id: "JOB-42", sharefull_order_id: "TEST-ORDER-42",
           shift_start_date: "2026-10-02", shift_start_time: "09:00",
         } });
       }
-      return response(lineworksStatus, {});
+      throw new Error("GAS should not call LINE WORKS directly");
     } },
   };
   vm.createContext(context);
@@ -73,7 +70,7 @@ function response(code, payload) {
   return { getResponseCode: () => code, getContentText: () => JSON.stringify(payload) };
 }
 
-test("Gmail応募をテストAPIへ登録し、正しいBotチャンネルへ通知してから処理済みにする", () => {
+test("Gmail応募をテストAPIへ登録し、LINE WORKS認証情報をGASに持たず処理済みにする", () => {
   const { context, calls, properties } = createHarness();
   context.processSharefullTestApplicationNotifications();
   const api = calls.find(call => call.url && call.url.endsWith("/api/rpa/sharefull/test-application"));
@@ -82,21 +79,21 @@ test("Gmail応募をテストAPIへ登録し、正しいBotチャンネルへ通
   assert.equal(payload.state, "applied");
   assert.equal(payload.sharefull_order_id, "TEST-ORDER-42");
   assert.equal(payload.application_key, "APP-7");
-  const notifications = calls.filter(call => call.url && call.url.includes("/bots/6807751/channels/test-channel-id/messages"));
-  assert.equal(notifications.length, 2);
-  assert.equal(JSON.parse(notifications[0].options.payload).content.text.startsWith("【テスト】"), true);
+  const notifications = calls.filter(call => call.url && call.url.includes("/bots/"));
+  assert.equal(notifications.length, 0);
+  assert.equal(Object.keys(properties).some(key => key.includes("LINEWORKS")), false);
   assert.equal(JSON.parse(properties.SHAREFULL_TEST_NOTIFICATION_STATE)["gmail-message-1"], "sent");
   assert.equal(JSON.parse(properties.SHAREFULL_TEST_NOTIFICATION_STATE)["gmail-message-synthetic"], "sent");
 });
 
-test("DBで重複扱いでも通知未送信なら再送し、API失敗時は送信済みにしない", () => {
+test("APIの重複制御に委ね、通知API失敗時はGmailを処理済みにしない", () => {
   const retry = createHarness({ apiDuplicate: true });
   retry.context.processSharefullTestApplicationNotifications();
-  assert.equal(retry.calls.filter(call => call.url && call.url.includes("/bots/6807751/channels/")).length, 2);
+  assert.equal(retry.calls.filter(call => call.url && call.url.includes("/bots/")).length, 0);
   assert.equal(JSON.parse(retry.properties.SHAREFULL_TEST_NOTIFICATION_STATE)["gmail-message-1"], "sent");
 
-  const failure = createHarness({ lineworksStatus: 500 });
-  assert.throws(() => failure.context.processSharefullTestApplicationNotifications(), /LINE WORKS通知に失敗/);
+  const failure = createHarness({ apiStatus: 502 });
+  assert.doesNotThrow(() => failure.context.processSharefullTestApplicationNotifications());
   assert.equal(failure.properties.SHAREFULL_TEST_NOTIFICATION_STATE, undefined);
 });
 
@@ -115,14 +112,16 @@ test("応募取消メールはcancelled状態として検出する", () => {
   assert.equal(context.detectState_("応募キャンセルのお知らせ"), "cancelled");
 });
 
-test("本番API URL・ラベルなし検索・既知の本番チャンネルを拒否する", () => {
+test("本番API URLとGmailラベルなし検索を拒否し、GASへLINE WORKS資格情報を要求しない", () => {
   for (const options of [
     { apiBaseUrl: "https://myfamille.shi-on.net" },
     { gmailQuery: "in:anywhere newer_than:7d" },
-    { channelId: "52e31296-6764-0a1e-5b37-11023360216b" },
   ]) {
     const { context, calls } = createHarness(options);
     assert.throws(() => context.readConfig_());
     assert.equal(calls.length, 0);
   }
+  const { context, properties } = createHarness();
+  context.readConfig_();
+  assert.equal(Object.keys(properties).some(key => key.includes("LINEWORKS")), false);
 });

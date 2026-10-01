@@ -5,13 +5,10 @@
  * - MYFAMILLE_TEST_API_BASE_URL
  * - MYFAMILLE_TEST_API_TOKEN
  * - SHAREFULL_TEST_GMAIL_QUERY（必須: label:SharefullTest を含む、実メール用検索条件）
- * - SHAREFULL_TEST_LINEWORKS_BOT_ID
- * - SHAREFULL_TEST_LINEWORKS_ACCESS_TOKEN
- * - SHAREFULL_TEST_LINEWORKS_CHANNEL_ID
  * - SHAREFULL_TEST_ALLOWED_SENDERS (comma-separated exact email addresses)
  * - SHAREFULL_TEST_JOB_ID or SHAREFULL_TEST_ORDER_ID (test fixture for synthetic mail)
  *
- * 本番Gmail・本番API・本番LINE WORKSの値は設定しない。
+ * LINE WORKS認証情報はGASに置かず、テストAPI側で既存の送信設定を使う。
  */
 function processSharefullTestApplicationNotifications() {
   var lock = LockService.getScriptLock();
@@ -51,9 +48,8 @@ function processSharefullTestApplicationNotifications() {
           return;
         }
 
-        // DB登録済みでも通知未達の可能性があるため、GAS側の送信済み記録が
-        // 確認できない限り通知を再試行する。送信後にのみ処理済みにする。
-        sendLineWorks_(config, buildNotificationText_(event, ingestBody.request || {}));
+        // APIはテストDBへの記録とLINE WORKS送信の両方が成功してから200を返す。
+        // LINE WORKSの資格情報・チャンネル選択はAPI側で既存設定を共有する。
         markNotificationSent_(messageId);
         processed[messageId] = "sent";
       });
@@ -98,43 +94,12 @@ function detectState_(text) {
   return /応募確定|採用決定|マッチング成立|確定/.test(text) ? "confirmed" : "applied";
 }
 
-function sendLineWorks_(config, text) {
-  var url = "https://www.worksapis.com/v1.0/bots/" + encodeURIComponent(config.lineworksBotId) +
-    "/channels/" + encodeURIComponent(config.lineworksChannelId) + "/messages";
-  var response = UrlFetchApp.fetch(url, {
-    method: "post",
-    contentType: "application/json",
-    headers: { Authorization: "Bearer " + config.lineworksAccessToken },
-    payload: JSON.stringify({ content: { type: "text", text: text } }),
-    muteHttpExceptions: true
-  });
-  if (response.getResponseCode() < 200 || response.getResponseCode() >= 300) {
-    throw new Error("LINE WORKS通知に失敗: " + response.getResponseCode());
-  }
-}
-
-function buildNotificationText_(event, request) {
-  return [
-    "【テスト】シェアフル応募通知",
-    "状態: " + event.state,
-    "応募者: " + (event.applicant_name || "不明"),
-    "求人ID: " + (request.sharefull_job_id || event.sharefull_job_id || "不明"),
-    "管理番号: " + (request.sharefull_order_id || event.sharefull_order_id || "不明"),
-    "勤務日: " + (request.shift_start_date || "不明"),
-    "勤務開始: " + (request.shift_start_time || "不明"),
-    "受信日時: " + event.occurred_at
-  ].join("\n");
-}
-
 function readConfig_() {
   var props = PropertiesService.getScriptProperties();
   var config = {
     apiBaseUrl: required_(props, "MYFAMILLE_TEST_API_BASE_URL").replace(/\/$/, ""),
     apiToken: required_(props, "MYFAMILLE_TEST_API_TOKEN"),
     gmailQuery: required_(props, "SHAREFULL_TEST_GMAIL_QUERY"),
-    lineworksBotId: required_(props, "SHAREFULL_TEST_LINEWORKS_BOT_ID"),
-    lineworksAccessToken: required_(props, "SHAREFULL_TEST_LINEWORKS_ACCESS_TOKEN"),
-    lineworksChannelId: required_(props, "SHAREFULL_TEST_LINEWORKS_CHANNEL_ID"),
     allowedSenders: (props.getProperty("SHAREFULL_TEST_ALLOWED_SENDERS") || "").split(",").map(function(value) { return value.trim().toLowerCase(); }).filter(Boolean),
     testJobId: (props.getProperty("SHAREFULL_TEST_JOB_ID") || "").trim(),
     testOrderId: (props.getProperty("SHAREFULL_TEST_ORDER_ID") || "").trim()
@@ -144,9 +109,6 @@ function readConfig_() {
   }
   if (!/\blabel:[^\s]+/i.test(config.gmailQuery) || /\bin:anywhere\b/i.test(config.gmailQuery)) {
     throw new Error("実メール検索条件にはテスト用Gmailラベルを指定してください（label:...）。");
-  }
-  if (["52e31296-6764-0a1e-5b37-11023360216b", "99142491"].indexOf(config.lineworksChannelId) >= 0) {
-    throw new Error("本番LINE WORKSチャンネルIDはテスト送信先に設定できません");
   }
   return config;
 }
