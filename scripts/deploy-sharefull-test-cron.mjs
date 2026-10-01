@@ -5,22 +5,26 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON } from "./sharefull-test-cron-config.mjs";
 
-const projectName = "famille-sharefull-decision-cron-test";
+const projectName = "famille-shift-matching-test";
 const teamScope = "junkusanos-projects";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sharedConfig = JSON.parse(await readFile(join(repoRoot, "vercel.json"), "utf8"));
 const testOverrides = JSON.parse(await readFile(join(repoRoot, "vercel.test.json"), "utf8"));
-const deployConfig = buildSharefullTestVercelConfig(sharedConfig, testOverrides);
+const decisionToken = process.env.SHAREFULL_DECISION_CRON_TOKEN;
+const deployConfig = buildSharefullTestVercelConfig(sharedConfig, testOverrides, decisionToken);
 const tempDirectory = await mkdtemp(join(tmpdir(), "myfamille-sharefull-test-cron-"));
 const localConfigPath = join(tempDirectory, "vercel.test.generated.json");
 
 try {
   await writeFile(localConfigPath, `${JSON.stringify(deployConfig, null, 2)}\n`, "utf8");
-  if (deployConfig.crons.length !== 1 || deployConfig.crons[0].path !== SHAREFULL_DECISION_CRON.path) {
-    throw new Error("Refusing deployment: isolated test project must contain only the decision monitor cron");
+  const addedCron = deployConfig.crons.at(-1);
+  if (deployConfig.crons.length !== sharedConfig.crons.length + 1
+    || !addedCron?.path.startsWith(`${SHAREFULL_DECISION_CRON.path}?decision_token=`)
+    || deployConfig.crons.slice(0, -1).some((cron, index) => JSON.stringify(cron) !== JSON.stringify(sharedConfig.crons[index]))) {
+    throw new Error("Refusing deployment: preserve the test project's existing crons and add only the decision monitor cron");
   }
-  console.log(`Deploying only ${SHAREFULL_DECISION_CRON.path} to isolated test project ${projectName}.`);
-  console.log(`Legacy project ${"famille-shift-matching-test"} and production project are not deployment targets.`);
+  console.log(`Deploying ${deployConfig.crons.length} schedules to test project ${projectName}; preserving its ${sharedConfig.crons.length} existing schedules.`);
+  console.log(`Only ${SHAREFULL_DECISION_CRON.path} is added. No project-wide CRON_SECRET is configured by this script.`);
 
   const npx = process.platform === "win32" ? "npx.cmd" : "npx";
   const result = spawnSync(npx, [
