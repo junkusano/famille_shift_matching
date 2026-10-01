@@ -94,6 +94,13 @@ interface ShiftRowFallback {
   female_flg?: boolean | null;
 }
 
+interface ClientDetailsRow {
+  kaipoke_cs_id: string | number | null;
+  postal_code: string | null;
+  address: string | null;
+  biko: string | null;
+}
+
 const makeFullName = (last?: string | null, first?: string | null) =>
   `${last ?? ""}${first ?? ""}`;
 
@@ -348,6 +355,56 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
         shift_event_alerts: [],
         multiple_service_group_id: null,
       }));
+    }
+  }
+
+  // View の取得に失敗した場合でも、住所・備考は利用者情報から補完する。
+  // 旧 fallback view にはこれらの列がなく、null のままだとダイアログから
+  // 以前表示できていた情報が消えてしまうため、表示用データを別途復元する。
+  const clientIds = Array.from(
+    new Set(
+      (shiftRows ?? [])
+        .map((row) => row.kaipoke_cs_id)
+        .filter((id): id is string | number => id != null),
+    ),
+  );
+
+  if (clientIds.length > 0) {
+    const { data: clientDetailsRaw, error: clientDetailsErr } = await SB
+      .from("cs_kaipoke_info")
+      .select("kaipoke_cs_id,postal_code,address,biko")
+      .in("kaipoke_cs_id", clientIds);
+
+    if (clientDetailsErr) {
+      console.warn("[roster] client address/note query error", clientDetailsErr);
+    } else {
+      const clientDetails = new Map<string, ClientDetailsRow>();
+      for (const raw of clientDetailsRaw ?? []) {
+        const row = raw as unknown as ClientDetailsRow;
+        if (row.kaipoke_cs_id != null) {
+          clientDetails.set(String(row.kaipoke_cs_id), row);
+        }
+      }
+
+      shiftRows = (shiftRows ?? []).map((row) => {
+        const details = clientDetails.get(String(row.kaipoke_cs_id ?? ""));
+        if (!details) return row;
+
+        const address = row.address || details.address || null;
+        return {
+          ...row,
+          postal_code: row.postal_code ?? details.postal_code ?? null,
+          address,
+          cs_note: row.cs_note || details.biko || null,
+          map_url:
+            row.map_url ??
+            (address
+              ? `https://www.google.com/maps/search/${address}`
+              : details.postal_code
+                ? `https://www.google.com/maps/search/${details.postal_code}`
+                : null),
+        };
+      });
     }
   }
 
