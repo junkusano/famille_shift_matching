@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/service';
 import { authenticateRunner, RpaRunnerAuthError } from '@/lib/rpa-runner/auth';
 import { isRecord } from '@/lib/rpa-runner/validation';
 import { resolveRpaFailureAlerts } from '@/lib/rpa-runner/alerts';
-import { sharefullRequestTableName, sharefullRpaMode } from '@/lib/spot-sync/sharefullScope';
+import { sharefullDecisionStatusTableName, sharefullRequestTableName, sharefullRpaMode } from '@/lib/spot-sync/sharefullScope';
 import { getAccessToken } from '@/lib/getAccessToken';
 import { sendLWBotMessage } from '@/lib/lineworks/sendLWBotMessage';
 
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
             '応募者の個人情報は取得・通知していません。',
           ].join('\n'),
             await getAccessToken());
-          const { error: notifiedError } = await supabaseAdmin.from('sharefull_decision_status' as never)
+          const { error: notifiedError } = await supabaseAdmin.from(sharefullDecisionStatusTableName() as never)
             .update({ lineworks_notified_at: new Date().toISOString() })
             .in('request_id', notificationTargets.map((target) => target.request_id)).is('lineworks_notified_at', null);
           if (notifiedError) throw notifiedError;
