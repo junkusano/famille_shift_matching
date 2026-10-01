@@ -94,6 +94,22 @@ interface ShiftRowFallback {
   female_flg?: boolean | null;
 }
 
+interface ShiftDetailsRow {
+  shift_id: number;
+  required_staff_count: number | null;
+  two_person_work_flg: boolean | null;
+  judo_ido: string | number | null;
+  staff_02_attend_flg: boolean | null;
+  staff_03_attend_flg: boolean | null;
+}
+
+interface ClientDetailsRow {
+  kaipoke_cs_id: string | number | null;
+  postal_code: string | null;
+  address: string | null;
+  biko: string | null;
+}
+
 const makeFullName = (last?: string | null, first?: string | null) =>
   `${last ?? ""}${first ?? ""}`;
 
@@ -348,6 +364,102 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
         shift_event_alerts: [],
         multiple_service_group_id: null,
       }));
+    }
+  }
+
+  // View の取得に失敗した場合でも、住所・備考は利用者情報から補完する。
+  // 旧 fallback view にはこれらの列がなく、null のままだとダイアログから
+  // 以前表示できていた情報が消えてしまうため、表示用データを別途復元する。
+  const clientIds = Array.from(
+    new Set(
+      (shiftRows ?? [])
+        .map((row) => row.kaipoke_cs_id)
+        .filter((id): id is string | number => id != null),
+    ),
+  );
+
+  if (clientIds.length > 0) {
+    const { data: clientDetailsRaw, error: clientDetailsErr } = await SB
+      .from("cs_kaipoke_info")
+      .select("kaipoke_cs_id,postal_code,address,biko")
+      .in("kaipoke_cs_id", clientIds);
+
+    if (clientDetailsErr) {
+      console.warn("[roster] client address/note query error", clientDetailsErr);
+    } else {
+      const clientDetails = new Map<string, ClientDetailsRow>();
+      for (const raw of clientDetailsRaw ?? []) {
+        const row = raw as unknown as ClientDetailsRow;
+        if (row.kaipoke_cs_id != null) {
+          clientDetails.set(String(row.kaipoke_cs_id), row);
+        }
+      }
+
+      shiftRows = (shiftRows ?? []).map((row) => {
+        const details = clientDetails.get(String(row.kaipoke_cs_id ?? ""));
+        if (!details) return row;
+
+        const address = row.address || details.address || null;
+        return {
+          ...row,
+          postal_code: row.postal_code ?? details.postal_code ?? null,
+          address,
+          cs_note: row.cs_note || details.biko || null,
+          map_url:
+            row.map_url ??
+            (address
+              ? `https://www.google.com/maps/search/${address}`
+              : details.postal_code
+                ? `https://www.google.com/maps/search/${details.postal_code}`
+                : null),
+        };
+      });
+    }
+  }
+
+  // 旧 fallback view にはシフト側の編集項目が含まれないため、
+  // 重度移動（judo_ido）などを shift テーブルから補完する。
+  // shift_daily_dialog_view が利用できる場合も、欠落した値だけを補完して
+  // ビュー由来の最新表示を優先する。
+  const shiftIds = Array.from(
+    new Set((shiftRows ?? []).map((row) => row.shift_id).filter((id) => Number.isFinite(id))),
+  );
+
+  if (shiftIds.length > 0) {
+    const { data: shiftDetailsRaw, error: shiftDetailsErr } = await SB
+      .from("shift")
+      .select(
+        "shift_id,required_staff_count,two_person_work_flg,judo_ido,staff_02_attend_flg,staff_03_attend_flg",
+      )
+      .in("shift_id", shiftIds);
+
+    if (shiftDetailsErr) {
+      console.warn("[roster] shift detail enrichment query error", shiftDetailsErr);
+    } else {
+      const shiftDetails = new Map<number, ShiftDetailsRow>();
+      for (const raw of shiftDetailsRaw ?? []) {
+        const row = raw as unknown as ShiftDetailsRow;
+        shiftDetails.set(row.shift_id, row);
+      }
+
+      shiftRows = (shiftRows ?? []).map((row) => {
+        const details = shiftDetails.get(row.shift_id);
+        if (!details) return row;
+
+        return {
+          ...row,
+          required_staff_count: row.required_staff_count ?? details.required_staff_count,
+          two_person_work_flg: row.two_person_work_flg ?? details.two_person_work_flg,
+          judo_ido:
+            row.judo_ido != null && String(row.judo_ido).trim() !== ""
+              ? row.judo_ido
+              : details.judo_ido != null
+                ? String(details.judo_ido)
+                : null,
+          staff_02_attend_flg: row.staff_02_attend_flg ?? details.staff_02_attend_flg,
+          staff_03_attend_flg: row.staff_03_attend_flg ?? details.staff_03_attend_flg,
+        };
+      });
     }
   }
 

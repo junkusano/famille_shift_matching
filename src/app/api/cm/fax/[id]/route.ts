@@ -189,7 +189,11 @@ export async function GET(
     }
 
     // ---------------------------------------------------------
-    // 利用者候補取得（紐付いた全事業所の利用者）
+    // 利用者候補取得
+    //
+    // 利用者の所属事業所はFAXの送信元やサービス利用状況から
+    // 必ずしも確定できないため、候補は全アクティブ利用者を対象にする。
+    // 事業所情報が取得できる利用者には後から任意で表示・絞り込み情報を付加する。
     // ---------------------------------------------------------
     let clientCandidates: Array<{
       kaipoke_cs_id: string;
@@ -199,62 +203,62 @@ export async function GET(
       office_name: string;
     }> = [];
 
-    // 紐付いた事業所のoffice_numberを取得
+    let officeNumberList: Array<{ id: number; number: string; name: string }> = [];
+
+    // FAXに紐付いた事業所のoffice_numberを取得（任意の表示情報用）
     if (officeIds.length > 0) {
       const { data: officeNumbers } = await supabaseAdmin
         .from("cm_kaipoke_other_office")
         .select("id, office_number, office_name")
         .in("id", officeIds);
 
-      const officeNumberList = (officeNumbers || [])
+      officeNumberList = (officeNumbers || [])
         .filter((o) => o.office_number)
         .map((o) => ({ id: o.id, number: o.office_number, name: o.office_name }));
 
-      if (officeNumberList.length > 0) {
-        // サービス利用から利用者IDを取得
-        const { data: usageData } = await supabaseAdmin
-          .from("cm_kaipoke_service_usage")
-          .select("kaipoke_cs_id, office_number")
-          .in("office_number", officeNumberList.map((o) => o.number));
+    }
 
-        if (usageData && usageData.length > 0) {
-          const clientIds = [...new Set(usageData.map((u) => u.kaipoke_cs_id))];
+    // サービス利用情報がなくても、利用者一覧に登録された利用者を
+    // FAX振り分け候補として検索できるようにする。
+    const { data: clientsData } = await supabaseAdmin
+      .from("cm_kaipoke_info")
+      .select("kaipoke_cs_id, name, kana")
+      .eq("is_active", true)
+      .order("name", { ascending: true });
 
-          // 利用者情報を取得
-          const { data: clientsData } = await supabaseAdmin
-            .from("cm_kaipoke_info")
-            .select("kaipoke_cs_id, name, kana")
-            .in("kaipoke_cs_id", clientIds)
-            .eq("is_active", true);
+    // office_number → office_id/office_name のマップ
+    const officeByNumber = new Map<string, { id: number; name: string }>();
+    for (const o of officeNumberList) {
+      officeByNumber.set(o.number, { id: o.id, name: o.name });
+    }
 
-          // office_number → office_id/office_name のマップ
-          const officeByNumber = new Map<string, { id: number; name: string }>();
-          for (const o of officeNumberList) {
-            officeByNumber.set(o.number, { id: o.id, name: o.name });
-          }
+    // FAXに紐付いた事業所のサービス利用情報がある場合だけ、
+    // 利用者に任意の事業所表示を付加する。紐付けがない利用者も残す。
+    const clientOfficeMap = new Map<string, { id: number; name: string }>();
+    if (officeNumberList.length > 0) {
+      const { data: usageData } = await supabaseAdmin
+        .from("cm_kaipoke_service_usage")
+        .select("kaipoke_cs_id, office_number")
+        .in("office_number", officeNumberList.map((o) => o.number));
 
-          // 利用者ごとの事業所を特定
-          const clientOfficeMap = new Map<string, { id: number; name: string }>();
-          for (const u of usageData) {
-            const office = officeByNumber.get(u.office_number);
-            if (office && !clientOfficeMap.has(u.kaipoke_cs_id)) {
-              clientOfficeMap.set(u.kaipoke_cs_id, office);
-            }
-          }
-
-          clientCandidates = (clientsData || []).map((c) => {
-            const office = clientOfficeMap.get(c.kaipoke_cs_id);
-            return {
-              kaipoke_cs_id: c.kaipoke_cs_id,
-              client_name: c.name,
-              client_kana: c.kana || "",
-              office_id: office?.id || 0,
-              office_name: office?.name || "",
-            };
-          });
+      for (const u of usageData || []) {
+        const office = officeByNumber.get(u.office_number);
+        if (office && !clientOfficeMap.has(u.kaipoke_cs_id)) {
+          clientOfficeMap.set(u.kaipoke_cs_id, office);
         }
       }
     }
+
+    clientCandidates = (clientsData || []).map((c) => {
+      const office = clientOfficeMap.get(c.kaipoke_cs_id);
+      return {
+        kaipoke_cs_id: c.kaipoke_cs_id,
+        client_name: c.name,
+        client_kana: c.kana || "",
+        office_id: office?.id || 0,
+        office_name: office?.name || "所属未設定",
+      };
+    });
 
     // ---------------------------------------------------------
     // OCR結果取得（suggested_reason用）
@@ -265,16 +269,17 @@ export async function GET(
     if (pageIds.length > 0) {
       const { data: ocrData } = await supabaseAdmin
         .from("cm_fax_ocr_results")
-        .select("fax_page_id, ocr_text, extracted_client_name, suggested_reason")
-        .in("fax_page_id", pageIds);
+        .select("fax_received_id, page_number, detected_text")
+        .eq("fax_received_id", faxId)
+        .in("page_number", (pagesData || []).map((p) => p.page_number));
 
       for (const ocr of ocrData || []) {
-        const page = (pagesData || []).find((p) => p.id === ocr.fax_page_id);
+        const page = (pagesData || []).find((p) => p.page_number === ocr.page_number);
         if (page) {
           ocrByPage.set(page.page_number, {
-            text: ocr.ocr_text,
-            clientName: ocr.extracted_client_name,
-            reason: ocr.suggested_reason,
+            text: ocr.detected_text || null,
+            clientName: null,
+            reason: null,
           });
         }
       }

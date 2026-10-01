@@ -85,7 +85,11 @@ export async function middleware(req: NextRequest) {
     const isAdminPath = adminOnlyPaths.some((path) => pathname.startsWith(path))
 
     if (isAdminPath) {
-      if (!['admin', 'manager'].includes(profile.system_role) || profile.user_id === 'servicesuport') {
+      const isHealthCheckPath = pathname.startsWith('/portal/admin/health-check-results')
+      const allowedRoles = isHealthCheckPath
+        ? ['admin', 'manager', 'occupational_physician']
+        : ['admin', 'manager']
+      if (!allowedRoles.includes(profile.system_role) || profile.user_id === 'servicesuport') {
         return NextResponse.redirect(new URL('/unauthorized', req.url))
       }
     }
