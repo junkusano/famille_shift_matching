@@ -245,6 +245,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/sharefull-decision-status",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/open-saseki-jobs",
       "schedule": "25 15 * * *"
     },
