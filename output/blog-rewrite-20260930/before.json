@@ -1,0 +1,200 @@
+{
+  "id": 2058,
+  "date": "2026-09-30T08:03:20",
+  "date_gmt": "2026-09-29T23:03:20",
+  "guid": {
+    "rendered": "https://shi-on.net/smart-ai-20260930-bd84445f/",
+    "raw": "https://shi-on.net/smart-ai-20260930-bd84445f/"
+  },
+  "modified": "2026-09-30T08:03:20",
+  "modified_gmt": "2026-09-29T23:03:20",
+  "password": "",
+  "slug": "smart-ai-20260930-bd84445f",
+  "status": "publish",
+  "type": "post",
+  "link": "https://shi-on.net/smart-ai-20260930-bd84445f/",
+  "title": {
+    "raw": "IT・DTの「I」はInformationではなくInnovativeであるべきだ――AI時代に必要なのは、システムを守る部署ではなく仕事を変える機能",
+    "rendered": "IT・DTの「I」はInformationではなくInnovativeであるべきだ――AI時代に必要なのは、システムを守る部署ではなく仕事を変える機能"
+  },
+  "content": {
+    "raw": "<p><strong>AI時代のIT・DTは、既存システムを止めずに守るだけの機能では足りません。API、RPA、AI、自社システムを組み合わせ、仕事の流れ、人の役割、確認の仕方まで変える「Innovative」の機能として経営の中に置くべきです。</strong></p>\n<h2>AIを足すのではなく、開発の進め方まで組み替える動きが始まっている</h2>\n<p>NVIDIAは2026年9月、TensorRT Model Connectの開発から得た知見として、AIを既存の開発工程に一つ追加するのではなく、AIが動くことを前提に仕事を設計する「AI-native」の考え方を紹介しました。<br><br>同社が示しているのは、AIへ細かな実装手順を一つずつ指示する方法とは異なります。達成したい目標、守るべき制約、受け入れ条件を明確にし、AIエージェントが実装、テスト、修正を進める。その代わりに人は、「何を解くのか」「どの単位で仕事を分けるのか」「何を証拠に合格とするのか」を設計する役割へ移る、という考え方です。<br><br>また、公開されているプロジェクトでは、モデルごとに実装、実行経路、テスト、検証の責任範囲を分け、変更の影響を必要な範囲へ閉じ込める構成が取られています。QAと開発も、別の立場から同じ再現可能なCI基盤で検証する設計です。<br><br>これはNVIDIAの開発プロジェクトであり、そのまま介護・福祉事業所の業務へ持ち込める事例ではありません。プロジェクト自体も公開プレビュー段階であり、APIや方向性が変わる可能性があります。ただ、技術の導入を、ツール選定や実装担当だけの仕事にせず、業務の分解、検証、責任分担まで含めた設計として扱っている点には、すべての会社が学ぶべき論点があります。</p>\n<h2>保守部門という呼び方は、変えるべき仕事を守らせてしまう</h2>\n<p>多くの会社でIT部門には、「システムが止まらないようにする」「アカウントを管理する」「困ったときに対応する」といった役割が期待されます。もちろん、それらは事業を続けるために欠かせない仕事です。安定した運用がなければ、新しい挑戦もできません。<br><br>しかし、その役割だけをITの全体像にすると、技術担当は既存の仕事を維持する人になりやすい。現場が紙、表計算、電話、チャット、複数システムへの転記でつながっていても、「今の手順を止めずに少し便利にする」ことが中心になる。すると、AIやRPAを入れても、古い仕事の流れの上に新しいツールを重ねるだけになります。<br><br>例えば、訪問予定の変更を考えてみます。変更が起きるたびに、担当者が予定表を直し、別の人が連絡アプリへ書き、管理者が確認し、必要に応じて記録や請求に関わる情報を見直す。ここでRPAを一つ入れて転記を自動化しても、誰が変更を確定するのか、どの時点で関係者へ伝わったとみなすのか、誤った変更を誰が止めるのかが曖昧なら、混乱の速度が上がるだけです。<br><br>技術の問題に見えて、実際には業務設計と責任設計の問題です。ところがITを「Information」、すなわち情報を管理する機能としてだけ捉えると、既存の情報を安全に流すことが目的になり、そもそも何を入力し、誰が判断し、どの確認をなくせるのかを問い直しにくくなります。</p>\n<h2>私がIT・DTの「I」をInnovativeと捉えたい理由</h2>\n<p>私は、IT・DTの「I」をInformationではなくInnovativeとして捉えたいと考えています。ここでいうInnovativeは、流行の技術をいち早く試すことではありません。新しい技術を使いながら、会社の仕事の形を変え続ける責任を持つことです。<br><br>技術は目的ではありません。APIでシステムをつなぐこと、RPAで定型操作を動かすこと、AIで音声や文書を整理すること、Chrome拡張で画面上の作業を補助すること、自社システムをつくること。それぞれは手段です。重要なのは、その手段によって、誰が何度も転記しなくてよくなるのか、誰の確認を人の判断に戻すのか、どの情報を次の担当者がすぐ使える形にするのかを決めることです。<br><br>例えば、現場から届く相談内容をAIで要約する仕組みを考えます。単に会話を短くすればよいわけではありません。本人の希望、家族の心配、支援者が確認した事実、まだ判断できない点を混ぜたまま要約すれば、次の人は誤った前提で動くおそれがあります。InnovativeなIT・DTの役割は、要約機能を導入することではなく、何を入力にするか、誰が内容を確認するか、どの情報を正式な記録へ反映するか、誤りが見つかった場合にどこまで戻すかを設計することです。<br><br>AIによって、これまで人が担ってきた定型的な確認、転記、分類、下書きは少しずつ剥がれていきます。そのとき会社に残るのは、「人が不要になる仕事」ではなく、「人が何を判断し、どの仕事を仕組みに渡すかを決める仕事」です。ITと業務改善、組織設計を分けてしまえば、この仕事の持ち主がいなくなります。<br><br>だからIT・DTは、現場から離れた技術専門部署であってはならない。現場の摩擦を見つけ、それを一つの業務単位へ分け、技術で代替できる部分と人が担うべき判断を分け、試し、検証し、次の標準へ変える機能であるべきです。システムを守る仕事と、仕事を変える仕事は対立しません。前者を土台にしながら、後者まで責任範囲に入れることが、これからのIT・DTに必要です。</p>\n<h2>技術導入の前に、IT・DTが引き受ける仕事を決める</h2>\n<ul><li>新しいAI、RPA、SaaSを検討するときは、「何ができるか」から始めない。「現在、誰が、どの画面や書類を、どの順で扱い、どこで待ちや手戻りが起きるか」を一つの業務として書き出す。</li>\n<li>自動化の対象を決める際は、作業だけでなく判断を分ける。機械に渡す入力、分類、通知、下書きと、人が残す承認、例外対応、利用者や職員への説明を明確にする。</li>\n<li>導入の完了条件を利用開始日に置かない。誤りや例外が起きたときに誰が止めるか、どの記録を見れば原因を追えるか、修正を次の運用改善へどう戻すかまで決める。</li>\n<li>IT・DTの評価を、障害なく稼働したかだけにしない。二重入力、確認待ち、属人的な問い合わせ、引継ぎ時の迷いがどれだけ減ったかを見て、仕事の形を変えられたかを評価する。</li></ul>\n<h2>結論</h2>\n<p>AIや自動化が広がるほど、会社は「ITに何を入れるか」ではなく、「IT・DTに何を変えさせるか」を問われます。<br><br>保守だけを期待すれば、技術担当は古い業務をより丁寧に維持することになります。しかし、業務の流れ、役割、検証、責任の置き方まで変える権限と責任を持たせれば、技術は現場の負担を減らし、判断の質を上げ、組織の仕事を次の形へ進める力になります。<br><br>IT・DTの「I」はInformationだけでは足りません。変化を起こし、その変化を現場で使える形にまで育てるInnovativeであること。その定義を持つ会社だけが、AIを一時的な便利ツールではなく、仕事をつくり変える経営基盤へ変えられると考えます。</p>\n<h2>外部参考情報</h2>\n<ul><li><a href=\"https://developer.nvidia.com/blog/ai-native-by-design-lessons-learned-from-building-nvidia-tensorrt-model-connect/\" target=\"_blank\" rel=\"noopener noreferrer\">AI Native by Design: Lessons Learned from Building NVIDIA TensorRT Model Connect | NVIDIA Technical Blog</a></li>\n<li><a href=\"https://github.com/NVIDIA/TensorRT-Model-Connect\" target=\"_blank\" rel=\"noopener noreferrer\">GitHub - NVIDIA/TensorRT-Model-Connect: From PyTorch model to end-to-end TensorRT inference experience in two commands—AI-native, cross-platform, and built for the best possible user experience. · GitHub</a></li></ul>",
+    "rendered": "<p><strong>AI時代のIT・DTは、既存システムを止めずに守るだけの機能では足りません。API、RPA、AI、自社システムを組み合わせ、仕事の流れ、人の役割、確認の仕方まで変える「Innovative」の機能として経営の中に置くべきです。</strong></p>\n<h2>AIを足すのではなく、開発の進め方まで組み替える動きが始まっている</h2>\n<p>NVIDIAは2026年9月、TensorRT Model Connectの開発から得た知見として、AIを既存の開発工程に一つ追加するのではなく、AIが動くことを前提に仕事を設計する「AI-native」の考え方を紹介しました。</p>\n<p>同社が示しているのは、AIへ細かな実装手順を一つずつ指示する方法とは異なります。達成したい目標、守るべき制約、受け入れ条件を明確にし、AIエージェントが実装、テスト、修正を進める。その代わりに人は、「何を解くのか」「どの単位で仕事を分けるのか」「何を証拠に合格とするのか」を設計する役割へ移る、という考え方です。</p>\n<p>また、公開されているプロジェクトでは、モデルごとに実装、実行経路、テスト、検証の責任範囲を分け、変更の影響を必要な範囲へ閉じ込める構成が取られています。QAと開発も、別の立場から同じ再現可能なCI基盤で検証する設計です。</p>\n<p>これはNVIDIAの開発プロジェクトであり、そのまま介護・福祉事業所の業務へ持ち込める事例ではありません。プロジェクト自体も公開プレビュー段階であり、APIや方向性が変わる可能性があります。ただ、技術の導入を、ツール選定や実装担当だけの仕事にせず、業務の分解、検証、責任分担まで含めた設計として扱っている点には、すべての会社が学ぶべき論点があります。</p>\n<h2>保守部門という呼び方は、変えるべき仕事を守らせてしまう</h2>\n<p>多くの会社でIT部門には、「システムが止まらないようにする」「アカウントを管理する」「困ったときに対応する」といった役割が期待されます。もちろん、それらは事業を続けるために欠かせない仕事です。安定した運用がなければ、新しい挑戦もできません。</p>\n<p>しかし、その役割だけをITの全体像にすると、技術担当は既存の仕事を維持する人になりやすい。現場が紙、表計算、電話、チャット、複数システムへの転記でつながっていても、「今の手順を止めずに少し便利にする」ことが中心になる。すると、AIやRPAを入れても、古い仕事の流れの上に新しいツールを重ねるだけになります。</p>\n<p>例えば、訪問予定の変更を考えてみます。変更が起きるたびに、担当者が予定表を直し、別の人が連絡アプリへ書き、管理者が確認し、必要に応じて記録や請求に関わる情報を見直す。ここでRPAを一つ入れて転記を自動化しても、誰が変更を確定するのか、どの時点で関係者へ伝わったとみなすのか、誤った変更を誰が止めるのかが曖昧なら、混乱の速度が上がるだけです。</p>\n<p>技術の問題に見えて、実際には業務設計と責任設計の問題です。ところがITを「Information」、すなわち情報を管理する機能としてだけ捉えると、既存の情報を安全に流すことが目的になり、そもそも何を入力し、誰が判断し、どの確認をなくせるのかを問い直しにくくなります。</p>\n<h2>私がIT・DTの「I」をInnovativeと捉えたい理由</h2>\n<p>私は、IT・DTの「I」をInformationではなくInnovativeとして捉えたいと考えています。ここでいうInnovativeは、流行の技術をいち早く試すことではありません。新しい技術を使いながら、会社の仕事の形を変え続ける責任を持つことです。</p>\n<p>技術は目的ではありません。APIでシステムをつなぐこと、RPAで定型操作を動かすこと、AIで音声や文書を整理すること、Chrome拡張で画面上の作業を補助すること、自社システムをつくること。それぞれは手段です。重要なのは、その手段によって、誰が何度も転記しなくてよくなるのか、誰の確認を人の判断に戻すのか、どの情報を次の担当者がすぐ使える形にするのかを決めることです。</p>\n<p>例えば、現場から届く相談内容をAIで要約する仕組みを考えます。単に会話を短くすればよいわけではありません。本人の希望、家族の心配、支援者が確認した事実、まだ判断できない点を混ぜたまま要約すれば、次の人は誤った前提で動くおそれがあります。InnovativeなIT・DTの役割は、要約機能を導入することではなく、何を入力にするか、誰が内容を確認するか、どの情報を正式な記録へ反映するか、誤りが見つかった場合にどこまで戻すかを設計することです。</p>\n<p>AIによって、これまで人が担ってきた定型的な確認、転記、分類、下書きは少しずつ剥がれていきます。そのとき会社に残るのは、「人が不要になる仕事」ではなく、「人が何を判断し、どの仕事を仕組みに渡すかを決める仕事」です。ITと業務改善、組織設計を分けてしまえば、この仕事の持ち主がいなくなります。</p>\n<p>だからIT・DTは、現場から離れた技術専門部署であってはならない。現場の摩擦を見つけ、それを一つの業務単位へ分け、技術で代替できる部分と人が担うべき判断を分け、試し、検証し、次の標準へ変える機能であるべきです。システムを守る仕事と、仕事を変える仕事は対立しません。前者を土台にしながら、後者まで責任範囲に入れることが、これからのIT・DTに必要です。</p>\n<h2>技術導入の前に、IT・DTが引き受ける仕事を決める</h2>\n<ul>\n<li>新しいAI、RPA、SaaSを検討するときは、「何ができるか」から始めない。「現在、誰が、どの画面や書類を、どの順で扱い、どこで待ちや手戻りが起きるか」を一つの業務として書き出す。</li>\n<li>自動化の対象を決める際は、作業だけでなく判断を分ける。機械に渡す入力、分類、通知、下書きと、人が残す承認、例外対応、利用者や職員への説明を明確にする。</li>\n<li>導入の完了条件を利用開始日に置かない。誤りや例外が起きたときに誰が止めるか、どの記録を見れば原因を追えるか、修正を次の運用改善へどう戻すかまで決める。</li>\n<li>IT・DTの評価を、障害なく稼働したかだけにしない。二重入力、確認待ち、属人的な問い合わせ、引継ぎ時の迷いがどれだけ減ったかを見て、仕事の形を変えられたかを評価する。</li>\n</ul>\n<h2>結論</h2>\n<p>AIや自動化が広がるほど、会社は「ITに何を入れるか」ではなく、「IT・DTに何を変えさせるか」を問われます。</p>\n<p>保守だけを期待すれば、技術担当は古い業務をより丁寧に維持することになります。しかし、業務の流れ、役割、検証、責任の置き方まで変える権限と責任を持たせれば、技術は現場の負担を減らし、判断の質を上げ、組織の仕事を次の形へ進める力になります。</p>\n<p>IT・DTの「I」はInformationだけでは足りません。変化を起こし、その変化を現場で使える形にまで育てるInnovativeであること。その定義を持つ会社だけが、AIを一時的な便利ツールではなく、仕事をつくり変える経営基盤へ変えられると考えます。</p>\n<h2>外部参考情報</h2>\n<ul>\n<li><a href=\"https://developer.nvidia.com/blog/ai-native-by-design-lessons-learned-from-building-nvidia-tensorrt-model-connect/\" target=\"_blank\" rel=\"noopener noreferrer\">AI Native by Design: Lessons Learned from Building NVIDIA TensorRT Model Connect | NVIDIA Technical Blog</a></li>\n<li><a href=\"https://github.com/NVIDIA/TensorRT-Model-Connect\" target=\"_blank\" rel=\"noopener noreferrer\">GitHub &#8211; NVIDIA/TensorRT-Model-Connect: From PyTorch model to end-to-end TensorRT inference experience in two commands—AI-native, cross-platform, and built for the best possible user experience. · GitHub</a></li>\n</ul>\n",
+    "protected": false,
+    "block_version": 0
+  },
+  "excerpt": {
+    "raw": "AIや自動化を導入しても、現場の仕事の流れ、責任分担、検証方法が変わらなければ、会社はツールを増やしただけで終わります。IT・DTは情報システムを保守する部署ではなく、新しい技術を使って仕事そのものを再設計する「Innovative」の機能として位置付けるべきです。",
+    "rendered": "<p>AIや自動化を導入しても、現場の仕事の流れ、責任分担、検証方法が変わらなければ、会社はツールを増やしただけで終わります。IT・DTは情報システムを保守する部署ではなく、新しい技術を使って仕事そのものを再設計する「Innovative」の機能として位置付けるべきです。</p>\n",
+    "protected": false
+  },
+  "author": 1,
+  "featured_media": 2057,
+  "comment_status": "open",
+  "ping_status": "open",
+  "sticky": false,
+  "template": "",
+  "format": "standard",
+  "meta": {
+    "_monsterinsights_skip_tracking": false,
+    "_themeisle_gutenberg_block_has_review": false,
+    "_jetpack_newsletter_access": "",
+    "_jetpack_dont_email_post_to_subs": false,
+    "_jetpack_newsletter_tier_id": 0,
+    "_jetpack_memberships_contains_paywalled_content": false,
+    "_jetpack_feature_clip_id": 0,
+    "_jetpack_memberships_contains_paid_content": false,
+    "footnotes": "",
+    "jetpack_publicize_message": "",
+    "jetpack_publicize_feature_enabled": true,
+    "jetpack_social_post_already_shared": true,
+    "jetpack_social_options": {
+      "image_generator_settings": {
+        "template": "highway",
+        "default_image_id": 0,
+        "font": "",
+        "enabled": false
+      },
+      "version": 2
+    },
+    "jetpack_post_was_ever_published": false
+  },
+  "categories": [
+    26,
+    24
+  ],
+  "tags": [],
+  "permalink_template": "https://shi-on.net/%postname%/",
+  "generated_slug": "it・dtの「i」はinformationではなくinnovativeであるべきだ――ai時代",
+  "class_list": [
+    "post-2058",
+    "post",
+    "type-post",
+    "status-publish",
+    "format-standard",
+    "has-post-thumbnail",
+    "hentry",
+    "category-dx-operations",
+    "category-column"
+  ],
+  "jetpack_publicize_connections": [],
+  "jetpack_likes_enabled": true,
+  "jetpack_shortlink": "https://wp.me/pbtA3X-xc",
+  "jetpack-related-posts": [],
+  "jetpack_sharing_enabled": true,
+  "jetpack_featured_media_url": "https://i0.wp.com/shi-on.net/wp-content/uploads/2026/09/smart-ai-20260930-bd84445f.webp?fit=1536%2C1024&ssl=1",
+  "_links": {
+    "self": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058",
+        "targetHints": {
+          "allow": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/types/post"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/comments?post=2058"
+      }
+    ],
+    "version-history": [
+      {
+        "count": 0,
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058/revisions"
+      }
+    ],
+    "wp:featuredmedia": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/media/2057"
+      }
+    ],
+    "wp:attachment": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/media?parent=2058"
+      }
+    ],
+    "wp:term": [
+      {
+        "taxonomy": "category",
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/categories?post=2058"
+      },
+      {
+        "taxonomy": "post_tag",
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/tags?post=2058"
+      }
+    ],
+    "wp:action-publish": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-unfiltered-html": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-sticky": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-assign-author": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-create-categories": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-assign-categories": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-create-tags": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-assign-tags": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}
