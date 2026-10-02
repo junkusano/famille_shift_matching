@@ -43,7 +43,30 @@ function domainId(): number {
   return value;
 }
 
-async function resolveTargetUsers() {
+async function existingLineworksUserIds(userIds: string[], token: string): Promise<string[]> {
+  const existing: string[] = [];
+
+  // Keep concurrency bounded so one onboarding request does not burst the
+  // LINE WORKS Directory API when the exception table grows.
+  for (let index = 0; index < userIds.length; index += 5) {
+    const batch = userIds.slice(index, index + 5);
+    const results = await Promise.all(batch.map(async (userId) => {
+      const url = new URL(`${API_BASE}/users/${encodeURIComponent(userId)}`);
+      url.searchParams.set("domainId", String(domainId()));
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (response.status === 404) return null;
+      if (!response.ok) {
+        throw new Error(`LINE WORKS user lookup failed (${response.status})`);
+      }
+      return userId;
+    }));
+    existing.push(...results.filter((userId): userId is string => Boolean(userId)));
+  }
+
+  return existing;
+}
+
+async function resolveTargetUsers(token: string) {
   const { data: exceptions, error: exceptionError } = await supabaseAdmin
     .from("user_org_exception")
     .select("user_id,orgunitid");
@@ -63,9 +86,8 @@ async function resolveTargetUsers() {
     const batch = userIds.slice(index, index + 100);
     const { data, error } = await supabaseAdmin
       .from("users")
-      .select("user_id,lw_userid,status")
+      .select("user_id,lw_userid")
       .in("user_id", batch)
-      .eq("status", "lineworks_kaipoke_joined")
       .not("lw_userid", "is", null);
     if (error) throw error;
     for (const row of data ?? []) {
@@ -76,16 +98,21 @@ async function resolveTargetUsers() {
 
   const { data: support, error: supportError } = await supabaseAdmin
     .from("user_entry_united_view_single")
-    .select("user_id,lw_userid,status")
+    .select("user_id,lw_userid")
     .eq("user_id", "servicesuport")
-    .eq("status", "lineworks_kaipoke_joined")
     .not("lw_userid", "is", null)
     .maybeSingle();
   if (supportError) throw supportError;
 
-  const supportLwUserId = typeof support?.lw_userid === "string" ? support.lw_userid.trim() : null;
-  const memberIds = Array.from(new Set(resolved.map((row) => row.lw_userid)));
-  const masterIds = Array.from(new Set([...memberIds, ...(supportLwUserId ? [supportLwUserId] : [])]));
+  const supportCandidate = typeof support?.lw_userid === "string" ? support.lw_userid.trim() : null;
+  const candidates = Array.from(new Set([
+    ...resolved.map((row) => row.lw_userid),
+    ...(supportCandidate ? [supportCandidate] : []),
+  ]));
+  const masterIds = await existingLineworksUserIds(candidates, token);
+  const supportLwUserId = supportCandidate && masterIds.includes(supportCandidate)
+    ? supportCandidate
+    : null;
 
   if (masterIds.length === 0) {
     throw new Error("LINE WORKS group master is not configured");
@@ -266,7 +293,7 @@ export async function ensureInformationLinkGroup(
 
   try {
     const token = await getAccessToken();
-    const users = await resolveTargetUsers();
+    const users = await resolveTargetUsers(token);
     let lookupSource = "none";
     let group = await findGroupByExternalKey(externalKey, token);
     if (group) lookupSource = "external-key";
@@ -287,17 +314,12 @@ export async function ensureInformationLinkGroup(
     let created = false;
 
     if (!group) {
-      // Create the group with one known-active seed account first. Adding every
-      // account in the create request makes one stale LINE WORKS ID reject the
-      // whole group. The remaining users are added individually below so a
-      // single bad account is reported without blocking valid members.
-      const seedUserId = users.supportLwUserId ?? users.masterIds[0];
       const creation = await createGroup({
         token,
         name: groupName,
         externalKey,
-        members: [seedUserId],
-        masters: [seedUserId],
+        members: users.memberIds,
+        masters: users.masterIds,
       });
       created = !creation.conflict;
       if (creation.groupId) group = { groupId: creation.groupId, groupName };
@@ -310,18 +332,12 @@ export async function ensureInformationLinkGroup(
 
     if (!group) throw new Error(GROUP_CHECK_MESSAGE);
 
-    const members = await ensureUsers({
-      groupId: group.groupId,
-      collection: "members",
-      userIds: users.memberIds,
-      token,
-    });
-    const masters = await ensureUsers({
-      groupId: group.groupId,
-      collection: "administrators",
-      userIds: users.masterIds,
-      token,
-    });
+    const members = created
+      ? { added: users.memberIds.length, already_exists: 0, failed: [] }
+      : await ensureUsers({ groupId: group.groupId, collection: "members", userIds: users.memberIds, token });
+    const masters = created
+      ? { added: users.masterIds.length, already_exists: 0, failed: [] }
+      : await ensureUsers({ groupId: group.groupId, collection: "administrators", userIds: users.masterIds, token });
 
     return {
       lineworks_group: {
