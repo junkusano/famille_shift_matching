@@ -23,16 +23,19 @@ test('history includes conclusions, excludes private drafts and is bounded',()=>
  const posts=Array.from({length:35},(_,i)=>({id:i,slug:'test',status:i===0?'private':'publish',title:{raw:'題'},content:{raw:'<p>冒頭</p><h2>結論</h2><p>固有の結論</p>'}}));
  const recent=policy.editorialHistory(posts);assert.equal(recent.length,30);assert.equal(recent[0].id,1);assert.match(recent[0].content,/固有の結論/);
 });
-function harness({history=[],historyError=false,runError=false,distinct=true,verifyError=false,thoughts=null,rss=[],selectionResults=[],noveltyResults=[],researchMissing=0,researchError=false}={}) {
+function harness({history=[],historyError=false,runError=false,distinct=true,verifyError=false,thoughts=null,knowledge=[],rss=[],selectionResults=[],noveltyResults=[],researchMissing=0,researchError=false}={}) {
  process.env.OPENAI_API_KEY??='test';const calls=[];const seed={id:'80b2f759-aaaa-bbbb-cccc-000000000000',title:'新しい題材',summary:'別の読者の問い',content:'具体的な内容',metadata:{articleCandidate:'高'},category:'採用'};
  const article={title:'新人が質問できる職場づくりを考える',excerpt:'概要'.repeat(30),thesis:'主張'.repeat(45),trigger_heading:'最初の具体的な場面',trigger_body:'場面'.repeat(100),tension_heading:'質問する側が感じること',tension_body:'課題'.repeat(150),viewpoint_heading:'先輩と管理者の役割を考える',viewpoint_body:'視点'.repeat(150),action_heading:'実際の仕事で試せる工夫',actions:['行動'.repeat(100),'提案'.repeat(100)],conclusion:'結論'.repeat(100),category_id:null,featured_image_search_terms:['新人','相談'],featured_image_prompt:'写真'.repeat(50),featured_image_alt:'新人と先輩が相談する場面を示す写真'};
- const db={from(table){const q={select(){return q},eq(){return q},not(){return q},in(){return q},lte(){return q},order(){return q},limit(){return q},update(value){calls.push(['record',value]);return q},then(resolve){
-  if(table==='knowledge_sources')return Promise.resolve({data:[{id:'s',source_key:'kusano-thought-log'}]}).then(resolve);
-  if(table==='knowledge_automation_runs')return Promise.resolve({data:[],error:runError?{message:'offline'}:null}).then(resolve);
-  if(table==='knowledge_items')return Promise.resolve({data:thoughts??[seed],error:null}).then(resolve);
-  if(table==='knowledge_source_objects')return Promise.resolve({data:rss,error:null}).then(resolve);
-  return Promise.resolve({data:[],error:null}).then(resolve);
- }};return q}};
+ const db={from(table){const filters=[];const q={
+  select(){return q},eq(column,value){filters.push(['eq',column,value]);return q},not(column,operator,value){filters.push(['not',column,operator,value]);return q},
+  in(column,value){filters.push(['in',column,value]);return q},lte(column,value){filters.push(['lte',column,value]);return q},gte(column,value){filters.push(['gte',column,value]);return q},
+  order(){return q},limit(){return q},update(value){calls.push(['record',value]);return q},then(resolve){
+   if(table==='knowledge_sources')return Promise.resolve({data:[{id:'s',source_key:'kusano-thought-log'}]}).then(resolve);
+   if(table==='knowledge_automation_runs')return Promise.resolve({data:[],error:runError?{message:'offline'}:null}).then(resolve);
+   if(table==='knowledge_items'){const curated=filters.some(f=>f[0]==='not'&&f[1]==='concept_level');return Promise.resolve({data:curated?knowledge:(thoughts??[seed]),error:null}).then(resolve)}
+   if(table==='knowledge_source_objects')return Promise.resolve({data:rss,error:null}).then(resolve);
+   return Promise.resolve({data:[],error:null}).then(resolve);
+  }};return q}};
  class AI {responses={create:async args=>{const name=args.text?.format?.name;calls.push(['ai',name??'research',JSON.parse(args.input)]);
   if(name==='editorial_selection')return{output_text:JSON.stringify({candidate_id:selectionResults.length?selectionResults.shift():seed.id,reason:'別の判断基準',supporting_rss_ids:rss.length?[rss[0].id]:[]})};
   if(name==='editorial_novelty')return{output_text:JSON.stringify({distinct:noveltyResults.length?noveltyResults.shift():distinct,reason:'比較結果'})};
@@ -64,7 +67,20 @@ test('Kusano views are considered before news-only candidates with RSS context',
 });
 test('news-only fallback waits until the Kusano candidate pool is exhausted',async()=>{
  const h=harness({rss:[rssRow],selectionResults:[null,'rss-1']});await h.run();
- assert.deepEqual(h.calls.filter(c=>c[1]==='editorial_selection').map(c=>c[2].priority),['primary_kusano_view','secondary_news_only']);
+ assert.deepEqual(h.calls.filter(c=>c[1]==='editorial_selection').map(c=>c[2].priority),['primary_kusano_view','last_resort_news_only']);
+});
+
+const keyKnowledgeRow={id:'key-1',knowledge_key:'behavior-change-through-system-design',title:'行動を仕組みで変える',summary:'内部要約',content:'内部詳細',public_summary:'人への注意だけでなく、正しい行動が自然にできる仕組みを設計する。',occurred_at:null,category:'業務改善',metadata:{},privacy_level:1,publishability:'anonymize',importance:5,concept_level:1,updated_at:'2026-10-01T00:00:00Z'};
+const lessonKnowledgeRow={...keyKnowledgeRow,id:'lesson-1',knowledge_key:'role-based-lesson-reminders',title:'教訓を組織の記憶に変える'};
+test('approved lesson principles are considered before general key knowledge and RSS',async()=>{
+ const h=harness({thoughts:[],knowledge:[keyKnowledgeRow,lessonKnowledgeRow],rss:[rssRow],selectionResults:['lesson-1']});const result=await h.run();
+ const selection=h.calls.find(c=>c[1]==='editorial_selection')[2];
+ assert.equal(selection.priority,'secondary_lesson_principle');assert.equal(selection.candidates[0].kind,'lesson_principle');assert.equal(result.editorialPriority,'lesson_reminder');
+});
+test('public-safe key knowledge is used before news-only fallback',async()=>{
+ const h=harness({thoughts:[],knowledge:[keyKnowledgeRow],rss:[rssRow],selectionResults:['key-1']});const result=await h.run();
+ const selection=h.calls.find(c=>c[1]==='editorial_selection')[2];
+ assert.equal(selection.priority,'tertiary_key_knowledge');assert.equal(selection.candidates[0].summary,keyKnowledgeRow.public_summary);assert.equal(result.editorialPriority,'key_knowledge');
 });
 test('Kusano candidates beyond the first forty are considered before fallback',async()=>{
  const thoughts=Array.from({length:41},(_,i)=>({id:'thought-'+i,title:'主張'+i,summary:'別の問い',metadata:{articleCandidate:'高'}}));
