@@ -38,3 +38,7 @@
 
 `npx tsc --noEmit`、`node --test tests/public-notices.test.cjs tests/external-information.test.mjs tests/blog-rewrite.test.mjs`。
 実データで公式情報の取得を確認。気象・アジア大会の既存投稿を更新し、掲示板APIからの再取得で反映を確認。
+
+## 気象記事に必ず掲載するリンク
+
+台風・大雨・大雪の新規記事と続報には「交通機関の運行状況」を必ず掲載する。市営地下鉄・市バス、JR東海在来線・新幹線、名鉄、および近鉄・あおなみ線・リニモ・城北線等を確認できる名古屋市の公式一覧へリンクする。運行状態を固定文で断定せず、各社の最新情報へ案内する。

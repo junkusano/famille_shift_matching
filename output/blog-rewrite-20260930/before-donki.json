@@ -1,0 +1,206 @@
+{
+  "id": 2058,
+  "date": "2026-09-30T08:03:20",
+  "date_gmt": "2026-09-29T23:03:20",
+  "guid": {
+    "rendered": "https://shi-on.net/smart-ai-20260930-bd84445f/",
+    "raw": "https://shi-on.net/smart-ai-20260930-bd84445f/"
+  },
+  "modified": "2026-09-30T12:26:31",
+  "modified_gmt": "2026-09-30T03:26:31",
+  "password": "",
+  "slug": "smart-ai-20260930-bd84445f",
+  "status": "publish",
+  "type": "post",
+  "link": "https://shi-on.net/smart-ai-20260930-bd84445f/",
+  "title": {
+    "raw": "「今の仕事」を守るほど、会社は変われなくなる――イノベーションのジレンマを自社の問題として考える",
+    "rendered": "「今の仕事」を守るほど、会社は変われなくなる――イノベーションのジレンマを自社の問題として考える"
+  },
+  "content": {
+    "raw": "<p><strong>今の顧客に応え、今の仕事を改善し、今の利益を守る。その判断を重ねた結果、次の変化に対応できなくなることがある。会社に必要なのは、既存の仕事を上手に回す力と、その仕事の前提を問い直す力の両方です。</strong></p>\n<h2>「今のやり方で成果が出ている」が、変われない理由になる</h2>\n<p>トイザらスの撤退の話から、私が考えたいのは「大きな会社でも失敗する」という教訓ではありません。昨日まで成果を生んでいた仕組みが、明日も正しいとは限らない。そのとき会社は、自分たちの成功の形を変えられるのか、という問いです。</p>\n<p>ここでは事実の範囲を分けておきます。2018年の米国事業の清算について、日本トイザらスは、アジアと日本の事業は影響を受けず継続すると発表しています。日本からの全面撤退という話ではありません。また、この企業の経緯を一つの経営理論だけで説明するつもりもありません。事例を入口に、自社の判断の仕組みを見直したいのです。<a href=\"https://www.toysrus.co.jp/ja-jp/corporate-pr-corpinfo-044.html\">［日本トイザらスの発表］</a></p>\n<h2>イノベーションのジレンマとは何か</h2>\n<p>「イノベーションのジレンマ」は、既存の優良顧客や収益性を重視する合理的な経営が、新しい市場や価値への対応を難しくする問題です。新しい選択肢は、初めから既存の商品やサービスより優れて見えるとは限りません。小さな市場や、これまで十分に応えられていなかった需要から育つことがあります。</p>\n<p>既存事業の基準で見れば、規模が小さい、利益が薄い、今の顧客は求めていない。後回しにする理由はそろっています。しかし、その選択肢が育って顧客の選び方を変えたとき、従来の強みだけでは追いつけなくなる。単に「新技術を嫌った会社が負ける」という話ではなく、正しく判断するための物差し自体が、変化を見落とす原因になるのです。<a href=\"https://www.library.hbs.edu/working-knowledge/six-keys-to-building-new-markets-by-unleashing-disruptive-innovation\">［クリステンセンらによる解説］</a></p>\n<h2>AIで古い仕事を速くしても、前提は変わらない</h2>\n<p>この問題を自社の業務に引き寄せて考えると、問いがはっきりします。私たちは、新しい技術で仕事を変えようとしているのか。それとも、今の仕事を残すために新しい技術を使っているのか。</p>\n<p>例えば、同じ情報を三つの帳票へ転記しているとします。転記を自動化すれば、確かに時間は減ります。それは有効な改善です。ただ、その三つの帳票が今も必要なのか、情報を一度確定すれば各担当者が参照できる形にできないか、という問いは残ります。転記の速さだけを成果にすると、三重に管理する仕組みはかえって長生きするかもしれません。</p>\n<p>これは業務改善の例であり、それだけで経営学上の「破壊的イノベーション」に当たるという意味ではありません。私が重ねて見ているのは、既存の仕組みにとって都合のよい改善だけが採用され、仕組みそのものを変える案が通りにくくなる構造です。</p>\n<p>今の担当者が困らないこと、今の承認経路を変えないこと、今の帳票を残すこと。そのすべてを新しい仕組みの条件にすれば、技術が進歩しても仕事の形は変わりません。変革を求めながら、変えてよいものを一つも渡していないからです。</p>\n<h2>技術担当に、何を変える権限を渡すのか</h2>\n<p>ファミーユにはITDTという社内組織名があります。本稿では、技術を使った業務改善・変革を担う組織として説明します。読者に覚えていただきたいのは、この略称ではありません。会社の中に「今の仕事の前提を問い直す役割」を置く、という考え方です。</p>\n<p>私がその「I」にInnovativeという意味を持たせたいのも、単にシステムを維持する役割に閉じ込めたくないからです。これは一般的なITという言葉の定義を変える話ではなく、社内で何を期待するかという役割の話です。</p>\n<p>APIで情報をつなぐことも、RPAで操作を自動化することも、AIを使うことも手段です。その先で、入力の重複をなくせるのか、確認の順番を変えられるのか、人が担う判断を組み直せるのか。技術担当へ実装だけを依頼して、仕事の決め方には触れさせないのなら、変革の責任は果たせません。</p>\n<p>もちろん、現場を止めずに守る責任は必要です。その責任を果たしながら、別のやり方を小さく試す時間と権限も確保する。経営が引き受けるべきなのは、その両方が成立する条件をつくることだと考えます。</p>\n<h2>新しい案を、既存業務の物差しだけで落とさない</h2>\n<p>見直したいのは、次の三つです。</p>\n<ul><li><strong>何を守るのかを明確にする。</strong>守る対象は、利用者への価値、安全、サービスの継続です。現在の帳票や部署の境界、承認の順番が、その目的に今も必要かは別に検討します。</li>\n<li><strong>試す段階の評価を分ける。</strong>成熟した業務と同じ処理量や採算を最初から求めるだけでは、別のやり方は育ちません。限定した範囲で、何の仮説を確かめるか、何が分かれば次へ進めるかを決めます。</li>\n<li><strong>変える権限と、止める条件をセットにする。</strong>誰が手順の変更を決められるのか。安全や品質に問題が出たら、誰が止め、どう戻すのか。挑戦を掛け声で終わらせず、実行できる範囲を具体的に渡します。</li></ul>\n<h2>会社を守るために、今の仕事を変えられるか</h2>\n<p>今の仕事を丁寧に守る人は必要です。同時に、「この仕事は、これからも同じ形で必要なのか」と問う人も必要です。後者の提案を、今の仕組みに合わないという理由だけで退け続ければ、会社は改善しているつもりで変化から遠ざかっていきます。</p>\n<p>新しい道具を導入したかどうかより、その道具によって自分たちの前提を変える余地を持てているか。イノベーションのジレンマを他社の失敗談で終わらせないために、まず経営が問うべきことはそこだと思います。</p>",
+    "rendered": "<p><strong>今の顧客に応え、今の仕事を改善し、今の利益を守る。その判断を重ねた結果、次の変化に対応できなくなることがある。会社に必要なのは、既存の仕事を上手に回す力と、その仕事の前提を問い直す力の両方です。</strong></p>\n<h2>「今のやり方で成果が出ている」が、変われない理由になる</h2>\n<p>トイザらスの撤退の話から、私が考えたいのは「大きな会社でも失敗する」という教訓ではありません。昨日まで成果を生んでいた仕組みが、明日も正しいとは限らない。そのとき会社は、自分たちの成功の形を変えられるのか、という問いです。</p>\n<p>ここでは事実の範囲を分けておきます。2018年の米国事業の清算について、日本トイザらスは、アジアと日本の事業は影響を受けず継続すると発表しています。日本からの全面撤退という話ではありません。また、この企業の経緯を一つの経営理論だけで説明するつもりもありません。事例を入口に、自社の判断の仕組みを見直したいのです。<a href=\"https://www.toysrus.co.jp/ja-jp/corporate-pr-corpinfo-044.html\">［日本トイザらスの発表］</a></p>\n<h2>イノベーションのジレンマとは何か</h2>\n<p>「イノベーションのジレンマ」は、既存の優良顧客や収益性を重視する合理的な経営が、新しい市場や価値への対応を難しくする問題です。新しい選択肢は、初めから既存の商品やサービスより優れて見えるとは限りません。小さな市場や、これまで十分に応えられていなかった需要から育つことがあります。</p>\n<p>既存事業の基準で見れば、規模が小さい、利益が薄い、今の顧客は求めていない。後回しにする理由はそろっています。しかし、その選択肢が育って顧客の選び方を変えたとき、従来の強みだけでは追いつけなくなる。単に「新技術を嫌った会社が負ける」という話ではなく、正しく判断するための物差し自体が、変化を見落とす原因になるのです。<a href=\"https://www.library.hbs.edu/working-knowledge/six-keys-to-building-new-markets-by-unleashing-disruptive-innovation\">［クリステンセンらによる解説］</a></p>\n<h2>AIで古い仕事を速くしても、前提は変わらない</h2>\n<p>この問題を自社の業務に引き寄せて考えると、問いがはっきりします。私たちは、新しい技術で仕事を変えようとしているのか。それとも、今の仕事を残すために新しい技術を使っているのか。</p>\n<p>例えば、同じ情報を三つの帳票へ転記しているとします。転記を自動化すれば、確かに時間は減ります。それは有効な改善です。ただ、その三つの帳票が今も必要なのか、情報を一度確定すれば各担当者が参照できる形にできないか、という問いは残ります。転記の速さだけを成果にすると、三重に管理する仕組みはかえって長生きするかもしれません。</p>\n<p>これは業務改善の例であり、それだけで経営学上の「破壊的イノベーション」に当たるという意味ではありません。私が重ねて見ているのは、既存の仕組みにとって都合のよい改善だけが採用され、仕組みそのものを変える案が通りにくくなる構造です。</p>\n<p>今の担当者が困らないこと、今の承認経路を変えないこと、今の帳票を残すこと。そのすべてを新しい仕組みの条件にすれば、技術が進歩しても仕事の形は変わりません。変革を求めながら、変えてよいものを一つも渡していないからです。</p>\n<h2>技術担当に、何を変える権限を渡すのか</h2>\n<p>ファミーユにはITDTという社内組織名があります。本稿では、技術を使った業務改善・変革を担う組織として説明します。読者に覚えていただきたいのは、この略称ではありません。会社の中に「今の仕事の前提を問い直す役割」を置く、という考え方です。</p>\n<p>私がその「I」にInnovativeという意味を持たせたいのも、単にシステムを維持する役割に閉じ込めたくないからです。これは一般的なITという言葉の定義を変える話ではなく、社内で何を期待するかという役割の話です。</p>\n<p>APIで情報をつなぐことも、RPAで操作を自動化することも、AIを使うことも手段です。その先で、入力の重複をなくせるのか、確認の順番を変えられるのか、人が担う判断を組み直せるのか。技術担当へ実装だけを依頼して、仕事の決め方には触れさせないのなら、変革の責任は果たせません。</p>\n<p>もちろん、現場を止めずに守る責任は必要です。その責任を果たしながら、別のやり方を小さく試す時間と権限も確保する。経営が引き受けるべきなのは、その両方が成立する条件をつくることだと考えます。</p>\n<h2>新しい案を、既存業務の物差しだけで落とさない</h2>\n<p>見直したいのは、次の三つです。</p>\n<ul>\n<li><strong>何を守るのかを明確にする。</strong>守る対象は、利用者への価値、安全、サービスの継続です。現在の帳票や部署の境界、承認の順番が、その目的に今も必要かは別に検討します。</li>\n<li><strong>試す段階の評価を分ける。</strong>成熟した業務と同じ処理量や採算を最初から求めるだけでは、別のやり方は育ちません。限定した範囲で、何の仮説を確かめるか、何が分かれば次へ進めるかを決めます。</li>\n<li><strong>変える権限と、止める条件をセットにする。</strong>誰が手順の変更を決められるのか。安全や品質に問題が出たら、誰が止め、どう戻すのか。挑戦を掛け声で終わらせず、実行できる範囲を具体的に渡します。</li>\n</ul>\n<h2>会社を守るために、今の仕事を変えられるか</h2>\n<p>今の仕事を丁寧に守る人は必要です。同時に、「この仕事は、これからも同じ形で必要なのか」と問う人も必要です。後者の提案を、今の仕組みに合わないという理由だけで退け続ければ、会社は改善しているつもりで変化から遠ざかっていきます。</p>\n<p>新しい道具を導入したかどうかより、その道具によって自分たちの前提を変える余地を持てているか。イノベーションのジレンマを他社の失敗談で終わらせないために、まず経営が問うべきことはそこだと思います。</p>\n",
+    "protected": false,
+    "block_version": 0
+  },
+  "excerpt": {
+    "raw": "既存の顧客や利益を守る合理的な判断が、次の変化を妨げることがある。イノベーションのジレンマを、自社の業務と技術担当に渡す権限から考えます。",
+    "rendered": "<p>既存の顧客や利益を守る合理的な判断が、次の変化を妨げることがある。イノベーションのジレンマを、自社の業務と技術担当に渡す権限から考えます。</p>\n",
+    "protected": false
+  },
+  "author": 1,
+  "featured_media": 2057,
+  "comment_status": "open",
+  "ping_status": "open",
+  "sticky": false,
+  "template": "",
+  "format": "standard",
+  "meta": {
+    "_monsterinsights_skip_tracking": false,
+    "_themeisle_gutenberg_block_has_review": false,
+    "_jetpack_newsletter_access": "",
+    "_jetpack_dont_email_post_to_subs": false,
+    "_jetpack_newsletter_tier_id": 0,
+    "_jetpack_memberships_contains_paywalled_content": false,
+    "_jetpack_feature_clip_id": 0,
+    "_jetpack_memberships_contains_paid_content": false,
+    "footnotes": "",
+    "jetpack_publicize_message": "",
+    "jetpack_publicize_feature_enabled": true,
+    "jetpack_social_post_already_shared": true,
+    "jetpack_social_options": {
+      "image_generator_settings": {
+        "template": "highway",
+        "default_image_id": 0,
+        "font": "",
+        "enabled": false
+      },
+      "version": 2
+    },
+    "jetpack_post_was_ever_published": false
+  },
+  "categories": [
+    26,
+    24
+  ],
+  "tags": [],
+  "permalink_template": "https://shi-on.net/%postname%/",
+  "generated_slug": "「今の仕事」を守るほど、会社は変われなくなる",
+  "class_list": [
+    "post-2058",
+    "post",
+    "type-post",
+    "status-publish",
+    "format-standard",
+    "has-post-thumbnail",
+    "hentry",
+    "category-dx-operations",
+    "category-column"
+  ],
+  "jetpack_publicize_connections": [],
+  "jetpack_likes_enabled": true,
+  "jetpack_shortlink": "https://wp.me/pbtA3X-xc",
+  "jetpack-related-posts": [],
+  "jetpack_sharing_enabled": true,
+  "jetpack_featured_media_url": "https://i0.wp.com/shi-on.net/wp-content/uploads/2026/09/smart-ai-20260930-bd84445f.webp?fit=1536%2C1024&ssl=1",
+  "_links": {
+    "self": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058",
+        "targetHints": {
+          "allow": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/types/post"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/comments?post=2058"
+      }
+    ],
+    "version-history": [
+      {
+        "count": 1,
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058/revisions"
+      }
+    ],
+    "predecessor-version": [
+      {
+        "id": 2060,
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058/revisions/2060"
+      }
+    ],
+    "wp:featuredmedia": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/media/2057"
+      }
+    ],
+    "wp:attachment": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/media?parent=2058"
+      }
+    ],
+    "wp:term": [
+      {
+        "taxonomy": "category",
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/categories?post=2058"
+      },
+      {
+        "taxonomy": "post_tag",
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/tags?post=2058"
+      }
+    ],
+    "wp:action-publish": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-unfiltered-html": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-sticky": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-assign-author": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-create-categories": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-assign-categories": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-create-tags": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "wp:action-assign-tags": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2058"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

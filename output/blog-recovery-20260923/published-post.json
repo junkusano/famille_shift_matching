@@ -1,0 +1,148 @@
+{
+  "id": 2033,
+  "date": "2026-09-23T13:43:01",
+  "date_gmt": "2026-09-23T04:43:01",
+  "guid": {
+    "rendered": "https://shi-on.net/smart-ai-20260923-1637484d/"
+  },
+  "modified": "2026-09-23T13:43:01",
+  "modified_gmt": "2026-09-23T04:43:01",
+  "slug": "smart-ai-20260923-1637484d",
+  "status": "publish",
+  "type": "post",
+  "link": "https://shi-on.net/smart-ai-20260923-1637484d/",
+  "title": {
+    "rendered": "社長の声でも、送金しない。なりすましを止める会社は「確認」を独立させる"
+  },
+  "content": {
+    "rendered": "<p><strong>なりすまし対策で守るべきなのは「本物らしく見抜く力」ではない。送金、契約、アカウント権限の変更といった重大な実行を、依頼内容とは独立した経路で確認し、違和感を持った人が止められる会社の構造である。</strong></p>\n<h2>「社長からの依頼」に見える連絡が、送金を促す</h2>\n<p>IPAは、経営者や役員になりすまして従業員へ送金を指示するビジネスメール詐欺（BEC）を、組織にとって重大な脅威として挙げています。生成AIの悪用によって、文章だけでなく声や映像まで本人らしく見せる手口への注意も呼びかけています。</p>\n<p>またIPAは、社長をかたる連絡から別のLINEグループへ誘導し、送金を指示する事例も紹介しています。その際、不審なメールへ返信して確認するのではなく、既知の電話番号など、別の方法で確認するよう案内しています。</p>\n<p>ここで起きているのは、単純な「怪しいメール」の問題ではありません。急ぎの依頼、普段は届かない時間帯の連絡、代表者らしい言葉遣い、もっともらしい振込先。複数の要素を重ねて、受け取った人に考える時間を与えず実行させる問題です。</p>\n<p>たとえば、代表者の表示名で届いたメッセージに「この支払いは今日中に必要です。取引先には私から説明します」と書かれている場面を考えます。続いて電話があり、聞き慣れた声に近い話し方で急ぐよう求められるかもしれません。表示名、メールアドレス、電話、声がそろったとしても、それらは本人確認の根拠として十分ではありません。攻撃者が偽装している対象は、一つの連絡手段ではなく、組織の信頼関係そのものだからです。</p>\n<h2>返信して尋ねても、相手が本人とは限らない</h2>\n<p>なりすましへの対策を「慎重に確認すること」とだけ言うと、現場には曖昧に聞こえます。何を、誰に、どの方法で確認すればよいのかが決まっていなければ、忙しい場面では元のメールに返信し、元の電話番号へ折り返してしまうでしょう。しかし、その連絡先自体が攻撃者の管理下にあれば、確認したつもりで誘導されることになります。</p>\n<p>確認とは、依頼者らしく見える相手へ質問する行為ではありません。依頼の経路から独立した、あらかじめ信頼している経路を使って、実行してよいかを確かめる行為です。</p>\n<p>この違いは小さく見えて、結果を大きく分けます。メールで届いた振込依頼なら、メール本文の連絡先を使わず、社内で共有された正規の連絡ルート、登録済みの連絡先、または責任者との既知の連絡手段へ切り替える。外部から届いた共有招待なら、招待メールのリンクを開いて確認するのではなく、利用中のサービスへ通常どおりログインして招待の有無を確かめる。依頼の中にある情報を使わないことが重要です。</p>\n<p>そして、攻撃者が狙うのは送金担当者だけではありません。管理者権限を持つ人がメール、ファイル、業務システム、職員向けポータルの管理を担っていれば、そのアカウントはより大きな被害への入口になります。不要な外部連携を許可させる依頼、認証コードを聞き出す連絡、管理権限を付け替える要請も、金銭の振込と同じ重さで扱う必要があります。</p>\n<h2>止められる人がいることを、業務の仕様にする</h2>\n<p>私は、なりすまし対策を個人の注意力や経験に任せるべきではないと考えます。慎重な職員が一人いることは大切です。しかし、その人が休んだ日、急いでいた日、代表者から直接頼まれたように見えた日にも止まる仕組みでなければ、組織の防御にはなりません。</p>\n<p>必要なのは、資産、契約、認証情報に関わる依頼には、実行前の独立確認を必ず挟むというルールです。ここでいう独立確認は、承認印を一つ増やすことではありません。依頼を受けたチャネルとは別に、正規の連絡ルートで意思を確認することです。</p>\n<p>さらに重要なのは、違和感を覚えた人が、役職や担当外を理由にせず処理を止められることです。「代表からの依頼かもしれないので、止めたら失礼ではないか」「忙しい経理担当の仕事を増やしてしまう」と感じさせる職場では、手順があっても実行されません。止めることを失敗や非協力と見なさず、会社の資産と業務を守る行為として扱う必要があります。</p>\n<p>NISCも、システム管理者などには多要素認証を導入し、必要な担当者だけに権限を付与すること、特権アカウントを慎重に管理すること、不審な活動を監視することを推奨しています。これは技術担当者だけの話ではありません。管理者アカウントが奪われれば、業務の連絡、ファイル共有、記録、各種サービスへの入口まで連鎖して影響を受ける可能性があります。</p>\n<p>だから、全職員には「受け取った依頼を止める力」を、権限を持つ担当者には「侵害されても被害を広げない設計」を持たせる。この二つを別々にせず、同じ経営課題として扱いたいのです。</p>\n<h2>明日から、依頼を実行する前の道筋を変える</h2>\n<ul>\n<li>送金、口座変更、契約締結、外部サービスへの招待承諾、管理者権限の付与・変更を、「独立確認が必要な依頼」として一つにまとめる。依頼内容の種類ではなく、失敗した場合の影響の大きさで扱いをそろえる。</li>\n<li>確認先を、その依頼に書かれた連絡先にしない。社内の正規連絡ツール、事前に登録した連絡先、組織として把握している責任者への連絡など、依頼元から切り離された方法を使う。</li>\n<li>「急ぎ」「内密」「今すぐ」「自分だけで処理してほしい」という言葉を、優先対応の合図ではなく、独立確認を必須にする合図として共有する。急ぐ依頼ほど、確認を省略しない。</li>\n<li>依頼を受けた人が実行を保留できるようにする。保留した際の相談先と、不在時の次の相談先を決め、止めた人が責められないことを管理者が明確にする。実行を急がせる人より、止めた人を評価できる文化が必要である。`,`情報システムの管理者権限を棚卸しする。誰が何の管理権限を持つかを把握し、使っていないアカウント、不要な外部連携、広すぎる権限を減らす。管理者には多要素認証を適用し、通常業務用のアカウントと管理作業用のアカウントを必要に応じて分ける。`,`実際の個人名や取引先名を使わない短い演習を行う。「代表者名義の送金依頼が届いた」「外部サービスから管理権限の承認依頼が来た」といった場面で、誰が、どの正規ルートで、どこまで確認し、誰が最終的に実行するかを試す。迷った箇所は注意喚起で終わらせず、連絡先や手順に反映する。</li>\n</ul>\n<h2>結論</h2>\n<p>なりすましは、メールの文面を見抜けるかどうかだけで防ぐものではありません。本物らしい声や動画まで使われ得る時代に、見た目の真偽を個人へ委ねる防御には限界があります。</p>\n<p>だから会社は、「誰が頼んだか」に見える情報よりも、「どの経路で確認したか」を重く見るべきです。送金や権限変更を急がせる依頼ほど、正規ルートへ戻る。違和感があれば、誰でも止める。管理者権限は必要最小限にし、侵害された場合にも影響を広げない。</p>\n<p>この仕組みは、職員を疑うためのものではありません。信頼を、表示名や声の印象に預けず、日々の業務の中で再現できる形に変えるためのものです。止められる会社だけが、巧妙になる攻撃の前でも、落ち着いて仕事を続けられると考えます。</p>\n<h2>外部参考情報</h2>\n<ul>\n<li><a href=\"https://blogs.nvidia.com/blog/ai-security-agent-stack/\" target=\"_blank\" rel=\"noopener noreferrer\">AI Security Is an Engineering Problem — How to Solve It at Every Layer of the Agent Stack | NVIDIA Blog</a></li>\n<li><a href=\"https://www.ipa.go.jp/security/10threats/omgdg50000008fi8-att/kaisetsu_2026_soshiki.pdf\" target=\"_blank\" rel=\"noopener noreferrer\">「情報セキュリティ10大脅威2026」解説書［組織編］</a></li>\n<li><a href=\"https://www.ipa.go.jp/security/anshin/attention/2025/mgdayori20260312.html\" target=\"_blank\" rel=\"noopener noreferrer\">社長等をかたる詐欺メールに注意！ | 情報セキュリティ | IPA 独立行政法人 情報処理推進機構</a></li>\n<li><a href=\"https://www.nisc.go.jp/pdf/press/20221014NISC_press.pdf\" target=\"_blank\" rel=\"noopener noreferrer\">システム管理者等においては、多要素認証を導入し本人認証をより強化する。また、不正アクセスを早期に検知できるようにするために、ログイン試行を監視する。</a></li>\n</ul>\n",
+    "protected": false
+  },
+  "excerpt": {
+    "rendered": "<p>代表者や管理者の名義、声、動画が本物らしく見えても、それだけで送金や権限付与を実行してはいけません。なりすまし対策の核心は、注意深い人を増やすことではなく、依頼した経路から切り離した確認と、誰でも処理を止められる権限を日常業務に組み込むことです。</p>\n",
+    "protected": false
+  },
+  "author": 1,
+  "featured_media": 2032,
+  "comment_status": "open",
+  "ping_status": "open",
+  "sticky": false,
+  "template": "",
+  "format": "standard",
+  "meta": {
+    "_monsterinsights_skip_tracking": false,
+    "_themeisle_gutenberg_block_has_review": false,
+    "_jetpack_newsletter_access": "",
+    "_jetpack_dont_email_post_to_subs": false,
+    "_jetpack_newsletter_tier_id": 0,
+    "_jetpack_memberships_contains_paywalled_content": false,
+    "_jetpack_feature_clip_id": 0,
+    "_jetpack_memberships_contains_paid_content": false,
+    "footnotes": "",
+    "jetpack_publicize_message": "",
+    "jetpack_publicize_feature_enabled": true,
+    "jetpack_social_post_already_shared": true,
+    "jetpack_social_options": {
+      "image_generator_settings": {
+        "template": "highway",
+        "default_image_id": 0,
+        "font": "",
+        "enabled": false
+      },
+      "version": 2
+    },
+    "jetpack_post_was_ever_published": false
+  },
+  "categories": [
+    24,
+    33
+  ],
+  "tags": [],
+  "class_list": [
+    "post-2033",
+    "post",
+    "type-post",
+    "status-publish",
+    "format-standard",
+    "has-post-thumbnail",
+    "hentry",
+    "category-column",
+    "category-cat0002"
+  ],
+  "jetpack_publicize_connections": [],
+  "jetpack_likes_enabled": true,
+  "jetpack_shortlink": "https://wp.me/pbtA3X-wN",
+  "jetpack-related-posts": [],
+  "jetpack_sharing_enabled": true,
+  "jetpack_featured_media_url": "https://i0.wp.com/shi-on.net/wp-content/uploads/2026/09/smart-ai-20260923-1637484d.webp?fit=1536%2C1024&ssl=1",
+  "_links": {
+    "self": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2033",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/types/post"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/comments?post=2033"
+      }
+    ],
+    "version-history": [
+      {
+        "count": 0,
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2033/revisions"
+      }
+    ],
+    "wp:featuredmedia": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/media/2032"
+      }
+    ],
+    "wp:attachment": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/media?parent=2033"
+      }
+    ],
+    "wp:term": [
+      {
+        "taxonomy": "category",
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/categories?post=2033"
+      },
+      {
+        "taxonomy": "post_tag",
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/tags?post=2033"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}
