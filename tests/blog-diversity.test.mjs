@@ -60,32 +60,34 @@ test('publication is recorded before verification fails',async()=>{process.env.O
 
 
 const rssRow={id:'rss-1',title:'新しい外部記事',safe_excerpt:'ニュースの事実',source_url:'https://example.org/news',metadata:{}};
-test('Kusano views are considered before news-only candidates with RSS context',async()=>{
+test('raw Kusano views remain usable when no approved organized knowledge exists',async()=>{
  const h=harness({rss:[rssRow]});await h.run();const selection=h.calls.find(c=>c[1]==='editorial_selection')[2];
- assert.equal(selection.priority,'primary_kusano_view');assert.equal(selection.candidates.every(c=>c.kind==='thought'),true);assert.equal(selection.rss_articles[0].id,'rss-1');
+ assert.equal(selection.priority,'raw_kusano_view');assert.equal(selection.candidates.every(c=>c.kind==='thought'),true);assert.equal(selection.rss_articles[0].id,'rss-1');
  const research=h.calls.find(c=>c[1]==='research')[2];assert.equal(research.related_rss_articles[0].url,'https://example.org/news');
 });
-test('news-only fallback waits until the Kusano candidate pool is exhausted',async()=>{
- const h=harness({rss:[rssRow],selectionResults:[null,'rss-1']});await h.run();
- assert.deepEqual(h.calls.filter(c=>c[1]==='editorial_selection').map(c=>c[2].priority),['primary_kusano_view','last_resort_news_only']);
+test('RSS is supporting evidence and never becomes a standalone article seed',async()=>{
+ const h=harness({rss:[rssRow],selectionResults:[null]});const result=await h.run();
+ assert.equal(result.status,'skipped');
+ assert.deepEqual(h.calls.filter(c=>c[1]==='editorial_selection').map(c=>c[2].priority),['raw_kusano_view']);
 });
 
-const keyKnowledgeRow={id:'key-1',knowledge_key:'behavior-change-through-system-design',title:'行動を仕組みで変える',summary:'内部要約',content:'内部詳細',public_summary:'人への注意だけでなく、正しい行動が自然にできる仕組みを設計する。',occurred_at:null,category:'業務改善',metadata:{},privacy_level:1,publishability:'anonymize',importance:5,concept_level:1,updated_at:'2026-10-01T00:00:00Z'};
-const lessonKnowledgeRow={...keyKnowledgeRow,id:'lesson-1',knowledge_key:'role-based-lesson-reminders',title:'教訓を組織の記憶に変える'};
-test('approved lesson principles are considered before general key knowledge and RSS',async()=>{
- const h=harness({thoughts:[],knowledge:[keyKnowledgeRow,lessonKnowledgeRow],rss:[rssRow],selectionResults:['lesson-1']});const result=await h.run();
+const keyKnowledgeRow={id:'key-1',knowledge_key:'behavior-change-through-system-design',knowledge_type:'key',title:'行動を仕組みで変える',summary:'内部要約',content:'内部詳細',public_summary:'人への注意だけでなく、正しい行動が自然にできる仕組みを設計する。',occurred_at:null,category:'業務改善',metadata:{},privacy_level:1,publishability:'anonymize',importance:5,concept_level:1,stability:'core',updated_at:'2026-10-01T00:00:00Z'};
+const levelTwoKnowledgeRow={...keyKnowledgeRow,id:'key-2',knowledge_key:'helper-service-4-operating-model',title:'現場へ時間を返す運営モデル',concept_level:2};
+test('organized level 1 knowledge is considered before raw notes and RSS',async()=>{
+ const h=harness({knowledge:[keyKnowledgeRow],rss:[rssRow],selectionResults:['key-1']});const result=await h.run();
  const selection=h.calls.find(c=>c[1]==='editorial_selection')[2];
- assert.equal(selection.priority,'secondary_lesson_principle');assert.equal(selection.candidates[0].kind,'lesson_principle');assert.equal(result.editorialPriority,'lesson_reminder');
+ assert.equal(selection.priority,'organized_level_1');assert.equal(selection.candidates[0].concept_level,1);assert.equal(result.editorialPriority,'organized_knowledge');
 });
-test('public-safe key knowledge is used before news-only fallback',async()=>{
- const h=harness({thoughts:[],knowledge:[keyKnowledgeRow],rss:[rssRow],selectionResults:['key-1']});const result=await h.run();
- const selection=h.calls.find(c=>c[1]==='editorial_selection')[2];
- assert.equal(selection.priority,'tertiary_key_knowledge');assert.equal(selection.candidates[0].summary,keyKnowledgeRow.public_summary);assert.equal(result.editorialPriority,'key_knowledge');
+test('level 2 waits until every level 1 angle is rejected',async()=>{
+ const h=harness({thoughts:[],knowledge:[levelTwoKnowledgeRow,keyKnowledgeRow],rss:[rssRow],selectionResults:[null,'key-2']});await h.run();
+ const selections=h.calls.filter(c=>c[1]==='editorial_selection').map(c=>c[2]);
+ assert.deepEqual(selections.map(s=>s.priority),['organized_level_1','organized_level_2']);
+ assert.equal(selections[0].candidates[0].id,'key-1');assert.equal(selections[1].candidates[0].id,'key-2');
 });
 test('Kusano candidates beyond the first forty are considered before fallback',async()=>{
  const thoughts=Array.from({length:41},(_,i)=>({id:'thought-'+i,title:'主張'+i,summary:'別の問い',metadata:{articleCandidate:'高'}}));
  const h=harness({thoughts,rss:[rssRow],selectionResults:[null,'thought-40']});await h.run();
- const selections=h.calls.filter(c=>c[1]==='editorial_selection');assert.equal(selections.length,2);assert.equal(selections[1][2].priority,'primary_kusano_view');assert.equal(selections[1][2].candidates[0].id,'thought-40');
+ const selections=h.calls.filter(c=>c[1]==='editorial_selection');assert.equal(selections.length,2);assert.equal(selections[1][2].priority,'raw_kusano_view');assert.equal(selections[1][2].candidates[0].id,'thought-40');
 });
 
 const retryThoughts=Array.from({length:5},(_,i)=>({id:'retry-'+i,title:'異なる判断'+i,summary:'別の問い',metadata:{articleCandidate:'高'}}));
