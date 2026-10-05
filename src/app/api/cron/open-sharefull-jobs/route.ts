@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { areSharefullAutomationCronsEnabled, testDeploymentCronSkippedResponse } from "@/lib/cron/testDeployment";
-import { enqueueSharefullPublicationJobsForReadyTemplates } from "@/lib/spot-offer/enqueueSharefullPublicationJob";
+import { enqueueLatestSharefullTemplateCreationJobs, enqueueSharefullPublicationJobsForReadyTemplates } from "@/lib/spot-offer/enqueueSharefullPublicationJob";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ function isAuthorized(request: NextRequest): boolean {
 }
 
 /**
- * ready_for_offer の案件について、Sharefull案件掲載用のRPA指示を登録する。
+ * 対象利用者の最新テンプレート作成と、ready_for_offer案件の掲載RPA指示を登録する。
  *
  * vercel.json から5分ごとに呼ばれるが、SHAREFULL_AUTO_POST_ENABLED=true の場合だけ、
  * 実際に rpa_runner_jobs へ登録する。Runner側のジョブ種別が掲載処理を決定する。
@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(testDeploymentCronSkippedResponse());
   }
 
+  const templateCreation = await enqueueLatestSharefullTemplateCreationJobs("cron.open-sharefull-jobs");
   const result = await enqueueSharefullPublicationJobsForReadyTemplates("cron.open-sharefull-jobs");
 
   return NextResponse.json({
@@ -33,6 +34,11 @@ export async function GET(request: NextRequest) {
     registered_count: result.registeredCount,
     skipped_count: result.skipped.length,
     candidate_core_count: result.candidateCoreCount ?? 0,
+    template_jobs_registered_count: templateCreation.registeredCount,
+    template_candidate_client_count: templateCreation.candidateClientCount,
+    template_skipped_count: templateCreation.skipped.length,
+    template_scope: templateCreation.scope,
     skipped: result.skipped,
+    template_skipped: templateCreation.skipped,
   });
 }
