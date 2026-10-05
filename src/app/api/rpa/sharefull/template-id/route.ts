@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
-import { isSharefullSyncClient, sharefullRequestTableName, sharefullRpaMode, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
+import { isSharefullSyncClient, sharefullRequestTableName, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
 import { applySharefullContentPolicy } from "@/lib/spot-sync/sharefullContentPolicy";
 import { recordSharefullContentPolicyBlock } from "@/lib/spot-sync/sharefullContentPolicyAlert";
 
@@ -17,20 +17,30 @@ export async function POST(request: NextRequest) {
     if (lookupError) throw lookupError;
     const existingRecord = existing as unknown as Record<string, unknown> | null;
     if (!existingRecord || !isSharefullSyncClient(existingRecord.kaipoke_cs_id)) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
-    if (sharefullRpaMode() === "test") {
-      const source = existingRecord;
-      const policy = applySharefullContentPolicy(source);
-      if (policy.report.status === "blocked") {
-        const notification = await recordSharefullContentPolicyBlock({
-          coreId,
-          source: "rpa.sharefull.template-id",
-          templateId,
-          templateTitle: typeof source.template_title === "string" ? source.template_title : null,
-          sourceData: source,
-          report: policy.report,
-        });
-        return NextResponse.json({ error: "公開本文の事前検査で停止しました", content_policy: policy.report, notification }, { status: 422 });
-      }
+    const { data: envRows, error: envError } = await supabaseAdmin
+      .from("env_variables").select("key_name,value").eq("group_key", "sukima");
+    if (envError) throw envError;
+    const envValues = Object.fromEntries((envRows ?? []).map((row) => [row.key_name, row.value ?? ""]));
+    const source = {
+      ...existingRecord,
+      env: {
+        sukima_detail: String(envValues.sukima_detail ?? ""),
+        sukima_automsg: String(envValues.sukima_automsg ?? ""),
+        sukima_koudou: String(envValues.sukima_koudou ?? ""),
+        sukima_caution: String(envValues.sukima_caution ?? ""),
+      },
+    };
+    const policy = applySharefullContentPolicy(source);
+    if (policy.report.status === "blocked") {
+      const notification = await recordSharefullContentPolicyBlock({
+        coreId,
+        source: "rpa.sharefull.template-id",
+        templateId,
+        templateTitle: typeof source.template_title === "string" ? source.template_title : null,
+        sourceData: source,
+        report: policy.report,
+      });
+      return NextResponse.json({ error: "公開本文の事前検査で停止しました", content_policy: policy.report, notification }, { status: 422 });
     }
     const updatedAt = new Date().toISOString();
     const { error } = await supabaseAdmin.from(sharefullTemplateTableName() as never)

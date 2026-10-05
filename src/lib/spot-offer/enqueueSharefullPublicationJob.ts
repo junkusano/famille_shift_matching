@@ -105,16 +105,14 @@ export async function enqueueLatestSharefullTemplateCreationJobs(source: string)
       },
     });
     if (policy.report.status === "blocked") {
-      if (sharefullRpaMode() === "test") {
-        await recordSharefullContentPolicyBlock({
-          coreId,
-          source,
-          templateId: null,
-          templateTitle: text(template.template_title) || null,
-          sourceData: template,
-          report: policy.report,
-        });
-      }
+      await recordSharefullContentPolicyBlock({
+        coreId,
+        source,
+        templateId: null,
+        templateTitle: text(template.template_title) || null,
+        sourceData: template,
+        report: policy.report,
+      });
       console.warn("[sharefull/template-auto-create] blocked by content policy", {
         finding_count: policy.report.findings.length,
       });
@@ -163,7 +161,7 @@ export async function enqueueLatestSharefullTemplateCreationJobs(source: string)
       diagnostic: { core_id: coreId, candidate_request_count: 0, duplicate_job_count: 0, registered_count: 0, skipped_count: 1 },
     };
   }
-  if (sharefullRpaMode() === "test" && templateRecord) {
+  if (templateRecord) {
     const policy = applySharefullContentPolicy(templateRecord);
     if (policy.report.status === "blocked") {
       const notification = await recordSharefullContentPolicyBlock({
