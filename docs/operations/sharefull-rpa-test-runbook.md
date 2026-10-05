@@ -41,7 +41,11 @@ Content-Type: application/json
 
 送信項目は `provider=sharefull`、`event_id`、`application_key`、`state`（`applied`または`confirmed`）、`occurred_at` と、Sharefullの求人IDまたは管理番号を基本とする。応募メールと応募確定メールは同じ`application_key`で更新し、`event_id`（Gmail message ID）は受信イベントの重複防止に使う。APIはテストモードでのみ有効で、`record_sharefull_rpa_test_application()`を通じてテスト応募テーブルへ登録する。本番モードでは404を返す。
 
-GAS側のScript Propertiesにはテスト用URL、テストAPIトークン、Gmail検索条件、テストLINE WORKS API URL・アクセストークン・チャンネルIDだけを設定する。GmailメッセージIDは処理済みキーとして保存し、LINE WORKS送信が成功した後に処理済みとして記録する。
+GAS側のScript Propertiesにはテスト用URL・APIトークン、テスト用Gmailラベルを含む検索条件、Sharefull通知の送信元メールアドレス、許可するテスト案件ID（求人ID・管理番号・案件UUIDのいずれか）、テストLINE WORKS API URL・Client ID・Client Secret・Service Account・秘密鍵・Bot ID・チャンネルIDを設定する。許可IDのいずれかが設定されない場合は実行を拒否し、受信メールのIDが完全一致しなければAPIへ送らない。GmailメッセージIDをハッシュ化した処理状態は通知成功後に記録し、30日経過後に削除する。API側で重複登録と返された場合も、API登録後に通知前で中断したケースを救済するためLINE WORKS通知を試みる。LINE WORKS側の応答が不明な障害では重複通知の可能性が残るため、実運用前にテストグループで確認する。
+
+必要なScript Properties名は`MYFAMILLE_TEST_API_BASE_URL`、`MYFAMILLE_TEST_API_TOKEN`、`SHAREFULL_TEST_GMAIL_QUERY`、`SHAREFULL_TEST_SENDER_EMAIL`、`SHAREFULL_TEST_JOB_ID`・`SHAREFULL_TEST_ORDER_ID`・`SHAREFULL_TEST_REQUEST_ID`（許可対象に使うものを最低1つ）、`SHAREFULL_TEST_LINEWORKS_API_URL`（`https://www.worksapis.com/v1.0`固定）、`SHAREFULL_TEST_LINEWORKS_CLIENT_ID`、`SHAREFULL_TEST_LINEWORKS_CLIENT_SECRET`、`SHAREFULL_TEST_LINEWORKS_SERVICE_ACCOUNT`、`SHAREFULL_TEST_LINEWORKS_PRIVATE_KEY`（PEM、改行は`\\n`形式でも可）、`SHAREFULL_TEST_LINEWORKS_BOT_ID`、`SHAREFULL_TEST_LINEWORKS_CHANNEL_ID`。アクセストークンはGASがJWT（RS256）で自動取得し、CacheServiceに有効期限より短くキャッシュする。必要スコープは`bot.message`。Client Secretと秘密鍵はプロジェクト編集者が閲覧できるScript Propertiesに保存されるため、編集権限を必要最小限に限定する。
+
+対象メールは件名が`【候補者が決定しました】`で始まり、設定した送信元と一致するものに限定する。求人ID・管理番号・案件UUIDを抽出できないメールや、許可済みテスト案件IDと一致しないメールは保留し、案件名・就業日時から対象案件を推測しない。候補者名・求人名・就業日時・就業先を通知用に抽出するが、テストAPIに送信するのは応募者名などAPIスキーマで必要な項目だけとする。
 
 ## 応募通知フロー
 
@@ -70,7 +74,8 @@ SharefullからGmailへ通知メール
 
 ### 本番移行条件
 
-- テスト用Gmailで応募通知を受信できること。
+- テスト用Gmailの専用ラベル・送信元・許可案件IDで、対象外メールがAPIに送信されないこと。
+- 候補者決定通知の件名・候補者名・求人名・就業日時・就業先を正しく抽出できること。
 - テスト用LINE WORKSグループへ、同一応募を一度だけ通知できること。
 - GmailメッセージIDによる重複除外が確認できること。
 - API失敗時の再試行・失敗記録を確認できること。
