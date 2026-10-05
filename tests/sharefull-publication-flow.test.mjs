@@ -167,3 +167,23 @@ test("テスト環境では公開前検査で要確認文言を含む案件掲�
   assert.equal(policyBlocks[0].coreId, "core-1");
   assert.equal(policyBlocks[0].report.findings[0].ruleId, "gender-sensitive-recruiting");
 });
+
+test("本番環境でも公開前検査は案件掲載を止め、停止理由を記録対象へ渡す", async () => {
+  const { publisher, insertedJobs, policyBlocks } = loadPublisher({
+    env: { SHAREFULL_RPA_MODE: "production", SHAREFULL_AUTO_POST_ENABLED: "true" },
+    template: {
+      core_id: "core-1",
+      kaipoke_cs_id: "12782561",
+      sharefull_template_id: "template-1",
+      sharefull_template_status: "ready_for_offer",
+      work_description: "女性ヘルパー活躍中",
+    },
+  });
+
+  const result = await publisher.enqueueSharefullPublicationJobsForTemplate("core-1", "cron");
+
+  assert.equal(insertedJobs.length, 0);
+  assert.equal(policyBlocks.length, 1);
+  assert.equal(policyBlocks[0].coreId, "core-1");
+  assert.match(result.skipped.join(" "), /事前検査で停止/);
+});
