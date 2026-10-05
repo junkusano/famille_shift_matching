@@ -3,11 +3,27 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertSharefullDecisionMigrationApplied, buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON } from "./sharefull-test-cron-config.mjs";
+import { assertSharefullDecisionMigrationApplied, assertSharefullTestCronReleaseSource, buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON } from "./sharefull-test-cron-config.mjs";
 
 const projectName = "famille-shift-matching-test";
 const teamScope = "junkusanos-projects";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+function gitOutput(args) {
+  const result = spawnSync("git", args, { cwd: repoRoot, encoding: "utf8", shell: process.platform === "win32" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`Git preflight failed: git ${args[0]}`);
+  return result.stdout.trim();
+}
+
+const originUrl = gitOutput(["remote", "get-url", "origin"]);
+gitOutput(["fetch", "origin", "master"]);
+assertSharefullTestCronReleaseSource({
+  originUrl,
+  headSha: gitOutput(["rev-parse", "HEAD"]),
+  originMasterSha: gitOutput(["rev-parse", "refs/remotes/origin/master"]),
+  worktreeStatus: gitOutput(["status", "--porcelain=v1", "--untracked-files=all"]),
+});
+
 const sharedConfig = JSON.parse(await readFile(join(repoRoot, "vercel.json"), "utf8"));
 const testOverrides = JSON.parse(await readFile(join(repoRoot, "vercel.test.json"), "utf8"));
 assertSharefullDecisionMigrationApplied(process.env);

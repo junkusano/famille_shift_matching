@@ -9,6 +9,24 @@ export function assertSharefullDecisionMigrationApplied(env = process.env) {
   }
 }
 
+export function assertSharefullTestCronReleaseSource({ headSha, originMasterSha, worktreeStatus, originUrl }) {
+  const allowedOrigins = new Set([
+    "https://github.com/junkusano/famille_shift_matching.git",
+    "https://github.com/junkusano/famille_shift_matching",
+    "git@github.com:junkusano/famille_shift_matching.git",
+    "ssh://git@github.com/junkusano/famille_shift_matching.git",
+  ]);
+  if (!allowedOrigins.has(originUrl)) {
+    throw new Error("Refusing deployment: origin is not the canonical MyFamille repository");
+  }
+  if (!headSha || headSha !== originMasterSha) {
+    throw new Error("Refusing deployment: checkout must match the fetched origin/master commit");
+  }
+  if (worktreeStatus) {
+    throw new Error("Refusing deployment: working tree must be clean, including untracked files");
+  }
+}
+
 export function buildSharefullTestVercelConfig(sharedConfig, testOverrides = {}, decisionToken) {
   if (!Array.isArray(sharedConfig?.crons)) {
     throw new Error("Shared vercel.json must contain the existing cron array");

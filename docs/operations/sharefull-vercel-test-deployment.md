@@ -31,7 +31,7 @@ SHAREFULL_TEST_GAS_TOKEN=<テスト用GASからの受信用ランダムトーク
 1. `supabase/migrations/202610011200_sharefull_decision_status_monitor.sql`をPRでレビューする。このマイグレーションはテスト用の決定状態テーブルと専用RPCだけを追加する。RPCは`payload.environment='test'`のSharefull監視ジョブだけを完了し、共通の`complete_sharefull_decision_check`関数や本番の案件テーブルは変更しない。一方、Runner Jobの完了行は共有`public.rpa_runner_jobs`に書き込む。
 2. 本番Supabaseプロジェクトではローカル・リモートのマイグレーション履歴に不整合がないことを管理者が確認する。不整合がある場合は通常の`supabase db push`を行わず、履歴の同期方法と適用対象をDB管理者がレビュー・承認する。無関係なマイグレーションを含むdry-run、対象差分が曖昧な場合は停止する。
 3. 承認済みリリース経路で対象マイグレーションを適用し、テーブル/RPCの定義と権限を読み取りで確認する。確認できた後にのみ、実行環境へ`SHAREFULL_DECISION_MIGRATION_APPLIED=true`を設定する。この値がなければ専用デプロイスクリプトは停止する。
-4. `SHAREFULL_DECISION_CRON_TOKEN`を設定したうえで、下記スクリプトを実行する。対象はテストVercelプロジェクトだけであり、共有`vercel.json`にはCronを追加しない。
+4. `SHAREFULL_DECISION_CRON_TOKEN`を設定し、PR統合後に正規リポジトリの最新`origin/master`と一致するクリーンなチェックアウトから下記スクリプトを実行する。スクリプト自身が正規origin、fetch後の`HEAD == origin/master`、未追跡を含むクリーン状態を確認する。対象はテストVercelプロジェクトだけであり、共有`vercel.json`にはCronを追加しない。
 5. Deploy後、Cron一覧で既存スケジュールが保持され、新規監視Cronがテストプロジェクトに1件だけあることを確認する。テストRunnerが対象ジョブを1件処理し、テスト用決定状態テーブルとジョブ完了状態が更新されたことを確認する。個人情報やLINE WORKS通知を使った検証は行わない。
 
 ```powershell

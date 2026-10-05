@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { sharefullSyncClientIds, sharefullRequestTableName, sharefullRpaMode, shouldRunSharefullDecisionMonitor } from "@/lib/spot-sync/sharefullScope";
+import { sharefullDecisionBatch } from "@/lib/spot-sync/sharefullDecisionBatch";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,12 +37,29 @@ export async function GET(request: NextRequest) {
 
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
   const clientIds = sharefullSyncClientIds();
+
+  let countQuery = supabaseAdmin.from(sharefullRequestTableName() as never)
+    .select("id", { count: "exact", head: true })
+    .eq("status", "募集中").eq("sharefull_status", "published")
+    .not("sharefull_job_id", "is", null).not("sharefull_order_id", "is", null)
+    .gte("shift_start_date", today);
+  if (clientIds) countQuery = countQuery.in("kaipoke_cs_id", clientIds);
+  const { count, error: countError } = await countQuery;
+  if (countError || count === null) {
+    console.error("[cron/sharefull-decision-status] candidate count unavailable", { code: countError?.code });
+    return NextResponse.json({ ok: false, error: "Decision candidate count unavailable" }, { status: 500 });
+  }
+  if (count === 0) return NextResponse.json({ ok: true, registered: 0, target_count: 0 });
+
+  const batchSize = 30;
+  const slotNumber = Math.floor(Date.now() / 300_000);
+  const { batchCount, batchIndex, from, to } = sharefullDecisionBatch(count, slotNumber, batchSize);
   let query = supabaseAdmin.from(sharefullRequestTableName() as never)
     .select("id, kaipoke_cs_id, sharefull_job_id, sharefull_order_id")
     .eq("status", "募集中").eq("sharefull_status", "published")
     .not("sharefull_job_id", "is", null).not("sharefull_order_id", "is", null)
     .gte("shift_start_date", today).order("shift_start_date", { ascending: true })
-    .order("id", { ascending: true }).limit(1000);
+    .order("id", { ascending: true }).range(from, to);
   if (clientIds) query = query.in("kaipoke_cs_id", clientIds);
   const { data, error } = await query;
   if (error) {
@@ -57,11 +75,7 @@ export async function GET(request: NextRequest) {
     if (!requestId || !/^[1-9]\d*$/.test(orderId) || !/^[1-9]\d*$/.test(jobId)) return [];
     return [{ spot_offer_request_id: requestId, sharefull_order_id: orderId, sharefull_job_id: jobId }];
   });
-  const batchSize = 30;
-  const batchCount = Math.max(1, Math.ceil(validTargets.length / batchSize));
-  const slotNumber = Math.floor(Date.now() / 300_000);
-  const batchIndex = slotNumber % batchCount;
-  const targets = validTargets.slice(batchIndex * batchSize, (batchIndex + 1) * batchSize);
+  const targets = validTargets;
   if (!targets.length) return NextResponse.json({ ok: true, registered: 0, target_count: 0 });
 
   const key = `sharefull:decision:${jstSlot()}:${batchIndex}`;

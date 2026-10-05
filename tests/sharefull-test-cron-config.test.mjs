@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { assertSharefullDecisionMigrationApplied, buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON } from "../scripts/sharefull-test-cron-config.mjs";
+import { assertSharefullDecisionMigrationApplied, assertSharefullTestCronReleaseSource, buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON } from "../scripts/sharefull-test-cron-config.mjs";
 
 const sharedConfig = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
 const testOverrides = JSON.parse(await readFile(new URL("../vercel.test.json", import.meta.url), "utf8"));
@@ -48,4 +48,17 @@ test("監視マイグレーションはテスト専用テーブルと関数だ�
   assert.match(decisionMigration, /j\.payload->>'environment' is distinct from 'test'/i);
   assert.doesNotMatch(decisionMigration, /function public\.complete_sharefull_decision_check\s*\(/i);
   assert.doesNotMatch(decisionMigration, /public\.spot_offer_request_table\b/i);
+});
+
+test("テストCronのDeployは正規origin/masterのクリーンな作業ツリーだけに許可する", () => {
+  const source = {
+    originUrl: "https://github.com/junkusano/famille_shift_matching.git",
+    headSha: "abc123",
+    originMasterSha: "abc123",
+    worktreeStatus: "",
+  };
+  assert.doesNotThrow(() => assertSharefullTestCronReleaseSource(source));
+  assert.throws(() => assertSharefullTestCronReleaseSource({ ...source, originUrl: "https://example.com/fork.git" }), /canonical MyFamille repository/);
+  assert.throws(() => assertSharefullTestCronReleaseSource({ ...source, headSha: "old123" }), /fetched origin\/master commit/);
+  assert.throws(() => assertSharefullTestCronReleaseSource({ ...source, worktreeStatus: "?? untracked.txt" }), /working tree must be clean/);
 });
