@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/service';
 import { authenticateRunner, RpaRunnerAuthError } from '@/lib/rpa-runner/auth';
 import { isRecord } from '@/lib/rpa-runner/validation';
 import { sharefullRpaMode } from '@/lib/spot-sync/sharefullScope';
+import { isSharefullTestDeployment } from '@/lib/cron/testDeployment';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,8 @@ export async function POST(request: NextRequest) {
     const job = Array.isArray(data) ? data[0] as ClaimedJob | undefined : undefined;
     if (job?.job_type === 'sharefull.check_decision_status'
       && (process.env.SHAREFULL_DECISION_MONITOR_ENABLED?.trim().toLowerCase() !== 'true'
+        || !isSharefullTestDeployment()
+        || sharefullRpaMode() !== 'test'
         || runner.environment !== sharefullRpaMode()
         || !isRecord(job.payload)
         || job.payload.environment !== sharefullRpaMode()

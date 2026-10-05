@@ -22,7 +22,8 @@ function processSharefullTestApplicationNotifications() {
     var messagesById = {};
     searchGmailMessages_(config.gmailQuery, 50).forEach(function(message) { messagesById[message.id] = message; });
     // 実メール検索とは別に、合成メールは自分宛て・専用件名だけを追加取得する。
-    searchGmailMessages_('from:me to:me subject:"[テスト] Sharefull応募通知" newer_than:2d', 20)
+    var testLabel = config.gmailQuery.match(/\blabel:[^\s]+/i)[0];
+    searchGmailMessages_('from:me to:me ' + testLabel + ' subject:"[テスト] Sharefull応募通知" newer_than:2d', 20)
       .forEach(function(message) { messagesById[message.id] = message; });
     var messages = Object.keys(messagesById).map(function(id) { return messagesById[id]; });
 

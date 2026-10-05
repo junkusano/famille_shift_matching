@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { notifySharefullApplication } from "@/lib/spot-sync/sharefullApplicationNotification";
+import { isSharefullTestDeployment } from "@/lib/cron/testDeployment";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ function isAuthorized(request: NextRequest): boolean {
 
 export async function POST(request: NextRequest) {
   // This endpoint must never become a production application-ingest path.
-  if (process.env.SHAREFULL_RPA_MODE?.trim().toLowerCase() !== "test") {
+  if (!isSharefullTestDeployment() || process.env.SHAREFULL_RPA_MODE?.trim().toLowerCase() !== "test") {
     return NextResponse.json({ ok: false, error: "Test endpoint is disabled" }, { status: 404 });
   }
   if (!isAuthorized(request)) {
@@ -45,9 +46,6 @@ export async function POST(request: NextRequest) {
     const eventId = text(body.event_id, 160);
     const state = text(body.state, 20);
     const occurredAt = text(body.occurred_at, 80);
-    const applicantName = text(body.applicant_name, 160);
-    const applicantSex = text(body.applicant_sex, 40);
-    const applicantControlUrl = text(body.applicant_control_url, 500);
 
     if ((requestId && !UUID.test(requestId)) || (!requestId && !sharefullJobId && !sharefullOrderId)) {
       return NextResponse.json({ ok: false, error: "request_idまたはSharefull求人ID・管理番号が必要です" }, { status: 400 });
@@ -79,16 +77,16 @@ export async function POST(request: NextRequest) {
       p_event_id: eventId,
       p_state: state,
       p_occurred_at: new Date(occurredAt).toISOString(),
-      p_name: applicantName || null,
-      p_sex: applicantSex || null,
-      p_url: applicantControlUrl || null,
+      // Deliberately discard applicant PII even if an upstream mail includes it.
+      p_name: null,
+      p_sex: null,
+      p_url: null,
     });
     if (error) throw error;
 
     const notificationText = [
       "【テスト】シェアフル応募通知",
       `状態: ${state}`,
-      `応募者: ${applicantName || "不明"}`,
       `求人ID: ${target.sharefull_job_id || sharefullJobId || "不明"}`,
       `管理番号: ${target.sharefull_order_id || sharefullOrderId || "不明"}`,
       `勤務日: ${target.shift_start_date || "不明"}`,

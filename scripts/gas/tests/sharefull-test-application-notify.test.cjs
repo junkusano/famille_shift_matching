@@ -16,8 +16,8 @@ function createHarness({ apiDuplicate = false, apiStatus = 200, orderId = "TEST-
     SHAREFULL_TEST_REQUEST_ID: requestId,
   };
   const messages = {
-    "gmail-message-1": { id: "gmail-message-1", from: "Sharefull <sharefull@example.test>", subject: "Sharefull 応募通知", body: "求人ID: JOB-42\n管理番号: TEST-ORDER-42\n応募ID: APP-7\n応募者: 個人名は送らない\n応募日時: 2026-10-01T00:00:00Z", date: "2026-10-01T00:00:00.000Z" },
-    "gmail-message-synthetic": { id: "gmail-message-synthetic", from: "tester@example.test", subject: "[テスト] Sharefull応募通知", body: "SHAREFULL_TEST_EVENT\nテスト案件ID: ecdb477f-0735-447a-81c5-3089d4d03060\n応募ID: APP-SYNTHETIC\n応募者: テスト応募者", date: "2026-10-01T00:00:00.000Z" },
+    "gmail-message-1": { id: "gmail-message-1", from: "Sharefull <sharefull@example.test>", subject: "Sharefull 応募通知", body: "求人ID: JOB-42\n管理番号: TEST-ORDER-42\n応募ID: APP-7\n応募日時: 2026-10-01T00:00:00Z", date: "2026-10-01T00:00:00.000Z" },
+    "gmail-message-synthetic": { id: "gmail-message-synthetic", from: "tester@example.test", subject: "[テスト] Sharefull応募通知", body: "SHAREFULL_TEST_EVENT\nテスト案件ID: ecdb477f-0735-447a-81c5-3089d4d03060\n応募ID: APP-SYNTHETIC", date: "2026-10-01T00:00:00.000Z" },
   };
   const calls = [];
   const context = {
@@ -96,6 +96,11 @@ test("Gmail応募をテストAPIへ登録し、LINE WORKS認証情報をGASに�
   assert.equal(Object.keys(properties).some(key => key.includes("LINEWORKS")), false);
   assert.equal(JSON.parse(properties.SHAREFULL_TEST_NOTIFICATION_STATE)["gmail-message-1"], "sent");
   assert.equal(JSON.parse(properties.SHAREFULL_TEST_NOTIFICATION_STATE)["gmail-message-synthetic"], "sent");
+  const gmailQueries = calls
+    .filter(call => call.url && call.url.startsWith("https://gmail.googleapis.com/gmail/v1/users/me/messages?q="))
+    .map(call => new URL(call.url).searchParams.get("q"));
+  assert.equal(gmailQueries.length, 2);
+  assert.ok(gmailQueries.every(query => /\blabel:SharefullTest\b/.test(query)), JSON.stringify(gmailQueries));
 });
 
 test("APIの重複制御に委ね、通知API失敗時はGmailを処理済みにしない", () => {
@@ -161,4 +166,32 @@ test("本番API URLとGmailラベルなし検索を拒否し、GASへLINE WORKS�
   const { context, properties } = createHarness();
   context.readConfig_();
   assert.equal(Object.keys(properties).some(key => key.includes("LINEWORKS")), false);
+});
+
+test("決定監視のmigrationはテスト専用RPCだけを作り、共有RPCや本番案件テーブルを変更しない", () => {
+  const migration = fs.readFileSync(path.join(__dirname, "../../../supabase/migrations/202610011200_sharefull_decision_status_monitor.sql"), "utf8");
+  assert.match(migration, /create\s+or\s+replace\s+function\s+public\.complete_sharefull_test_decision_check\s*\(/i);
+  assert.doesNotMatch(migration, /function\s+public\.complete_sharefull_decision_check\s*\(/i);
+  assert.doesNotMatch(migration, /public\.spot_offer_request_table\b/i);
+});
+
+test("応募APIは入力された応募者情報をDB・通知へ渡さず、テストDeployment以外で無効", () => {
+  const route = fs.readFileSync(path.join(__dirname, "../../../src/app/api/rpa/sharefull/test-application/route.ts"), "utf8");
+  assert.match(route, /!isSharefullTestDeployment\(\)/);
+  assert.match(route, /p_name:\s*null/);
+  assert.match(route, /p_sex:\s*null/);
+  assert.match(route, /p_url:\s*null/);
+  assert.doesNotMatch(route, /body\.applicant_(?:name|sex|control_url)/);
+  assert.doesNotMatch(route, /応募者:/);
+});
+
+test("runner決定監視のclaimとcompletionはテストDeploymentのガードを要求する", () => {
+  const claim = fs.readFileSync(path.join(__dirname, "../../../src/app/api/rpa/jobs/claim/route.ts"), "utf8");
+  const complete = fs.readFileSync(path.join(__dirname, "../../../src/app/api/rpa/jobs/[id]/complete/route.ts"), "utf8");
+  assert.match(claim, /!isSharefullTestDeployment\(\)/);
+  assert.match(claim, /sharefullRpaMode\(\) !== 'test'/);
+  assert.match(complete, /!isSharefullTestDeployment\(\)/);
+  assert.match(complete, /!testMode/);
+  assert.match(complete, /complete_sharefull_test_decision_check/);
+  assert.doesNotMatch(complete, /complete_sharefull_decision_check/);
 });

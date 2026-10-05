@@ -7,6 +7,7 @@ import { resolveRpaFailureAlerts } from '@/lib/rpa-runner/alerts';
 import { sharefullDecisionStatusTableName, sharefullRequestTableName, sharefullRpaMode } from '@/lib/spot-sync/sharefullScope';
 import { getAccessToken } from '@/lib/getAccessToken';
 import { sendLWBotMessage } from '@/lib/lineworks/sendLWBotMessage';
+import { isSharefullTestDeployment } from '@/lib/cron/testDeployment';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -23,6 +24,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (claimedJob?.job_type === 'sharefull.check_decision_status') {
       const testMode = sharefullRpaMode() === 'test';
       if (process.env.SHAREFULL_DECISION_MONITOR_ENABLED?.trim().toLowerCase() !== 'true'
+        || !isSharefullTestDeployment()
+        || !testMode
         || !process.env.SHAREFULL_DECISION_RUNNER_ID?.trim()
         || runner.runnerId !== process.env.SHAREFULL_DECISION_RUNNER_ID.trim()
         || runner.environment !== sharefullRpaMode()) {
@@ -58,8 +61,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         });
       }
       const { data: pendingNotifications, error: decisionCompleteError } = await supabaseAdmin.rpc(
-        'complete_sharefull_decision_check',
-        { p_job_id: id, p_runner_id: runner.runnerId, p_result: { observations: sanitized }, p_is_test: testMode, p_enable_notifications: !testMode },
+        'complete_sharefull_test_decision_check',
+        { p_job_id: id, p_runner_id: runner.runnerId, p_result: { observations: sanitized } },
       );
       if (decisionCompleteError) {
         console.error('[rpa/jobs/complete] decision result rejected', { code: decisionCompleteError.code });
