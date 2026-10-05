@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
 
-function loadAlert(mode = "test", { claimAvailable = true, failConfirmation = false } = {}) {
+function loadAlert(mode = "test", { claimAvailable = true, failConfirmation = false, failMarker = false } = {}) {
   const code = readFileSync(new URL("../src/lib/spot-sync/sharefullContentPolicyAlert.ts", import.meta.url), "utf8")
     .replace(/^import .*;\r?\n/gm, "");
   const calls = [];
@@ -42,6 +42,9 @@ function loadAlert(mode = "test", { claimAvailable = true, failConfirmation = fa
             pendingUpdate = null;
             if (values && failConfirmation && values.notified_at) {
               return Promise.resolve({ error: new Error("audit write failed") }).then(resolve, reject);
+            }
+            if (values && failMarker && values.notification_error?.includes("重複送信を避けるため自動再送を停止")) {
+              return Promise.resolve({ error: new Error("marker write failed") }).then(resolve, reject);
             }
             if (values) Object.assign(record, values);
             return Promise.resolve({ error: null }).then(resolve, reject);
@@ -135,6 +138,20 @@ test("LINE WORKS受理後の監査更新失敗は自動再送を保留する", a
 
   assert.equal(first.notified, false);
   assert.match(record.notification_error, /重複送信を避けるため自動再送を停止/);
+  assert.equal(second.notified, false);
+  assert.equal(calls.filter((call) => call.channelId).length, 1);
+});
+
+test("送信後の確認記録と曖昧状態マーカーが両方失敗してもclaimを保持して重複送信しない", async () => {
+  const { alert, calls, record } = loadAlert("production", { failConfirmation: true, failMarker: true });
+  const input = { coreId: "core-1", source: "cron", sourceData: {}, report: { status: "blocked", findings: [] } };
+
+  const first = await alert.recordSharefullContentPolicyBlock(input);
+  const second = await alert.recordSharefullContentPolicyBlock(input);
+
+  assert.equal(first.notified, false);
+  assert.equal(record.notification_error, null);
+  assert.ok(record.notification_claimed_at);
   assert.equal(second.notified, false);
   assert.equal(calls.filter((call) => call.channelId).length, 1);
 });
