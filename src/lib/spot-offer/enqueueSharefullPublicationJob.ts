@@ -44,7 +44,7 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("rpa_runner_jobs").select("id").eq("job_type", TEMPLATE_JOB_TYPE)
     .eq("payload->>operation_key", operationKey)
-    .in("status", ["pending", "claimed", "completed", "failed"]).limit(1);
+    .in("status", ["pending", "claimed", "completed", "failed", "cancelled"]).limit(1);
   if (existingError) throw existingError;
   const alreadyQueued = Boolean(existing?.length);
   if (alreadyQueued) return { registeredCount: 0, skipped: ["テンプレート作成ジョブが登録済みです"] };
