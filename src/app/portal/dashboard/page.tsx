@@ -150,7 +150,7 @@ export default function DashboardPage() {
           {
             key: "qualification_status",
             label: "判定",
-            format: (value) => String(value ?? "").replace("資格者", "サ責資格者"),
+            format: (value) => String(value ?? ""),
           },
           { key: "total_service_hours", label: "担当時間", format: (value) => `${formatHours2(value)}h` },
           { key: "qualified_service_hours", label: "サ責資格者時間", format: (value) => `${formatHours2(value)}h` },
