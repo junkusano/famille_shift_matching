@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 function authorized(request: NextRequest): boolean {
-  const secret = process.env.SHAREFULL_DECISION_CRON_TOKEN?.trim();
-  const supplied = request.nextUrl.searchParams.get("decision_token")?.trim();
+  const secret = process.env.CRON_SECRET?.trim();
+  const supplied = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
   if (!secret || !supplied) return false;
   const expectedBytes = Buffer.from(secret);
   const suppliedBytes = Buffer.from(supplied);

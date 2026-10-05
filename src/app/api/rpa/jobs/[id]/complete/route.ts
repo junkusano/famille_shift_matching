@@ -68,6 +68,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         console.error('[rpa/jobs/complete] decision result rejected', { code: decisionCompleteError.code });
         return NextResponse.json({ ok: false, error: 'Decision completion failed' }, { status: 500 });
       }
+      if (pendingNotifications === null) {
+        return NextResponse.json({ ok: false, error: 'Decision job is not owned by this runner' }, { status: 409 });
+      }
 
       const notificationTargets = Array.isArray(pendingNotifications)
         ? pendingNotifications.filter((value): value is { request_id: string; sharefull_job_id: string } =>

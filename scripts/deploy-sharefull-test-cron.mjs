@@ -27,8 +27,7 @@ assertSharefullTestCronReleaseSource({
 const sharedConfig = JSON.parse(await readFile(join(repoRoot, "vercel.json"), "utf8"));
 const testOverrides = JSON.parse(await readFile(join(repoRoot, "vercel.test.json"), "utf8"));
 assertSharefullDecisionMigrationApplied(process.env);
-const decisionToken = process.env.SHAREFULL_DECISION_CRON_TOKEN;
-const deployConfig = buildSharefullTestVercelConfig(sharedConfig, testOverrides, decisionToken);
+const deployConfig = buildSharefullTestVercelConfig(sharedConfig, testOverrides);
 const tempDirectory = await mkdtemp(join(tmpdir(), "myfamille-sharefull-test-cron-"));
 const localConfigPath = join(tempDirectory, "vercel.test.generated.json");
 
@@ -36,12 +35,12 @@ try {
   await writeFile(localConfigPath, `${JSON.stringify(deployConfig, null, 2)}\n`, "utf8");
   const addedCron = deployConfig.crons.at(-1);
   if (deployConfig.crons.length !== sharedConfig.crons.length + 1
-    || !addedCron?.path.startsWith(`${SHAREFULL_DECISION_CRON.path}?decision_token=`)
+    || addedCron?.path !== SHAREFULL_DECISION_CRON.path
     || deployConfig.crons.slice(0, -1).some((cron, index) => JSON.stringify(cron) !== JSON.stringify(sharedConfig.crons[index]))) {
     throw new Error("Refusing deployment: preserve the test project's existing crons and add only the decision monitor cron");
   }
   console.log(`Deploying ${deployConfig.crons.length} schedules to test project ${projectName}; preserving its ${sharedConfig.crons.length} existing schedules.`);
-  console.log(`Only ${SHAREFULL_DECISION_CRON.path} is added. No project-wide CRON_SECRET is configured by this script.`);
+  console.log(`Only ${SHAREFULL_DECISION_CRON.path} is added. Cron authentication uses the test project's CRON_SECRET header; no secret is embedded in the URL.`);
 
   const npx = process.platform === "win32" ? "npx.cmd" : "npx";
   const result = spawnSync(npx, [

@@ -27,7 +27,7 @@ export function assertSharefullTestCronReleaseSource({ headSha, originMasterSha,
   }
 }
 
-export function buildSharefullTestVercelConfig(sharedConfig, testOverrides = {}, decisionToken) {
+export function buildSharefullTestVercelConfig(sharedConfig, testOverrides = {}) {
   if (!Array.isArray(sharedConfig?.crons)) {
     throw new Error("Shared vercel.json must contain the existing cron array");
   }
@@ -35,19 +35,9 @@ export function buildSharefullTestVercelConfig(sharedConfig, testOverrides = {},
     throw new Error("The test-only decision cron must not be added to shared vercel.json");
   }
 
-  if (typeof decisionToken !== "string" || decisionToken.length < 32) {
-    throw new Error("A dedicated Sharefull decision cron token of at least 32 characters is required");
-  }
-
-  // Do not configure project-wide CRON_SECRET: Vercel sends that value to
-  // every cron route in the project. Use a per-route query token instead.
-  const decisionCron = {
-    ...SHAREFULL_DECISION_CRON,
-    path: `${SHAREFULL_DECISION_CRON.path}?decision_token=${encodeURIComponent(decisionToken)}`,
-  };
   return {
     ...sharedConfig,
     ...testOverrides,
-    crons: [...sharedConfig.crons, decisionCron],
+    crons: [...sharedConfig.crons, SHAREFULL_DECISION_CRON],
   };
 }
