@@ -5,6 +5,18 @@ export type HealthCheckType = "employment" | "periodic" | "unknown";
 // status must not make an already registered health check disappear from annual scoring.
 export const HEALTH_CHECK_SUBMITTED_STATUSES = ["draft", "submitted", "approved", "completed"] as const;
 
+/**
+ * A draft is considered submitted only after a health-result attachment exists.
+ * Other workflow statuses preserve the existing submitted-status semantics.
+ */
+export function isHealthCheckRequestSubmitted(
+  status: string,
+  hasHealthResultAttachment: boolean,
+) {
+  return HEALTH_CHECK_SUBMITTED_STATUSES.includes(status as (typeof HEALTH_CHECK_SUBMITTED_STATUSES)[number])
+    && (status !== "draft" || hasHealthResultAttachment);
+}
+
 /** Japanese fiscal year: April 1 through March 31. Date-only values are intentional. */
 export function getHealthCheckFiscalYear(value: string | Date = new Date()): number {
   const date = typeof value === "string" ? new Date(`${value.slice(0, 10)}T00:00:00`) : value;
