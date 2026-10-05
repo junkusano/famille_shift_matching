@@ -1,0 +1,280 @@
+{
+  "id": 2042,
+  "date": "2026-09-25T13:10:16",
+  "date_gmt": "2026-09-25T04:10:16",
+  "guid": {
+    "rendered": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925.webp",
+    "raw": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925.webp"
+  },
+  "modified": "2026-09-25T13:10:16",
+  "modified_gmt": "2026-09-25T04:10:16",
+  "slug": "fair-team-management-20260925",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://shi-on.net/fair-team-management-20260925/",
+  "title": {
+    "raw": "fair-team-management-20260925",
+    "rendered": "fair-team-management-20260925"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_monsterinsights_skip_tracking": false,
+    "_themeisle_gutenberg_block_has_review": false,
+    "_jetpack_social_image_focal_point": {
+      "x": 0.5,
+      "y": 0.5
+    }
+  },
+  "permalink_template": "https://shi-on.net/?attachment_id=2042",
+  "generated_slug": "fair-team-management-20260925",
+  "class_list": [
+    "post-2042",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "jetpack_likes_enabled": true,
+  "jetpack_shortlink": "https://wp.me/abtA3X-wW",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "raw": "",
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925.webp?ssl=1\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"169\" src=\"https://i0.wp.com/shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925.webp?resize=300%2C169&#038;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925.webp?resize=300%2C169&amp;ssl=1 300w, https://i0.wp.com/shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925.webp?resize=1024%2C576&amp;ssl=1 1024w, https://i0.wp.com/shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925.webp?resize=768%2C432&amp;ssl=1 768w, https://i0.wp.com/shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925.webp?resize=1536%2C864&amp;ssl=1 1536w, https://i0.wp.com/shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925.webp?resize=780%2C437&amp;ssl=1 780w, https://i0.wp.com/shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925.webp?w=1672&amp;ssl=1 1672w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" data-attachment-id=\"2042\" data-permalink=\"https://shi-on.net/fair-team-management-20260925/\" data-orig-file=\"https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925.webp\" data-orig-size=\"1672,941\" data-comments-opened=\"1\" data-image-meta=\"{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;,&quot;alt&quot;:&quot;&quot;}\" data-image-title=\"fair-team-management-20260925\" data-image-description=\"\" data-image-caption=\"\" data-large-file=\"https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-1024x576.webp\" /></a></p>\n"
+  },
+  "caption": {
+    "raw": "",
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/webp",
+  "media_details": {
+    "width": 1672,
+    "height": 941,
+    "file": "2026/09/fair-team-management-20260925.webp",
+    "filesize": 184598,
+    "sizes": {
+      "medium": {
+        "file": "fair-team-management-20260925-300x169.webp",
+        "width": 300,
+        "height": 169,
+        "filesize": 13256,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-300x169.webp"
+      },
+      "large": {
+        "file": "fair-team-management-20260925-1024x576.webp",
+        "width": 1024,
+        "height": 576,
+        "filesize": 71240,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-1024x576.webp"
+      },
+      "thumbnail": {
+        "file": "fair-team-management-20260925-150x150.webp",
+        "width": 150,
+        "height": 150,
+        "filesize": 6202,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-150x150.webp"
+      },
+      "medium_large": {
+        "file": "fair-team-management-20260925-768x432.webp",
+        "width": 768,
+        "height": 432,
+        "filesize": 48504,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-768x432.webp"
+      },
+      "1536x1536": {
+        "file": "fair-team-management-20260925-1536x864.webp",
+        "width": 1536,
+        "height": 864,
+        "filesize": 120388,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-1536x864.webp"
+      },
+      "job-image": {
+        "file": "fair-team-management-20260925-1000x400.webp",
+        "width": 1000,
+        "height": 400,
+        "filesize": 59044,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-1000x400.webp"
+      },
+      "post-thumbnail": {
+        "file": "fair-team-management-20260925-571x373.webp",
+        "width": 571,
+        "height": 373,
+        "filesize": 33734,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-571x373.webp"
+      },
+      "spa-and-salon-blog": {
+        "file": "fair-team-management-20260925-780x437.webp",
+        "width": 780,
+        "height": 437,
+        "filesize": 49588,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-780x437.webp"
+      },
+      "spa-and-salon-with-sidebar": {
+        "file": "fair-team-management-20260925-846x515.webp",
+        "width": 846,
+        "height": 515,
+        "filesize": 56558,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-846x515.webp"
+      },
+      "spa-and-salon-without-sidebar": {
+        "file": "fair-team-management-20260925-1170x610.webp",
+        "width": 1170,
+        "height": 610,
+        "filesize": 81850,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-1170x610.webp"
+      },
+      "spa-and-salon-featured-block": {
+        "file": "fair-team-management-20260925-380x226.webp",
+        "width": 380,
+        "height": 226,
+        "filesize": 18720,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-380x226.webp"
+      },
+      "spa-and-salon-recent-post": {
+        "file": "fair-team-management-20260925-65x65.webp",
+        "width": 65,
+        "height": 65,
+        "filesize": 1916,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-65x65.webp"
+      },
+      "spa-and-salon-testmonial": {
+        "file": "fair-team-management-20260925-380x481.webp",
+        "width": 380,
+        "height": 481,
+        "filesize": 23140,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-380x481.webp"
+      },
+      "spa-and-salon-testmonial-thumb": {
+        "file": "fair-team-management-20260925-160x159.webp",
+        "width": 160,
+        "height": 159,
+        "filesize": 6440,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-160x159.webp"
+      },
+      "spa-and-salon-service": {
+        "file": "fair-team-management-20260925-380x225.webp",
+        "width": 380,
+        "height": 225,
+        "filesize": 18844,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-380x225.webp"
+      },
+      "spa-and-salon-welcome-note": {
+        "file": "fair-team-management-20260925-547x293.webp",
+        "width": 547,
+        "height": 293,
+        "filesize": 29388,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925-547x293.webp"
+      },
+      "full": {
+        "file": "fair-team-management-20260925.webp",
+        "width": 1672,
+        "height": 941,
+        "mime_type": "image/webp",
+        "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925.webp"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": [],
+      "alt": ""
+    }
+  },
+  "post": null,
+  "source_url": "https://shi-on.net/wp-content/uploads/2026/09/fair-team-management-20260925.webp",
+  "missing_image_sizes": [],
+  "filename": "fair-team-management-20260925.webp",
+  "filesize": 184598,
+  "exif_orientation": 1,
+  "image_output_format": null,
+  "image_save_progressive": false,
+  "image_quality": {
+    "default": 86,
+    "sizes": []
+  },
+  "_links": {
+    "self": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/media/2042",
+        "targetHints": {
+          "allow": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/comments?post=2042"
+      }
+    ],
+    "wp:action-unfiltered-html": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/media/2042"
+      }
+    ],
+    "wp:action-assign-author": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/media/2042"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}
