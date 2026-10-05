@@ -1,3 +1,6 @@
+import { join } from "node:path";
+import { writeFile } from "node:fs/promises";
+
 export const SHAREFULL_DECISION_CRON = Object.freeze({
   path: "/api/cron/sharefull-decision-status",
   schedule: "*/5 * * * *",
@@ -40,4 +43,11 @@ export function buildSharefullTestVercelConfig(sharedConfig, testOverrides = {})
     ...testOverrides,
     crons: [...sharedConfig.crons, SHAREFULL_DECISION_CRON],
   };
+}
+
+export async function writeSharefullTestVercelConfig(stagingRoot, sharedConfig, testOverrides = {}) {
+  const deployConfig = buildSharefullTestVercelConfig(sharedConfig, testOverrides);
+  const configPath = join(stagingRoot, "vercel.json");
+  await writeFile(configPath, `${JSON.stringify(deployConfig, null, 2)}\n`, "utf8");
+  return configPath;
 }
