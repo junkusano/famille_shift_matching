@@ -1,7 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
-import { sharefullSyncClientIds, sharefullRequestTableName, sharefullRpaMode, shouldRunSharefullDecisionMonitor } from "@/lib/spot-sync/sharefullScope";
+import { sharefullDecisionStatusTableName, sharefullSyncClientIds, sharefullRequestTableName, sharefullRpaMode, shouldRunSharefullDecisionMonitor } from "@/lib/spot-sync/sharefullScope";
 import { sharefullDecisionBatch } from "@/lib/spot-sync/sharefullDecisionBatch";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,22 @@ export async function GET(request: NextRequest) {
   const environment = sharefullRpaMode();
   const runnerId = process.env.SHAREFULL_DECISION_RUNNER_ID?.trim();
   if (!runnerId) return NextResponse.json({ ok: false, error: "Dedicated decision runner is not configured" }, { status: 503 });
+
+  const { error: statusTableError } = await supabaseAdmin
+    .from(sharefullDecisionStatusTableName() as never)
+    .select("request_id")
+    .limit(0);
+  const { data: completionProbe, error: completionProbeError } = await supabaseAdmin.rpc(
+    "complete_sharefull_test_decision_check",
+    { p_job_id: randomUUID(), p_runner_id: runnerId, p_result: { observations: [] } },
+  );
+  if (statusTableError || completionProbeError || completionProbe !== null) {
+    console.error("[cron/sharefull-decision-status] test database migration is not ready", {
+      tableCode: statusTableError?.code,
+      rpcCode: completionProbeError?.code,
+    });
+    return NextResponse.json({ ok: false, error: "Sharefull decision monitor database is not ready" }, { status: 503 });
+  }
 
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
   const clientIds = sharefullSyncClientIds();

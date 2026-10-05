@@ -6,6 +6,7 @@ import { assertSharefullDecisionMigrationApplied, assertSharefullTestCronRelease
 const sharedConfig = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
 const testOverrides = JSON.parse(await readFile(new URL("../vercel.test.json", import.meta.url), "utf8"));
 const decisionMigration = await readFile(new URL("../supabase/migrations/202610011200_sharefull_decision_status_monitor.sql", import.meta.url), "utf8");
+const monitorRoute = await readFile(new URL("../src/app/api/cron/sharefull-decision-status/route.ts", import.meta.url), "utf8");
 
 const token = "x".repeat(48);
 
@@ -61,4 +62,13 @@ test("テストCronのDeployは正規origin/masterのクリーンな作業ツリ
   assert.throws(() => assertSharefullTestCronReleaseSource({ ...source, originUrl: "https://example.com/fork.git" }), /canonical MyFamille repository/);
   assert.throws(() => assertSharefullTestCronReleaseSource({ ...source, headSha: "old123" }), /fetched origin\/master commit/);
   assert.throws(() => assertSharefullTestCronReleaseSource({ ...source, worktreeStatus: "?? untracked.txt" }), /working tree must be clean/);
+});
+
+test("DBの読取専用準備確認より前に共有ジョブを登録しない", () => {
+  const tableProbe = monitorRoute.indexOf(".limit(0)");
+  const rpcProbe = monitorRoute.indexOf('"complete_sharefull_test_decision_check"');
+  const enqueue = monitorRoute.indexOf('.from("rpa_runner_jobs").insert({');
+  assert.ok(tableProbe >= 0 && rpcProbe >= 0 && enqueue >= 0);
+  assert.ok(tableProbe < enqueue);
+  assert.ok(rpcProbe < enqueue);
 });
