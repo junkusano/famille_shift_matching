@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
-import { isSharefullSyncClient, sharefullRpaMode, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
+import { isSharefullSyncClient, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
 import { applySharefullContentPolicy } from "@/lib/spot-sync/sharefullContentPolicy";
 
 export const dynamic = "force-dynamic";
@@ -23,9 +23,9 @@ export async function GET(request: NextRequest) {
       sukima_detail: String(values.sukima_detail ?? ""), sukima_automsg: String(values.sukima_automsg ?? ""),
       sukima_koudou: String(values.sukima_koudou ?? ""), sukima_caution: String(values.sukima_caution ?? ""),
     } };
-    const policy = sharefullRpaMode() === "test"
-      ? applySharefullContentPolicy(rawData)
-      : { data: rawData, report: { status: "clean" as const, findings: [] } };
+    // 自動作成・手動作成のどちらでも公開本文を同じルールで検査し、
+    // タイミー固有バナーはSharefull向けに変換してから拡張機能へ返す。
+    const policy = applySharefullContentPolicy(rawData);
     if (policy.report.status === "blocked") {
       return NextResponse.json({
         error: "公開本文の事前検査で停止しました",

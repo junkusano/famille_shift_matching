@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { isDuplicateSharefullPublicationJob, SHAREFULL_PUBLICATION_DEDUPE_STATUSES } from "@/lib/spot-offer/publicationJobDedupe";
 import { applySharefullContentPolicy } from "@/lib/spot-sync/sharefullContentPolicy";
 import { recordSharefullContentPolicyBlock } from "@/lib/spot-sync/sharefullContentPolicyAlert";
+import { latestSharefullTemplatesByClient } from "@/lib/spot-offer/latestSharefullTemplates";
 
 const JOB_TYPE = "sharefull.create_spot_offer";
 const TEMPLATE_JOB_TYPE = "sharefull.create_template";
@@ -41,15 +42,99 @@ function todayInJst(): string {
 async function enqueueSharefullTemplateCreationJob(coreId: string, source: string): Promise<{ registeredCount: number; skipped: string[] }> {
   const operationKey = `sharefull:create_template:${coreId}`;
   const { data: existing, error: existingError } = await supabaseAdmin
-    .from("rpa_runner_jobs").select("payload").eq("job_type", TEMPLATE_JOB_TYPE).in("status", ["pending", "claimed"]).limit(5000);
+    .from("rpa_runner_jobs").select("id").eq("job_type", TEMPLATE_JOB_TYPE)
+    .eq("payload->>operation_key", operationKey)
+    .in("status", ["pending", "claimed", "completed", "failed", "cancelled"]).limit(1);
   if (existingError) throw existingError;
-  const alreadyQueued = (existing ?? []).some((row) => text((row.payload as JsonRecord | null)?.operation_key) === operationKey);
+  const alreadyQueued = Boolean(existing?.length);
   if (alreadyQueued) return { registeredCount: 0, skipped: ["テンプレート作成ジョブが登録済みです"] };
   const payload = { action: "create_sharefull_template", command: "create_template", core_id: coreId, operation_key: operationKey, sync_operation_key: operationKey, created_from: source };
   const { error } = await supabaseAdmin.from("rpa_runner_jobs").insert({ job_type: TEMPLATE_JOB_TYPE, status: "pending", payload, timeout_ms: 300_000, target_runner_id: sharefullTargetRunnerId() });
   if (error?.code === "23505") return { registeredCount: 0, skipped: ["テンプレート作成ジョブが登録済みです"] };
   if (error) throw error;
   return { registeredCount: 1, skipped: [] };
+}
+
+/**
+ * 運用対象利用者ごとに最新の有効なMyFamilleテンプレートを1件選び、
+ * Sharefull IDが未登録で安全確認を通ったものだけ作成ジョブへ登録する。
+ * 全利用者化は既存の明示設定 SHAREFULL_SYNC_KAIPOKE_CS_IDS=* と
+ * SHAREFULL_SYNC_ALLOW_ALL=true によって段階的に有効化できる。
+ */
+export async function enqueueLatestSharefullTemplateCreationJobs(source: string) {
+  const targetClientIds = sharefullSyncClientIds();
+  let query = supabaseAdmin.from(sharefullTemplateTableName() as never)
+    .select("*")
+    .eq("status", "active")
+    .not("kaipoke_cs_id", "is", null)
+    .order("updated_at", { ascending: false });
+  if (targetClientIds !== null) query = query.in("kaipoke_cs_id", targetClientIds);
+
+  const rows: JsonRecord[] = [];
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await query.range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    const page = (data ?? []) as unknown as JsonRecord[];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+
+  const latest = latestSharefullTemplatesByClient(rows);
+  const { data: envRows, error: envError } = await supabaseAdmin
+    .from("env_variables").select("key_name,value").eq("group_key", "sukima");
+  if (envError) throw envError;
+  const envValues = Object.fromEntries((envRows ?? []).map((row) => [row.key_name, row.value ?? ""]));
+  const registeredCoreIds: string[] = [];
+  const skipped: string[] = [];
+
+  for (const template of latest) {
+    const coreId = text(template.core_id);
+    if (text(template.sharefull_template_id)) {
+      skipped.push(`${coreId}:既にSharefullテンプレートIDがあります`);
+      continue;
+    }
+
+    const policy = applySharefullContentPolicy({
+      ...template,
+      env: {
+        sukima_detail: text(envValues.sukima_detail),
+        sukima_automsg: text(envValues.sukima_automsg),
+        sukima_koudou: text(envValues.sukima_koudou),
+        sukima_caution: text(envValues.sukima_caution),
+      },
+    });
+    if (policy.report.status === "blocked") {
+      if (sharefullRpaMode() === "test") {
+        await recordSharefullContentPolicyBlock({
+          coreId,
+          source,
+          templateId: null,
+          templateTitle: text(template.template_title) || null,
+          sourceData: template,
+          report: policy.report,
+        });
+      }
+      console.warn("[sharefull/template-auto-create] blocked by content policy", {
+        finding_count: policy.report.findings.length,
+      });
+      skipped.push(`${coreId}:要確認文言を検出しました`);
+      continue;
+    }
+
+    const result = await enqueueSharefullTemplateCreationJob(coreId, source);
+    if (result.registeredCount > 0) registeredCoreIds.push(coreId);
+    skipped.push(...result.skipped.map((reason) => `${coreId}:${reason}`));
+  }
+
+  return {
+    enabled: true,
+    registeredCount: registeredCoreIds.length,
+    skipped,
+    candidateClientCount: latest.length,
+    registeredCoreIds,
+    scope: sharefullSyncScopeLabel(),
+  };
 }
 
 /**
