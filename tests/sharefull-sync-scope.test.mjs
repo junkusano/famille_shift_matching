@@ -18,14 +18,38 @@ function loadScope(env = {}) {
 
 test("Sharefull同期は初期値で検証利用者だけを対象にする", () => {
   const scope = loadScope();
-  assert.deepEqual([...scope.sharefullSyncClientIds()], ["12782561"]);
+  const expectedClientIds = [
+    "10857804",
+    "12278553",
+    "12581399",
+    "12666844",
+    "12698444",
+    "12782561",
+    "12906710",
+    "12988540",
+    "8065144",
+    "9003819",
+  ];
+  assert.deepEqual([...scope.sharefullSyncClientIds()], expectedClientIds);
+  for (const id of expectedClientIds) assert.equal(scope.isSharefullSyncClient(id), true);
   assert.equal(scope.isSharefullSyncClient("12782561"), true);
   assert.equal(scope.isSharefullSyncClient("99999999"), false);
 });
 
 test("全利用者化には対象指定と明示許可の両方を必要とする", () => {
   const blocked = loadScope({ SHAREFULL_SYNC_KAIPOKE_CS_IDS: "*" });
-  assert.deepEqual([...blocked.sharefullSyncClientIds()], ["12782561"]);
+  assert.deepEqual([...blocked.sharefullSyncClientIds()], [
+    "10857804",
+    "12278553",
+    "12581399",
+    "12666844",
+    "12698444",
+    "12782561",
+    "12906710",
+    "12988540",
+    "8065144",
+    "9003819",
+  ]);
 
   const allowed = loadScope({
     SHAREFULL_SYNC_KAIPOKE_CS_IDS: "*",

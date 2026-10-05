@@ -5,7 +5,18 @@
  * SHAREFULL_SYNC_KAIPOKE_CS_IDS=* と SHAREFULL_SYNC_ALLOW_ALL=true を
  * 明示的に両方設定する。
  */
-const DEFAULT_TEST_CLIENT_IDS = ["12782561"];
+const DEFAULT_TEST_CLIENT_IDS = [
+  "10857804",
+  "12278553",
+  "12581399",
+  "12666844",
+  "12698444",
+  "12782561",
+  "12906710",
+  "12988540",
+  "8065144",
+  "9003819",
+];
 
 export type SharefullRpaMode = "production" | "test";
 
