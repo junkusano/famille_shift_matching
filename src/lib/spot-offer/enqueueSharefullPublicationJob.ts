@@ -116,7 +116,6 @@ export async function enqueueLatestSharefullTemplateCreationJobs(source: string)
         });
       }
       console.warn("[sharefull/template-auto-create] blocked by content policy", {
-        core_id: coreId,
         finding_count: policy.report.findings.length,
       });
       skipped.push(`${coreId}:要確認文言を検出しました`);
