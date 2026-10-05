@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertSharefullDecisionMigrationApplied, assertSharefullTestCronReleaseSource, buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON, writeSharefullTestVercelConfig } from "./sharefull-test-cron-config.mjs";
+import { assertSharefullDecisionMigrationApplied, assertSharefullTestCronRegistration, assertSharefullTestCronReleaseSource, buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON, writeSharefullTestVercelConfig } from "./sharefull-test-cron-config.mjs";
 
 const projectName = "famille-shift-matching-test";
 const teamScope = "junkusanos-projects";
@@ -74,7 +74,21 @@ try {
 
   if (result.error) throw result.error;
   if (result.signal) throw new Error(`Vercel CLI terminated by ${result.signal}`);
-  if (result.status !== 0) process.exitCode = result.status ?? 1;
+  if (result.status !== 0) throw new Error(`Vercel test deployment failed with exit code ${result.status ?? "unknown"}`);
+
+  const verification = spawnSync(npx, [
+    "--yes", "vercel@latest", "crons", "list",
+    "--project", projectName,
+    "--scope", teamScope,
+    "--format", "json",
+  ], { cwd: repoRoot, encoding: "utf8", shell: process.platform === "win32" });
+  if (verification.error) throw verification.error;
+  if (verification.status !== 0) throw new Error("Could not read back the test project's Vercel Cron list");
+  const jsonStart = verification.stdout.indexOf("{");
+  if (jsonStart < 0) throw new Error("Vercel Cron list did not return JSON");
+  const cronListing = JSON.parse(verification.stdout.slice(jsonStart));
+  assertSharefullTestCronRegistration(cronListing, deployConfig.crons.length);
+  console.log(`Verified ${cronListing.crons.length} Cron schedules in ${projectName}, including ${SHAREFULL_DECISION_CRON.path}.`);
 } finally {
-  await rm(tempDirectory, { recursive: true, force: true });
+  await rm(tempDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 1000 });
 }

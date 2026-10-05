@@ -51,3 +51,16 @@ export async function writeSharefullTestVercelConfig(stagingRoot, sharedConfig, 
   await writeFile(configPath, `${JSON.stringify(deployConfig, null, 2)}\n`, "utf8");
   return configPath;
 }
+
+export function assertSharefullTestCronRegistration(listing, expectedCount) {
+  if (!Array.isArray(listing?.crons) || listing.crons.length !== expectedCount) {
+    throw new Error(`Expected ${expectedCount} test-project crons, received ${listing?.crons?.length ?? "no list"}`);
+  }
+  const matches = listing.crons.filter((cron) => cron?.path === SHAREFULL_DECISION_CRON.path);
+  if (matches.length !== 1
+    || matches[0]?.schedule !== SHAREFULL_DECISION_CRON.schedule
+    || !matches[0]?.host?.startsWith("famille-shift-matching-test-")) {
+    throw new Error("Sharefull decision cron is missing, duplicated, or not hosted by the test Vercel project");
+  }
+  return true;
+}
