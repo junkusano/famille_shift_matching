@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { isDeepStrictEqual } from "node:util";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -54,7 +55,7 @@ try {
     || deployConfig.crons.slice(0, -1).some((cron, index) => JSON.stringify(cron) !== JSON.stringify(sharedConfig.crons[index]))) {
     throw new Error("Refusing deployment: preserve the test project's existing crons and add only the decision monitor cron");
   }
-  if (stagedConfig.crons.length !== deployConfig.crons.length) {
+  if (!isDeepStrictEqual(stagedConfig, deployConfig)) {
     throw new Error("Refusing deployment: staged Vercel config does not match the validated test config");
   }
   console.log(`Deploying ${deployConfig.crons.length} schedules to test project ${projectName}; preserving its ${sharedConfig.crons.length} existing schedules.`);
