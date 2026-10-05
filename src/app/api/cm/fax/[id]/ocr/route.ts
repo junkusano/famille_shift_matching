@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { PDFDocument } from "pdf-lib";
 import { extractGoogleDriveFileId } from "@/lib/google-drive/upload";
 import { downloadCsDocPdf, extractTextWithAbbyy } from "@/lib/cs-docs-reprocess";
 import { supabaseAdmin } from "@/lib/supabase/service";
@@ -99,12 +100,50 @@ export async function POST(
       .from("cm_fax_pages")
       .select("id,page_number,ocr_status")
       .eq("fax_received_id", faxId)
-      .order("page_number", { ascending: true })
-    if (pageError || !pages?.length) {
+      .order("page_number", { ascending: true });
+    if (pageError) {
       return NextResponse.json({ ok: false, error: "FAXページが見つかりません" }, { status: 404 });
     }
 
-    const targetPages = pages
+    let faxPages = (pages ?? []) as FaxPage[];
+    let pdf: Buffer | null = null;
+
+    // 受信データによってはPDFだけ保存され、cm_fax_pagesが作られていない。
+    // OCR実行時にPDFの実ページ数から不足行を復旧して、手動のDB修正を不要にする。
+    if (faxPages.length === 0) {
+      const fileId = extractGoogleDriveFileId(String(fax.file_id));
+      pdf = await downloadCsDocPdf(fileId, "");
+      const pdfPageCount = (await PDFDocument.load(pdf)).getPageCount();
+      const pageCount = pdfPageCount;
+      if (pageCount <= 0) {
+        return NextResponse.json({ ok: false, error: "PDFにページがありません" }, { status: 422 });
+      }
+
+      const pageRows = Array.from({ length: pageCount }, (_, index) => ({
+        fax_received_id: faxId,
+        page_number: index + 1,
+        logical_order: index + 1,
+        ocr_status: "pending",
+      }));
+      const { data: insertedPages, error: insertError } = await supabaseAdmin
+        .from("cm_fax_pages")
+        .insert(pageRows)
+        .select("id,page_number,ocr_status")
+        .order("page_number", { ascending: true });
+      if (insertError || !insertedPages?.length) {
+        throw insertError ?? new Error("FAXページの自動作成に失敗しました");
+      }
+      faxPages = insertedPages as FaxPage[];
+
+      if ((Number(fax.page_count) || 0) !== pageCount) {
+        await supabaseAdmin
+          .from("cm_fax_received")
+          .update({ page_count: pageCount })
+          .eq("id", faxId);
+      }
+    }
+
+    const targetPages = faxPages
       .map((page, index) => ({ page, index }))
       .filter(({ page }) => page.ocr_status !== "completed");
     if (targetPages.length === 0) {
@@ -122,10 +161,12 @@ export async function POST(
       .eq("fax_received_id", faxId)
       .in("id", targetPages.map(({ page }) => page.id));
 
-    const fileId = extractGoogleDriveFileId(String(fax.file_id));
-    // FAXの保存先は、サービスアカウントから直接見えない場合があるため、
-    // 共通のGASゲートウェイ／共有リンクへのフォールバックを利用する。
-    const pdf = await downloadCsDocPdf(fileId, "");
+    if (!pdf) {
+      const fileId = extractGoogleDriveFileId(String(fax.file_id));
+      // FAXの保存先は、サービスアカウントから直接見えない場合があるため、
+      // 共通のGASゲートウェイ／共有リンクへのフォールバックを利用する。
+      pdf = await downloadCsDocPdf(fileId, "");
+    }
     const ocrText = await extractTextWithAbbyy(pdf);
     if (!ocrText) throw new Error("ABBYY OCR結果が空です");
 
@@ -133,12 +174,12 @@ export async function POST(
     // 区切りがない場合は全文を1ページ目に保存し、他ページは再確認対象に残す。
     const pageTexts = mapOcrTextToPages(
       ocrText,
-      pages as FaxPage[],
+      faxPages,
       targetPages.map(({ page }) => page),
     );
 
     // 本番DBには旧生成型にない列が存在するため、ここだけ実行時スキーマとして扱う。
-    const db = supabaseAdmin as any;
+    const db = supabaseAdmin;
     const processed: Array<{ pageNumber: number; text: string; textLength: number }> = [];
 
     for (const { page } of targetPages) {

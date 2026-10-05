@@ -43,7 +43,30 @@ function domainId(): number {
   return value;
 }
 
-async function resolveTargetUsers() {
+async function existingLineworksUserIds(userIds: string[], token: string): Promise<string[]> {
+  const existing: string[] = [];
+
+  // Keep concurrency bounded so one onboarding request does not burst the
+  // LINE WORKS Directory API when the exception table grows.
+  for (let index = 0; index < userIds.length; index += 5) {
+    const batch = userIds.slice(index, index + 5);
+    const results = await Promise.all(batch.map(async (userId) => {
+      const url = new URL(`${API_BASE}/users/${encodeURIComponent(userId)}`);
+      url.searchParams.set("domainId", String(domainId()));
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (response.status === 404) return null;
+      if (!response.ok) {
+        throw new Error(`LINE WORKS user lookup failed (${response.status})`);
+      }
+      return userId;
+    }));
+    existing.push(...results.filter((userId): userId is string => Boolean(userId)));
+  }
+
+  return existing;
+}
+
+async function resolveTargetUsers(token: string) {
   const { data: exceptions, error: exceptionError } = await supabaseAdmin
     .from("user_org_exception")
     .select("user_id,orgunitid");
@@ -81,9 +104,19 @@ async function resolveTargetUsers() {
     .maybeSingle();
   if (supportError) throw supportError;
 
-  const supportLwUserId = typeof support?.lw_userid === "string" ? support.lw_userid.trim() : null;
-  const memberIds = Array.from(new Set(resolved.map((row) => row.lw_userid)));
-  const masterIds = Array.from(new Set([...memberIds, ...(supportLwUserId ? [supportLwUserId] : [])]));
+  const supportCandidate = typeof support?.lw_userid === "string" ? support.lw_userid.trim() : null;
+  const candidates = Array.from(new Set([
+    ...resolved.map((row) => row.lw_userid),
+    ...(supportCandidate ? [supportCandidate] : []),
+  ]));
+  const masterIds = await existingLineworksUserIds(candidates, token);
+  const supportLwUserId = supportCandidate && masterIds.includes(supportCandidate)
+    ? supportCandidate
+    : null;
+
+  if (masterIds.length === 0) {
+    throw new Error("LINE WORKS group master is not configured");
+  }
 
   return { memberIds: masterIds, masterIds, supportLwUserId };
 }
@@ -260,7 +293,7 @@ export async function ensureInformationLinkGroup(
 
   try {
     const token = await getAccessToken();
-    const users = await resolveTargetUsers();
+    const users = await resolveTargetUsers(token);
     let lookupSource = "none";
     let group = await findGroupByExternalKey(externalKey, token);
     if (group) lookupSource = "external-key";

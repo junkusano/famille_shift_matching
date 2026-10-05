@@ -22,7 +22,14 @@ const TRAFFIC_TERMS = /交通規制|通行止め|通行規制|車両通行禁止
 const REGION = /名古屋|春日井|小牧|瀬戸|尾張旭|長久手|日進|豊山|北名古屋|清須|あま市|大治|東海市|大府|豊明|東郷|愛知|東海地方/;
 const WEATHER_TERMS = /台風|大雨|大雪|暴風|洪水|土砂災害|浸水|激しい雨|記録的短時間/;
 type Source = { url: string; title: string; text: string; publishedAt?: string };
-export type Notice = { key: string; title: string; text: string; sources: Source[]; fingerprint: string; weatherKind?: string };
+export type Notice = { key: string; title: string; text: string; sources: Source[]; fingerprint: string; weatherKind?: string; transportLinks?: { title: string; url: string }[] };
+export const WEATHER_TRANSPORT_LINKS = [
+  { title: "名古屋市営地下鉄・市バスの運行情報", url: "https://kotsu.city.nagoya.jp/rp/emergency/" },
+  { title: "JR東海・在来線（東海道線・中央線・関西線など）", url: "https://traininfo.jr-central.co.jp/zairaisen/index.html" },
+  { title: "東海道・山陽新幹線の運行状況", url: "https://traininfo.jr-central.co.jp/shinkansen/pc/ja/index.html" },
+  { title: "名鉄各線の運行情報", url: "https://top.meitetsu.co.jp/em/train_emtop.asp" },
+  { title: "近鉄・あおなみ線・リニモ・城北線など（名古屋市の運行情報一覧）", url: "https://www.city.nagoya.jp/aichi-nagoya2026/1040799/1039135.html" },
+];
 type NoticeResult = { status: "succeeded" | "skipped"; message: string; audit?: Record<string, unknown> };
 export const jstDay = (now = new Date()) => new Date(now.getTime() + 9 * 3600_000).toISOString().slice(0, 10);
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -241,14 +248,15 @@ export function mergeBoardBody(oldBody: string, notice: Notice, now = new Date()
   const latest = `<h2>最新の自動確認情報</h2><p>確認日時：${escapeHtml(now.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }))}</p>` +
     notice.text.split(/\n\n/).map(p => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`).join("") +
     `<h3>公式情報</h3><ul>${notice.sources.map(s => `<li><a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a></li>`).join("")}</ul>`;
-  return latest + (preserved ? `<hr><h2>これまでのお知らせ（掲載当時の情報）</h2>${preserved}` : "");
+  const transport = notice.transportLinks?.length ? `<h3>交通機関の運行状況</h3><p>訪問・通勤前に、利用する路線の最新情報を確認してください。</p><ul>${notice.transportLinks.map(s => `<li><a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a></li>`).join("")}</ul>` : "";
+  return latest + transport + (preserved ? `<hr><h2>これまでのお知らせ（掲載当時の情報）</h2>${preserved}` : "");
 }
 
 export function boardMatches(post: { title?: string; body?: string }, notice: Notice) {
   const compact = (text: string) => normalized(text).replace(/\s/g, "");
   const $ = load(post.body ?? "");
   const links = $("a[href]").map((_, e) => $(e).attr("href")).get();
-  return post.title === notice.title && compact($.text()).includes(compact(notice.text)) && notice.sources.every(s => links.includes(s.url));
+  return post.title === notice.title && compact($.text()).includes(compact(notice.text)) && [...notice.sources, ...(notice.transportLinks ?? [])].every(s => links.includes(s.url));
 }
 
 export async function deliverNotice(task: KnowledgeAutomationTask, notice: Notice, dryRun = false): Promise<NoticeResult> {
@@ -335,6 +343,10 @@ export async function runPublicNotice(task: KnowledgeAutomationTask, dryRun = fa
   if (!notices.length) return { status: "skipped", message: "確認した公式情報に、今回通知する対象はありませんでした。" };
   const results = [];
   for (const notice of notices) {
+    if (operation === "weather") {
+      notice.transportLinks = WEATHER_TRANSPORT_LINKS;
+      notice.fingerprint = hash([notice.fingerprint, WEATHER_TRANSPORT_LINKS]);
+    }
     if (notice.weatherKind) {
       const prior = await supabaseAdmin.from("knowledge_automation_runs").select("output_summary").eq("task_id", task.id).eq("status", "succeeded")
         .contains("output_summary", { weatherKind: notice.weatherKind }).gte("finished_at", new Date(Date.now() - 48 * 3600_000).toISOString()).order("created_at", { ascending: false }).limit(1);

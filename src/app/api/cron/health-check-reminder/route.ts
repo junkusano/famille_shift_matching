@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { getAccessToken } from "@/lib/getAccessToken";
 import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
+import { isHealthCheckRequestSubmitted } from "@/lib/healthCheck";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,15 +60,35 @@ export async function GET() {
         // 2. 提出済みの人を取得
         const { data: submittedRows, error: submittedError } = await supabaseAdmin
             .from("wf_request")
-            .select("applicant_user_id,payload")
+            .select("id,applicant_user_id,status,payload")
             .eq("request_type_id", type.id)
-            .in("status", ["submitted", "approved", "completed"]);
+            .in("status", ["draft", "submitted", "approved", "completed"]);
 
         if (submittedError) throw submittedError;
 
+        const draftRequestIds = (submittedRows ?? [])
+            .filter((row) => row.status === "draft")
+            .map((row) => row.id);
+        const { data: draftAttachments, error: draftAttachmentError } = draftRequestIds.length > 0
+            ? await supabaseAdmin
+                .from("wf_request_attachment")
+                .select("request_id")
+                .in("request_id", draftRequestIds)
+                .eq("kind", "health_result")
+            : { data: [], error: null };
+
+        if (draftAttachmentError) throw draftAttachmentError;
+
+        const draftRequestIdsWithHealthResult = new Set(
+            (draftAttachments ?? []).map((attachment) => attachment.request_id)
+        );
+
         const submittedUserIds = new Set(
             (submittedRows ?? [])
-                .filter((r) => r.applicant_user_id)
+                .filter((r) => r.applicant_user_id && isHealthCheckRequestSubmitted(
+                    r.status,
+                    draftRequestIdsWithHealthResult.has(r.id),
+                ))
                 .map((r) => r.applicant_user_id)
         );
 
