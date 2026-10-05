@@ -32,14 +32,18 @@ const deployConfig = buildSharefullTestVercelConfig(sharedConfig, testOverrides)
 const tempDirectory = await mkdtemp(join(tmpdir(), "myfamille-sharefull-test-cron-"));
 
 try {
-  const archive = spawnSync("git", ["archive", "--format=tar", "HEAD"], {
+  const archive = spawnSync("git", [
+    "archive", "--format=tar", "HEAD", "--", ".",
+    ":(exclude).tmp.driveupload",
+    ":(exclude)ドキュメントの原本",
+  ], {
     cwd: repoRoot,
     maxBuffer: 1024 * 1024 * 1024,
   });
   if (archive.error) throw archive.error;
   if (archive.status !== 0) throw new Error("Could not create tracked-source archive for test deployment");
 
-  const extraction = spawnSync("tar", ["-xf", "-", "-C", tempDirectory], {
+  const extraction = spawnSync("tar", ["-C", tempDirectory, "-xf", "-"], {
     cwd: repoRoot,
     input: archive.stdout,
     maxBuffer: 1024 * 1024 * 1024,
