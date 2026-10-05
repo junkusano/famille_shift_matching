@@ -26,11 +26,19 @@ SHAREFULL_TEST_GAS_TOKEN=<テスト用GASからの受信用ランダムトーク
 
 テスト用デプロイでは`vercel.test.json`の設定を使い、`vercel.json`にある既存Cron全件をそのまま引き継いだうえで、応募決定監視Cronだけを足した一時設定を生成する。専用スクリプトはVercel CLIにテスト用プロジェクト名とチームを明示し、この一時設定でテスト用プロジェクトだけをデプロイする。既存Cronのパス・スケジュールは本番・テスト双方で変更しない。
 
+### 応募決定監視Cronの適用順
+
+1. `supabase/migrations/202610011200_sharefull_decision_status_monitor.sql`をPRでレビューする。このマイグレーションはテスト用の決定状態テーブルと専用RPCだけを追加する。RPCは`payload.environment='test'`のSharefull監視ジョブだけを完了し、共通の`complete_sharefull_decision_check`関数や本番の案件テーブルは変更しない。一方、Runner Jobの完了行は共有`public.rpa_runner_jobs`に書き込む。
+2. 本番Supabaseプロジェクトではローカル・リモートのマイグレーション履歴に不整合がないことを管理者が確認する。不整合がある場合は通常の`supabase db push`を行わず、履歴の同期方法と適用対象をDB管理者がレビュー・承認する。無関係なマイグレーションを含むdry-run、対象差分が曖昧な場合は停止する。
+3. 承認済みリリース経路で対象マイグレーションを適用し、テーブル/RPCの定義と権限を読み取りで確認する。確認できた後にのみ、実行環境へ`SHAREFULL_DECISION_MIGRATION_APPLIED=true`を設定する。この値がなければ専用デプロイスクリプトは停止する。
+4. `SHAREFULL_DECISION_CRON_TOKEN`を設定したうえで、下記スクリプトを実行する。対象はテストVercelプロジェクトだけであり、共有`vercel.json`にはCronを追加しない。
+5. Deploy後、Cron一覧で既存スケジュールが保持され、新規監視Cronがテストプロジェクトに1件だけあることを確認する。テストRunnerが対象ジョブを1件処理し、テスト用決定状態テーブルとジョブ完了状態が更新されたことを確認する。個人情報やLINE WORKS通知を使った検証は行わない。
+
 ```powershell
 node scripts/deploy-sharefull-test-cron.mjs
 ```
 
-実行前にVercel CLIの認証状態と、接続先が`famille-shift-matching-test`であることを確認する。`--prod`はこのテスト用プロジェクト内のProductionデプロイを指す。本番プロジェクトへこのコマンドを向けない。
+実行前にVercel CLIの認証状態、接続先が`famille-shift-matching-test`であること、およびDBマイグレーション適用確認を行う。`--prod`はこのテスト用プロジェクト内のProductionデプロイを指す。本番プロジェクトへこのコマンドを向けない。
 
 テスト用プロジェクトは `famille-shift-matching-test`、URLは `https://famille-shift-matching-test.vercel.app` である。Runnerのテスト設定ではこのURLとテスト用APIベースURLを使用し、本番URLを設定しない。
 

@@ -3,6 +3,12 @@ export const SHAREFULL_DECISION_CRON = Object.freeze({
   schedule: "*/5 * * * *",
 });
 
+export function assertSharefullDecisionMigrationApplied(env = process.env) {
+  if (env.SHAREFULL_DECISION_MIGRATION_APPLIED?.trim().toLowerCase() !== "true") {
+    throw new Error("Refusing deployment: apply and verify the Sharefull test decision migration first");
+  }
+}
+
 export function buildSharefullTestVercelConfig(sharedConfig, testOverrides = {}, decisionToken) {
   if (!Array.isArray(sharedConfig?.crons)) {
     throw new Error("Shared vercel.json must contain the existing cron array");

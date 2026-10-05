@@ -3,13 +3,14 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON } from "./sharefull-test-cron-config.mjs";
+import { assertSharefullDecisionMigrationApplied, buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON } from "./sharefull-test-cron-config.mjs";
 
 const projectName = "famille-shift-matching-test";
 const teamScope = "junkusanos-projects";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sharedConfig = JSON.parse(await readFile(join(repoRoot, "vercel.json"), "utf8"));
 const testOverrides = JSON.parse(await readFile(join(repoRoot, "vercel.test.json"), "utf8"));
+assertSharefullDecisionMigrationApplied(process.env);
 const decisionToken = process.env.SHAREFULL_DECISION_CRON_TOKEN;
 const deployConfig = buildSharefullTestVercelConfig(sharedConfig, testOverrides, decisionToken);
 const tempDirectory = await mkdtemp(join(tmpdir(), "myfamille-sharefull-test-cron-"));
