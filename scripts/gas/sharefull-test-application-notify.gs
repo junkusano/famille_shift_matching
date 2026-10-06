@@ -6,16 +6,11 @@
  * - MYFAMILLE_TEST_API_TOKEN
  * - SHAREFULL_TEST_GMAIL_QUERY
  * - SHAREFULL_TEST_SENDER_EMAIL (Sharefull通知の実際の送信元アドレス)
- * - SHAREFULL_TEST_LINEWORKS_API_URL
- * - SHAREFULL_TEST_LINEWORKS_CLIENT_ID
- * - SHAREFULL_TEST_LINEWORKS_CLIENT_SECRET
- * - SHAREFULL_TEST_LINEWORKS_SERVICE_ACCOUNT
- * - SHAREFULL_TEST_LINEWORKS_PRIVATE_KEY (PEM; store line breaks as \\n)
- * - SHAREFULL_TEST_LINEWORKS_BOT_ID
- * - SHAREFULL_TEST_LINEWORKS_CHANNEL_ID (テスト用グループのみ)
+ * LINE WORKS送信はMyFamille本番の既存Bot API経由。宛先は
+ * SHAREFULL_CONTENT_POLICY_CHANNEL_ID の設定値、未設定時は既定の通知先。
  *
- * 本番データ・本番LINE WORKS送信先では実行しない。候補者情報を扱うため、
- * テスト用のメールとテスト案件であることを人が確認してからトリガーを有効化する。
+ * 登録先はテストDB。通知は承認済みの本番LINE WORKS既定通知先へ
+ * 「テスト」と明記した内容のみ送る。候補者情報はテストメールに限る。
  */
 function processSharefullTestApplicationNotifications() {
   var lock = LockService.getScriptLock();
@@ -139,68 +134,18 @@ function parseSharefullTestMail_(message, config) {
   };
 }
 
-function sendLineWorks_(config, text) {
-  var cache = CacheService.getScriptCache();
-  var token = getLineWorksAccessToken_(config, cache);
-  var response = postLineWorksMessage_(config, token, text);
-  // 401はアクセストークン失効の可能性があるため、キャッシュを破棄して一度だけ再発行する。
-  if (response.getResponseCode() === 401) {
-    cache.remove("SHAREFULL_TEST_LINEWORKS_ACCESS_TOKEN");
-    token = getLineWorksAccessToken_(config, cache);
-    response = postLineWorksMessage_(config, token, text);
-  }
-  var code = response.getResponseCode();
-  if (code < 200 || code >= 300) throw new Error("LINE WORKS通知 status=" + code);
-}
-
-function postLineWorksMessage_(config, token, text) {
-  return UrlFetchApp.fetch(config.lineworksApiUrl + "/bots/" + encodeURIComponent(config.lineworksBotId) + "/channels/" + encodeURIComponent(config.lineworksChannelId) + "/messages", {
+function sendLineWorks_(_config, text) {
+  var response = UrlFetchApp.fetch("https://myfamille.shi-on.net/api/lw-send-botmessage", {
     method: "post",
     contentType: "application/json",
-    headers: { Authorization: "Bearer " + token },
-    payload: JSON.stringify({ content: { type: "text", text: text } }),
+    payload: JSON.stringify({ channelId: "99142491", text: text }),
     muteHttpExceptions: true
   });
-}
-
-function getLineWorksAccessToken_(config, cache) {
-  var cacheKey = "SHAREFULL_TEST_LINEWORKS_ACCESS_TOKEN";
-  var cached = cache.get(cacheKey);
-  if (cached) return cached;
-
-  var now = Math.floor(Date.now() / 1000);
-  var header = base64UrlJson_({ alg: "RS256", typ: "JWT" });
-  var claims = base64UrlJson_({ iss: config.lineworksClientId, sub: config.lineworksServiceAccount, iat: now, exp: now + 300 });
-  var signingInput = header + "." + claims;
-  var signature = Utilities.computeRsaSha256Signature(signingInput, config.lineworksPrivateKey, Utilities.Charset.US_ASCII);
-  var assertion = signingInput + "." + Utilities.base64EncodeWebSafe(signature).replace(/=+$/, "");
-  var form = [
-    "assertion=" + encodeURIComponent(assertion),
-    "grant_type=" + encodeURIComponent("urn:ietf:params:oauth:grant-type:jwt-bearer"),
-    "client_id=" + encodeURIComponent(config.lineworksClientId),
-    "client_secret=" + encodeURIComponent(config.lineworksClientSecret),
-    "scope=" + encodeURIComponent("bot.message")
-  ].join("&");
-  var response = UrlFetchApp.fetch("https://auth.worksmobile.com/oauth2/v2.0/token", {
-    method: "post",
-    contentType: "application/x-www-form-urlencoded",
-    payload: form,
-    muteHttpExceptions: true
-  });
-  var status = response.getResponseCode();
+  var code = response.getResponseCode();
   var body = safeJson_(response.getContentText());
-  if (status < 200 || status >= 300 || !body.access_token) {
-    // 認証応答本文や秘密情報はログに出さない。
-    throw new Error("LINE WORKSアクセストークン取得失敗 status=" + status);
+  if (code < 200 || code >= 300 || body.success !== true) {
+    throw new Error("LINE WORKS通知失敗 status=" + code);
   }
-  var expiresIn = Number(body.expires_in) || 3600;
-  var cacheTtl = Math.min(expiresIn - 300, 21600);
-  if (cacheTtl > 0) cache.put(cacheKey, body.access_token, cacheTtl);
-  return body.access_token;
-}
-
-function base64UrlJson_(value) {
-  return Utilities.base64EncodeWebSafe(JSON.stringify(value), Utilities.Charset.UTF_8).replace(/=+$/, "");
 }
 
 function buildNotificationText_(event, request) {
@@ -222,17 +167,10 @@ function readConfig_() {
     apiBaseUrl: required_(props, "MYFAMILLE_TEST_API_BASE_URL").replace(/\/$/, ""),
     apiToken: required_(props, "MYFAMILLE_TEST_API_TOKEN"),
     gmailQuery: required_(props, "SHAREFULL_TEST_GMAIL_QUERY"),
-    senderEmail: required_(props, "SHAREFULL_TEST_SENDER_EMAIL"),
+    senderEmail: (props.getProperty("SHAREFULL_TEST_SENDER_EMAIL") || "servicesuport@shi-on.net").trim(),
     testJobId: (props.getProperty("SHAREFULL_TEST_JOB_ID") || "").trim(),
     testOrderId: (props.getProperty("SHAREFULL_TEST_ORDER_ID") || "").trim(),
-    testRequestId: (props.getProperty("SHAREFULL_TEST_REQUEST_ID") || "").trim(),
-    lineworksApiUrl: required_(props, "SHAREFULL_TEST_LINEWORKS_API_URL").replace(/\/$/, ""),
-    lineworksClientId: required_(props, "SHAREFULL_TEST_LINEWORKS_CLIENT_ID"),
-    lineworksClientSecret: required_(props, "SHAREFULL_TEST_LINEWORKS_CLIENT_SECRET"),
-    lineworksServiceAccount: required_(props, "SHAREFULL_TEST_LINEWORKS_SERVICE_ACCOUNT"),
-    lineworksPrivateKey: required_(props, "SHAREFULL_TEST_LINEWORKS_PRIVATE_KEY").replace(/\\n/g, "\n"),
-    lineworksBotId: required_(props, "SHAREFULL_TEST_LINEWORKS_BOT_ID"),
-    lineworksChannelId: required_(props, "SHAREFULL_TEST_LINEWORKS_CHANNEL_ID")
+    testRequestId: (props.getProperty("SHAREFULL_TEST_REQUEST_ID") || "").trim()
   };
   if (!/^https:\/\/famille-shift-matching-test\.vercel\.app$/i.test(config.apiBaseUrl)) {
     throw new Error("テスト用Vercel URL以外は設定できません");
@@ -243,10 +181,6 @@ function readConfig_() {
   if (!/\blabel:[^\s]+/i.test(config.gmailQuery) || /\bin:anywhere\b/i.test(config.gmailQuery)) {
     throw new Error("Gmail検索条件にはテスト用ラベルを指定してください（label:...）。");
   }
-  if (!/^https:\/\/www\.worksapis\.com\/v1\.0$/i.test(config.lineworksApiUrl)) {
-    throw new Error("LINE WORKS API URLはhttps://www.worksapis.com/v1.0に固定してください");
-  }
-  if (!/^\d+$/.test(config.lineworksBotId)) throw new Error("LINE WORKS Bot IDが不正です");
   return config;
 }
 

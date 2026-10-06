@@ -70,7 +70,7 @@ test("prunes only old notifier markers and retains recent or unrelated propertie
   assert.ok(entries.SOME_OTHER_PROPERTY);
 });
 
-test("runs the pictured confirmed-candidate email through test API and test Bot mocks only", () => {
+test("runs the pictured confirmed-candidate email through the test API and approved test-notification destination mocks only", () => {
   const calls = [];
   const properties = {
     MYFAMILLE_TEST_API_BASE_URL: "https://famille-shift-matching-test.vercel.app",
@@ -138,11 +138,8 @@ test("runs the pictured confirmed-candidate email through test API and test Bot 
           request: { sharefull_job_id: "JOB-TEST-44", sharefull_order_id: "ORDER-TEST-44", template_title: "テスト案件" },
         }) };
       }
-      if (url === "https://auth.worksmobile.com/oauth2/v2.0/token") {
-        return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ access_token: "test-access-token", expires_in: 3600 }) };
-      }
-      if (url.endsWith("/bots/123456/channels/test-channel-id/messages")) {
-        return { getResponseCode: () => 201, getContentText: () => "{}" };
+      if (url === "https://myfamille.shi-on.net/api/lw-send-botmessage") {
+        return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ success: true }) };
       }
       throw new Error(`Unexpected external URL in test: ${url}`);
     } },
@@ -158,9 +155,11 @@ test("runs the pictured confirmed-candidate email through test API and test Bot 
   assert.equal(apiEvent.event_id, "gmail-confirmed-test-1");
   assert.equal(apiEvent.applicant_name, "山田 太郎");
 
-  const botCall = calls.find((call) => call.url.endsWith("/bots/123456/channels/test-channel-id/messages"));
-  assert.ok(botCall, "only the configured test Bot channel should be called");
-  const notification = JSON.parse(botCall.options.payload).content.text;
+  const botCall = calls.find((call) => call.url === "https://myfamille.shi-on.net/api/lw-send-botmessage");
+  assert.ok(botCall, "the approved MyFamille LINE WORKS sender should be called");
+  const notificationPayload = JSON.parse(botCall.options.payload);
+  assert.equal(notificationPayload.channelId, "99142491", "only the approved notification destination should be used");
+  const notification = notificationPayload.text;
   assert.match(notification, /【テスト】シェアフル候補者決定通知/);
   assert.match(notification, /山田 太郎/);
   assert.match(notification, /JOB-TEST-44/);
