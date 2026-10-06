@@ -112,11 +112,6 @@ export default function DashboardPage() {
           },
         ]}
         defaultSort={{ column: "year_month", ascending: false }}
-        totalRowLast={{
-          groupBy: "year_month",
-          labelColumn: "service_category",
-          label: "合計",
-        }}
         pageSize={500}
         exactCount={false}
       />
@@ -140,6 +135,11 @@ export default function DashboardPage() {
           },
         ]}
         defaultSort={{ column: "year_month", ascending: false }}
+        totalRowLast={{
+          groupBy: "year_month",
+          labelColumn: "service_category",
+          label: "合計",
+        }}
         pageSize={500}
         exactCount={false}
       />
