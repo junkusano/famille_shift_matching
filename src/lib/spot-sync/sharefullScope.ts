@@ -32,6 +32,14 @@ export function sharefullRpaMode(): SharefullRpaMode {
     : "production";
 }
 
+export function shouldRunSharefullDecisionMonitor(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return env.SHAREFULL_DECISION_MONITOR_ENABLED?.trim().toLowerCase() === "true"
+    && env.SHAREFULL_TEST_DEPLOYMENT?.trim().toLowerCase() === "true"
+    && env.SHAREFULL_RPA_MODE?.trim().toLowerCase() === "test";
+}
+
 export function sharefullTemplateTableName(): string {
   return sharefullRpaMode() === "test"
     ? "sharefull_rpa_test_spot_offer_template_unified"
@@ -48,6 +56,12 @@ export function sharefullApplicationTableName(): string {
   return sharefullRpaMode() === "test"
     ? "sharefull_rpa_test_spot_offer_applications"
     : "spot_offer_applications";
+}
+
+export function sharefullDecisionStatusTableName(): string {
+  return sharefullRpaMode() === "test"
+    ? "sharefull_rpa_test_decision_status"
+    : "sharefull_decision_status";
 }
 
 function configuredValue(): string | undefined {

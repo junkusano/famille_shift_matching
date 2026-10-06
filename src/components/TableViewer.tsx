@@ -41,6 +41,11 @@ export type TableViewerProps = {
   className?: string;
   initialColumnFilters?: Record<string, string>;
   exactCount?: boolean;
+  totalRowLast?: {
+    groupBy: string;
+    labelColumn: string;
+    label: string;
+  };
 };
 
 type SortState = {
@@ -85,6 +90,7 @@ export default function TableViewer({
   className = "",
   initialColumnFilters,
   exactCount = true,
+  totalRowLast,
 }: TableViewerProps) {
   const [rows, setRows] = useState<TableRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -183,14 +189,39 @@ export default function TableViewer({
 
   const currentPageRows = useMemo(() => {
     const keyword = globalFilter.trim().toLowerCase();
-    if (!keyword) return rows;
+    const filteredRows = !keyword
+      ? rows
+      : rows.filter((row) =>
+          columns.some((col) =>
+            toDisplayString(row[col.key]).toLowerCase().includes(keyword)
+          )
+        );
 
-    return rows.filter((row) =>
-      columns.some((col) =>
-        toDisplayString(row[col.key]).toLowerCase().includes(keyword)
-      )
-    );
-  }, [rows, columns, globalFilter]);
+    if (!totalRowLast) return filteredRows;
+
+    const groups = new Map<string, { detail: TableRow[]; total: TableRow[] }>();
+    const groupOrder: string[] = [];
+
+    for (const row of filteredRows) {
+      const groupKey = toDisplayString(row[totalRowLast.groupBy]);
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, { detail: [], total: [] });
+        groupOrder.push(groupKey);
+      }
+
+      const group = groups.get(groupKey)!;
+      if (toDisplayString(row[totalRowLast.labelColumn]) === totalRowLast.label) {
+        group.total.push(row);
+      } else {
+        group.detail.push(row);
+      }
+    }
+
+    return groupOrder.flatMap((groupKey) => {
+      const group = groups.get(groupKey)!;
+      return [...group.detail, ...group.total];
+    });
+  }, [rows, columns, globalFilter, totalRowLast]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const startIndex = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;

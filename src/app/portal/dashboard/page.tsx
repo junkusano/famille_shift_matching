@@ -135,6 +135,11 @@ export default function DashboardPage() {
           },
         ]}
         defaultSort={{ column: "year_month", ascending: false }}
+        totalRowLast={{
+          groupBy: "year_month",
+          labelColumn: "service_category",
+          label: "合計",
+        }}
         pageSize={500}
         exactCount={false}
       />
@@ -143,7 +148,7 @@ export default function DashboardPage() {
         tableName="dashboard_service_time_qualification_staff_detail_view"
         columns={[
           { key: "year_month", label: "月", filterMode: "exact" },
-          { key: "service_category", label: "区分" },
+          { key: "service_category", label: "区分", filterMode: "exact" },
           { key: "staff_name", label: "スタッフ" },
           { key: "staff_user_id", label: "ユーザーID", filterMode: "exact" },
           { key: "qualifications", label: "サ責資格（取得日）" },

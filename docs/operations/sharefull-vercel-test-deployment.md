@@ -11,18 +11,36 @@ SHAREFULL_AUTOMATION_CRONS_ENABLED=false
 SHAREFULL_AUTO_POST_ENABLED=true
 SHAREFULL_AUTO_POST_MODE=save
 SHAREFULL_TEST_RUNNER_ID=sharefull-test-runner
+SHAREFULL_DECISION_MONITOR_ENABLED=true
+SHAREFULL_DECISION_RUNNER_ID=<稼働中の専用テストRunner ID>
+CRON_SECRET=<テストVercelプロジェクトのCron共通認証シークレット>
 SHAREFULL_TEST_GAS_TOKEN=<テスト用GASからの受信用ランダムトークン>
 ```
+
+`SHAREFULL_DECISION_MONITOR_ENABLED`と`SHAREFULL_DECISION_RUNNER_ID`はテスト用VercelプロジェクトのProduction環境だけに登録する。値を本番Vercelへ追加しない。
+Cron認証は`Authorization: Bearer <CRON_SECRET>`を使い、秘密値をURLやCron設定へ埋め込まない。Vercelは同じプロジェクトの全Cron要求にこのヘッダーを付けるため、既存テストCronも同じテストプロジェクトの`CRON_SECRET`で認証される。既存値があれば再利用し、値の確認・変更は管理者が行う。
 
 `SHAREFULL_AUTO_POST_MODE=save`により、まずはSharefull画面で保存までを確認し、募集開始は行わない。
 
 ## デプロイ
 
-`vercel.test.json`はcronを含まない。Vercel CLIでこの設定を明示して、既存のテスト用プロジェクトへデプロイする。
+共有の`vercel.json`には既存Cronだけを残し、応募決定監視Cronは追加しない。これにより通常の本番デプロイでは新Cronが登録されない。
+
+テスト用デプロイでは`vercel.test.json`の設定を使い、`vercel.json`にある既存Cron全件をそのまま引き継いだうえで、応募決定監視Cronだけを足した一時設定を生成する。専用スクリプトはVercel CLIにテスト用プロジェクト名とチームを明示し、この一時設定でテスト用プロジェクトだけをデプロイする。既存Cronのパス・スケジュールは本番・テスト双方で変更しない。
+
+### 応募決定監視Cronの適用順
+
+1. `supabase/migrations/202610011200_sharefull_decision_status_monitor.sql`をPRでレビューする。このマイグレーションはテスト用の決定状態テーブルと専用RPCだけを追加する。RPCは`payload.environment='test'`のSharefull監視ジョブだけを完了し、共通の`complete_sharefull_decision_check`関数や本番の案件テーブルは変更しない。一方、Runner Jobの完了行は共有`public.rpa_runner_jobs`に書き込む。
+2. 本番Supabaseプロジェクトではローカル・リモートのマイグレーション履歴に不整合がないことを管理者が確認する。不整合がある場合は通常の`supabase db push`を行わず、履歴の同期方法と適用対象をDB管理者がレビュー・承認する。無関係なマイグレーションを含むdry-run、対象差分が曖昧な場合は停止する。
+3. 承認済みリリース経路で対象マイグレーションを適用し、テーブル/RPCの定義と権限を読み取りで確認する。確認できた後にのみ、実行環境へ`SHAREFULL_DECISION_MIGRATION_APPLIED=true`を設定する。この値がなければ専用デプロイスクリプトは停止する。
+4. テストVercelプロジェクトのProduction環境に`CRON_SECRET`が設定済みであることを管理者が確認し、PR統合後に正規リポジトリの最新`origin/master`と一致するクリーンなチェックアウトから下記スクリプトを実行する。スクリプト自身が正規origin、fetch後の`HEAD == origin/master`、未追跡を含むクリーン状態を確認する。対象はテストVercelプロジェクトだけであり、共有`vercel.json`にはCronを追加しない。
+5. Deploy後、Cron一覧で既存スケジュールが保持され、新規監視Cronがテストプロジェクトに1件だけあることを確認する。Cronは実行のたび、決定状態テーブルへの0件SELECTとランダムな未使用UUIDによる完了RPCの読み取り専用probeを行い、DB準備が不十分なら共有ジョブ表へ登録せず503で停止する。テストRunnerが対象ジョブを1件処理した場合は、テスト用決定状態テーブルとジョブ完了状態が更新されたことを確認する。個人情報やLINE WORKS通知を使った検証は行わない。
 
 ```powershell
-npx vercel deploy --prod --scope junkusanos-projects --yes --local-config vercel.test.json
+node scripts/deploy-sharefull-test-cron.mjs
 ```
+
+実行前にVercel CLIの認証状態、接続先が`famille-shift-matching-test`であること、およびDBマイグレーション適用確認を行う。`--prod`はこのテスト用プロジェクト内のProductionデプロイを指す。本番プロジェクトへこのコマンドを向けない。
 
 テスト用プロジェクトは `famille-shift-matching-test`、URLは `https://famille-shift-matching-test.vercel.app` である。Runnerのテスト設定ではこのURLとテスト用APIベースURLを使用し、本番URLを設定しない。
 
@@ -95,3 +113,5 @@ order by created_at asc;
 - `/api/cron/rpa-scheduler`
 
 停止時はジョブ登録を行わず、`skipped: true`を返す。Vercel側でcronなしにする設定と合わせた二重防護である。
+
+応募決定監視は、`SHAREFULL_DECISION_MONITOR_ENABLED=true`だけでは実行しない。さらに`SHAREFULL_TEST_DEPLOYMENT=true`かつ`SHAREFULL_RPA_MODE=test`を必須とし、いずれかが欠ける本番環境・その他環境ではRunner Jobを登録しない。テスト用VercelにだけCronを登録するCLI設定と、この実行時ガードを併用する。
