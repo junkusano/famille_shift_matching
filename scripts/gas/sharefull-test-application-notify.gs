@@ -23,55 +23,74 @@ function processSharefullTestApplicationNotifications() {
 
   try {
     var config = readConfig_();
-    var threads = GmailApp.search(config.gmailQuery, 0, 50);
-    threads.forEach(function(thread) {
-      thread.getMessages().forEach(function(message) {
-        try {
-          var event = parseSharefullTestMail_(message, config);
-          if (!event) return;
+    var props = PropertiesService.getScriptProperties();
+    pruneOldMessageStates_(props, Date.now());
+    var pageSize = 50;
+    var maxThreadsPerRun = 500;
+    for (var start = 0; start < maxThreadsPerRun; start += pageSize) {
+      var threads = GmailApp.search(config.gmailQuery, start, pageSize);
+      if (!threads.length) break;
+      threads.forEach(function(thread) {
+        thread.getMessages().forEach(function(message) {
+          try {
+            var event = parseSharefullTestMail_(message, config);
+            if (!event) return;
 
-          var stateKey = messageStateKey_(message.getId());
-          var props = PropertiesService.getScriptProperties();
-          var state = props.getProperty(stateKey) || "";
-          if (state === "notified" || /^notified:\d+$/.test(state)) return;
+            var stateKey = messageStateKey_(message.getId());
+            var state = props.getProperty(stateKey) || "";
+            if (state === "notified" || /^notified:\d+$/.test(state)) return;
 
-          var apiEvent = {
-            request_id: event.request_id,
-            sharefull_job_id: event.sharefull_job_id,
-            sharefull_order_id: event.sharefull_order_id,
-            provider: event.provider,
-            application_key: event.application_key,
-            event_id: event.event_id,
-            state: event.state,
-            applicant_name: event.applicant_name,
-            occurred_at: event.occurred_at
-          };
-          var ingest = UrlFetchApp.fetch(config.apiBaseUrl + "/api/rpa/sharefull/test-application", {
-            method: "post",
-            contentType: "application/json",
-            headers: { Authorization: "Bearer " + config.apiToken },
-            payload: JSON.stringify(apiEvent),
-            muteHttpExceptions: true
-          });
-          var ingestCode = ingest.getResponseCode();
-          var ingestBody = safeJson_(ingest.getContentText());
-          if (ingestCode < 200 || ingestCode >= 300 || !ingestBody.ok) {
-            console.warn("Sharefullテスト応募の登録に失敗: message=" + message.getId() + " status=" + ingestCode);
-            return;
+            var apiEvent = {
+              request_id: event.request_id,
+              sharefull_job_id: event.sharefull_job_id,
+              sharefull_order_id: event.sharefull_order_id,
+              provider: event.provider,
+              application_key: event.application_key,
+              event_id: event.event_id,
+              state: event.state,
+              applicant_name: event.applicant_name,
+              occurred_at: event.occurred_at
+            };
+            var ingest = UrlFetchApp.fetch(config.apiBaseUrl + "/api/rpa/sharefull/test-application", {
+              method: "post",
+              contentType: "application/json",
+              headers: { Authorization: "Bearer " + config.apiToken },
+              payload: JSON.stringify(apiEvent),
+              muteHttpExceptions: true
+            });
+            var ingestCode = ingest.getResponseCode();
+            var ingestBody = safeJson_(ingest.getContentText());
+            if (ingestCode < 200 || ingestCode >= 300 || !ingestBody.ok) {
+              console.warn("Sharefullテスト応募の登録に失敗: message=" + message.getId() + " status=" + ingestCode);
+              return;
+            }
+
+            // duplicateでも通知する。API登録後に前回実行が中断した場合の通知欠落を防ぐ。
+            // 通知成功後の状態を保存し、通常の再実行で二重送信しない。
+            sendLineWorks_(config, buildNotificationText_(event, ingestBody.request || {}));
+            props.setProperty(stateKey, "notified:" + Date.now());
+          } catch (error) {
+            console.error("Sharefull通知処理に失敗: message=" + message.getId() + " error=" + safeError_(error));
           }
-
-          // duplicateでも通知する。API登録後に前回実行が中断した場合の通知欠落を防ぐ。
-          // 通知成功後の状態を保存し、通常の再実行で二重送信しない。
-          sendLineWorks_(config, buildNotificationText_(event, ingestBody.request || {}));
-          props.setProperty(stateKey, "notified:" + Date.now());
-        } catch (error) {
-          console.error("Sharefull通知処理に失敗: message=" + message.getId() + " error=" + safeError_(error));
-        }
+        });
       });
-    });
+      if (threads.length < pageSize) break;
+    }
   } finally {
     lock.releaseLock();
   }
+}
+
+/** Remove only our own successful-message markers after 30 days to bound Script Properties. */
+function pruneOldMessageStates_(props, nowMs) {
+  var retentionMs = 30 * 24 * 60 * 60 * 1000;
+  var cutoff = nowMs - retentionMs;
+  var all = props.getProperties();
+  Object.keys(all).forEach(function(key) {
+    if (key.indexOf("SHAREFULL_TEST_MESSAGE_") !== 0) return;
+    var match = /^notified:(\d+)$/.exec(all[key]);
+    if (match && Number(match[1]) < cutoff) props.deleteProperty(key);
+  });
 }
 
 /** 指定件名・指定送信元のみ処理し、APIが必要とする案件IDがないメールは安全に除外する。 */

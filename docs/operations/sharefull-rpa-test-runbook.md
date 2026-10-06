@@ -26,12 +26,12 @@ SHAREFULL_AUTO_POST_MODE=save
 10. 応募通知処理に失敗した場合、再実行で二重通知されず、エラーが記録されることを確認する。
 11. 応募なし・`募集なし`の案件でクローズ処理を確認する。
 12. 求人ID・管理番号不一致時に即時中止されることを確認する。
-13. `applied`（応募）→`confirmed`（応募確定）の順に同じ応募識別キーが更新されることを確認する。
+13. 現行GASが処理するのは件名が`【候補者が決定しました】`で始まる応募確定メール（`confirmed`）のみ。`applied`（応募受付）メールも扱う場合は、実メールの件名・本文サンプルを確認してから抽出ルールを追加し、同一応募識別キーで状態が更新されることを確認する。
 14. 複数媒体応募時に応募元と競合状態が正しく記録されることを確認する。
 
 ### テスト用GASとMyFamille API
 
-GASは、テスト用Gmailの応募通知メールを解析し、次のテスト専用APIへ応募イベントを送信する。
+GASは、テスト用Gmailの応募確定通知メールを解析し、次のテスト専用APIへ応募イベントを送信する。応募受付メール（`applied`）の形式は実メールで確認できていないため、現行版では未対応。
 
 ```text
 POST https://famille-shift-matching-test.vercel.app/api/rpa/sharefull/test-application
@@ -45,7 +45,7 @@ GAS側のScript Propertiesにはテスト用URL・APIトークン、テスト用
 
 必要なScript Properties名は`MYFAMILLE_TEST_API_BASE_URL`、`MYFAMILLE_TEST_API_TOKEN`、`SHAREFULL_TEST_GMAIL_QUERY`、`SHAREFULL_TEST_SENDER_EMAIL`、`SHAREFULL_TEST_JOB_ID`・`SHAREFULL_TEST_ORDER_ID`・`SHAREFULL_TEST_REQUEST_ID`（許可対象に使うものを最低1つ）、`SHAREFULL_TEST_LINEWORKS_API_URL`（`https://www.worksapis.com/v1.0`固定）、`SHAREFULL_TEST_LINEWORKS_CLIENT_ID`、`SHAREFULL_TEST_LINEWORKS_CLIENT_SECRET`、`SHAREFULL_TEST_LINEWORKS_SERVICE_ACCOUNT`、`SHAREFULL_TEST_LINEWORKS_PRIVATE_KEY`（PEM、改行は`\\n`形式でも可）、`SHAREFULL_TEST_LINEWORKS_BOT_ID`、`SHAREFULL_TEST_LINEWORKS_CHANNEL_ID`。アクセストークンはGASがJWT（RS256）で自動取得し、CacheServiceに有効期限より短くキャッシュする。必要スコープは`bot.message`。Client Secretと秘密鍵はプロジェクト編集者が閲覧できるScript Propertiesに保存されるため、編集権限を必要最小限に限定する。
 
-対象メールは件名が`【候補者が決定しました】`で始まり、設定した送信元と一致するものに限定する。求人ID・管理番号・案件UUIDを抽出できないメールや、許可済みテスト案件IDと一致しないメールは保留し、案件名・就業日時から対象案件を推測しない。候補者名・求人名・就業日時・就業先を通知用に抽出するが、テストAPIに送信するのは応募者名などAPIスキーマで必要な項目だけとする。
+対象メールは件名が`【候補者が決定しました】`で始まり、設定した送信元と一致するものに限定する。求人ID・管理番号・案件UUIDを抽出できないメールや、許可済みテスト案件IDと一致しないメールは保留し、案件名・就業日時から対象案件を推測しない。候補者名・求人名・就業日時・就業先を通知用に抽出するが、テストAPIに送信するのは応募者名などAPIスキーマで必要な項目だけとする。1回の実行では最大500スレッドを50件ずつ確認し、処理済みキーは成功後30日を過ぎると自動整理される。
 
 ## 応募通知フロー
 
