@@ -2,19 +2,35 @@
 // サーバーサイド専用：Service Role Key を使用した管理クライアント
 // クライアントコンポーネントへは絶対に渡さないこと。
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 // import type { Database } from '@/types/database.types' // 型生成している場合は有効化
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+let client: SupabaseClient | null = null
 
-if (!supabaseUrl || !serviceRoleKey) {
-  throw new Error('Supabase環境変数が未設定です (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)')
+function getSupabaseAdmin(): SupabaseClient {
+  if (client) return client
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Supabase環境変数が未設定です (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)')
+  }
+
+  // 型生成している場合：createClient<Database>(...)
+  client = createClient(/*<Database>*/ supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false }, // サーバー側ではセッション保存しない
+  })
+  return client
 }
 
-// 型生成している場合：createClient<Database>(...)
-export const supabaseAdmin = createClient(/*<Database>*/ supabaseUrl, serviceRoleKey, {
-  auth: { persistSession: false }, // サーバー側ではセッション保存しない
+// Import時ではなく、APIが実際に呼ばれた時だけ環境変数を検査・初期化する。
+// これにより、ビルド時のページデータ収集でSupabase接続を要求しない。
+export const supabaseAdmin = new Proxy({} as SupabaseClient, {
+  get(_target, property) {
+    const value = Reflect.get(getSupabaseAdmin(), property, getSupabaseAdmin())
+    return typeof value === 'function' ? value.bind(getSupabaseAdmin()) : value
+  },
 })
 
 // 参考：API Route などでの使用例
