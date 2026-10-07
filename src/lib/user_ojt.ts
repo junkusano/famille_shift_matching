@@ -12,10 +12,18 @@ import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 const timeZone = "Asia/Tokyo";
 const DRY_RUN_DEFAULT = false;
 
-// ChatGPT クライアント
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+// ChatGPT クライアント（実行時に初期化。ビルド時の環境変数を要求しない）
+let openaiClient: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+    if (openaiClient) return openaiClient;
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY が設定されていません");
+
+    openaiClient = new OpenAI({ apiKey });
+    return openaiClient;
+}
 
 // -----------------------------
 // 型定義（any なし）
@@ -710,7 +718,7 @@ ${lines || "記録内容がほとんどありません。"}
 - 指導内容、できた点、次回の改善ポイントを含める
 `;
 
-    const res = await openai.chat.completions.create({
+    const res = await getOpenAIClient().chat.completions.create({
         model: OPENAI_PROFILES.standard.model,
         messages: [
             {

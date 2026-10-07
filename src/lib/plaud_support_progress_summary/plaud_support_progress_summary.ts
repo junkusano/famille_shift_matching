@@ -21,7 +21,7 @@
 // =============================================================
 
 import OpenAI from "openai";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getPromptWithVariables } from "@/lib/prompt-template";
 import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 import { validateSummary, getRetryPromptAddition, SummaryValidationErrorType } from "@/lib/plaud_support_progress_summary/validation";
@@ -35,18 +35,45 @@ import {
 // -------------------------------------------------------------
 // Supabase Admin Client（RLSバイパス）
 // -------------------------------------------------------------
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false } }
-);
+let supabaseClient: SupabaseClient | null = null;
+
+function getSupabaseClient(): SupabaseClient {
+  if (supabaseClient) return supabaseClient;
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error(
+      "Supabase環境変数が未設定です（NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY）"
+    );
+  }
+
+  supabaseClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+  return supabaseClient;
+}
+
+const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, property, receiver) {
+    return Reflect.get(getSupabaseClient(), property, receiver);
+  },
+});
 
 // -------------------------------------------------------------
 // OpenAI Client
 // -------------------------------------------------------------
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+let openaiClient: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (openaiClient) return openaiClient;
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY が設定されていません");
+
+  openaiClient = new OpenAI({ apiKey });
+  return openaiClient;
+}
 
 // -------------------------------------------------------------
 // 定数
@@ -795,7 +822,7 @@ async function generateSummary(
   console.log(`[plaud_support_progress_summary] Using prompt template: ${promptResult.templateKey}`);
 
   // OpenAI API呼び出し
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAIClient().chat.completions.create({
     model: OPENAI_PROFILES.standard.model,
     max_completion_tokens: promptResult.max_tokens,
     messages: [
