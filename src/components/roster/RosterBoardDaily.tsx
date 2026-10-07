@@ -2,7 +2,7 @@
 "use client";
 
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
     RosterDailyView,
     RosterShiftCard,
@@ -11,6 +11,11 @@ import type {
 } from "@/types/roster";
 import ShiftDialog from "@/components/roster/ShiftDialog";
 import MultipleServicesBetaPanel from "@/components/roster/MultipleServicesBetaPanel";
+import {
+    buildRosterRenderItems,
+    rosterCardShiftId,
+    type RosterRenderItem,
+} from "@/lib/roster/multipleServiceCards";
 import { useRouter, useSearchParams } from "next/navigation";
 //import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { supabase } from "@/lib/supabaseClient";
@@ -164,6 +169,12 @@ interface DragState {
     ghostEndMin: number;
     ghostRowIdx: number;
     srcStaffId: string;       // ★ 触り始めたカードの元担当
+    multipleService: null | {
+        groupId: string;
+        shiftIds: number[];
+        staffSlot: 1 | 2 | 3;
+        lastShiftId: number;
+    };
 }
 
 export default function RosterBoardDaily({
@@ -214,6 +225,11 @@ export default function RosterBoardDaily({
     const [cardsDate, setCardsDate] = useState(date);
     const [showAllStaff, setShowAllStaff] = useState(true);
     const [multipleServiceSelectedIds, setMultipleServiceSelectedIds] = useState<number[]>([]);
+
+    const renderItems = useMemo(
+        () => buildRosterRenderItems(cardsDate === date ? cards : initialView.shifts, beta),
+        [beta, cards, cardsDate, date, initialView.shifts]
+    );
 
     const [selectedShift, setSelectedShift] = useState<RosterShiftDialogData | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -516,17 +532,36 @@ console.log(
         return clamp(x / PX_PER_MIN, 0, MINUTES_IN_DAY);
     };
 
-    const rowIdxFromDeltaY = (deltaY: number, origRowIdx: number) => {
+    const rowIdxFromDeltaY = useCallback((deltaY: number, origRowIdx: number) => {
         const dRows = Math.round(deltaY / ROW_HEIGHT);
         return clamp(origRowIdx + dRows, 0, Math.max(0, displayStaff.length - 1));
+    }, [displayStaff.length]);
+
+    const multipleServiceDragData = (item: RosterRenderItem): DragState["multipleService"] => {
+        if (item.kind !== "multiple-service") return null;
+        const memberTimes = item.memberCards.map((member) => ({
+            shiftId: rosterCardShiftId(member),
+            startMin: hhmmToMin(dispHHmm(member.start_at)),
+            endMin: hhmmToMin(dispHHmm(member.end_at)),
+        }));
+        const last = memberTimes.reduce((latest, member) =>
+            member.endMin >= latest.endMin ? member : latest
+        );
+        const slot = item.card.staff_slot;
+        return {
+            groupId: item.groupId,
+            shiftIds: item.shiftIds,
+            staffSlot: slot === 2 || slot === 3 ? slot : 1,
+            lastShiftId: last.shiftId,
+        };
     };
 
-    // 既存 onCardMouseDownMove / ResizeEnd 内でセット
-    const onCardMouseDownMove = (e: React.MouseEvent, card: RosterShiftCard) => {
+    const onCardMouseDownMove = (e: React.MouseEvent, item: RosterRenderItem) => {
         if (e.detail > 1) return;
         const target = e.target as HTMLElement | null;
         if (target && target.closest('a')) return; // リンク操作時はドラッグ開始しない
         e.preventDefault();
+        const card = item.card;
         const rowIdx = rowIndexByStaff.get(card.staff_id) ?? 0;
         const s = hhmmToMin(dispHHmm(card.start_at));
         const en = hhmmToMin(dispHHmm(card.end_at));
@@ -546,14 +581,16 @@ console.log(
             ghostEndMin: en,
             ghostRowIdx: rowIdx,
             srcStaffId: card.staff_id,
+            multipleService: multipleServiceDragData(item),
         });
     };
 
-    const onCardMouseDownResizeEnd = (e: React.MouseEvent, card: RosterShiftCard) => {
+    const onCardMouseDownResizeEnd = (e: React.MouseEvent, item: RosterRenderItem) => {
         const target = e.target as HTMLElement | null;
         if (target && target.closest('a')) return; // 念のため
         e.preventDefault();
         e.stopPropagation();
+        const card = item.card;
         const rowIdx = rowIndexByStaff.get(card.staff_id) ?? 0;
         const s = hhmmToMin(dispHHmm(card.start_at));
         const en = hhmmToMin(dispHHmm(card.end_at));
@@ -570,6 +607,7 @@ console.log(
             ghostEndMin: en,
             ghostRowIdx: rowIdx,
             srcStaffId: card.staff_id,
+            multipleService: multipleServiceDragData(item),
         });
     };
 
@@ -619,8 +657,8 @@ console.log(
                 origRowIdx,
                 pointerStartX,
                 pointerStartY,
+                multipleService,
             } = drag;
-            const { shiftId } = parseCardCompositeId(cardId);
             const targetStaff = displayStaff[ghostRowIdx];
             if (!targetStaff) { setDrag(null); return; }
             const start_at = toHHmm(ghostStartMin);
@@ -642,6 +680,89 @@ console.log(
                 setDrag(null);
                 return;
             }
+
+            if (multipleService) {
+                const deltaMinutes = ghostStartMin - origStartMin;
+                const memberShiftIds = new Set(multipleService.shiftIds);
+
+                (async () => {
+                    try {
+                        const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
+                        if (sessErr) console.warn("[roster] getSession error", sessErr);
+                        const token = sessionData.session?.access_token ?? null;
+                        const response = await fetch("/api/multiple-services", {
+                            method: "PATCH",
+                            headers: {
+                                "Content-Type": "application/json",
+                                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                            },
+                            body: JSON.stringify({
+                                groupId: multipleService.groupId,
+                                shiftIds: multipleService.shiftIds,
+                                date,
+                                mode: drag.mode,
+                                deltaMinutes: drag.mode === "move" ? deltaMinutes : null,
+                                endAt: drag.mode === "resizeEnd" ? end_at : null,
+                                staffSlot: multipleService.staffSlot,
+                                srcStaffId,
+                                staffId: staff_id,
+                            }),
+                        });
+                        const result = (await response.json().catch(() => null)) as
+                            | { ok?: boolean; error?: string }
+                            | null;
+                        if (!response.ok || !result?.ok) {
+                            throw new Error(result?.error || "複数サービスを変更できませんでした");
+                        }
+
+                        setCards((previous) => previous.map((card) => {
+                            const currentShiftId = rosterCardShiftId(card);
+                            if (!memberShiftIds.has(currentShiftId)) return card;
+
+                            const isLast = currentShiftId === multipleService.lastShiftId;
+                            const nextStart = drag.mode === "move"
+                                ? toHHmm(hhmmToMin(dispHHmm(card.start_at)) + deltaMinutes)
+                                : card.start_at;
+                            const nextEnd = drag.mode === "move"
+                                ? toHHmm(hhmmToMin(dispHHmm(card.end_at)) + deltaMinutes)
+                                : isLast ? end_at : card.end_at;
+                            const movesThisStaffCard =
+                                (card.staff_slot ?? 1) === multipleService.staffSlot &&
+                                card.staff_id === srcStaffId;
+                            const dialogStaffPatch = multipleService.staffSlot === 1
+                                ? { staff_id_1: staff_id }
+                                : multipleService.staffSlot === 2
+                                    ? { staff_id_2: staff_id }
+                                    : { staff_id_3: staff_id };
+
+                            return {
+                                ...card,
+                                ...(movesThisStaffCard
+                                    ? { id: `${currentShiftId}_${staff_id}`, staff_id }
+                                    : {}),
+                                start_at: nextStart,
+                                end_at: nextEnd,
+                                dialog: card.dialog ? {
+                                    ...card.dialog,
+                                    start_at: nextStart,
+                                    end_at: nextEnd,
+                                    ...dialogStaffPatch,
+                                } : card.dialog,
+                            };
+                        }));
+                        setMultipleServiceSelectedIds(multipleService.shiftIds);
+                    } catch (error) {
+                        console.error("[PATCH] multiple service update failed", error);
+                        window.alert(error instanceof Error ? error.message : "複数サービスを変更できませんでした");
+                        router.refresh();
+                    }
+                })();
+
+                setDrag(null);
+                return;
+            }
+
+            const { shiftId } = parseCardCompositeId(cardId);
 
             setCards((prev) =>
                 prev.map((c) => (c.id === cardId ? { ...c, id: `${shiftId}_${staff_id}`, staff_id, start_at, end_at } : c))
@@ -691,7 +812,7 @@ console.log(
             window.removeEventListener("mousemove", onMove);
             window.removeEventListener("mouseup", onUp);
         };
-    }, [drag, displayStaff, date]);
+    }, [drag, displayStaff, date, router, rowIdxFromDeltaY]);
 
     // ====== スタイル ======
     const MAX_H_MULTIPLIER = 10; // ← 4〜5倍にしたいときは 4 or 5 を指定
@@ -1095,38 +1216,69 @@ const topPx =
                                 <div key={idx} style={staffRowBgStyle(idx)} />
                             ))}
 
- {/* MyFamilleのシフトカード */}
-{cards.map((c) => {
+{/* MyFamilleのシフトカード */}
+{renderItems.map((item) => {
   if (cardsDate !== date) {
     return null;
   }
 
+  const c = item.card;
   const rowIdx = rowIndexByStaff.get(c.staff_id);
 
   if (rowIdx == null) {
     return null;
   }
 
-  const { shiftId } = parseCardCompositeId(c.id);
-  const selectionIndex = multipleServiceSelectedIds.indexOf(shiftId);
+  const isMultipleService = item.kind === "multiple-service";
+  const shiftId = isMultipleService ? null : rosterCardShiftId(c);
+  const selectionIndex = shiftId == null ? -1 : multipleServiceSelectedIds.indexOf(shiftId);
+  const groupSelected = isMultipleService &&
+    item.shiftIds.length === multipleServiceSelectedIds.length &&
+    item.shiftIds.every((id) => multipleServiceSelectedIds.includes(id));
 
   return (
     <div
-      key={c.id}
+      key={item.key}
       style={{
         ...cardStyle(c),
-        ...(selectionIndex >= 0
+        ...(isMultipleService
+          ? {
+              background: "linear-gradient(135deg, rgba(237, 233, 254, 0.96), rgba(221, 214, 254, 0.9))",
+              border: "2px solid #7c3aed",
+              boxShadow: "0 2px 6px rgba(109, 40, 217, 0.24)",
+              mixBlendMode: "normal",
+              zIndex: 3,
+            }
+          : {}),
+        ...(selectionIndex >= 0 || groupSelected
           ? { outline: "3px solid #7c3aed", outlineOffset: "1px" }
           : {}),
       }}
       title={[
         `${dispHHmm(c.start_at)}-${dispHHmm(c.end_at)}`,
-        `${c.client_name}：${c.service_code ?? c.service_name ?? ""}`,
-        beta ? "ダブルクリックで複数サービスへ選択" : "",
+        isMultipleService ? item.title : `${c.client_name}：${c.service_code ?? c.service_name ?? ""}`,
+        isMultipleService ? `${item.serviceSummary}（${item.shiftIds.length}件）` : "",
+        isMultipleService
+          ? "クリックで選択。ドラッグで時間・担当をまとめて変更。右端で終了時刻を変更"
+          : beta ? "ダブルクリックで複数サービスへ選択" : "",
       ].filter(Boolean).join("\n")}
-      onMouseDown={(e) => onCardMouseDownMove(e, c)}
+      onMouseDown={(e) => onCardMouseDownMove(e, item)}
+      onClick={(e) => {
+        if (!isMultipleService) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setMultipleServiceSelectedIds(item.shiftIds);
+      }}
+      role={isMultipleService ? "button" : undefined}
+      tabIndex={isMultipleService ? 0 : undefined}
+      aria-label={isMultipleService ? `${item.title}を選択` : undefined}
+      onKeyDown={(e) => {
+        if (!isMultipleService || (e.key !== "Enter" && e.key !== " ")) return;
+        e.preventDefault();
+        setMultipleServiceSelectedIds(item.shiftIds);
+      }}
       onDoubleClick={(e) => {
-        if (!beta) return;
+        if (!beta || isMultipleService || shiftId == null) return;
         e.preventDefault();
         e.stopPropagation();
         setMultipleServiceSelectedIds((current) =>
@@ -1138,20 +1290,30 @@ const topPx =
     >
       <div className="flex items-center gap-1 text-[15px] font-semibold">
         {dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}
-        {beta && c.multiple_service_group_id?.startsWith("ms:") ? (
+        {isMultipleService ? (
           <span className="rounded bg-violet-700 px-1 py-0.5 text-[9px] font-bold leading-none text-white">
-            複数
+            複数サービス
           </span>
         ) : null}
       </div>
 
-      {beta && selectionIndex >= 0 ? (
+      {isMultipleService ? (
+        <div className="max-w-full truncate text-left text-[14px] font-semibold text-violet-950">
+          {item.title}
+        </div>
+      ) : null}
+
+      {groupSelected ? (
+        <div className="absolute bottom-1 right-2 z-20 rounded bg-violet-700 px-1.5 py-0.5 text-[9px] font-bold text-white shadow">
+          選択中・上で解除
+        </div>
+      ) : beta && selectionIndex >= 0 ? (
         <div className="absolute bottom-1 right-2 z-20 rounded bg-violet-700 px-1.5 py-0.5 text-[9px] font-bold text-white shadow">
           {selectionIndex + 1}件目選択
         </div>
       ) : null}
 
-      <button
+      {!isMultipleService ? <button
         type="button"
         onMouseDown={(e) => {
           e.stopPropagation();
@@ -1167,21 +1329,21 @@ const topPx =
         }`}
       >
         {c.client_name}：{c.service_code ?? ""}
-      </button>
+      </button> : null}
 
-      {c.spot_status === "募集中" && (
+      {!isMultipleService && c.spot_status === "募集中" && (
         <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[9px] font-bold text-gray-900 shadow">
           T
         </div>
       )}
 
-      {c.spot_status === "確定" && (
+      {!isMultipleService && c.spot_status === "確定" && (
         <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-300 text-[9px] font-bold text-black shadow">
           T
         </div>
       )}
 
-      {c.dsp_short ? (
+      {!isMultipleService && c.dsp_short ? (
         <div
           style={{
             position: "absolute",
@@ -1209,10 +1371,11 @@ const topPx =
 
       <div
         style={resizeHandleStyle}
-        onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)}
+        title={isMultipleService ? "複数サービス全体の終了時刻を変更" : "終了時刻を変更"}
+        onMouseDown={(e) => onCardMouseDownResizeEnd(e, item)}
       />
 
-      {deletable && (
+      {deletable && !isMultipleService && (
         <button
           type="button"
           aria-label="削除"
