@@ -1,16 +1,23 @@
 //lib/getAccessToken
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+let supabase: ReturnType<typeof createClient> | null = null;
 
-export async function getAccessToken(): Promise<string> {
+function getSupabaseClient() {
+  if (supabase) return supabase;
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !supabaseKey) {
     throw new Error('SupabaseのURLまたはキーが未設定です');
   }
 
-  const { data, error } = await supabase
+  supabase = createClient(supabaseUrl, supabaseKey);
+  return supabase;
+}
+
+export async function getAccessToken(): Promise<string> {
+  const { data, error } = await getSupabaseClient()
     .from('env_variables')
     .select('value, expires_at')
     .eq('group_key', 'lineworks')
