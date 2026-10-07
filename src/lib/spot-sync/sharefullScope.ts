@@ -1,11 +1,22 @@
 /**
  * Sharefull連携の対象利用者を限定する安全弁。
  *
- * 初期値は今回の検証利用者だけに固定する。全利用者へ広げる場合は、
+ * 初期値は明示した運用対象利用者だけに固定する。全利用者へ広げる場合は、
  * SHAREFULL_SYNC_KAIPOKE_CS_IDS=* と SHAREFULL_SYNC_ALLOW_ALL=true を
  * 明示的に両方設定する。
  */
-const DEFAULT_TEST_CLIENT_IDS = ["12782561"];
+const DEFAULT_TARGET_CLIENT_IDS = [
+  "10857804",
+  "12278553",
+  "12581399",
+  "12666844",
+  "12698444",
+  "12782561",
+  "12906710",
+  "12988540",
+  "8065144",
+  "9003819",
+];
 
 export type SharefullRpaMode = "production" | "test";
 
@@ -19,6 +30,14 @@ export function sharefullRpaMode(): SharefullRpaMode {
   return process.env.SHAREFULL_RPA_MODE?.trim().toLowerCase() === "test"
     ? "test"
     : "production";
+}
+
+export function shouldRunSharefullDecisionMonitor(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return env.SHAREFULL_DECISION_MONITOR_ENABLED?.trim().toLowerCase() === "true"
+    && env.SHAREFULL_TEST_DEPLOYMENT?.trim().toLowerCase() === "true"
+    && env.SHAREFULL_RPA_MODE?.trim().toLowerCase() === "test";
 }
 
 export function sharefullTemplateTableName(): string {
@@ -39,6 +58,12 @@ export function sharefullApplicationTableName(): string {
     : "spot_offer_applications";
 }
 
+export function sharefullDecisionStatusTableName(): string {
+  return sharefullRpaMode() === "test"
+    ? "sharefull_rpa_test_decision_status"
+    : "sharefull_decision_status";
+}
+
 function configuredValue(): string | undefined {
   const value = process.env.SHAREFULL_SYNC_KAIPOKE_CS_IDS?.trim();
   return value || undefined;
@@ -52,14 +77,14 @@ export function sharefullSyncClientIds(): string[] | null {
       return null;
     }
     // * だけで全利用者に影響しないよう、明示許可がない時は検証対象へ戻す。
-    return DEFAULT_TEST_CLIENT_IDS;
+    return DEFAULT_TARGET_CLIENT_IDS;
   }
 
-  const ids = (configured ?? DEFAULT_TEST_CLIENT_IDS.join(","))
+  const ids = (configured ?? DEFAULT_TARGET_CLIENT_IDS.join(","))
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
-  return ids.length > 0 ? [...new Set(ids)] : DEFAULT_TEST_CLIENT_IDS;
+  return ids.length > 0 ? [...new Set(ids)] : DEFAULT_TARGET_CLIENT_IDS;
 }
 
 export function isSharefullSyncClient(kaipokeCsId: unknown): boolean {

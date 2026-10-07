@@ -18,14 +18,37 @@ function loadScope(env = {}) {
 
 test("Sharefull同期は初期値で検証利用者だけを対象にする", () => {
   const scope = loadScope();
-  assert.deepEqual([...scope.sharefullSyncClientIds()], ["12782561"]);
+  const expectedClientIds = [
+    "10857804",
+    "12278553",
+    "12581399",
+    "12666844",
+    "12698444",
+    "12782561",
+    "12906710",
+    "12988540",
+    "8065144",
+    "9003819",
+  ];
+  assert.deepEqual([...scope.sharefullSyncClientIds()], expectedClientIds);
   assert.equal(scope.isSharefullSyncClient("12782561"), true);
   assert.equal(scope.isSharefullSyncClient("99999999"), false);
 });
 
 test("全利用者化には対象指定と明示許可の両方を必要とする", () => {
   const blocked = loadScope({ SHAREFULL_SYNC_KAIPOKE_CS_IDS: "*" });
-  assert.deepEqual([...blocked.sharefullSyncClientIds()], ["12782561"]);
+  assert.deepEqual([...blocked.sharefullSyncClientIds()], [
+    "10857804",
+    "12278553",
+    "12581399",
+    "12666844",
+    "12698444",
+    "12782561",
+    "12906710",
+    "12988540",
+    "8065144",
+    "9003819",
+  ]);
 
   const allowed = loadScope({
     SHAREFULL_SYNC_KAIPOKE_CS_IDS: "*",
@@ -45,7 +68,32 @@ test("テストモードは専用テーブルを使い本番の同期対象指�
   assert.equal(scope.sharefullTemplateTableName(), "sharefull_rpa_test_spot_offer_template_unified");
   assert.equal(scope.sharefullRequestTableName(), "sharefull_rpa_test_spot_offer_request_table");
   assert.equal(scope.sharefullApplicationTableName(), "sharefull_rpa_test_spot_offer_applications");
+  assert.equal(scope.sharefullDecisionStatusTableName(), "sharefull_rpa_test_decision_status");
   assert.equal(scope.sharefullSyncClientIds(), null);
   assert.equal(scope.isSharefullSyncClient("any-client"), true);
   assert.equal(scope.sharefullSyncScopeLabel(), "test");
+});
+
+test("応募決定監視はテスト配置・テストモード・明示有効化のすべてが必要", () => {
+  assert.equal(loadScope({
+    SHAREFULL_DECISION_MONITOR_ENABLED: "true",
+    SHAREFULL_TEST_DEPLOYMENT: "true",
+    SHAREFULL_RPA_MODE: "production",
+  }).shouldRunSharefullDecisionMonitor(), false);
+
+  assert.equal(loadScope({
+    SHAREFULL_DECISION_MONITOR_ENABLED: "true",
+    SHAREFULL_RPA_MODE: "test",
+  }).shouldRunSharefullDecisionMonitor(), false);
+
+  assert.equal(loadScope({
+    SHAREFULL_TEST_DEPLOYMENT: "true",
+    SHAREFULL_RPA_MODE: "test",
+  }).shouldRunSharefullDecisionMonitor(), false);
+
+  assert.equal(loadScope({
+    SHAREFULL_DECISION_MONITOR_ENABLED: "true",
+    SHAREFULL_TEST_DEPLOYMENT: "true",
+    SHAREFULL_RPA_MODE: "test",
+  }).shouldRunSharefullDecisionMonitor(), true);
 });

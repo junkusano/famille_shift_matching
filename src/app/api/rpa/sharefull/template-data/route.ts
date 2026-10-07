@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
-import { isSharefullSyncClient, sharefullRpaMode, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
+import { isSharefullSyncClient, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
 import { applySharefullContentPolicy } from "@/lib/spot-sync/sharefullContentPolicy";
+import { recordSharefullContentPolicyBlock } from "@/lib/spot-sync/sharefullContentPolicyAlert";
 
 export const dynamic = "force-dynamic";
 
@@ -23,13 +24,22 @@ export async function GET(request: NextRequest) {
       sukima_detail: String(values.sukima_detail ?? ""), sukima_automsg: String(values.sukima_automsg ?? ""),
       sukima_koudou: String(values.sukima_koudou ?? ""), sukima_caution: String(values.sukima_caution ?? ""),
     } };
-    const policy = sharefullRpaMode() === "test"
-      ? applySharefullContentPolicy(rawData)
-      : { data: rawData, report: { status: "clean" as const, findings: [] } };
+    // 自動作成・手動作成のどちらでも公開本文を同じルールで検査し、
+    // タイミー固有バナーはSharefull向けに変換してから拡張機能へ返す。
+    const policy = applySharefullContentPolicy(rawData);
     if (policy.report.status === "blocked") {
+      const notification = await recordSharefullContentPolicyBlock({
+        coreId,
+        source: "rpa.sharefull.template-data",
+        templateId: typeof template.sharefull_template_id === "string" ? template.sharefull_template_id : null,
+        templateTitle: typeof template.template_title === "string" ? template.template_title : null,
+        sourceData: rawData,
+        report: policy.report,
+      });
       return NextResponse.json({
         error: "公開本文の事前検査で停止しました",
         content_policy: policy.report,
+        notification,
       }, { status: 422 });
     }
     return NextResponse.json({ data: policy.data, content_policy: policy.report });

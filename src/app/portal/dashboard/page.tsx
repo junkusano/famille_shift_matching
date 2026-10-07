@@ -135,6 +135,11 @@ export default function DashboardPage() {
           },
         ]}
         defaultSort={{ column: "year_month", ascending: false }}
+        totalRowLast={{
+          groupBy: "year_month",
+          labelColumn: "service_category",
+          label: "合計",
+        }}
         pageSize={500}
         exactCount={false}
       />
@@ -143,14 +148,14 @@ export default function DashboardPage() {
         tableName="dashboard_service_time_qualification_staff_detail_view"
         columns={[
           { key: "year_month", label: "月", filterMode: "exact" },
-          { key: "service_category", label: "区分" },
+          { key: "service_category", label: "区分", filterMode: "exact" },
           { key: "staff_name", label: "スタッフ" },
           { key: "staff_user_id", label: "ユーザーID", filterMode: "exact" },
           { key: "qualifications", label: "サ責資格（取得日）" },
           {
             key: "qualification_status",
             label: "判定",
-            format: (value) => String(value ?? "").replace("資格者", "サ責資格者"),
+            format: (value) => String(value ?? ""),
           },
           { key: "total_service_hours", label: "担当時間", format: (value) => `${formatHours2(value)}h` },
           { key: "qualified_service_hours", label: "サ責資格者時間", format: (value) => `${formatHours2(value)}h` },
