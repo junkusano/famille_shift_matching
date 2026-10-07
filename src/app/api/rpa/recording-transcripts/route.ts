@@ -6,7 +6,17 @@ import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 
 export const dynamic = "force-dynamic";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+let openaiClient: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (openaiClient) return openaiClient;
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY が設定されていません");
+
+  openaiClient = new OpenAI({ apiKey });
+  return openaiClient;
+}
 const MAX_IDS = 20;
 const MAX_CHARS = 120_000;
 type RecordingTranscriptRow = {
@@ -104,7 +114,7 @@ export async function POST(request: NextRequest) {
       const row = byId.get(id);
       return `【記録${index + 1} ${row?.recorded_at ?? "日時不明"} ${row?.context_name ?? "項目未設定"}】\n${(row?.transcript_raw ?? "").slice(0, Math.floor(MAX_CHARS / transcriptIds.length))}`;
     }).join("\n\n");
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
       model: OPENAI_PROFILES.standard.model,
       max_completion_tokens: 4000,
       messages: [{
