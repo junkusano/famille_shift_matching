@@ -7,6 +7,7 @@ type ClientRow = {
   kaipoke_cs_id: string;
   name: string;
   postal_code: string | null;
+  address: string | null;
   gender_request: string | null;
 };
 
@@ -28,7 +29,7 @@ export async function GET() {
   const [clientsResult, gendersResult, districtsResult] = await Promise.all([
     supabaseAdmin
       .from("cs_kaipoke_info")
-      .select("id,kaipoke_cs_id,name,postal_code,gender_request")
+      .select("id,kaipoke_cs_id,name,postal_code,address,gender_request")
       .eq("is_active", true)
       .order("name", { ascending: true }),
     supabaseAdmin
@@ -60,6 +61,7 @@ export async function GET() {
       id: client.id,
       kaipoke_cs_id: client.kaipoke_cs_id,
       name: client.name,
+      address: client.address,
       dsp_short: districts.get(postalPrefix(client.postal_code)) ?? null,
       gender_request_name: gender?.gender_request_name ?? null,
       male_flg: gender?.male_flg ?? null,
