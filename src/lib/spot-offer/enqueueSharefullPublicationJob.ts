@@ -9,6 +9,8 @@ import { latestSharefullTemplatesByClient } from "@/lib/spot-offer/latestSharefu
 
 const JOB_TYPE = "sharefull.create_spot_offer";
 const TEMPLATE_JOB_TYPE = "sharefull.create_template";
+const TEMPLATE_JOB_RETRY_COOLDOWN_MS = 60 * 60 * 1000;
+const TEMPLATE_JOB_MAX_ATTEMPTS = 3;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -40,14 +42,37 @@ function todayInJst(): string {
 }
 
 async function enqueueSharefullTemplateCreationJob(coreId: string, source: string): Promise<{ registeredCount: number; skipped: string[] }> {
-  const operationKey = `sharefull:create_template:${coreId}`;
+  // Keep a single active attempt and avoid tight retries after runner/browser failures.
+  // A new key is needed because rpa_runner_jobs deduplicates sync_operation_key.
+  const baseOperationKey = `sharefull:create_template:${coreId}`;
   const { data: existing, error: existingError } = await supabaseAdmin
-    .from("rpa_runner_jobs").select("id").eq("job_type", TEMPLATE_JOB_TYPE)
-    .eq("payload->>operation_key", operationKey)
-    .in("status", ["pending", "claimed", "completed", "failed", "cancelled"]).limit(1);
+    .from("rpa_runner_jobs").select("id,status,created_at,updated_at,payload").eq("job_type", TEMPLATE_JOB_TYPE)
+    .eq("payload->>core_id", coreId).order("created_at", { ascending: false });
   if (existingError) throw existingError;
-  const alreadyQueued = Boolean(existing?.length);
-  if (alreadyQueued) return { registeredCount: 0, skipped: ["テンプレート作成ジョブが登録済みです"] };
+  const attempts = (existing ?? []).filter((job) => {
+    const payload = job.payload as Record<string, unknown> | null;
+    const key = text(payload?.operation_key);
+    return key === baseOperationKey || key.startsWith(`${baseOperationKey}:retry:`);
+  });
+  if (attempts.some((job) => ["pending", "claimed", "running", "completed"].includes(text(job.status)))) {
+    return { registeredCount: 0, skipped: ["テンプレート作成ジョブが登録済みです"] };
+  }
+  const latestAttempt = attempts[0];
+  if (latestAttempt) {
+    if (text(latestAttempt.status) !== "failed") {
+      return { registeredCount: 0, skipped: ["テンプレート作成ジョブがキャンセルされています"] };
+    }
+    if (attempts.length >= TEMPLATE_JOB_MAX_ATTEMPTS) {
+      return { registeredCount: 0, skipped: ["テンプレート作成ジョブの自動再試行上限に達しました"] };
+    }
+    const failedAt = Date.parse(text(latestAttempt.updated_at) || text(latestAttempt.created_at));
+    if (Number.isFinite(failedAt) && Date.now() - failedAt < TEMPLATE_JOB_RETRY_COOLDOWN_MS) {
+      return { registeredCount: 0, skipped: ["テンプレート作成ジョブの再試行待ちです"] };
+    }
+  }
+  const operationKey = attempts.length === 0
+    ? baseOperationKey
+    : `${baseOperationKey}:retry:${attempts.length}`;
   const payload = { action: "create_sharefull_template", command: "create_template", core_id: coreId, operation_key: operationKey, sync_operation_key: operationKey, created_from: source };
   const { error } = await supabaseAdmin.from("rpa_runner_jobs").insert({ job_type: TEMPLATE_JOB_TYPE, status: "pending", payload, timeout_ms: 300_000, target_runner_id: sharefullTargetRunnerId() });
   if (error?.code === "23505") return { registeredCount: 0, skipped: ["テンプレート作成ジョブが登録済みです"] };
