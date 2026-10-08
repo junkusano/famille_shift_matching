@@ -82,7 +82,23 @@ function documentDate(row: CsDocRow): string {
 }
 
 function compactLine(value: string): string {
-  return value.normalize("NFKC").replace(/[\s　]+/g, "").replace(/^[:：]+/, "");
+  return value.normalize("NFKC").replace(/[\s　]+/g, "").replace(/^(?:[-*・]+)?[:：]+/, "");
+}
+
+function isOcrTableDebris(value: string): boolean {
+  const normalized = value.normalize("NFKC");
+  return /(?:日常生活自立度|認知症.*自立度|障害高齢者.*自立度|Barthel|IADL)/i.test(normalized)
+    || /自立(?:[IVX]+[a-z]?){2,}/i.test(normalized)
+    || /[‘’`´][^。！？\n]{0,80}[\\/\[\]{}_]/.test(normalized)
+    || /(?:[\\/\[\]{}_]{2,})/.test(normalized);
+}
+
+function cleanFieldValue(value: string): string {
+  const normalized = compactLine(value)
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .replace(/[|｜]+$/g, "")
+    .trim();
+  return normalized && !isOcrTableDebris(normalized) ? normalized : "";
 }
 
 function extractField(source: string, spec: FieldSpec): string {
@@ -98,17 +114,18 @@ function extractField(source: string, spec: FieldSpec): string {
   const firstValue = firstMatch?.index === undefined
     ? ""
     : startLine.slice(firstMatch.index + firstMatch[0].length);
-  if (firstValue.trim()) values.push(compactLine(firstValue));
+  const initialValue = cleanFieldValue(firstValue);
+  if (initialValue) values.push(initialValue);
 
   for (let index = startIndex + 1; index < lines.length; index += 1) {
     const line = lines[index];
     if (spec.stops.some((stop) => stop.test(line))) break;
-    const value = compactLine(line);
+    const value = cleanFieldValue(line);
     if (value) values.push(value);
     if (values.join("").length >= 1_500) break;
   }
 
-  return values.join("").replace(/[|｜]+$/g, "").trim();
+  return values.join("").trim();
 }
 
 export function extractMonitoringSignedPlanFields(source: string) {
@@ -129,7 +146,15 @@ export function extractMonitoringSignedPlanFields(source: string) {
 
 function toSignedPlan(row: CsDocRow): MonitoringSignedPlan {
   const sourceText = text(row.ocr_text);
-  const fields = extractMonitoringSignedPlanFields(sourceText);
+  const summaryText = text(row.summary);
+  const summaryFields = extractMonitoringSignedPlanFields(summaryText);
+  const ocrFields = extractMonitoringSignedPlanFields(sourceText);
+  const fields = {
+    client_request: summaryFields.client_request || ocrFields.client_request,
+    family_request: summaryFields.family_request || ocrFields.family_request,
+    issues: summaryFields.issues || ocrFields.issues,
+    assistance_goal: summaryFields.assistance_goal || ocrFields.assistance_goal,
+  };
   return {
     cs_doc_id: row.id,
     doc_name: text(row.doc_name) || "署名済みプラン",

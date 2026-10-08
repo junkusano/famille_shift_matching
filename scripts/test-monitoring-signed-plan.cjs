@@ -23,4 +23,6 @@ assert.equal(api.isMonitoringSignedPlanName('サービス等利用計画'), fals
 const fields = api.extractMonitoringSignedPlanFields('本人の希望: 自宅で生活を続けたい。\n家族の希望: 元気に暮らしてほしい。\n解決すべき課題: 体力低下。\n長期目標: 散歩を楽しく続ける。\nサービス内容: 掃除');
 assert.equal(fields.assistance_goal, '散歩を楽しく続ける。');
 assert.equal(fields.client_request, '自宅で生活を続けたい。');
+const noisyFields = api.extractMonitoringSignedPlanFields('家族の希望: ご自分で出来ることは自宅で続け、安心して過ごして欲しい。\n日常生活自立度Ⅰ（認知症）\n自立IIIaIIbIIIaIIIbIVM子。ヘルパー支援にて‘/‘]、ノ-/1一');
+assert.equal(noisyFields.family_request, 'ご自分で出来ることは自宅で続け、安心して過ごして欲しい。');
 console.log('PASS: supported signed-plan names and long-term goal fallback');
