@@ -44,12 +44,20 @@ type PatchBody = {
   groupId?: string;
   shiftIds?: Array<number | string>;
   date?: string;
-  mode?: "move" | "resizeEnd";
+  mode?: "move" | "resizeEnd" | "dialog";
   deltaMinutes?: number;
   endAt?: string | null;
   staffSlot?: 1 | 2 | 3;
   srcStaffId?: string;
   staffId?: string;
+  startAt?: string;
+  staff1Id?: string | null;
+  staff2Id?: string | null;
+  staff3Id?: string | null;
+  staff2Attend?: boolean;
+  staff3Attend?: boolean;
+  requiredStaffCount?: number;
+  twoPersonWork?: boolean;
 };
 
 const SHIFT_SELECT = [
@@ -153,7 +161,7 @@ async function rowsForIds(ids: number[]) {
     .select(SHIFT_SELECT)
     .in("shift_id", ids);
   if (error) throw new Error(error.message);
-  return (data ?? []) as ShiftRow[];
+  return (data ?? []) as unknown as ShiftRow[];
 }
 
 async function futureRowsForPattern(member: ShiftRow, effectiveFrom: string) {
@@ -174,7 +182,7 @@ async function futureRowsForPattern(member: ShiftRow, effectiveFrom: string) {
   const { data, error } = await query;
   if (error) throw new Error(error.message);
   const targetWeekday = weekday(member.shift_start_date);
-  return ((data ?? []) as ShiftRow[]).filter((row) => weekday(row.shift_start_date) === targetWeekday);
+  return ((data ?? []) as unknown as ShiftRow[]).filter((row) => weekday(row.shift_start_date) === targetWeekday);
 }
 
 async function updateWeeklyTemplates(members: ShiftRow[], groupId: string | null) {
@@ -394,19 +402,22 @@ export async function PATCH(req: NextRequest) {
     const body = (await req.json()) as PatchBody;
     const groupId = typeof body.groupId === "string" ? body.groupId : "";
     const shiftIds = uniqueShiftIds(body.shiftIds);
-    const mode = body.mode === "resizeEnd" ? "resizeEnd" : "move";
+    const mode = body.mode;
     const staffSlot = body.staffSlot === 2 || body.staffSlot === 3 ? body.staffSlot : 1;
     const srcStaffId = String(body.srcStaffId ?? "").trim();
     const staffId = String(body.staffId ?? "").trim();
 
-    if (body.mode !== "move" && body.mode !== "resizeEnd") {
+    if (mode !== "move" && mode !== "resizeEnd" && mode !== "dialog") {
       return NextResponse.json({ ok: false, error: "変更方法が不正です" }, { status: 400 });
     }
     if (!groupId.startsWith(MULTIPLE_SERVICE_PREFIX) || shiftIds.length < 2) {
       return NextResponse.json({ ok: false, error: "複数サービスの構成が不正です" }, { status: 400 });
     }
-    if (!ymd(body.date) || !srcStaffId || !staffId) {
-      return NextResponse.json({ ok: false, error: "日付または担当者が不正です" }, { status: 400 });
+    if (!ymd(body.date)) {
+      return NextResponse.json({ ok: false, error: "日付が不正です" }, { status: 400 });
+    }
+    if (mode !== "dialog" && (!srcStaffId || !staffId)) {
+      return NextResponse.json({ ok: false, error: "担当者が不正です" }, { status: 400 });
     }
 
     const deltaMinutes = Number(body.deltaMinutes ?? 0);
@@ -415,6 +426,23 @@ export async function PATCH(req: NextRequest) {
     }
     if (mode === "resizeEnd" && !hm(body.endAt)) {
       return NextResponse.json({ ok: false, error: "終了時刻が不正です" }, { status: 400 });
+    }
+
+    const staff1Id = String(body.staff1Id ?? "").trim();
+    const staff2Id = String(body.staff2Id ?? "").trim() || null;
+    const staff3Id = String(body.staff3Id ?? "").trim() || null;
+    const requiredStaffCount = Number(body.requiredStaffCount ?? 1);
+    if (mode === "dialog") {
+      if (!hm(body.startAt) || !hm(body.endAt)) {
+        return NextResponse.json({ ok: false, error: "開始・終了時刻が不正です" }, { status: 400 });
+      }
+      if (!staff1Id || !Number.isInteger(requiredStaffCount) || requiredStaffCount < 1 || requiredStaffCount > 3) {
+        return NextResponse.json({ ok: false, error: "スタッフまたは派遣人数が不正です" }, { status: 400 });
+      }
+      const assigned = [staff1Id, staff2Id, staff3Id].filter((value): value is string => Boolean(value));
+      if (assigned.length !== new Set(assigned).size) {
+        return NextResponse.json({ ok: false, error: "同じスタッフを複数の欄へ登録できません" }, { status: 400 });
+      }
     }
 
     const rows = await rowsForIds(shiftIds);
@@ -432,7 +460,7 @@ export async function PATCH(req: NextRequest) {
       | "staff_01_user_id"
       | "staff_02_user_id"
       | "staff_03_user_id";
-    if (rows.some((row) => row[targetColumn] !== srcStaffId)) {
+    if (mode !== "dialog" && rows.some((row) => row[targetColumn] !== srcStaffId)) {
       return NextResponse.json(
         { ok: false, error: "担当者構成が更新されています。画面を再読込してください" },
         { status: 409 },
@@ -449,9 +477,24 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    const { error: patchError } = await supabaseAdmin.rpc(
-      "roster_patch_multiple_service_group_v1",
-      {
+    const patchResult = mode === "dialog"
+      ? await supabaseAdmin.rpc("roster_patch_multiple_service_dialog_v1", {
+          p_group_id: groupId,
+          p_shift_ids: shiftIds,
+          p_date: body.date,
+          p_group_start: body.startAt,
+          p_group_end: body.endAt,
+          p_staff_01_user_id: staff1Id,
+          p_staff_02_user_id: staff2Id,
+          p_staff_03_user_id: staff3Id,
+          p_staff_02_attend_flg: Boolean(body.staff2Attend),
+          p_staff_03_attend_flg: Boolean(body.staff3Attend),
+          p_required_staff_count: requiredStaffCount,
+          p_two_person_work_flg: Boolean(body.twoPersonWork),
+          p_actor_user_id: actor.id,
+          p_request_path: requestPath,
+        })
+      : await supabaseAdmin.rpc("roster_patch_multiple_service_group_v1", {
         p_group_id: groupId,
         p_shift_ids: shiftIds,
         p_date: body.date,
@@ -463,8 +506,8 @@ export async function PATCH(req: NextRequest) {
         p_staff_id: staffId,
         p_actor_user_id: actor.id,
         p_request_path: requestPath,
-      },
-    );
+      });
+    const patchError = patchResult.error;
 
     if (patchError) {
       const missingRpc = patchError.code === "PGRST202" || patchError.message.includes("schema cache");

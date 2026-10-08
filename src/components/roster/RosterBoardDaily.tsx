@@ -9,7 +9,7 @@ import type {
     RosterShiftDialogData,
     RosterStaff,
 } from "@/types/roster";
-import ShiftDialog from "@/components/roster/ShiftDialog";
+import ShiftDialog, { type MultipleServiceDialogContext } from "@/components/roster/ShiftDialog";
 import MultipleServicesBetaPanel from "@/components/roster/MultipleServicesBetaPanel";
 import {
     buildRosterRenderItems,
@@ -232,6 +232,7 @@ export default function RosterBoardDaily({
     );
 
     const [selectedShift, setSelectedShift] = useState<RosterShiftDialogData | null>(null);
+    const [selectedMultipleService, setSelectedMultipleService] = useState<MultipleServiceDialogContext | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
 
     useEffect(() => {
@@ -363,12 +364,33 @@ export default function RosterBoardDaily({
 
     const openShiftDialog = (card: RosterShiftCard) => {
         if (!card.dialog) return;
+        setSelectedMultipleService(null);
         setSelectedShift(card.dialog);
+        setDialogOpen(true);
+    };
+
+    const openMultipleServiceDialog = (
+        item: Extract<RosterRenderItem, { kind: "multiple-service" }>,
+    ) => {
+        if (!item.card.dialog) return;
+        setSelectedMultipleService({
+            groupId: item.groupId,
+            shiftIds: item.shiftIds,
+            serviceSummary: item.serviceSummary,
+            kaipokeCsIds: item.kaipokeCsIds,
+            clientFieldsMixed: item.clientFieldsMixed,
+        });
+        setSelectedShift(item.card.dialog);
         setDialogOpen(true);
     };
 
     const handleDialogSaved = (next: RosterShiftDialogData) => {
         setSelectedShift(next);
+
+        if (selectedMultipleService) {
+            window.setTimeout(() => window.location.reload(), 400);
+            return;
+        }
 
         setCards((prev) =>
             prev.map((c) => {
@@ -1241,16 +1263,8 @@ const topPx =
       key={item.key}
       style={{
         ...cardStyle(c),
-        ...(isMultipleService
-          ? {
-              background: "linear-gradient(135deg, rgba(237, 233, 254, 0.96), rgba(221, 214, 254, 0.9))",
-              border: "2px solid #7c3aed",
-              boxShadow: "0 2px 6px rgba(109, 40, 217, 0.24)",
-              mixBlendMode: "normal",
-              zIndex: 3,
-            }
-          : {}),
-        ...(selectionIndex >= 0 || groupSelected
+        ...(isMultipleService ? { zIndex: 3 } : {}),
+        ...(selectionIndex >= 0
           ? { outline: "3px solid #7c3aed", outlineOffset: "1px" }
           : {}),
       }}
@@ -1269,14 +1283,6 @@ const topPx =
         e.stopPropagation();
         setMultipleServiceSelectedIds(item.shiftIds);
       }}
-      role={isMultipleService ? "button" : undefined}
-      tabIndex={isMultipleService ? 0 : undefined}
-      aria-label={isMultipleService ? `${item.title}を選択` : undefined}
-      onKeyDown={(e) => {
-        if (!isMultipleService || (e.key !== "Enter" && e.key !== " ")) return;
-        e.preventDefault();
-        setMultipleServiceSelectedIds(item.shiftIds);
-      }}
       onDoubleClick={(e) => {
         if (!beta || isMultipleService || shiftId == null) return;
         e.preventDefault();
@@ -1291,23 +1297,28 @@ const topPx =
       <div className="flex items-center gap-1 text-[15px] font-semibold">
         {dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}
         {isMultipleService ? (
-          <span className="rounded bg-violet-700 px-1 py-0.5 text-[9px] font-bold leading-none text-white">
-            複数サービス
+          <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border-2 text-[10px] font-bold leading-none ${groupSelected ? "border-violet-700 bg-violet-700 text-white" : "border-violet-700 bg-white text-violet-800"}`}>
+            複
           </span>
         ) : null}
       </div>
 
       {isMultipleService ? (
-        <div className="max-w-full truncate text-left text-[14px] font-semibold text-violet-950">
-          {item.title}
-        </div>
+        <button
+          type="button"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setMultipleServiceSelectedIds(item.shiftIds);
+            openMultipleServiceDialog(item);
+          }}
+          className={`max-w-full truncate text-left text-[17px] hover:underline ${c.has_roster_error ? "font-semibold text-red-600 hover:text-red-700" : "text-blue-700"}`}
+        >
+          {c.client_name}：{item.serviceSummary}
+        </button>
       ) : null}
 
-      {groupSelected ? (
-        <div className="absolute bottom-1 right-2 z-20 rounded bg-violet-700 px-1.5 py-0.5 text-[9px] font-bold text-white shadow">
-          選択中・上で解除
-        </div>
-      ) : beta && selectionIndex >= 0 ? (
+      {beta && selectionIndex >= 0 ? (
         <div className="absolute bottom-1 right-2 z-20 rounded bg-violet-700 px-1.5 py-0.5 text-[9px] font-bold text-white shadow">
           {selectionIndex + 1}件目選択
         </div>
@@ -1331,19 +1342,19 @@ const topPx =
         {c.client_name}：{c.service_code ?? ""}
       </button> : null}
 
-      {!isMultipleService && c.spot_status === "募集中" && (
+      {c.spot_status === "募集中" && (
         <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[9px] font-bold text-gray-900 shadow">
           T
         </div>
       )}
 
-      {!isMultipleService && c.spot_status === "確定" && (
+      {c.spot_status === "確定" && (
         <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-300 text-[9px] font-bold text-black shadow">
           T
         </div>
       )}
 
-      {!isMultipleService && c.dsp_short ? (
+      {c.dsp_short ? (
         <div
           style={{
             position: "absolute",
@@ -1463,11 +1474,15 @@ const topPx =
             </div >
             <ShiftDialog
                 open={dialogOpen}
-                onClose={() => setDialogOpen(false)}
+                onClose={() => {
+                    setDialogOpen(false);
+                    setSelectedMultipleService(null);
+                }}
                 shift={selectedShift}
                 staffOptions={displayStaff}
                 serviceOptions={serviceOptions}
                 onSaved={handleDialogSaved}
+                multipleService={selectedMultipleService}
             />
         </>
     );
