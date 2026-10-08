@@ -27,6 +27,7 @@ type ManagerRow = {
   last_name_kanji: string | null;
   first_name_kanji: string | null;
   level_sort: number | null;
+  status: string | null;
 };
 
 //const [orgMap, setOrgMap] = useState<Map<string, string>>(new Map());
@@ -142,7 +143,7 @@ export default function AlertBar() {
 
       const { data, error } = await supabase
         .from("user_entry_united_view_single")
-        .select("org_unit_id, last_name_kanji, first_name_kanji, level_sort")
+        .select("org_unit_id, last_name_kanji, first_name_kanji, level_sort, status")
         .in("org_unit_id", ids)
         .lt("level_sort", 4500000)
         .order("level_sort", { ascending: true });
@@ -154,6 +155,9 @@ export default function AlertBar() {
 
       const map = new Map<string, string[]>();
       for (const r of (data ?? []) as ManagerRow[]) {
+        if (String(r.status ?? "").trim().toLowerCase() === "removed_from_lineworks_kaipoke") {
+          continue;
+        }
         const orgId = r.org_unit_id ?? "";
         if (!orgId) continue;
 

@@ -396,7 +396,7 @@ for (const ids of chunkArray(assignedOrgIds, 100)) {
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
         .select(
-            "user_id,org_unit_id,last_name_kanji,first_name_kanji"
+            "user_id,org_unit_id,last_name_kanji,first_name_kanji,status"
         )
         .in("org_unit_id", ids);
 
@@ -418,7 +418,13 @@ for (const ids of chunkArray(assignedOrgIds, 100)) {
         );
     }
 
-    managers.push(...(data ?? []));
+    managers.push(
+        ...(data ?? []).filter(
+            (manager) =>
+                String(manager.status ?? "").trim().toLowerCase() !==
+                "removed_from_lineworks_kaipoke"
+        )
+    );
 }
 
 

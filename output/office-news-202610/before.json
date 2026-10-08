@@ -1,0 +1,193 @@
+{
+  "id": 2091,
+  "date": "2026-10-08T10:21:24",
+  "date_gmt": "2026-10-08T01:21:24",
+  "guid": {
+    "rendered": "https://shi-on.net/famille-office-news-202609/",
+    "raw": "https://shi-on.net/famille-office-news-202609/"
+  },
+  "modified": "2026-10-08T10:21:24",
+  "modified_gmt": "2026-10-08T01:21:24",
+  "password": "",
+  "slug": "famille-office-news-202609",
+  "status": "publish",
+  "type": "post",
+  "link": "https://shi-on.net/famille-office-news-202609/",
+  "title": {
+    "raw": "ファミーユの事業所近況｜2026年9月サマリー",
+    "rendered": "ファミーユの事業所近況｜2026年9月サマリー"
+  },
+  "content": {
+    "raw": "<p>モニタリングの「事業所近況」に掲載した2026年9月のお知らせをご紹介します。以下は当時の原文です。見込み・目標の記載も掲載当時のものです。</p>\n<h2>🌴マネジャー候補・スタッフともに増員中</h2>\n<p>7・8・9月と3か月連続でサービス提供責任者が入社し、マネジャー候補として育成を進めています。現場スタッフも毎日のように入社が続いており、新規のご相談をより積極的にお受けできる体制が整ってきました。</p>\n<h2>🌴9月は再び伸長へ</h2>\n<p>7月に月間4,000時間を突破しましたが、8月はお盆や夏休み等の影響で一時減少しました。一方、新規のご相談は引き続き多く、9月は再び大きく伸びる見込みです。年末5,000時間を目標に受入体制を強化していきます。</p>\n<h2>🌴サービス品質を支える仕組みづくり</h2>\n<p>シフトとGoogleカレンダーの連動、法定書類や会議参加等を数値化する「パフォーマンススコア」など、スタッフが増えてもサービス品質を維持できる仕組みを整備しています。</p>\n<h2>🌴4,000時間突破をお祝い！</h2>\n<p>月末会議では、すき家の「特うな」と麩饅頭で、4,000時間突破をみんなでお祝いしました。</p>",
+    "rendered": "<p>モニタリングの「事業所近況」に掲載した2026年9月のお知らせをご紹介します。以下は当時の原文です。見込み・目標の記載も掲載当時のものです。</p>\n<h2>🌴マネジャー候補・スタッフともに増員中</h2>\n<p>7・8・9月と3か月連続でサービス提供責任者が入社し、マネジャー候補として育成を進めています。現場スタッフも毎日のように入社が続いており、新規のご相談をより積極的にお受けできる体制が整ってきました。</p>\n<h2>🌴9月は再び伸長へ</h2>\n<p>7月に月間4,000時間を突破しましたが、8月はお盆や夏休み等の影響で一時減少しました。一方、新規のご相談は引き続き多く、9月は再び大きく伸びる見込みです。年末5,000時間を目標に受入体制を強化していきます。</p>\n<h2>🌴サービス品質を支える仕組みづくり</h2>\n<p>シフトとGoogleカレンダーの連動、法定書類や会議参加等を数値化する「パフォーマンススコア」など、スタッフが増えてもサービス品質を維持できる仕組みを整備しています。</p>\n<h2>🌴4,000時間突破をお祝い！</h2>\n<p>月末会議では、すき家の「特うな」と麩饅頭で、4,000時間突破をみんなでお祝いしました。</p>\n",
+    "protected": false,
+    "block_version": 0
+  },
+  "excerpt": {
+    "raw": "マネジャー候補・スタッフの増員、月間4,000時間突破、サービス品質を支える仕組みづくり。2026年9月の事業所近況を、当時の原文でご紹介します。",
+    "rendered": "<p>マネジャー候補・スタッフの増員、月間4,000時間突破、サービス品質を支える仕組みづくり。2026年9月の事業所近況を、当時の原文でご紹介します。</p>\n",
+    "protected": false
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "open",
+  "sticky": false,
+  "template": "",
+  "format": "standard",
+  "meta": {
+    "_monsterinsights_skip_tracking": false,
+    "_themeisle_gutenberg_block_has_review": false,
+    "_jetpack_newsletter_access": "",
+    "_jetpack_dont_email_post_to_subs": false,
+    "_jetpack_newsletter_tier_id": 0,
+    "_jetpack_memberships_contains_paywalled_content": false,
+    "_jetpack_feature_clip_id": 0,
+    "_jetpack_memberships_contains_paid_content": false,
+    "footnotes": "",
+    "jetpack_publicize_message": "",
+    "jetpack_publicize_feature_enabled": true,
+    "jetpack_social_post_already_shared": true,
+    "jetpack_social_options": {
+      "image_generator_settings": {
+        "template": "highway",
+        "default_image_id": 0,
+        "font": "",
+        "enabled": false
+      },
+      "version": 2
+    },
+    "jetpack_post_was_ever_published": false
+  },
+  "categories": [
+    24,
+    38
+  ],
+  "tags": [],
+  "permalink_template": "https://shi-on.net/%postname%/",
+  "generated_slug": "ファミーユの事業所近況｜2026年9月サマリー",
+  "class_list": [
+    "post-2091",
+    "post",
+    "type-post",
+    "status-publish",
+    "format-standard",
+    "hentry",
+    "category-column",
+    "category-cat0001"
+  ],
+  "jetpack_publicize_connections": [],
+  "jetpack_likes_enabled": true,
+  "jetpack_shortlink": "https://wp.me/pbtA3X-xJ",
+  "jetpack-related-posts": [],
+  "jetpack_sharing_enabled": true,
+  "jetpack_featured_media_url": "",
+  "_links": {
+    "self": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2091",
+        "targetHints": {
+          "allow": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/types/post"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/comments?post=2091"
+      }
+    ],
+    "version-history": [
+      {
+        "count": 0,
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2091/revisions"
+      }
+    ],
+    "wp:attachment": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/media?parent=2091"
+      }
+    ],
+    "wp:term": [
+      {
+        "taxonomy": "category",
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/categories?post=2091"
+      },
+      {
+        "taxonomy": "post_tag",
+        "embeddable": true,
+        "href": "https://shi-on.net/wp-json/wp/v2/tags?post=2091"
+      }
+    ],
+    "wp:action-publish": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2091"
+      }
+    ],
+    "wp:action-unfiltered-html": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2091"
+      }
+    ],
+    "wp:action-sticky": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2091"
+      }
+    ],
+    "wp:action-assign-author": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2091"
+      }
+    ],
+    "wp:action-create-categories": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2091"
+      }
+    ],
+    "wp:action-assign-categories": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2091"
+      }
+    ],
+    "wp:action-create-tags": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2091"
+      }
+    ],
+    "wp:action-assign-tags": [
+      {
+        "href": "https://shi-on.net/wp-json/wp/v2/posts/2091"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}
