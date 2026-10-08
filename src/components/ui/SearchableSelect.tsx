@@ -27,6 +27,7 @@ type SearchableSelectProps = {
   emptyMessage?: string;
   className?: string;
   triggerClassName?: string;
+  popoverContentClassName?: string;
   name?: string;
   id?: string;
   ariaLabel?: string;
@@ -70,6 +71,7 @@ export function SearchableSelect({
   emptyMessage = "該当する候補がありません",
   className,
   triggerClassName,
+  popoverContentClassName,
   name,
   id,
   ariaLabel,
@@ -240,7 +242,10 @@ export function SearchableSelect({
         </PopoverTrigger>
         <PopoverContent
           align="start"
-          className="w-[var(--radix-popover-trigger-width)] min-w-[16rem] max-w-[calc(100vw-2rem)] p-0"
+          className={cn(
+            "w-[var(--radix-popover-trigger-width)] min-w-[16rem] max-w-[calc(100vw-2rem)] p-0",
+            popoverContentClassName,
+          )}
         >
           <div className="border-b p-2">
             <div className="relative">
