@@ -30,8 +30,8 @@ function loadRoute(template) {
     isSharefullSyncClient: () => true,
     sharefullTemplateTableName: () => "spot_offer_template_unified",
     applySharefullContentPolicy: (source) => ({
-      data: source,
-      report: { status: "blocked", findings: [{ ruleId: "gender-sensitive-recruiting", action: "block", field: "work_description", matchedText: "女性ヘルパー" }] },
+      data: { ...source, work_description: source.work_description.replace("Timee", "Sharefull") },
+      report: { status: "flagged", findings: [{ ruleId: "gender-sensitive-recruiting", action: "flag", field: "work_description", matchedText: "女性ヘルパー" }] },
     }),
     recordSharefullContentPolicyBlock: async (input) => {
       blocks.push(input);
@@ -47,18 +47,19 @@ function loadRoute(template) {
   return { route: context.exports, blocks };
 }
 
-test("拡張機能への本文取得時に要確認文言を止め、監査記録と通知を行う", async () => {
+test("拡張機能への本文取得時に要確認文言を記録し、本文を返す", async () => {
   const { route, blocks } = loadRoute({
     core_id: "core-1",
     kaipoke_cs_id: "client-1",
     sharefull_template_id: null,
     template_title: "訪問介護",
-    work_description: "女性ヘルパー活躍中",
+    work_description: "Timeeで女性ヘルパー活躍中",
   });
   const response = await route.GET({ nextUrl: { searchParams: new URLSearchParams("core_id=core-1") } });
 
-  assert.equal(response.status, 422);
-  assert.equal(response.body.notification.notified, true);
+  assert.equal(response.status, 200);
+  assert.equal(response.body.audit.notified, true);
+  assert.equal(response.body.data.work_description, "Sharefullで女性ヘルパー活躍中");
   assert.equal(blocks.length, 1);
   assert.equal(blocks[0].coreId, "core-1");
   assert.equal(blocks[0].source, "rpa.sharefull.template-data");

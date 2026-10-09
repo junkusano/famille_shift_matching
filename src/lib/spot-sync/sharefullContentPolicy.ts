@@ -1,8 +1,8 @@
-export type SharefullContentPolicyStatus = "clean" | "transformed" | "blocked";
+export type SharefullContentPolicyStatus = "clean" | "transformed" | "flagged" | "blocked";
 
 export type SharefullContentPolicyFinding = {
   ruleId: string;
-  action: "replace" | "block";
+  action: "replace" | "flag" | "block";
   field: string;
   matchedText: string;
   replacement?: string;
@@ -36,10 +36,23 @@ const EXACT_REPLACEMENTS = [
   },
 ] as const;
 
-const BLOCKED_PATTERNS = [
-  { ruleId: "taimee-brand", pattern: /タイミー|Timee/i },
-  { ruleId: "taimee-url", pattern: /(?:https?:\/\/)?(?:www\.)?timee\.(?:co\.jp|jp)\S*/i },
-  { ruleId: "gender-sensitive-recruiting", pattern: /女性ヘルパー|女性の利用者|女性の下着|女性限定|男性不可/ },
+const SHAREFULL_HOME_URL = "https://sharefull.com/";
+
+const SHAREFULL_REPLACEMENTS = [
+  {
+    ruleId: "taimee-url",
+    pattern: /(?:https?:\/\/)?(?:www\.)?timee\.(?:co\.jp|jp)(?:\/[^\s]*)?/gi,
+    replacement: SHAREFULL_HOME_URL,
+  },
+  {
+    ruleId: "taimee-brand",
+    pattern: /タイミー|Timee/gi,
+    replacement: "",
+  },
+] as const;
+
+const REVIEW_PATTERNS = [
+  { ruleId: "gender-sensitive-recruiting", pattern: /女性ヘルパー|女性の利用者|女性の下着|女性限定|男性不可/g },
 ] as const;
 
 type TextSource = Record<string, unknown>;
@@ -60,6 +73,21 @@ function replaceExact(value: string, field: string, findings: SharefullContentPo
       replacement: rule.to,
     });
     next = next.split(rule.from).join(rule.to);
+  }
+  for (const rule of SHAREFULL_REPLACEMENTS) {
+    next = next.replace(rule.pattern, (match) => {
+      const replacement = rule.ruleId === "taimee-brand"
+        ? (match.toLowerCase() === "timee" ? "Sharefull" : "シェアフル")
+        : rule.replacement;
+      findings.push({
+        ruleId: rule.ruleId,
+        action: "replace",
+        field,
+        matchedText: match,
+        replacement,
+      });
+      return replacement;
+    });
   }
   return next;
 }
@@ -100,16 +128,18 @@ export function applySharefullContentPolicy<T extends TextSource>(source: T): {
   }
 
   for (const { field, value } of collectPublicText(data)) {
-    for (const rule of BLOCKED_PATTERNS) {
-      const match = value.match(rule.pattern);
-      if (!match) continue;
-      findings.push({ ruleId: rule.ruleId, action: "block", field, matchedText: match[0] });
+    for (const rule of REVIEW_PATTERNS) {
+      for (const match of value.matchAll(rule.pattern)) {
+        findings.push({ ruleId: rule.ruleId, action: "flag", field, matchedText: match[0] });
+      }
     }
   }
 
   const status: SharefullContentPolicyStatus = findings.some((finding) => finding.action === "block")
     ? "blocked"
-    : findings.length > 0
+    : findings.some((finding) => finding.action === "flag")
+      ? "flagged"
+      : findings.length > 0
       ? "transformed"
       : "clean";
 

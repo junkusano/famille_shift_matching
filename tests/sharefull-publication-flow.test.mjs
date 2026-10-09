@@ -144,31 +144,33 @@ test("同じ案件の既存掲載ジョブがある場合は再登録しない",
   assert.equal(insertedJobs.length, 0);
 });
 
-test("テスト環境では公開前検査で要確認文言を含む案件掲載ジョブを登録しない", async () => {
+test("テスト環境では要確認文言を記録しつつ案件掲載ジョブを登録する", async () => {
   const { publisher, insertedJobs, policyBlocks } = loadPublisher({
     env: baseEnv,
     template: {
       core_id: "core-1",
       kaipoke_cs_id: "12782561",
-      sharefull_template_id: null,
-      sharefull_template_status: null,
+      sharefull_template_id: "template-1",
+      sharefull_template_status: "ready_for_offer",
       template_title: "女性ヘルパー活躍中",
       work_description: "女性の下着の洗濯等あるため応募には考慮お願いします。",
     },
-    requests: [{ id: "request-1", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 42, shift_start_date: "2099-01-02", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: "taimee-1", sharefull_job_id: null, sharefull_status: "template_review", recruitment_revision: 3 }],
+    requests: [{ id: "request-1", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 42, shift_start_date: "2099-01-02", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: "taimee-1", sharefull_job_id: null, sharefull_status: "ready_for_offer", recruitment_revision: 3 }],
+    shifts: [{ shift_id: 42, required_staff_count: 1 }],
   });
 
   const result = await publisher.enqueueSharefullPublicationJobsForTemplate("core-1", "test");
 
-  assert.equal(result.registeredCount, 0);
-  assert.equal(insertedJobs.length, 0);
-  assert.equal(result.contentPolicy.status, "blocked");
+  assert.equal(result.registeredCount, 1);
+  assert.equal(insertedJobs.length, 1);
+  assert.equal(insertedJobs[0].job_type, "sharefull.create_spot_offer");
   assert.equal(policyBlocks.length, 1);
   assert.equal(policyBlocks[0].coreId, "core-1");
+  assert.equal(policyBlocks[0].report.status, "flagged");
   assert.equal(policyBlocks[0].report.findings[0].ruleId, "gender-sensitive-recruiting");
 });
 
-test("本番環境でも公開前検査は案件掲載を止め、停止理由を記録対象へ渡す", async () => {
+test("本番環境でも要確認文言を記録し、案件掲載を継続する", async () => {
   const { publisher, insertedJobs, policyBlocks } = loadPublisher({
     env: { SHAREFULL_RPA_MODE: "production", SHAREFULL_AUTO_POST_ENABLED: "true" },
     template: {
@@ -178,12 +180,16 @@ test("本番環境でも公開前検査は案件掲載を止め、停止理由�
       sharefull_template_status: "ready_for_offer",
       work_description: "女性ヘルパー活躍中",
     },
+    requests: [{ id: "request-1", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 42, shift_start_date: "2099-01-02", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: "taimee-1", sharefull_job_id: null, sharefull_status: "ready_for_offer", recruitment_revision: 3 }],
+    shifts: [{ shift_id: 42, required_staff_count: 1 }],
   });
 
   const result = await publisher.enqueueSharefullPublicationJobsForTemplate("core-1", "cron");
 
-  assert.equal(insertedJobs.length, 0);
+  assert.equal(insertedJobs.length, 1);
+  assert.equal(insertedJobs[0].job_type, "sharefull.create_spot_offer");
   assert.equal(policyBlocks.length, 1);
   assert.equal(policyBlocks[0].coreId, "core-1");
-  assert.match(result.skipped.join(" "), /事前検査で停止/);
+  assert.equal(policyBlocks[0].report.status, "flagged");
+  assert.equal(result.registeredCount, 1);
 });
