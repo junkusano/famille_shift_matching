@@ -15,30 +15,23 @@ function timestamp(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
 }
 
-/** Return one deterministic latest template for each client ID. */
-export function latestSharefullTemplatesByClient<T extends TemplateRow>(rows: readonly T[]): T[] {
-  const latestByClient = new Map<string, T>();
+/** Return every active-scope template with usable identity fields in deterministic order. */
+export function activeSharefullTemplates<T extends TemplateRow>(rows: readonly T[]): T[] {
+  return rows
+    .filter((row) => text(row.kaipoke_cs_id) && text(row.core_id))
+    .slice()
+    .sort((a, b) => {
+      const clientOrder = text(a.kaipoke_cs_id).localeCompare(text(b.kaipoke_cs_id));
+      if (clientOrder !== 0) return clientOrder;
 
-  for (const row of rows) {
-    const clientId = text(row.kaipoke_cs_id);
-    const coreId = text(row.core_id);
-    if (!clientId || !coreId) continue;
+      const updatedA = timestamp(a.updated_at);
+      const updatedB = timestamp(b.updated_at);
+      if (updatedA !== updatedB) return updatedB > updatedA ? 1 : -1;
 
-    const current = latestByClient.get(clientId);
-    if (!current) {
-      latestByClient.set(clientId, row);
-      continue;
-    }
+      const createdA = timestamp(a.created_at);
+      const createdB = timestamp(b.created_at);
+      if (createdA !== createdB) return createdB > createdA ? 1 : -1;
 
-    const rowUpdated = timestamp(row.updated_at);
-    const currentUpdated = timestamp(current.updated_at);
-    const rowCreated = timestamp(row.created_at);
-    const currentCreated = timestamp(current.created_at);
-    const isNewer = rowUpdated > currentUpdated
-      || (rowUpdated === currentUpdated && rowCreated > currentCreated)
-      || (rowUpdated === currentUpdated && rowCreated === currentCreated && coreId > text(current.core_id));
-    if (isNewer) latestByClient.set(clientId, row);
-  }
-
-  return [...latestByClient.values()].sort((a, b) => text(a.kaipoke_cs_id).localeCompare(text(b.kaipoke_cs_id)));
+      return text(b.core_id).localeCompare(text(a.core_id));
+    });
 }
