@@ -36,7 +36,7 @@ GASはGmailを最大1分間隔で確認する。実際の掲載停止はタイ�
 | `TAIMEE_CONFIRMATION_GMAIL_QUERY` | タイミーの個別マッチング通知に絞るGmail検索式。例: `from:supporter@timee.co.jp subject:マッチング newer_than:14d` |
 | `TAIMEE_CONFIRMATION_FROM_EMAIL` | `supporter@timee.co.jp`（完全一致で照合） |
 
-保存後、`installSpotOfferConfirmationTriggers` を一度実行し、Gmail・外部通信・トリガーの権限を承認する。設定した検索式で対象メールが検索できることを先に手動確認する。
+保存後、`installSpotOfferConfirmationTriggers` を一度実行し、Gmail・外部通信・トリガーの権限を承認する。この実行時刻を `SPOT_OFFER_CONFIRMATION_ACTIVATED_AT` に保存し、その時刻以前のメールは停止APIへ送らず、処理済みとして除外する。検索式が過去メールに一致しても遡って案件停止しない。トリガーを再インストールしても最初の有効化時刻は維持される。
 
 初回実行時に処理済みメール用のGmailラベル `MYFAMILLE_SHAREFULL_CONFIRMATION_PROCESSED` と `MYFAMILLE_TAIMEE_CONFIRMATION_PROCESSED` を自動作成する。正常に処理したスレッドは次回以降の検索から除外し、APIエラーのスレッドはラベルを付けず次回トリガーで再試行する。
 
