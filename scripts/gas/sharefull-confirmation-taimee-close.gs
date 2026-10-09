@@ -22,10 +22,15 @@ function processSharefullConfirmationsForTaimeeClose() {
 function processSharefullConfirmationsForTaimeeCloseLocked_() {
   var config = readSharefullCloseConfig_();
   var processed = sharefullCloseProcessedIds_();
+  var label = confirmationProcessedLabel_("MYFAMILLE_SHAREFULL_CONFIRMATION_PROCESSED");
 
-  for (var start = 0; ; start += 100) {
-    var threads = GmailApp.search(config.gmailQuery, start, 100);
+  for (;;) {
+    // 処理済みスレッドを検索対象から外し、先頭から確実に読み進める。
+    var threads = GmailApp.search(config.gmailQuery + " -label:" + label.getName(), 0, 100);
+    if (!threads.length) break;
+    var failed = false;
     threads.forEach(function(thread) {
+      var threadSucceeded = true;
       thread.getMessages().forEach(function(message) {
         var messageId = message.getId();
         if (processed[messageId]) return;
@@ -45,14 +50,18 @@ function processSharefullConfirmationsForTaimeeCloseLocked_() {
         try { result = JSON.parse(response.getContentText() || "{}"); } catch (e) { result = {}; }
         if (code < 200 || code >= 300 || !result.ok) {
           console.warn("Sharefull確定通知の処理に失敗しました。HTTP " + code);
+          threadSucceeded = false;
           return;
         }
 
         processed[messageId] = true;
         saveSharefullCloseProcessedIds_(processed);
       });
+      if (threadSucceeded) thread.addLabel(label);
+      else failed = true;
     });
-    if (threads.length < 100) break;
+    // 失敗メールを残して次回トリガーで再試行する。
+    if (failed) break;
   }
 }
 
@@ -130,6 +139,10 @@ function sharefullCloseRequired_(props, key) {
   return value.trim();
 }
 
+function confirmationProcessedLabel_(name) {
+  return GmailApp.getUserLabelByName(name) || GmailApp.createLabel(name);
+}
+
 function sharefullCloseCapture_(text, pattern) {
   var match = pattern.exec(text);
   return match ? match[1].trim() : "";
@@ -148,7 +161,7 @@ function saveSharefullCloseProcessedIds_(processed) {
   var ids = Object.keys(processed);
   PropertiesService.getScriptProperties().setProperty(
     "SHAREFULL_CONFIRMATION_PROCESSED_MESSAGE_IDS",
-    JSON.stringify(ids.slice(-1000))
+    JSON.stringify(ids.slice(-100))
   );
 }
 
@@ -166,10 +179,15 @@ function processTaimeeConfirmationsForSharefullClose() {
 function processTaimeeConfirmationsForSharefullCloseLocked_() {
   var config = readTaimeeCloseConfig_();
   var processed = taimeeCloseProcessedIds_();
+  var label = confirmationProcessedLabel_("MYFAMILLE_TAIMEE_CONFIRMATION_PROCESSED");
 
-  for (var start = 0; ; start += 100) {
-    var threads = GmailApp.search(config.gmailQuery, start, 100);
+  for (;;) {
+    // 処理済みスレッドを検索対象から外し、先頭から確実に読み進める。
+    var threads = GmailApp.search(config.gmailQuery + " -label:" + label.getName(), 0, 100);
+    if (!threads.length) break;
+    var failed = false;
     threads.forEach(function(thread) {
+      var threadSucceeded = true;
       thread.getMessages().forEach(function(message) {
         var messageId = message.getId();
         if (processed[messageId]) return;
@@ -189,14 +207,18 @@ function processTaimeeConfirmationsForSharefullCloseLocked_() {
         try { result = JSON.parse(response.getContentText() || "{}"); } catch (e) { result = {}; }
         if (code < 200 || code >= 300 || !result.ok) {
           console.warn("タイミーマッチング通知の処理に失敗しました。HTTP " + code);
+          threadSucceeded = false;
           return;
         }
 
         processed[messageId] = true;
         saveTaimeeCloseProcessedIds_(processed);
       });
+      if (threadSucceeded) thread.addLabel(label);
+      else failed = true;
     });
-    if (threads.length < 100) break;
+    // 失敗メールを残して次回トリガーで再試行する。
+    if (failed) break;
   }
 }
 
@@ -271,6 +293,6 @@ function saveTaimeeCloseProcessedIds_(processed) {
   var ids = Object.keys(processed);
   PropertiesService.getScriptProperties().setProperty(
     "TAIMEE_CONFIRMATION_PROCESSED_MESSAGE_IDS",
-    JSON.stringify(ids.slice(-1000))
+    JSON.stringify(ids.slice(-100))
   );
 }

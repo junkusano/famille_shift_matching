@@ -45,9 +45,9 @@ test('SQL: 重複・逆順メール・他媒体キャンセル・同時応募・
  const db=new PGlite();
  try {
  await db.exec(`create role anon;create role authenticated;create role service_role;
- create table spot_offer_request_table(id uuid primary key, status text, applicant_name text,applicant_sex text,applicant_control_url text,updated_at timestamptz,created_at timestamptz,sharefull_job_id text,sharefull_status text);
+ create table spot_offer_request_table(id uuid primary key,status text,applicant_name text,applicant_sex text,applicant_control_url text,updated_at timestamptz,created_at timestamptz,sharefull_job_id text,sharefull_order_id text,sharefull_status text,sharefull_sync_error text,taimee_job_id text,applicant_source text,application_state text,application_conflict boolean,recruitment_paused boolean,recruitment_revision bigint default 0);
  create table rpa_runner_jobs(id uuid primary key,claimed_runner_id text,status text,job_type text,payload jsonb,result jsonb,completed_at timestamptz);
- create table rpa_command_requests(request_details jsonb);
+ create table rpa_command_requests(request_details jsonb,status text);
  create table dummy_shift(id uuid); create view shift_self_coordinate_card_view2 as select d.id,s.applicant_control_url from dummy_shift d left join spot_offer_request_table s on d.id=s.id;`);
  await db.exec(readFileSync(new URL('../supabase/migrations/202609080900_spot_provider_sync.sql',import.meta.url),'utf8'));
  const id='00000000-0000-4000-8000-000000000001';

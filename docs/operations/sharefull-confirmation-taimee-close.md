@@ -38,6 +38,8 @@ GASはGmailを最大1分間隔で確認する。実際の掲載停止はタイ�
 
 保存後、`installSpotOfferConfirmationTriggers` を一度実行し、Gmail・外部通信・トリガーの権限を承認する。設定した検索式で対象メールが検索できることを先に手動確認する。
 
+初回実行時に処理済みメール用のGmailラベル `MYFAMILLE_SHAREFULL_CONFIRMATION_PROCESSED` と `MYFAMILLE_TAIMEE_CONFIRMATION_PROCESSED` を自動作成する。正常に処理したスレッドは次回以降の検索から除外し、APIエラーのスレッドはラベルを付けず次回トリガーで再試行する。
+
 ## メール形式
 
 シェアフルは確定を示す語句（応募確定、採用決定、マッチング成立、候補者決定、案件確定のいずれか）と、`求人ID` / `求人番号` または `管理番号` / `URL管理番号` の値を使う。両方のIDが本文にある場合、MyFamilleに保存された値も両方一致することを確認する。
