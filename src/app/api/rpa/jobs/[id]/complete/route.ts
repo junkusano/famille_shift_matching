@@ -142,21 +142,21 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         if (!closedRequest) return NextResponse.json({ ok: false, error: 'Sharefull対象案件のID照合に失敗しました' }, { status: 409 });
       }
     }
-    const { data, error } = await supabaseAdmin
-      .from('rpa_runner_jobs')
-      .update({ status: 'completed', result: body.result, completed_at: new Date().toISOString() })
-      .eq('id', id).eq('claimed_runner_id', runner.runnerId).eq('status', 'claimed')
-      .select('id, job_type, payload').maybeSingle();
-    if (error) return NextResponse.json({ ok: false, error: 'Job completion failed' }, { status: 500 });
-    if (!data) return NextResponse.json({ ok: false, error: 'Job is not claimable by this runner' }, { status: 409 });
-    if (data.job_type === 'sharefull.create_spot_offer') {
-      const payload = isRecord(data.payload) ? data.payload : {};
-      const result = isRecord(body.result) ? body.result : {};
+    // Persist the external listing identity before marking the queue job
+    // completed. If the job update succeeds first and this write fails, the
+    // next cron sees a completed job but an unlisted request and can never
+    // safely determine whether Sharefull accepted the publication.
+    if (claimedJob?.job_type === 'sharefull.create_spot_offer' && isRecord(claimedJob.payload)) {
+      const payload = claimedJob.payload;
+      const result = body.result;
       const requestId = typeof payload.spot_offer_request_id === 'string' ? payload.spot_offer_request_id.trim() : '';
       const sharefullJobId = typeof result.sharefull_job_id === 'string' ? result.sharefull_job_id.trim() : '';
       const sharefullOrderId = typeof result.sharefull_order_id === 'string' ? result.sharefull_order_id.trim() : '';
-      if (requestId && sharefullJobId) {
-        const { error: sharefullUpdateError } = await supabaseAdmin
+      if (payload.execution_mode === 'publish' && (!requestId || !/^[1-9]\d*$/.test(sharefullJobId))) {
+        return NextResponse.json({ ok: false, error: 'Sharefull掲載IDを確認できないため完了扱いにできません' }, { status: 409 });
+      }
+      if (payload.execution_mode === 'publish') {
+        const { data: saved, error: saveError } = await supabaseAdmin
           .from(sharefullRequestTableName() as never)
           .update({
             sharefull_job_id: sharefullJobId,
@@ -165,10 +165,30 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
             sharefull_sync_error: sharefullOrderId ? null : 'URL管理番号が未取得です',
           })
           .eq('id', requestId)
-          .is('sharefull_job_id', null);
-        if (sharefullUpdateError) return NextResponse.json({ ok: false, error: 'Sharefull案件IDの保存に失敗しました' }, { status: 500 });
+          .is('sharefull_job_id', null)
+          .select('id')
+          .maybeSingle();
+        if (saveError) return NextResponse.json({ ok: false, error: 'Sharefull案件IDの保存に失敗しました' }, { status: 500 });
+        if (!saved) {
+          const { data: current, error: lookupError } = await supabaseAdmin
+            .from(sharefullRequestTableName() as never)
+            .select('sharefull_job_id')
+            .eq('id', requestId)
+            .maybeSingle();
+          const currentRecord: unknown = current;
+          if (lookupError || !isRecord(currentRecord) || currentRecord.sharefull_job_id !== sharefullJobId) {
+            return NextResponse.json({ ok: false, error: 'Sharefull掲載IDと案件の照合に失敗しました' }, { status: 409 });
+          }
+        }
       }
     }
+    const { data, error } = await supabaseAdmin
+      .from('rpa_runner_jobs')
+      .update({ status: 'completed', result: body.result, completed_at: new Date().toISOString() })
+      .eq('id', id).eq('claimed_runner_id', runner.runnerId).eq('status', 'claimed')
+      .select('id, job_type, payload').maybeSingle();
+    if (error) return NextResponse.json({ ok: false, error: 'Job completion failed' }, { status: 500 });
+    if (!data) return NextResponse.json({ ok: false, error: 'Job is not claimable by this runner' }, { status: 409 });
     await resolveRpaFailureAlerts(runner.runnerId, data.job_type);
     return NextResponse.json({ ok: true });
   } catch (error) {

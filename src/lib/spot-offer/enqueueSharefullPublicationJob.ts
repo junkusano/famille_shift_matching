@@ -2,7 +2,7 @@ import { providerSyncEnabled, validateSharefullSyncJob } from '@/lib/spot-sync/r
 import { canRecruit } from '@/lib/spot-sync/policy';
 import { isSharefullSyncClient, sharefullRequestTableName, sharefullRpaMode, sharefullSyncClientIds, sharefullSyncScopeLabel, sharefullTargetRunnerId, sharefullTemplateTableName } from '@/lib/spot-sync/sharefullScope';
 import { supabaseAdmin } from "@/lib/supabase/service";
-import { isDuplicateSharefullPublicationJob, SHAREFULL_PUBLICATION_DEDUPE_STATUSES } from "@/lib/spot-offer/publicationJobDedupe";
+import { SHAREFULL_PUBLICATION_DEDUPE_STATUSES } from "@/lib/spot-offer/publicationJobDedupe";
 import { applySharefullContentPolicy } from "@/lib/spot-sync/sharefullContentPolicy";
 import { recordSharefullContentPolicyBlock } from "@/lib/spot-sync/sharefullContentPolicyAlert";
 import { activeSharefullTemplates } from "@/lib/spot-offer/latestSharefullTemplates";
@@ -11,6 +11,12 @@ const JOB_TYPE = "sharefull.create_spot_offer";
 const TEMPLATE_JOB_TYPE = "sharefull.create_template";
 const TEMPLATE_JOB_RETRY_COOLDOWN_MS = 60 * 60 * 1000;
 const TEMPLATE_JOB_MAX_ATTEMPTS = 3;
+const PUBLICATION_RETRY_COOLDOWN_MS = 5 * 60 * 1000;
+const PUBLICATION_MAX_ATTEMPTS = 3;
+// These failures are recorded before a Sharefull page action can start. Other
+// failures may have happened after the publish button was clicked, so retrying
+// them automatically could create a duplicate listing.
+const SAFE_PUBLICATION_RETRY_CATEGORIES = new Set(["CONFIGURATION", "LOGIN_REQUIRED"]);
 
 type JsonRecord = Record<string, unknown>;
 
@@ -262,11 +268,19 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
     .is("sharefull_job_id", null)
     .or("sharefull_status.is.null,sharefull_status.in.(template_review,ready_for_offer)")
     .order("shift_start_date", { ascending: true })
-    .order("shift_start_time", { ascending: true });
+    .order("shift_start_time", { ascending: true })
+    .order("id", { ascending: true });
   const scopeClientIds = sharefullSyncClientIds();
   if (scopeClientIds !== null) requestQuery = requestQuery.in("kaipoke_cs_id", scopeClientIds);
-  const { data: requests, error: requestError } = await requestQuery;
-  if (requestError) throw requestError;
+  const requests: JsonRecord[] = [];
+  const requestPageSize = 500;
+  for (let offset = 0; ; offset += requestPageSize) {
+    const { data, error } = await requestQuery.range(offset, offset + requestPageSize - 1);
+    if (error) throw error;
+    const page = (data ?? []) as unknown as JsonRecord[];
+    requests.push(...page);
+    if (page.length < requestPageSize) break;
+  }
 
   const shiftIds = (requests ?? [])
     .map((row) => row.shift_id)
@@ -279,13 +293,22 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
     (shifts ?? []).map((shift) => [shift.shift_id, shift.required_staff_count]),
   );
 
-  const { data: existing, error: existingError } = await supabaseAdmin
-    .from("rpa_runner_jobs")
-    .select("payload,status")
-    .eq("job_type", JOB_TYPE)
-    .in("status", [...SHAREFULL_PUBLICATION_DEDUPE_STATUSES])
-    .limit(5000);
-  if (existingError) throw existingError;
+  const existing: Array<{ payload: Record<string, unknown> | null; status: string; error_category: string | null; error_code: string | null; failed_at: string | null }> = [];
+  const jobPageSize = 500;
+  for (let offset = 0; ; offset += jobPageSize) {
+    const { data, error } = await supabaseAdmin
+      .from("rpa_runner_jobs")
+      .select("payload,status,error_category,error_code,failed_at")
+      .eq("job_type", JOB_TYPE)
+      .in("status", [...SHAREFULL_PUBLICATION_DEDUPE_STATUSES])
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(offset, offset + jobPageSize - 1);
+    if (error) throw error;
+    const page = (data ?? []) as typeof existing;
+    existing.push(...page);
+    if (page.length < jobPageSize) break;
+  }
 
   const mode = executionMode();
   let registeredCount = 0;
@@ -295,17 +318,40 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
   for (const row of requests ?? []) {
     const shiftId = text(row.shift_id);
     if (!shiftId) continue;
-    const operationKey = `sharefull:create_spot_offer:${mode}:${shiftId}:${row.recruitment_revision ?? 0}`;
+    const baseOperationKey = `sharefull:create_spot_offer:${mode}:${shiftId}:${row.recruitment_revision ?? 0}`;
     if (!canRecruit(row)) continue;
-    if (isDuplicateSharefullPublicationJob(
-      (existing ?? []) as { status: string; payload: Record<string, unknown> | null }[],
-      operationKey,
-      text(row.id),
-    )) {
+    const requestJobs = existing.filter((job) => text(job.payload?.spot_offer_request_id) === text(row.id));
+    const sameOperationJobs = requestJobs.filter((job) => {
+      const key = text(job.payload?.operation_key);
+      return key === baseOperationKey || key.startsWith(`${baseOperationKey}:retry:`);
+    });
+    const activeOrCompleted = sameOperationJobs.some((job) => ["pending", "claimed", "completed"].includes(job.status));
+    const failedJobs = sameOperationJobs.filter((job) => job.status === "failed");
+    const cancelledJobs = sameOperationJobs.filter((job) => job.status === "cancelled");
+    const latestFailure = failedJobs.sort((a, b) => Date.parse(text(b.failed_at)) - Date.parse(text(a.failed_at)))[0];
+    const latestFailureKey = text(latestFailure?.payload?.operation_key);
+    const retryIndex = /:retry:(\d+)$/.exec(latestFailureKey);
+    const attemptCount = latestFailure ? (retryIndex ? Number(retryIndex[1]) + 1 : 1) : 0;
+    const failedAt = Date.parse(text(latestFailure?.failed_at));
+    const safeToRetry = Boolean(latestFailure
+      && SAFE_PUBLICATION_RETRY_CATEGORIES.has(text(latestFailure.error_category).toUpperCase())
+      && attemptCount < PUBLICATION_MAX_ATTEMPTS
+      && Number.isFinite(failedAt)
+      && Date.now() - failedAt >= PUBLICATION_RETRY_COOLDOWN_MS);
+    const hasUnsafeFailure = failedJobs.some((job) => !SAFE_PUBLICATION_RETRY_CATEGORIES.has(text(job.error_category).toUpperCase()));
+    const retryBlocked = failedJobs.length > 0 && !safeToRetry
+      || hasUnsafeFailure
+      || (cancelledJobs.length > 0 && failedJobs.length === 0);
+    if (activeOrCompleted || retryBlocked) {
       duplicateJobCount += 1;
-      skipped.push(`${shiftId}:同じジョブが登録済みです`);
+      skipped.push(`${shiftId}:${hasUnsafeFailure ? "掲載結果の照合が必要な失敗ジョブがあります" : "同じジョブが登録済み、または再試行待ちです"}`);
       continue;
     }
+    const operationKey = safeToRetry
+      ? `${baseOperationKey}:retry:${attemptCount}`
+      : cancelledJobs.length > 0
+        ? `${baseOperationKey}:retry:${cancelledJobs.length}`
+        : baseOperationKey;
 
     const payload = {
       action: "create_sharefull_job",
@@ -335,7 +381,7 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
       .from(sharefullRequestTableName() as never)
       .update({ sharefull_status: "ready_for_offer", updated_at: new Date().toISOString() })
       .eq("id", row.id)
-      .eq("sharefull_status", "template_review")
+      .in("sharefull_status", ["template_review", "ready_for_offer"])
       .is("sharefull_job_id", null);
     if (statusError) throw statusError;
     registeredCount += 1;
@@ -366,7 +412,7 @@ export async function enqueueSharefullPublicationJobsForReadyTemplates(source: s
   const today = todayInJst();
   let query = supabaseAdmin
     .from(sharefullRequestTableName() as never)
-    .select("core_id, kaipoke_cs_id")
+    .select("id, core_id, kaipoke_cs_id")
     .eq("status", "募集中")
     .gte("shift_start_date", today)
     .not("taimee_job_id", "is", null)
@@ -374,10 +420,18 @@ export async function enqueueSharefullPublicationJobsForReadyTemplates(source: s
     .or("sharefull_status.is.null,sharefull_status.in.(template_review,ready_for_offer)");
   const scopeClientIds = sharefullSyncClientIds();
   if (scopeClientIds !== null) query = query.in("kaipoke_cs_id", scopeClientIds);
-  const { data: rows, error } = await query;
-  if (error) throw error;
+  const rows: Array<{ id: string; core_id: string | null; kaipoke_cs_id: string | null }> = [];
+  query = query.order("id", { ascending: true });
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await query.range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
 
-  const coreIds = Array.from(new Set((rows ?? []).map((row) => text(row.core_id)).filter(Boolean)));
+  const coreIds = Array.from(new Set(rows.map((row) => text(row.core_id)).filter(Boolean)));
   let registeredCount = 0;
   const skipped: string[] = [];
   const coreResults: ReconciliationDiagnostic[] = [];

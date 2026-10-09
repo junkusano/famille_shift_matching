@@ -18,7 +18,7 @@ function loadPublisher({ env = {}, template = null, requests = [], shifts = [], 
     .replace(/export function/g, "function");
 
   function query(table) {
-    const state = { table, operation: "select", values: null };
+    const state = { table, operation: "select", values: null, from: 0, to: Number.POSITIVE_INFINITY };
     const builder = {
       select() { state.operation = "select"; return builder; },
       eq() { return builder; },
@@ -29,6 +29,7 @@ function loadPublisher({ env = {}, template = null, requests = [], shifts = [], 
       is() { return builder; },
       or() { return builder; },
       order() { return builder; },
+      range(from, to) { state.from = from; state.to = to; return builder; },
       maybeSingle() {
         return Promise.resolve({ data: template, error: null });
       },
@@ -45,9 +46,9 @@ function loadPublisher({ env = {}, template = null, requests = [], shifts = [], 
       },
       then(resolve, reject) {
         if (state.operation === "update") return Promise.resolve({ error: null }).then(resolve, reject);
-        if (table === "rpa_runner_jobs") return Promise.resolve({ data: existingJobs, error: null }).then(resolve, reject);
-        if (table === "shift") return Promise.resolve({ data: shifts, error: null }).then(resolve, reject);
-        if (table.includes("request_table")) return Promise.resolve({ data: requests, error: null }).then(resolve, reject);
+        if (table === "rpa_runner_jobs") return Promise.resolve({ data: existingJobs.slice(state.from, state.to + 1), error: null }).then(resolve, reject);
+        if (table === "shift") return Promise.resolve({ data: shifts.slice(state.from, state.to + 1), error: null }).then(resolve, reject);
+        if (table.includes("request_table")) return Promise.resolve({ data: requests.slice(state.from, state.to + 1), error: null }).then(resolve, reject);
         return Promise.resolve({ data: [], error: null }).then(resolve, reject);
       },
     };
@@ -70,9 +71,6 @@ function loadPublisher({ env = {}, template = null, requests = [], shifts = [], 
     sharefullSyncScopeLabel: () => env.SHAREFULL_RPA_MODE === "test" ? "test" : "production",
     sharefullTargetRunnerId: () => env.SHAREFULL_RPA_MODE === "test" ? "sharefull-test-runner" : null,
     SHAREFULL_PUBLICATION_DEDUPE_STATUSES: ["pending", "claimed", "completed", "failed", "cancelled"],
-    isDuplicateSharefullPublicationJob: (jobs, operationKey, requestId) => jobs.some((job) =>
-      ["pending", "claimed", "completed", "failed", "cancelled"].includes(job.status) &&
-      (job.payload?.operation_key === operationKey || job.payload?.spot_offer_request_id === requestId)),
     recordSharefullContentPolicyBlock: async (input) => {
       policyBlocks.push(input);
       return { recorded: true, notified: true };
@@ -134,7 +132,7 @@ test("同じ案件の既存掲載ジョブがある場合は再登録しない",
     env: baseEnv,
     template: { core_id: "core-1", kaipoke_cs_id: "12782561", sharefull_template_id: "template-1", sharefull_template_status: "ready_for_offer" },
     requests: [{ id: "request-1", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 42, shift_start_date: "2099-01-02", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: "taimee-1", sharefull_job_id: null, sharefull_status: "template_review", recruitment_revision: 3 }],
-    existingJobs: [{ status: "failed", payload: { operation_key: "old-key", spot_offer_request_id: "request-1" } }],
+    existingJobs: [{ status: "failed", error_category: "PAGE_AUTOMATION", payload: { operation_key: "sharefull:create_spot_offer:save:42:3", spot_offer_request_id: "request-1" } }],
   });
 
   const result = await publisher.enqueueSharefullPublicationJobsForTemplate("core-1", "test");
@@ -142,6 +140,50 @@ test("同じ案件の既存掲載ジョブがある場合は再登録しない",
   assert.equal(result.registeredCount, 0);
   assert.equal(result.diagnostic.duplicate_job_count, 1);
   assert.equal(insertedJobs.length, 0);
+});
+
+test("掲載前の設定・ログイン失敗は時間経過後に上限3回まで再試行する", async () => {
+  const { publisher, insertedJobs } = loadPublisher({
+    env: baseEnv,
+    template: { core_id: "core-1", kaipoke_cs_id: "12782561", sharefull_template_id: "template-1", sharefull_template_status: "ready_for_offer" },
+    requests: [{ id: "request-1", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 42, shift_start_date: "2099-01-02", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: "taimee-1", sharefull_job_id: null, sharefull_status: "ready_for_offer", recruitment_revision: 3 }],
+    existingJobs: [{ status: "failed", error_category: "CONFIGURATION", failed_at: "2000-01-01T00:00:00.000Z", payload: { operation_key: "sharefull:create_spot_offer:save:42:3", spot_offer_request_id: "request-1" } }],
+  });
+
+  const result = await publisher.enqueueSharefullPublicationJobsForTemplate("core-1", "cron");
+
+  assert.equal(result.registeredCount, 1);
+  assert.equal(insertedJobs[0].payload.operation_key, "sharefull:create_spot_offer:save:42:3:retry:1");
+});
+
+test("500件を超える掲載候補も複数ページからすべてキューへ登録する", async () => {
+  const requests = Array.from({ length: 501 }, (_, index) => ({
+    id: `request-${index}`,
+    core_id: "core-1",
+    kaipoke_cs_id: "12782561",
+    shift_id: index + 1,
+    shift_start_date: "2099-01-02",
+    shift_start_time: "09:00",
+    shift_end_time: "10:00",
+    unit_amount: 1226,
+    commute_fee: 0,
+    status: "募集中",
+    taimee_job_id: `taimee-${index}`,
+    sharefull_job_id: null,
+    sharefull_status: "ready_for_offer",
+    recruitment_revision: 0,
+  }));
+  const { publisher, insertedJobs } = loadPublisher({
+    env: baseEnv,
+    template: { core_id: "core-1", kaipoke_cs_id: "12782561", sharefull_template_id: "template-1", sharefull_template_status: "ready_for_offer" },
+    requests,
+    shifts: requests.map((row) => ({ shift_id: row.shift_id, required_staff_count: 1 })),
+  });
+
+  const result = await publisher.enqueueSharefullPublicationJobsForTemplate("core-1", "cron");
+
+  assert.equal(result.registeredCount, 501);
+  assert.equal(insertedJobs.length, 501);
 });
 
 test("テスト環境では要確認文言を記録しつつ案件掲載ジョブを登録する", async () => {
