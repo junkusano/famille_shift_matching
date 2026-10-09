@@ -231,10 +231,15 @@ function parseTaimeeConfirmationMail_(message, expectedSender) {
   var subject = message.getSubject();
   var body = message.getPlainBody();
   var fullText = subject + "\n" + body;
-  if (!/マッチング/.test(fullText)) return null;
+  // Daily matching-status summaries and chat notices also mention matching.
+  // Only accept the individual worker-confirmation notification.
+  if (!/ワーカーが\s*\d+名マッチングしました/.test(fullText)) return null;
 
   var taimeeJobId = taimeeCloseCapture_(fullText, /(?:求人ID|求人番号|募集ID|募集番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   var title = taimeeCloseCapture_(fullText, /(?:業務タイトル|求人タイトル|仕事タイトル)\s*[：:]?\s*([^\n\r]+)/i);
+  var titleJobId = /@([0-9]{4,})@/.exec(title);
+  if (!taimeeJobId && titleJobId) taimeeJobId = titleJobId[1];
+  if (titleJobId) title = title.replace(/\s*@([0-9]{4,})@\s*/g, " ").trim();
   var workStart = parseTaimeeWorkStart_(fullText);
   if (!taimeeJobId && (!title || !workStart)) return null;
 
@@ -250,7 +255,7 @@ function parseTaimeeConfirmationMail_(message, expectedSender) {
 }
 
 function parseTaimeeWorkStart_(text) {
-  var scheduleLine = /(?:就業日時|勤務日時|就業時間|勤務時間)\s*[：:]?\s*([^\n\r]+)/.exec(text);
+  var scheduleLine = /(?:就業日時|勤務日時|就業時間|勤務時間|日時)\s*[：:]?\s*([^\n\r]+)/.exec(text);
   if (!scheduleLine) return null;
   var dateMatch = /(20\d{2})[年\/-](\d{1,2})[月\/-](\d{1,2})日?/.exec(scheduleLine[1]);
   var timeMatch = /(\d{1,2}):(\d{2})/.exec(scheduleLine[1]);

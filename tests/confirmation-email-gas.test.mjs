@@ -21,7 +21,7 @@ test('タイミーのマッチング通知を求人IDと勤務情報から識別
   const parsed = context.parseTaimeeConfirmationMail_(message({
     from: 'タイミー <supporter@timee.co.jp>',
     subject: 'マッチングのお知らせ',
-    body: '求人ID：123456\n業務タイトル：介護スタッフ\n就業日時：2026年10月10日 09:30～17:30',
+    body: 'ワーカーが1名マッチングしましたので、お知らせいたします。\n◆業務タイトル\n介護スタッフ@123456@\n◆日時\n2026年10月10日 09:30～17:30',
   }), 'supporter@timee.co.jp');
 
   assert.equal(parsed.taimee_job_id, '123456');
@@ -35,7 +35,7 @@ test('タイミー求人IDが無いときはタイトルと日時が揃わなけ
   const valid = context.parseTaimeeConfirmationMail_(message({
     from: 'supporter@timee.co.jp',
     subject: 'マッチングのお知らせ',
-    body: '求人タイトル：介護スタッフ\n勤務日時：2026/10/10 9:30～17:30',
+    body: 'ワーカーが1名マッチングしましたので、お知らせいたします。\n◆求人タイトル\n介護スタッフ\n◆日時\n2026/10/10 9:30～17:30',
   }), 'supporter@timee.co.jp');
   assert.equal(valid.taimee_job_id, undefined);
   assert.equal(valid.shift_start_date, '2026-10-10');
@@ -44,7 +44,7 @@ test('タイミー求人IDが無いときはタイトルと日時が揃わなけ
   const incomplete = context.parseTaimeeConfirmationMail_(message({
     from: 'supporter@timee.co.jp',
     subject: 'マッチングのお知らせ',
-    body: '求人タイトル：介護スタッフ',
+    body: 'ワーカーが1名マッチングしましたので、お知らせいたします。\n◆求人タイトル\n介護スタッフ',
   }), 'supporter@timee.co.jp');
   assert.equal(incomplete, null);
 });
@@ -54,6 +54,15 @@ test('送信元が一致しない確定メールは無視する', () => {
     from: 'attacker@example.com',
     subject: 'マッチングのお知らせ',
     body: '求人ID：123456',
+  }), 'supporter@timee.co.jp');
+  assert.equal(parsed, null);
+});
+
+test('マッチング状況の定期通知は個別確定メールとして扱わない', () => {
+  const parsed = context.parseTaimeeConfirmationMail_(message({
+    from: 'supporter@timee.co.jp',
+    subject: 'マッチング状況のお知らせ',
+    body: '本日のマッチング状況です。求人タイトル：介護スタッフ\n日時：2026年10月10日 09:30',
   }), 'supporter@timee.co.jp');
   assert.equal(parsed, null);
 });

@@ -33,7 +33,7 @@ GASはGmailを最大1分間隔で確認する。実際の掲載停止はタイ�
 | `SHAREFULL_CONFIRMATION_GMAIL_QUERY` | シェアフルの送信元を絞るGmail検索式。例: `from:(sharefull) newer_than:14d` |
 | `SHAREFULL_CONFIRMATION_FROM_EMAIL` | 確定通知メールの送信元アドレス（完全一致で照合） |
 | `TAIMEE_CONFIRMATION_GAS_TOKEN` | Vercelの同名環境変数と同じ秘密値 |
-| `TAIMEE_CONFIRMATION_GMAIL_QUERY` | タイミーのマッチング通知だけを返すGmail検索式。例: `from:supporter@timee.co.jp newer_than:14d` |
+| `TAIMEE_CONFIRMATION_GMAIL_QUERY` | タイミーの個別マッチング通知に絞るGmail検索式。例: `from:supporter@timee.co.jp subject:マッチング newer_than:14d` |
 | `TAIMEE_CONFIRMATION_FROM_EMAIL` | `supporter@timee.co.jp`（完全一致で照合） |
 
 保存後、`installSpotOfferConfirmationTriggers` を一度実行し、Gmail・外部通信・トリガーの権限を承認する。設定した検索式で対象メールが検索できることを先に手動確認する。
@@ -44,7 +44,7 @@ GASはGmailを最大1分間隔で確認する。実際の掲載停止はタイ�
 
 シェアフルは確定を示す語句（応募確定、採用決定、マッチング成立、候補者決定、案件確定のいずれか）と、`求人ID` / `求人番号` または `管理番号` / `URL管理番号` の値を使う。両方のIDが本文にある場合、MyFamilleに保存された値も両方一致することを確認する。
 
-タイミー公式ヘルプによると、マッチング通知には就業日時・業務タイトル・求人状況などが含まれ、通知元として `supporter@timee.co.jp` が案内されている。GASは件名・本文に「マッチング」を含み、求人IDがあればそれを優先する。求人IDがない場合は、`業務タイトル` / `求人タイトル` / `仕事タイトル` と勤務日時を読み取り、タイトル・日付・開始時刻の完全一致で案件を一意に照合する。実メールでの項目ラベルと日時書式は初回運用前に確認する。
+タイミーの実メールでは通知元 `supporter@timee.co.jp`、個別確定本文の「ワーカーがN名マッチングしました」、`◆業務タイトル`、`◆日時` が確認できた。求人IDは業務タイトル末尾の `@数字@` から抽出する。IDがない場合は業務タイトルと日時で照合し、タイトル・日付・開始時刻がすべて一致した案件だけを一意に選ぶ。マッチング状況の日次通知は個別確定通知と異なるため処理しない。
 
 メールの実際の送信元、件名・本文書式に合わせ、GASの検索式と抽出語句を運用開始前に確認する。Gmail検索結果のスレッド内に別送信者のメールがあっても、送信元アドレスの完全一致を通過したメッセージだけを処理する。
 
