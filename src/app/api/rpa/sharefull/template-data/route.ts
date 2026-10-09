@@ -25,24 +25,26 @@ export async function GET(request: NextRequest) {
       sukima_koudou: String(values.sukima_koudou ?? ""), sukima_caution: String(values.sukima_caution ?? ""),
     } };
     // 自動作成・手動作成のどちらでも公開本文を同じルールで検査し、
-    // タイミー固有バナーはSharefull向けに変換してから拡張機能へ返す。
+    // タイミー関連表記はSharefull向けに変換し、要確認表現は記録して処理を続ける。
     const policy = applySharefullContentPolicy(rawData);
+    const notification = policy.report.findings.length > 0
+      ? await recordSharefullContentPolicyBlock({
+          coreId,
+          source: "rpa.sharefull.template-data",
+          templateId: typeof template.sharefull_template_id === "string" ? template.sharefull_template_id : null,
+          templateTitle: typeof template.template_title === "string" ? template.template_title : null,
+          sourceData: rawData,
+          report: policy.report,
+        })
+      : null;
     if (policy.report.status === "blocked") {
-      const notification = await recordSharefullContentPolicyBlock({
-        coreId,
-        source: "rpa.sharefull.template-data",
-        templateId: typeof template.sharefull_template_id === "string" ? template.sharefull_template_id : null,
-        templateTitle: typeof template.template_title === "string" ? template.template_title : null,
-        sourceData: rawData,
-        report: policy.report,
-      });
       return NextResponse.json({
         error: "公開本文の事前検査で停止しました",
         content_policy: policy.report,
         notification,
       }, { status: 422 });
     }
-    return NextResponse.json({ data: policy.data, content_policy: policy.report });
+    return NextResponse.json({ data: policy.data, content_policy: policy.report, audit: notification });
   } catch (error) {
     if (isRpaTaimeeError(error)) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[rpa/sharefull/template-data] failed", error);

@@ -101,9 +101,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       return NextResponse.json({ ok: true, decision_notifications: notified });
     }
     if (providerSyncEnabled() && sharefullRpaMode() !== 'test') {
-      const {data: job,error: lookupError} = await supabaseAdmin.from('rpa_runner_jobs').select('job_type').eq('id',id).eq('claimed_runner_id',runner.runnerId).maybeSingle();
-      if (lookupError) throw lookupError;
-      if (job?.job_type.startsWith('sharefull.')) {
+      // The provider-sync RPC only owns spot-offer publication/closure jobs.
+      // Template creation persists its template ID through /sharefull/template-id
+      // and must complete through the generic RPA job path below.
+      if (claimedJob?.job_type === 'sharefull.create_spot_offer' || claimedJob?.job_type === 'sharefull.close_spot_offer') {
         const {data: completed,error: completeError} = await supabaseAdmin.rpc('complete_sharefull_sync_job',{p_job_id:id,p_runner_id:runner.runnerId,p_result:body.result});
         if (completeError) return NextResponse.json({ok:false,error:'Sharefull completion failed'},{status:500});
         return NextResponse.json({ok:completed===true},{status:completed?200:409});

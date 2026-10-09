@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       .from("env_variables").select("key_name,value").eq("group_key", "sukima");
     if (envError) throw envError;
     const envValues = Object.fromEntries((envRows ?? []).map((row) => [row.key_name, row.value ?? ""]));
-    const source = {
+    const source: Record<string, unknown> = {
       ...existingRecord,
       env: {
         sukima_detail: String(envValues.sukima_detail ?? ""),
@@ -31,15 +31,17 @@ export async function POST(request: NextRequest) {
       },
     };
     const policy = applySharefullContentPolicy(source);
+    const notification = policy.report.findings.length > 0
+      ? await recordSharefullContentPolicyBlock({
+          coreId,
+          source: "rpa.sharefull.template-id",
+          templateId,
+          templateTitle: typeof source.template_title === "string" ? source.template_title : null,
+          sourceData: source,
+          report: policy.report,
+        })
+      : null;
     if (policy.report.status === "blocked") {
-      const notification = await recordSharefullContentPolicyBlock({
-        coreId,
-        source: "rpa.sharefull.template-id",
-        templateId,
-        templateTitle: typeof source.template_title === "string" ? source.template_title : null,
-        sourceData: source,
-        report: policy.report,
-      });
       return NextResponse.json({ error: "公開本文の事前検査で停止しました", content_policy: policy.report, notification }, { status: 422 });
     }
     const updatedAt = new Date().toISOString();
