@@ -67,3 +67,14 @@ test('マッチング状況の定期通知は個別確定メールとして扱�
   assert.equal(parsed, null);
 });
 
+test('有効化時刻以前および同時刻のメールは処理対象外にする', () => {
+  const activationTimestamp = new Date('2026-10-09T10:00:00+09:00').getTime();
+  const before = message({ date: '2026-10-09T09:59:59+09:00' });
+  const atActivation = message({ date: '2026-10-09T10:00:00+09:00' });
+  const after = message({ date: '2026-10-09T10:00:01+09:00' });
+
+  assert.equal(context.isConfirmationMessageBeforeActivation_(before, activationTimestamp), true);
+  assert.equal(context.isConfirmationMessageBeforeActivation_(atActivation, activationTimestamp), true);
+  assert.equal(context.isConfirmationMessageBeforeActivation_(after, activationTimestamp), false);
+});
+

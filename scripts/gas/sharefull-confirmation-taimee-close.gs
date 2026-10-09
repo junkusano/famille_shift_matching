@@ -23,6 +23,7 @@ function processSharefullConfirmationsForTaimeeCloseLocked_() {
   var config = readSharefullCloseConfig_();
   var processed = sharefullCloseProcessedIds_();
   var label = confirmationProcessedLabel_("MYFAMILLE_SHAREFULL_CONFIRMATION_PROCESSED");
+  var activationTimestamp = confirmationActivationTimestamp_();
 
   for (;;) {
     // 処理済みスレッドを検索対象から外し、先頭から確実に読み進める。
@@ -34,6 +35,12 @@ function processSharefullConfirmationsForTaimeeCloseLocked_() {
       thread.getMessages().forEach(function(message) {
         var messageId = message.getId();
         if (processed[messageId]) return;
+
+        if (isConfirmationMessageBeforeActivation_(message, activationTimestamp)) {
+          processed[messageId] = true;
+          saveSharefullCloseProcessedIds_(processed);
+          return;
+        }
 
         var event = parseSharefullConfirmationMail_(message, config.senderEmail);
         if (!event) return;
@@ -79,6 +86,10 @@ function processSpotOfferConfirmationEmails() {
 
 /** 初回設定時に一度実行し、両メール種別の1分ごとの確認トリガーを作成する。 */
 function installSpotOfferConfirmationTriggers() {
+  var props = PropertiesService.getScriptProperties();
+  if (!props.getProperty("SPOT_OFFER_CONFIRMATION_ACTIVATED_AT")) {
+    props.setProperty("SPOT_OFFER_CONFIRMATION_ACTIVATED_AT", new Date().toISOString());
+  }
   ScriptApp.getProjectTriggers().forEach(function(trigger) {
     if ([
       "processSpotOfferConfirmationEmails",
@@ -89,6 +100,19 @@ function installSpotOfferConfirmationTriggers() {
     }
   });
   ScriptApp.newTrigger("processSpotOfferConfirmationEmails").timeBased().everyMinutes(1).create();
+}
+
+function confirmationActivationTimestamp_() {
+  var raw = PropertiesService.getScriptProperties().getProperty("SPOT_OFFER_CONFIRMATION_ACTIVATED_AT");
+  var timestamp = raw ? Date.parse(raw) : NaN;
+  if (!isFinite(timestamp)) {
+    throw new Error("installSpotOfferConfirmationTriggersを先に実行し、起動時刻を保存してください");
+  }
+  return timestamp;
+}
+
+function isConfirmationMessageBeforeActivation_(message, activationTimestamp) {
+  return message.getDate().getTime() <= activationTimestamp;
 }
 
 function parseSharefullConfirmationMail_(message, expectedSender) {
@@ -180,6 +204,7 @@ function processTaimeeConfirmationsForSharefullCloseLocked_() {
   var config = readTaimeeCloseConfig_();
   var processed = taimeeCloseProcessedIds_();
   var label = confirmationProcessedLabel_("MYFAMILLE_TAIMEE_CONFIRMATION_PROCESSED");
+  var activationTimestamp = confirmationActivationTimestamp_();
 
   for (;;) {
     // 処理済みスレッドを検索対象から外し、先頭から確実に読み進める。
@@ -191,6 +216,12 @@ function processTaimeeConfirmationsForSharefullCloseLocked_() {
       thread.getMessages().forEach(function(message) {
         var messageId = message.getId();
         if (processed[messageId]) return;
+
+        if (isConfirmationMessageBeforeActivation_(message, activationTimestamp)) {
+          processed[messageId] = true;
+          saveTaimeeCloseProcessedIds_(processed);
+          return;
+        }
 
         var event = parseTaimeeConfirmationMail_(message, config.senderEmail);
         if (!event) return;
