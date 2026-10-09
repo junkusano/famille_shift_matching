@@ -69,7 +69,7 @@ function fingerprint(input: ContentPolicyBlockInput): string {
 }
 
 function notificationText(input: ContentPolicyBlockInput): string {
-  const findings = input.report.findings.map((finding) => [
+  const findings = input.report.findings.filter((finding) => finding.ruleId !== "gender-sensitive-recruiting").map((finding) => [
     `検出項目: ${finding.matchedText}`,
     `検出ルール: ${finding.ruleId}`,
     finding.replacement ? `自動変換先: ${finding.replacement}` : null,
@@ -122,6 +122,11 @@ export async function recordSharefullContentPolicyBlock(input: ContentPolicyBloc
     .single();
   const rowRecord = row as unknown as { id: string; notified_at?: string | null; notification_claimed_at?: string | null; notification_error?: string | null } | null;
   if (error || !rowRecord) throw error ?? new Error("停止記録を保存できませんでした");
+  // 性別に関する表現は監査テーブルに記録するだけで、LINE WORKSには送らない。
+  // それ以外も、処理継続となる flagged/transformed は通知対象外。
+  if (input.report.status !== "blocked" || !input.report.findings.some((finding) => finding.action === "block" && finding.ruleId !== "gender-sensitive-recruiting")) {
+    return { recorded: true, notified: false };
+  }
   if (rowRecord.notified_at) return { recorded: true, notified: true };
   if (rowRecord.notification_error === SENT_BUT_UNCONFIRMED) {
     return { recorded: true, notified: false, notificationError: SENT_BUT_UNCONFIRMED };
