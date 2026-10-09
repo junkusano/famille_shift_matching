@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { reconcileSpotProviders } from "@/lib/spot-sync/reconcile";
+import { sharefullRpaMode } from "@/lib/spot-sync/sharefullScope";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ function authorized(request: NextRequest): boolean {
 
 export async function POST(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  if (sharefullRpaMode() !== "production") return NextResponse.json({ ok: false, error: "Production endpoint only" }, { status: 404 });
   try {
     const body = await request.json() as Record<string, unknown>;
     const taimeeJobId = text(body.taimee_job_id, 80);
@@ -47,8 +49,8 @@ export async function POST(request: NextRequest) {
     if (recordError) throw recordError;
     const eventResult = recorded as Record<string, unknown> | null;
     // 確定を記録した後に既存の同期判定を実行し、シェアフル停止を待たせない。
-    const sync = await reconcileSpotProviders();
-    if (!sync.enabled || sync.errors.some((item) => item.request_id === requests[0].id)) {
+    const sync = await reconcileSpotProviders(requests[0].id);
+    if (!sync.enabled || sync.processed !== 1 || sync.errors.some((item) => item.request_id === requests[0].id)) {
       return NextResponse.json({ ok: false, error: "シェアフル停止を同期キューへ登録できませんでした" }, { status: 503 });
     }
     return NextResponse.json({ ok: true, duplicate: Boolean(eventResult?.duplicate), sharefull_sync_enabled: sync.enabled, sharefull_sync_processed: sync.processed, sharefull_sync_errors: sync.errors.length });
