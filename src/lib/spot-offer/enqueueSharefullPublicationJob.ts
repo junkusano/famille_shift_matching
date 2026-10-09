@@ -130,6 +130,7 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
   const envValues = Object.fromEntries((envRows ?? []).map((row) => [row.key_name, row.value ?? ""]));
   const registeredCoreIds: string[] = [];
   const skipped: string[] = [];
+  let failedTemplateCount = 0;
 
   for (const template of templates) {
     const coreId = text(template.core_id);
@@ -165,9 +166,17 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
       continue;
     }
 
-    const result = await enqueueSharefullTemplateCreationJob(coreId, source);
-    if (result.registeredCount > 0) registeredCoreIds.push(coreId);
-    skipped.push(...result.skipped.map((reason) => `${coreId}:${reason}`));
+    try {
+      const result = await enqueueSharefullTemplateCreationJob(coreId, source);
+      if (result.registeredCount > 0) registeredCoreIds.push(coreId);
+      skipped.push(...result.skipped.map((reason) => `${coreId}:${reason}`));
+    } catch {
+      // A bad row must not prevent later templates from being considered.
+      // The next five-minute cron will retry this core because no job was
+      // registered successfully for it.
+      failedTemplateCount += 1;
+      skipped.push(`${coreId}:テンプレート作成判定に失敗しました。次回Cronで再確認します`);
+    }
   }
 
   return {
@@ -175,6 +184,7 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
     registeredCount: registeredCoreIds.length,
     skipped,
     candidateTemplateCount: templates.length,
+    failedTemplateCount,
     registeredCoreIds,
     scope: sharefullSyncScopeLabel(),
   };
@@ -354,8 +364,7 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
     const activeOrCompleted = sameOperationJobs.some((job) => job.status === "completed"
       || job.status === "pending"
       || (job.status === "claimed" && !staleClaimedJobs.includes(job)));
-    const retryBlocked = failedJobs.length > 0 && !safeToRetry && !reconcileOnly
-      || (cancelledJobs.length > 0 && failedJobs.length === 0);
+    const retryBlocked = failedJobs.length > 0 && !safeToRetry && !reconcileOnly;
     if (activeOrCompleted || (retryBlocked && !reconcileOnly)) {
       duplicateJobCount += 1;
       skipped.push(`${shiftId}:${hasUnsafeFailure ? "掲載結果の照合が必要な失敗ジョブがあります" : "同じジョブが登録済み、または再試行待ちです"}`);
@@ -431,7 +440,7 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
  * Cronはこの関数だけを呼び出し、審査完了通知時の即時登録と同じ判定を使う。
  */
 export async function enqueueSharefullPublicationJobsForReadyTemplates(source: string) {
-  if (!enabled()) return { enabled: false, registeredCount: 0, skipped: ["自動掲載が無効です"] };
+  if (!enabled()) return { enabled: false, registeredCount: 0, failedCoreCount: 0, skipped: ["自動掲載が無効です"] };
 
   const today = todayInJst();
   let query = supabaseAdmin
@@ -459,11 +468,28 @@ export async function enqueueSharefullPublicationJobsForReadyTemplates(source: s
   let registeredCount = 0;
   const skipped: string[] = [];
   const coreResults: ReconciliationDiagnostic[] = [];
+  let failedCoreCount = 0;
   for (const coreId of coreIds) {
-    const result = await enqueueSharefullPublicationJobsForTemplate(coreId, source);
-    registeredCount += result.registeredCount;
-    skipped.push(...result.skipped.map((reason) => `${coreId}: ${reason}`));
-    if (result.diagnostic) coreResults.push(result.diagnostic);
+    try {
+      const result = await enqueueSharefullPublicationJobsForTemplate(coreId, source);
+      registeredCount += result.registeredCount;
+      skipped.push(...result.skipped.map((reason) => `${coreId}: ${reason}`));
+      if (result.diagnostic) coreResults.push(result.diagnostic);
+    } catch {
+      // A database or validation error for one core must not starve every
+      // later approved template. The failed core remains eligible for the
+      // next cron because no publication job was registered for it.
+      failedCoreCount += 1;
+      skipped.push(`${coreId}:掲載ジョブ登録に失敗しました。次回Cronで再確認します`);
+      coreResults.push({
+        core_id: coreId,
+        template_status: "check_failed",
+        candidate_request_count: 0,
+        duplicate_job_count: 0,
+        registered_count: 0,
+        skipped_count: 1,
+      });
+    }
   }
-  return { enabled: true, registeredCount, skipped, candidateCoreCount: coreIds.length, coreResults, scope: sharefullSyncScopeLabel() };
+  return { enabled: true, registeredCount, skipped, candidateCoreCount: coreIds.length, failedCoreCount, coreResults, scope: sharefullSyncScopeLabel() };
 }
