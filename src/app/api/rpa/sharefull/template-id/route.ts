@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       .from("env_variables").select("key_name,value").eq("group_key", "sukima");
     if (envError) throw envError;
     const envValues = Object.fromEntries((envRows ?? []).map((row) => [row.key_name, row.value ?? ""]));
-    const source = {
+    const source: Record<string, unknown> = {
       ...existingRecord,
       env: {
         sukima_detail: String(envValues.sukima_detail ?? ""),

@@ -136,7 +136,7 @@ async function rowsForIds(ids: number[]) {
     .select(SHIFT_SELECT)
     .in("shift_id", ids);
   if (error) throw new Error(error.message);
-  return (data ?? []) as ShiftRow[];
+  return (data ?? []) as unknown as ShiftRow[];
 }
 
 async function futureRowsForPattern(member: ShiftRow, effectiveFrom: string) {
@@ -157,7 +157,7 @@ async function futureRowsForPattern(member: ShiftRow, effectiveFrom: string) {
   const { data, error } = await query;
   if (error) throw new Error(error.message);
   const targetWeekday = weekday(member.shift_start_date);
-  return ((data ?? []) as ShiftRow[]).filter((row) => weekday(row.shift_start_date) === targetWeekday);
+  return ((data ?? []) as unknown as ShiftRow[]).filter((row) => weekday(row.shift_start_date) === targetWeekday);
 }
 
 async function updateWeeklyTemplates(members: ShiftRow[], groupId: string | null) {

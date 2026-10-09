@@ -28,7 +28,8 @@ export async function POST(request: NextRequest) {
       .eq("core_id", coreId)
       .maybeSingle();
     if (lookupError) throw lookupError;
-    if (!template || !isSharefullSyncClient(template.kaipoke_cs_id)) return NextResponse.json({ error: "テンプレートが見つかりません" }, { status: 404 });
+    const templateRecord = template as unknown as Record<string, unknown> | null;
+    if (!templateRecord || !isSharefullSyncClient(templateRecord.kaipoke_cs_id)) return NextResponse.json({ error: "テンプレートが見つかりません" }, { status: 404 });
 
     const updatedAt = new Date().toISOString();
     const { error: updateError } = await supabaseAdmin

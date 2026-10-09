@@ -6,7 +6,7 @@ import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
 const ts=require('typescript');
 function load(path) {const c=vm.createContext({exports:{},Date,URL,Map});vm.runInContext(ts.transpileModule(readFileSync(new URL(path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,c);return c.exports;}
-const {desiredAction,staffAssigned,canRecruit}=load('../src/lib/spot-sync/policy.ts');
+const {desiredAction,staffAssigned,canRecruit,shouldEnqueueTaimeeClose}=load('../src/lib/spot-sync/policy.ts');
 const roles=new Map([['m','manager'],['a','admin'],['w','staff']]);
 const shift={shift_start_date:'2026-09-10',shift_start_time:'10:00:00',staff_01_user_id:'m'};
 const now=Date.parse('2026-09-10T08:00:00+09:00');
@@ -25,6 +25,10 @@ test('応募ありで他媒体を停止する。応募元はキャンセルし�
  assert.equal(desiredAction({...base,provider:'taimee',applications:[{provider:'sharefull',state:'applied'}]}),'close');
  assert.equal(desiredAction({...base,applications:[{provider:'sharefull',state:'applied'}]}),'hold');
  assert.equal(desiredAction({...base,applications:[{provider:'jmty',state:'applied'}]}),'close');
+});
+test('スタッフ1に契約社員を割り当てるとタイミー停止依頼の対象になる',()=>{
+ assert.equal(shouldEnqueueTaimeeClose({status:'募集中',applications:[],shift:{...shift,staff_01_user_id:'w'},assigned:true,manualStop:false}),true);
+ assert.equal(shouldEnqueueTaimeeClose({status:'募集中',applications:[],shift:{...shift,staff_01_user_id:'w'},assigned:false,manualStop:false}),false);
 });
 test('再募集は2時間以上。2時間未満でも停止は実行',()=>{
  assert.equal(canRecruit(shift,now),true);assert.equal(canRecruit(shift,now+1),false);

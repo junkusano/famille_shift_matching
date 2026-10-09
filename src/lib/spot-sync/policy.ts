@@ -20,3 +20,19 @@ export function desiredAction(input: {provider: string; status: string; applicat
   if (active.length || !input.shift || input.assigned || input.manualStop || input.status === "募集なし") return "close";
   return input.status === "募集中" && canRecruit(input.shift, input.now) ? "open" : "hold";
 }
+
+/** タイミー側の応募者を除き、停止依頼をキューへ入れるべき状態か。 */
+export function shouldEnqueueTaimeeClose(input: {
+  status: string;
+  applications: Application[];
+  shift: ShiftState | null;
+  assigned: boolean;
+  manualStop: boolean;
+}): boolean {
+  const active = activeApplications(input.applications);
+  if (active.some((application) => application.provider === "taimee")) {
+    return false;
+  }
+
+  return desiredAction({ ...input, provider: "taimee" }) === "close";
+}
