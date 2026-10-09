@@ -7,7 +7,7 @@ type Row = Record<string, any>;
 function check(error: { message: string; code?: string } | null) { if (error && error.code !== '23505') throw new Error(error.message); }
 export function providerSyncEnabled() { return process.env.SPOT_PROVIDER_SYNC_ENABLED === 'true'; }
 
-export async function reconcileSpotProviders() {
+export async function reconcileSpotProviders(onlyRequestId?: string) {
   if (!providerSyncEnabled()) return { enabled: false, processed: 0 };
   const testMode = sharefullRpaMode() === 'test';
   const requestTable = sharefullRequestTableName();
@@ -16,7 +16,10 @@ export async function reconcileSpotProviders() {
   const errors: {request_id: string; message: string}[] = [];
   const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
   for (let offset = 0; ; offset += 500) {
-    const {data: requests, error} = await db.from(requestTable as never).select('*').gte('shift_start_date', today).order('id').range(offset, offset + 499);
+    const requestQuery = db.from(requestTable as never).select('*');
+    const {data: requests, error} = await (onlyRequestId
+      ? requestQuery.eq('id', onlyRequestId).order('id').range(offset, offset + 499)
+      : requestQuery.gte('shift_start_date', today).order('id').range(offset, offset + 499));
     check(error); if (!requests?.length) break;
     const {data: shifts, error: shiftError} = await db.from('shift').select('*').in('shift_id', requests.map(r => r.shift_id).filter(Boolean));
     check(shiftError);
