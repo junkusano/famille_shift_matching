@@ -293,12 +293,12 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
     (shifts ?? []).map((shift) => [shift.shift_id, shift.required_staff_count]),
   );
 
-  const existing: Array<{ payload: Record<string, unknown> | null; status: string; error_category: string | null; error_code: string | null; failed_at: string | null }> = [];
+  const existing: Array<{ id: string; payload: Record<string, unknown> | null; status: string; error_category: string | null; error_code: string | null; failed_at: string | null; claimed_at: string | null; claimed_runner_id: string | null; timeout_ms: number | null }> = [];
   const jobPageSize = 500;
   for (let offset = 0; ; offset += jobPageSize) {
     const { data, error } = await supabaseAdmin
       .from("rpa_runner_jobs")
-      .select("payload,status,error_category,error_code,failed_at")
+      .select("id,payload,status,error_category,error_code,failed_at,claimed_at,claimed_runner_id,timeout_ms")
       .eq("job_type", JOB_TYPE)
       .in("status", [...SHAREFULL_PUBLICATION_DEDUPE_STATUSES])
       .order("created_at", { ascending: true })
@@ -325,29 +325,43 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
       const key = text(job.payload?.operation_key);
       return key === baseOperationKey || key.startsWith(`${baseOperationKey}:retry:`);
     });
-    const activeOrCompleted = sameOperationJobs.some((job) => ["pending", "claimed", "completed"].includes(job.status));
     const failedJobs = sameOperationJobs.filter((job) => job.status === "failed");
     const cancelledJobs = sameOperationJobs.filter((job) => job.status === "cancelled");
     const latestFailure = failedJobs.sort((a, b) => Date.parse(text(b.failed_at)) - Date.parse(text(a.failed_at)))[0];
-    const latestFailureKey = text(latestFailure?.payload?.operation_key);
-    const retryIndex = /:retry:(\d+)$/.exec(latestFailureKey);
-    const attemptCount = latestFailure ? (retryIndex ? Number(retryIndex[1]) + 1 : 1) : 0;
-    const failedAt = Date.parse(text(latestFailure?.failed_at));
-    const safeToRetry = Boolean(latestFailure
+    const staleClaimedJobs = sameOperationJobs.filter((job) => {
+      if (job.status !== "claimed") return false;
+      const claimedAt = Date.parse(text(job.claimed_at));
+      // Runner retries can consume three job timeouts; allow a further two minutes for completion reporting.
+      const staleAfterMs = Math.max((job.timeout_ms ?? 300_000) * 3 + 120_000, 15 * 60_000);
+      return Number.isFinite(claimedAt) && Date.now() - claimedAt >= staleAfterMs;
+    });
+    const latestStaleClaim = staleClaimedJobs.sort((a, b) => Date.parse(text(b.claimed_at)) - Date.parse(text(a.claimed_at)))[0];
+    const reconciliationSource = latestFailure ?? latestStaleClaim;
+    const sourceOperationKey = text(reconciliationSource?.payload?.operation_key);
+    const retryIndex = /:retry:(\d+)$/.exec(sourceOperationKey);
+    const attemptCount = reconciliationSource ? (retryIndex ? Number(retryIndex[1]) + 1 : 1) : 0;
+    const sourceAt = Date.parse(text(latestFailure?.failed_at ?? latestStaleClaim?.claimed_at));
+    const hasUnsafeFailure = failedJobs.some((job) => !SAFE_PUBLICATION_RETRY_CATEGORIES.has(text(job.error_category).toUpperCase()));
+    const hasReconciliationAttempt = sameOperationJobs.some((job) => job.payload?.reconcile_only === true);
+    const failureCooldownElapsed = Number.isFinite(sourceAt) && Date.now() - sourceAt >= PUBLICATION_RETRY_COOLDOWN_MS;
+    const safeToRetry = Boolean(latestFailure && !hasUnsafeFailure
       && SAFE_PUBLICATION_RETRY_CATEGORIES.has(text(latestFailure.error_category).toUpperCase())
       && attemptCount < PUBLICATION_MAX_ATTEMPTS
-      && Number.isFinite(failedAt)
-      && Date.now() - failedAt >= PUBLICATION_RETRY_COOLDOWN_MS);
-    const hasUnsafeFailure = failedJobs.some((job) => !SAFE_PUBLICATION_RETRY_CATEGORIES.has(text(job.error_category).toUpperCase()));
-    const retryBlocked = failedJobs.length > 0 && !safeToRetry
-      || hasUnsafeFailure
+      && failureCooldownElapsed);
+    const reconcileOnly = Boolean(reconciliationSource && (hasUnsafeFailure || latestStaleClaim)
+      && !hasReconciliationAttempt
+      && attemptCount < PUBLICATION_MAX_ATTEMPTS && failureCooldownElapsed);
+    const activeOrCompleted = sameOperationJobs.some((job) => job.status === "completed"
+      || job.status === "pending"
+      || (job.status === "claimed" && !staleClaimedJobs.includes(job)));
+    const retryBlocked = failedJobs.length > 0 && !safeToRetry && !reconcileOnly
       || (cancelledJobs.length > 0 && failedJobs.length === 0);
-    if (activeOrCompleted || retryBlocked) {
+    if (activeOrCompleted || (retryBlocked && !reconcileOnly)) {
       duplicateJobCount += 1;
       skipped.push(`${shiftId}:${hasUnsafeFailure ? "掲載結果の照合が必要な失敗ジョブがあります" : "同じジョブが登録済み、または再試行待ちです"}`);
       continue;
     }
-    const operationKey = safeToRetry
+    const operationKey = safeToRetry || reconcileOnly
       ? `${baseOperationKey}:retry:${attemptCount}`
       : cancelledJobs.length > 0
         ? `${baseOperationKey}:retry:${cancelledJobs.length}`
@@ -371,10 +385,20 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
       headcount: requiredStaffCountByShiftId.get(row.shift_id) ?? 1,
       execution_mode: mode,
       rpa_mode: sharefullRpaMode(),
+      ...(reconcileOnly ? {
+        reconcile_only: true,
+        reconcile_for_operation_key: baseOperationKey,
+        reconcile_of_job_id: reconciliationSource!.id,
+      } : {}),
       created_from: source,
     };
     if (providerSyncEnabled() && sharefullRpaMode() !== "test" && !await validateSharefullSyncJob(JOB_TYPE, payload)) continue;
-    const { error } = await supabaseAdmin.from("rpa_runner_jobs").insert({ job_type: JOB_TYPE, status: "pending", payload, target_runner_id: sharefullTargetRunnerId() });
+    const { error } = await supabaseAdmin.from("rpa_runner_jobs").insert({
+      job_type: JOB_TYPE,
+      status: "pending",
+      payload,
+      target_runner_id: reconcileOnly ? reconciliationSource?.claimed_runner_id ?? null : sharefullTargetRunnerId(),
+    });
     if (error?.code === "23505") continue;
     if (error) throw error;
     const { error: statusError } = await supabaseAdmin

@@ -127,18 +127,53 @@ test("審査完了テンプレートからテスト用案件掲載ジョブを�
   assert.ok(usedTables.includes("sharefull_rpa_test_spot_offer_request_table"));
 });
 
-test("同じ案件の既存掲載ジョブがある場合は再登録しない", async () => {
+test("掲載結果が不明な失敗は同じRunnerから保存済み結果だけを照合する", async () => {
   const { publisher, insertedJobs } = loadPublisher({
     env: baseEnv,
     template: { core_id: "core-1", kaipoke_cs_id: "12782561", sharefull_template_id: "template-1", sharefull_template_status: "ready_for_offer" },
     requests: [{ id: "request-1", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 42, shift_start_date: "2099-01-02", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: "taimee-1", sharefull_job_id: null, sharefull_status: "template_review", recruitment_revision: 3 }],
-    existingJobs: [{ status: "failed", error_category: "PAGE_AUTOMATION", payload: { operation_key: "sharefull:create_spot_offer:save:42:3", spot_offer_request_id: "request-1" } }],
+    existingJobs: [{ id: "job-1", status: "failed", error_category: "PAGE_AUTOMATION", failed_at: "2000-01-01T00:00:00.000Z", claimed_runner_id: "runner-1", payload: { operation_key: "sharefull:create_spot_offer:save:42:3", spot_offer_request_id: "request-1" } }],
   });
 
   const result = await publisher.enqueueSharefullPublicationJobsForTemplate("core-1", "test");
 
+  assert.equal(result.registeredCount, 1);
+  assert.equal(insertedJobs[0].job_type, "sharefull.create_spot_offer");
+  assert.equal(insertedJobs[0].target_runner_id, "runner-1");
+  assert.equal(insertedJobs[0].payload.reconcile_only, true);
+  assert.equal(insertedJobs[0].payload.reconcile_for_operation_key, "sharefull:create_spot_offer:save:42:3");
+});
+
+test("完了通知のない長時間claimedジョブも同じRunnerで結果だけを照合する", async () => {
+  const { publisher, insertedJobs } = loadPublisher({
+    env: baseEnv,
+    template: { core_id: "core-1", kaipoke_cs_id: "12782561", sharefull_template_id: "template-1", sharefull_template_status: "ready_for_offer" },
+    requests: [{ id: "request-1", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 42, shift_start_date: "2099-01-02", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: "taimee-1", sharefull_job_id: null, sharefull_status: "ready_for_offer", recruitment_revision: 3 }],
+    existingJobs: [{ id: "job-1", status: "claimed", claimed_at: "2000-01-01T00:00:00.000Z", claimed_runner_id: "runner-1", timeout_ms: 300000, payload: { operation_key: "sharefull:create_spot_offer:save:42:3", spot_offer_request_id: "request-1" } }],
+  });
+
+  const result = await publisher.enqueueSharefullPublicationJobsForTemplate("core-1", "cron");
+
+  assert.equal(result.registeredCount, 1);
+  assert.equal(insertedJobs[0].target_runner_id, "runner-1");
+  assert.equal(insertedJobs[0].payload.reconcile_only, true);
+  assert.equal(insertedJobs[0].payload.reconcile_of_job_id, "job-1");
+});
+
+test("照合ジョブ自体が失敗したら無限再投入せず人の確認へ回す", async () => {
+  const { publisher, insertedJobs } = loadPublisher({
+    env: baseEnv,
+    template: { core_id: "core-1", kaipoke_cs_id: "12782561", sharefull_template_id: "template-1", sharefull_template_status: "ready_for_offer" },
+    requests: [{ id: "request-1", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 42, shift_start_date: "2099-01-02", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: "taimee-1", sharefull_job_id: null, sharefull_status: "ready_for_offer", recruitment_revision: 3 }],
+    existingJobs: [
+      { id: "job-1", status: "failed", error_category: "PAGE_AUTOMATION", failed_at: "2000-01-01T00:00:00.000Z", claimed_runner_id: "runner-1", payload: { operation_key: "sharefull:create_spot_offer:save:42:3", spot_offer_request_id: "request-1" } },
+      { id: "job-2", status: "failed", error_category: "UNEXPECTED", failed_at: "2000-01-01T00:00:00.000Z", claimed_runner_id: "runner-1", payload: { operation_key: "sharefull:create_spot_offer:save:42:3:retry:1", spot_offer_request_id: "request-1", reconcile_only: true, reconcile_of_job_id: "job-1" } },
+    ],
+  });
+
+  const result = await publisher.enqueueSharefullPublicationJobsForTemplate("core-1", "cron");
+
   assert.equal(result.registeredCount, 0);
-  assert.equal(result.diagnostic.duplicate_job_count, 1);
   assert.equal(insertedJobs.length, 0);
 });
 
