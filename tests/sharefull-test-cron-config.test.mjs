@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import { assertSharefullDecisionMigrationApplied, assertSharefullTestCronReleaseSource, buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON } from "../scripts/sharefull-test-cron-config.mjs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { assertSharefullDecisionMigrationApplied, assertSharefullTestCronRegistration, assertSharefullTestCronReleaseSource, buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON, writeSharefullTestVercelConfig } from "../scripts/sharefull-test-cron-config.mjs";
 
 const sharedConfig = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
 const testOverrides = JSON.parse(await readFile(new URL("../vercel.test.json", import.meta.url), "utf8"));
@@ -33,6 +35,35 @@ test("DBマイグレーション適用の確認がない状態ではCronデプ�
 
 test("共有vercel.jsonには決定監視Cronを登録しない", () => {
   assert.equal(sharedConfig.crons.some((cron) => cron.path === SHAREFULL_DECISION_CRON.path), false);
+});
+
+test("一時デプロイ用ソースだけにCronを書き、共有設定オブジェクトは変更しない", async () => {
+  const stagingRoot = await mkdtemp(join(tmpdir(), "sharefull-cron-staging-test-"));
+  const sharedBefore = structuredClone(sharedConfig);
+  try {
+    const stagedConfigPath = await writeSharefullTestVercelConfig(stagingRoot, sharedConfig, testOverrides);
+    const stagedConfig = JSON.parse(await readFile(stagedConfigPath, "utf8"));
+    assert.equal(stagedConfig.crons.length, sharedConfig.crons.length + 1);
+    assert.deepEqual(stagedConfig.crons.at(-1), SHAREFULL_DECISION_CRON);
+    assert.deepEqual(sharedConfig, sharedBefore);
+  } finally {
+    await rm(stagingRoot, { recursive: true, force: true });
+  }
+});
+
+test("Vercel Cron一覧で件数・対象Cron・テスト用ホストを確認する", () => {
+  const listing = {
+    crons: [
+      ...sharedConfig.crons,
+      { ...SHAREFULL_DECISION_CRON, host: "famille-shift-matching-test-abc-junkusanos-projects.vercel.app" },
+    ],
+  };
+  assert.equal(assertSharefullTestCronRegistration(listing, sharedConfig.crons.length + 1), true);
+  assert.throws(() => assertSharefullTestCronRegistration(listing, sharedConfig.crons.length), /Expected/);
+  assert.throws(() => assertSharefullTestCronRegistration({ crons: [...listing.crons, listing.crons.at(-1)] }, sharedConfig.crons.length + 2), /missing, duplicated/);
+  const wrongHost = structuredClone(listing);
+  wrongHost.crons.at(-1).host = "famille-shift-matching-prod-abc.vercel.app";
+  assert.throws(() => assertSharefullTestCronRegistration(wrongHost, sharedConfig.crons.length + 1), /missing, duplicated/);
 });
 
 test("監視マイグレーションはテスト専用テーブルと関数だけを追加する", () => {

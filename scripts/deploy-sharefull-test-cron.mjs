@@ -1,9 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { isDeepStrictEqual } from "node:util";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertSharefullDecisionMigrationApplied, assertSharefullTestCronReleaseSource, buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON } from "./sharefull-test-cron-config.mjs";
+import { assertSharefullDecisionMigrationApplied, assertSharefullTestCronRegistration, assertSharefullTestCronReleaseSource, buildSharefullTestVercelConfig, SHAREFULL_DECISION_CRON, writeSharefullTestVercelConfig } from "./sharefull-test-cron-config.mjs";
 
 const projectName = "famille-shift-matching-test";
 const teamScope = "junkusanos-projects";
@@ -29,15 +30,37 @@ const testOverrides = JSON.parse(await readFile(join(repoRoot, "vercel.test.json
 assertSharefullDecisionMigrationApplied(process.env);
 const deployConfig = buildSharefullTestVercelConfig(sharedConfig, testOverrides);
 const tempDirectory = await mkdtemp(join(tmpdir(), "myfamille-sharefull-test-cron-"));
-const localConfigPath = join(tempDirectory, "vercel.test.generated.json");
 
 try {
-  await writeFile(localConfigPath, `${JSON.stringify(deployConfig, null, 2)}\n`, "utf8");
+  const archive = spawnSync("git", [
+    "archive", "--format=tar", "HEAD", "--", ".",
+    ":(exclude).tmp.driveupload",
+    ":(exclude)ドキュメントの原本",
+  ], {
+    cwd: repoRoot,
+    maxBuffer: 1024 * 1024 * 1024,
+  });
+  if (archive.error) throw archive.error;
+  if (archive.status !== 0) throw new Error("Could not create tracked-source archive for test deployment");
+
+  const extraction = spawnSync("tar", ["-C", tempDirectory, "-xf", "-"], {
+    cwd: repoRoot,
+    input: archive.stdout,
+    maxBuffer: 1024 * 1024 * 1024,
+  });
+  if (extraction.error) throw extraction.error;
+  if (extraction.status !== 0) throw new Error("Could not extract tracked-source archive for test deployment");
+
+  const stagedConfigPath = await writeSharefullTestVercelConfig(tempDirectory, sharedConfig, testOverrides);
+  const stagedConfig = JSON.parse(await readFile(stagedConfigPath, "utf8"));
   const addedCron = deployConfig.crons.at(-1);
   if (deployConfig.crons.length !== sharedConfig.crons.length + 1
     || addedCron?.path !== SHAREFULL_DECISION_CRON.path
     || deployConfig.crons.slice(0, -1).some((cron, index) => JSON.stringify(cron) !== JSON.stringify(sharedConfig.crons[index]))) {
     throw new Error("Refusing deployment: preserve the test project's existing crons and add only the decision monitor cron");
+  }
+  if (!isDeepStrictEqual(stagedConfig, deployConfig)) {
+    throw new Error("Refusing deployment: staged Vercel config does not match the validated test config");
   }
   console.log(`Deploying ${deployConfig.crons.length} schedules to test project ${projectName}; preserving its ${sharedConfig.crons.length} existing schedules.`);
   console.log(`Only ${SHAREFULL_DECISION_CRON.path} is added. Cron authentication uses the test project's CRON_SECRET header; no secret is embedded in the URL.`);
@@ -47,12 +70,25 @@ try {
     "--yes", "vercel@latest", "deploy", "--prod",
     "--project", projectName,
     "--scope", teamScope,
-    "--local-config", localConfigPath,
-  ], { cwd: repoRoot, stdio: "inherit", shell: process.platform === "win32" });
+  ], { cwd: tempDirectory, stdio: "inherit", shell: process.platform === "win32" });
 
   if (result.error) throw result.error;
   if (result.signal) throw new Error(`Vercel CLI terminated by ${result.signal}`);
-  if (result.status !== 0) process.exitCode = result.status ?? 1;
+  if (result.status !== 0) throw new Error(`Vercel test deployment failed with exit code ${result.status ?? "unknown"}`);
+
+  const verification = spawnSync(npx, [
+    "--yes", "vercel@latest", "crons", "list",
+    "--project", projectName,
+    "--scope", teamScope,
+    "--format", "json",
+  ], { cwd: repoRoot, encoding: "utf8", shell: process.platform === "win32" });
+  if (verification.error) throw verification.error;
+  if (verification.status !== 0) throw new Error("Could not read back the test project's Vercel Cron list");
+  const jsonStart = verification.stdout.indexOf("{");
+  if (jsonStart < 0) throw new Error("Vercel Cron list did not return JSON");
+  const cronListing = JSON.parse(verification.stdout.slice(jsonStart));
+  assertSharefullTestCronRegistration(cronListing, deployConfig.crons.length);
+  console.log(`Verified ${cronListing.crons.length} Cron schedules in ${projectName}, including ${SHAREFULL_DECISION_CRON.path}.`);
 } finally {
-  await rm(tempDirectory, { recursive: true, force: true });
+  await rm(tempDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 1000 });
 }
