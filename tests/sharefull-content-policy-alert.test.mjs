@@ -61,7 +61,7 @@ function loadAlert(mode = "test", { claimAvailable = true, failConfirmation = fa
   return { alert: context.exports, calls, record, selections };
 }
 
-test("停止記録を保存してからLINE WORKSへ通知する", async () => {
+test("性別表現は記録するがLINE WORKSへ通知しない", async () => {
   const { alert, calls, selections } = loadAlert();
   const result = await alert.recordSharefullContentPolicyBlock({
     coreId: "444578",
@@ -75,17 +75,13 @@ test("停止記録を保存してからLINE WORKSへ通知する", async () => {
   });
 
   assert.equal(result.recorded, true);
-  assert.equal(result.notified, true);
+  assert.equal(result.notified, false);
   assert.equal(calls[0].table, "sharefull_rpa_test_content_policy_blocks");
-  assert.equal(calls[1].channelId, "99142491");
-  assert.match(calls[1].text, /444578/);
-  assert.match(calls[1].text, /女性の下着/);
-  assert.equal(calls[1].token, "token");
-  assert.equal(calls[2].type, "update");
+  assert.equal(calls.some((call) => call.channelId), false);
   assert.equal(selections[0].fields.includes("notification_claimed_at"), false);
 });
 
-test("本番停止は本番専用監査テーブルへ公開本文だけを記録してLINE WORKSへ通知する", async () => {
+test("本番の性別表現は公開本文だけを本番専用監査テーブルへ記録して通知しない", async () => {
   const { alert, calls } = loadAlert("production");
   const result = await alert.recordSharefullContentPolicyBlock({
     coreId: "core-1",
@@ -105,12 +101,9 @@ test("本番停止は本番専用監査テーブルへ公開本文だけを記�
   });
 
   assert.equal(result.recorded, true);
-  assert.equal(result.notified, true);
+  assert.equal(result.notified, false);
   assert.equal(calls[0].table, "sharefull_content_policy_blocks");
-  assert.equal(calls[1].values.notification_claimed_at !== undefined, true);
-  assert.equal(calls[2].channelId, "99142491");
-  assert.match(calls[2].text, /女性ヘルパー/);
-  assert.equal(calls[3].table, "sharefull_content_policy_blocks");
+  assert.equal(calls.some((call) => call.channelId), false);
   assert.deepEqual(JSON.parse(JSON.stringify(calls[0].values.source_data)), {
     template_title: "訪問介護",
     work_description: "女性ヘルパー活躍中",
@@ -118,11 +111,23 @@ test("本番停止は本番専用監査テーブルへ公開本文だけを記�
   });
 });
 
+test("処理継続となる内容チェックの記録は通知しない", async () => {
+  const { alert, calls } = loadAlert();
+  const result = await alert.recordSharefullContentPolicyBlock({
+    coreId: "core-2", source: "cron", sourceData: { work_description: "女性限定" },
+    report: { status: "flagged", findings: [{ ruleId: "gender-sensitive-recruiting", action: "flag", field: "work_description", matchedText: "女性限定" }] },
+  });
+
+  assert.equal(result.recorded, true);
+  assert.equal(result.notified, false);
+  assert.equal(calls.some((call) => call.channelId), false);
+});
+
 test("本番で送信権を取得できない同時実行は通知しない", async () => {
   const { alert, calls } = loadAlert("production", { claimAvailable: false });
   const result = await alert.recordSharefullContentPolicyBlock({
     coreId: "core-1", source: "cron", sourceData: {},
-    report: { status: "blocked", findings: [] },
+    report: { status: "blocked", findings: [{ ruleId: "other-review", action: "block", field: "work_description", matchedText: "要確認" }] },
   });
 
   assert.equal(result.recorded, true);
@@ -132,7 +137,7 @@ test("本番で送信権を取得できない同時実行は通知しない", as
 
 test("LINE WORKS受理後の監査更新失敗は自動再送を保留する", async () => {
   const { alert, calls, record } = loadAlert("production", { failConfirmation: true });
-  const input = { coreId: "core-1", source: "cron", sourceData: {}, report: { status: "blocked", findings: [] } };
+  const input = { coreId: "core-1", source: "cron", sourceData: {}, report: { status: "blocked", findings: [{ ruleId: "other-review", action: "block", field: "work_description", matchedText: "要確認" }] } };
   const first = await alert.recordSharefullContentPolicyBlock(input);
   const second = await alert.recordSharefullContentPolicyBlock(input);
 
@@ -144,7 +149,7 @@ test("LINE WORKS受理後の監査更新失敗は自動再送を保留する", a
 
 test("送信後の確認記録と曖昧状態マーカーが両方失敗してもclaimを保持して重複送信しない", async () => {
   const { alert, calls, record } = loadAlert("production", { failConfirmation: true, failMarker: true });
-  const input = { coreId: "core-1", source: "cron", sourceData: {}, report: { status: "blocked", findings: [] } };
+  const input = { coreId: "core-1", source: "cron", sourceData: {}, report: { status: "blocked", findings: [{ ruleId: "other-review", action: "block", field: "work_description", matchedText: "要確認" }] } };
 
   const first = await alert.recordSharefullContentPolicyBlock(input);
   const second = await alert.recordSharefullContentPolicyBlock(input);
@@ -160,7 +165,7 @@ test("停止記録はテスト・本番で監査テーブルを分離する", as
   const { alert, calls } = loadAlert("test");
   await alert.recordSharefullContentPolicyBlock({
     coreId: "core-1", source: "test", sourceData: {},
-    report: { status: "blocked", findings: [] },
+    report: { status: "blocked", findings: [{ ruleId: "other-review", action: "block", field: "work_description", matchedText: "要確認" }] },
   });
   assert.equal(calls[0].table, "sharefull_rpa_test_content_policy_blocks");
 });
