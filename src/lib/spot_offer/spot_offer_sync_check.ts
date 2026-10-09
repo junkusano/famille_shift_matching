@@ -315,7 +315,7 @@ export async function createCloseRequest(
     | "date_changed"
     | "time_changed"
     | "other_application",
-  opts?: { dryRun?: boolean }
+  opts?: { dryRun?: boolean; syncOperationKey?: string; createdFrom?: string }
 ) {
 
   const shiftId = spotOfferRequest["shift_id"];
@@ -340,14 +340,14 @@ if (process.env.SPOT_PROVIDER_SYNC_ENABLED === "true" && sharefullRpaMode() !== 
   const {error: sharefullError} = await supabase.from("rpa_runner_jobs").insert({job_type:"sharefull.close_spot_offer",status:"pending",target_runner_id:process.env.SHAREFULL_RPA_MODE?.trim().toLowerCase() === "test" ? (process.env.SHAREFULL_TEST_RUNNER_ID?.trim() || "sharefull-test-runner") : null,payload});
   if (sharefullError && sharefullError.code !== "23505") throw sharefullError;
 }
-const syncOperationKey = ["spot-sync", "taimee", "close", String(spotOfferRequest["taimee_job_id"]), reason, String(spotOfferRequest["recruitment_revision"] ?? 0)].join(":");
+const syncOperationKey = opts?.syncOperationKey ?? ["spot-sync", "taimee", "close", String(spotOfferRequest["taimee_job_id"]), reason, String(spotOfferRequest["recruitment_revision"] ?? 0)].join(":");
 if (!spotOfferRequest["taimee_job_id"]) return;
 const { data: duplicate, error: duplicateError } = await supabase.from("rpa_command_requests").select("id").eq("request_details->>sync_operation_key", syncOperationKey).limit(1);
 if (duplicateError) throw duplicateError;
 if (duplicate?.length) return;
 const payload = {
   sync_operation_key: syncOperationKey,
-  created_from: "/api/cron/spot-offer-sync-check",
+  created_from: opts?.createdFrom ?? "/api/cron/spot-offer-sync-check",
 
   command: "close_job",
   action: "withdraw_taimee_job",
