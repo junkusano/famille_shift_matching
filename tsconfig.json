@@ -40,6 +40,7 @@
   ],
   "exclude": [
     "node_modules",
-    "tmp"
+    "tmp",
+    "famille-operation-mcp"
   ]
 }

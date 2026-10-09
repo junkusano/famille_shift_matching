@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     if (requestError) throw requestError;
 
-    const rows = (requests ?? []).filter((row) => isSharefullSyncClient(row.kaipoke_cs_id));
+    const rows = ((requests ?? []) as unknown as Array<Record<string, any>>).filter((row) => isSharefullSyncClient(row.kaipoke_cs_id));
     const coreIds = Array.from(
       new Set(rows.map((row) => row.core_id).filter((coreId): coreId is string => Boolean(coreId)))
     );
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     if (templateError) throw templateError;
 
     const templateByCoreId = new Map(
-      (templates ?? []).map((template) => [template.core_id, template])
+      ((templates ?? []) as unknown as Array<Record<string, any>>).map((template) => [template.core_id, template])
     );
 
     const candidates = rows.flatMap((row) => {

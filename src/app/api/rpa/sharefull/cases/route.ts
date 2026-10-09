@@ -18,16 +18,17 @@ async function handleGET(request: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    const csIds = Array.from(new Set((data ?? []).map((row) => row.kaipoke_cs_id).filter(Boolean)));
+    const rows = (data ?? []) as unknown as Array<Record<string, any>>;
+    const csIds = Array.from(new Set(rows.map((row) => row.kaipoke_cs_id).filter(Boolean)));
     const { data: clients, error: clientError } = csIds.length
       ? await supabaseAdmin.from("cs_kaipoke_info").select("kaipoke_cs_id,name").in("kaipoke_cs_id", csIds)
       : { data: [], error: null };
     if (clientError) throw clientError;
     const clientNames = new Map((clients ?? []).map((client) => [String(client.kaipoke_cs_id), client.name ?? "-"]));
-    const cases = [...(data ?? [])].map((row) => ({
+    const cases: Array<Record<string, any>> = rows.map((row) => ({
       ...row,
       client_name: clientNames.get(String(row.kaipoke_cs_id ?? "")) ?? "-",
-    })).sort((a, b) => {
+    })).sort((a: Record<string, any>, b: Record<string, any>) => {
       const aActive = a.status === "active" ? 0 : 1;
       const bActive = b.status === "active" ? 0 : 1;
       if (aActive !== bActive) return aActive - bActive;

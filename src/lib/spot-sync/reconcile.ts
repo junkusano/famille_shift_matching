@@ -16,16 +16,21 @@ export async function reconcileSpotProviders() {
   const errors: {request_id: string; message: string}[] = [];
   const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
   for (let offset = 0; ; offset += 500) {
-    const {data: requests, error} = await db.from(requestTable as never).select('*').gte('shift_start_date', today).order('id').range(offset, offset + 499);
-    check(error); if (!requests?.length) break;
-    const {data: shifts, error: shiftError} = await db.from('shift').select('*').in('shift_id', requests.map(r => r.shift_id).filter(Boolean));
+    const {data: requestsRaw, error} = await db.from(requestTable as never).select('*').gte('shift_start_date', today).order('id').range(offset, offset + 499);
+    check(error);
+    const requests = (requestsRaw ?? []) as Row[];
+    if (!requests.length) break;
+    const {data: shiftsRaw, error: shiftError} = await db.from('shift').select('*').in('shift_id', requests.map(r => r.shift_id).filter(Boolean));
     check(shiftError);
-    const ids = [...new Set((shifts ?? []).flatMap(s => [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id]).filter(id => id && id !== '-'))];
-    const {data: users, error: userError} = ids.length ? await db.from('user_entry_united_view_single').select('user_id,system_role').in('user_id', ids) : {data: [], error: null};
+    const shifts = (shiftsRaw ?? []) as Row[];
+    const ids = [...new Set(shifts.flatMap(s => [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id]).filter(id => id && id !== '-'))];
+    const {data: usersRaw, error: userError} = ids.length ? await db.from('user_entry_united_view_single').select('user_id,system_role').in('user_id', ids) : {data: [], error: null};
     check(userError);
-    const roles = new Map<string,string>((users ?? []).map(u => [u.user_id,u.system_role]));
-    const {data: applications, error: applicationError} = await db.from(applicationTable as never).select('request_id,provider,state').in('request_id',requests.map(r=>r.id));
+    const users = (usersRaw ?? []) as Row[];
+    const roles = new Map<string,string>(users.map(u => [u.user_id,u.system_role]));
+    const {data: applicationsRaw, error: applicationError} = await db.from(applicationTable as never).select('request_id,provider,state').in('request_id',requests.map(r=>r.id));
     check(applicationError);
+    const applications = (applicationsRaw ?? []) as Row[];
     for (const request of requests) {
       try {
         const shift = shifts?.find(s => String(s.shift_id) === String(request.shift_id)) ?? null;
@@ -83,17 +88,21 @@ export async function reconcileSpotProviders() {
 /** 実行待ちの間に応募・担当者確定・時間切れになっていないか再確認する。 */
 export async function validateSharefullSyncJob(jobType: string, payload: Row): Promise<boolean> {
   if (!payload.spot_offer_request_id) return true; // 既存の手動ジョブは互換性維持
-  const {data:r,error}=await db.from(sharefullRequestTableName() as never).select('*').eq('id',payload.spot_offer_request_id).maybeSingle(); check(error);
+  const {data:rRaw,error}=await db.from(sharefullRequestTableName() as never).select('*').eq('id',payload.spot_offer_request_id).maybeSingle(); check(error);
+  const r = rRaw as Row | null;
   if (!r || !isSharefullSyncClient(r.kaipoke_cs_id)) return false;
-  const {data:s,error:se}=await db.from('shift').select('*').eq('shift_id',r.shift_id).maybeSingle(); check(se);
-  const {data:apps,error:ae}=await db.from(sharefullApplicationTableName() as never).select('provider,state').eq('request_id',r.id); check(ae);
+  const {data:sRaw,error:se}=await db.from('shift').select('*').eq('shift_id',r.shift_id).maybeSingle(); check(se);
+  const s = sRaw as Row | null;
+  const {data:appsRaw,error:ae}=await db.from(sharefullApplicationTableName() as never).select('provider,state').eq('request_id',r.id); check(ae);
+  const apps = (appsRaw ?? []) as Row[];
   const ids=s?[s.staff_01_user_id,s.staff_02_user_id,s.staff_03_user_id].filter(Boolean):[];
-  const {data:users,error:ue}=ids.length?await db.from('user_entry_united_view_single').select('user_id,system_role').in('user_id',ids):{data:[],error:null};check(ue);
-  const action=desiredAction({provider:'sharefull',status:r.status,applications:apps??[],shift:s,assigned:!!s&&staffAssigned(s,new Map((users??[]).map(u=>[u.user_id,u.system_role]))),manualStop:r.recruitment_paused});
+  const {data:usersRaw,error:ue}=ids.length?await db.from('user_entry_united_view_single').select('user_id,system_role').in('user_id',ids):{data:[],error:null};check(ue);
+  const users = (usersRaw ?? []) as Row[];
+  const action=desiredAction({provider:'sharefull',status:r.status,applications:apps as Application[],shift:s,assigned:!!s&&staffAssigned(s,new Map(users.map(u=>[u.user_id,u.system_role]))),manualStop:r.recruitment_paused});
   const timeMinutes = (v: unknown) => { const [h,m]=String(v??'').split(':').map(Number); return h*60+m; };
   const obsolete = !!s && (payload.reason === 'date_changed' && payload.original_shift_start_date !== s.shift_start_date
     || payload.reason === 'time_changed' && Math.abs(timeMinutes(payload.original_shift_start_time)-timeMinutes(s.shift_start_time))>30);
-  const ownApplication = (apps??[]).some(a=>a.provider==='sharefull' && ['applied','confirmed'].includes(a.state));
+  const ownApplication = apps.some(a=>a.provider==='sharefull' && ['applied','confirmed'].includes(a.state));
   if(jobType==='sharefull.close_spot_offer') return !ownApplication && (action==='close' || obsolete) && r.sharefull_order_id===payload.sharefull_order_id && r.sharefull_job_id===payload.sharefull_job_id;
   return action==='open' && !r.sharefull_job_id && r.shift_start_date===payload.shift_start_date && timeMinutes(r.shift_start_time)===timeMinutes(payload.shift_start_time);
 }
