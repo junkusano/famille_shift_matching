@@ -69,7 +69,7 @@ function fingerprint(input: ContentPolicyBlockInput): string {
 }
 
 function notificationText(input: ContentPolicyBlockInput): string {
-  const findings = input.report.findings.filter((finding) => finding.ruleId !== "gender-sensitive-recruiting").map((finding) => [
+  const findings = input.report.findings.map((finding) => [
     `検出項目: ${finding.matchedText}`,
     `検出ルール: ${finding.ruleId}`,
     finding.replacement ? `自動変換先: ${finding.replacement}` : null,
@@ -88,11 +88,11 @@ function notificationText(input: ContentPolicyBlockInput): string {
     "",
     input.report.status === "blocked"
       ? "停止理由: シェアフル掲載前に確認が必要な文言を検出しました。"
-      : "記録内容: タイミー表記はシェアフル表記へ変換し、性別に関する要確認表現は追跡記録しました。",
+      : "記録内容: タイミー表記はシェアフル表記へ変換し、性別に関する要確認表現を監査記録・通知しました。これらの表現を理由に処理は停止していません。",
   ].filter((line): line is string => line !== null).join("\n");
 }
 
-/** 停止事実を環境別の監査テーブルへ保存してから、LINE WORKSへ通知する。 */
+/** 文面ポリシーの監査記録を保存し、停止対象または性別関連表現をLINE WORKSへ通知する。 */
 export async function recordSharefullContentPolicyBlock(input: ContentPolicyBlockInput): Promise<{
   recorded: boolean;
   notified: boolean;
@@ -122,9 +122,10 @@ export async function recordSharefullContentPolicyBlock(input: ContentPolicyBloc
     .single();
   const rowRecord = row as unknown as { id: string; notified_at?: string | null; notification_claimed_at?: string | null; notification_error?: string | null } | null;
   if (error || !rowRecord) throw error ?? new Error("停止記録を保存できませんでした");
-  // 性別に関する表現は監査テーブルに記録するだけで、LINE WORKSには送らない。
-  // それ以外も、処理継続となる flagged/transformed は通知対象外。
-  if (input.report.status !== "blocked" || !input.report.findings.some((finding) => finding.action === "block" && finding.ruleId !== "gender-sensitive-recruiting")) {
+  // 性別関連表現は非ブロッキングの監査通知とする。その他は従来どおり、実際に停止する場合だけ通知する。
+  const hasGenderSensitiveFinding = input.report.findings.some((finding) => finding.ruleId === "gender-sensitive-recruiting");
+  const hasBlockingFinding = input.report.findings.some((finding) => finding.action === "block");
+  if (!hasGenderSensitiveFinding && (input.report.status !== "blocked" || !hasBlockingFinding)) {
     return { recorded: true, notified: false };
   }
   if (rowRecord.notified_at) return { recorded: true, notified: true };

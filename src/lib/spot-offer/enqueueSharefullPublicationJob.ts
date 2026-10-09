@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { isDuplicateSharefullPublicationJob, SHAREFULL_PUBLICATION_DEDUPE_STATUSES } from "@/lib/spot-offer/publicationJobDedupe";
 import { applySharefullContentPolicy } from "@/lib/spot-sync/sharefullContentPolicy";
 import { recordSharefullContentPolicyBlock } from "@/lib/spot-sync/sharefullContentPolicyAlert";
-import { latestSharefullTemplatesByClient } from "@/lib/spot-offer/latestSharefullTemplates";
+import { activeSharefullTemplates } from "@/lib/spot-offer/latestSharefullTemplates";
 
 const JOB_TYPE = "sharefull.create_spot_offer";
 const TEMPLATE_JOB_TYPE = "sharefull.create_template";
@@ -44,7 +44,7 @@ function todayInJst(): string {
 async function enqueueSharefullTemplateCreationJob(coreId: string, source: string): Promise<{ registeredCount: number; skipped: string[] }> {
   const baseOperationKey = `sharefull:create_template:${coreId}`;
   const { data: existing, error: existingError } = await supabaseAdmin
-    .from("rpa_runner_jobs").select("id,status,created_at,updated_at,error_code,payload").eq("job_type", TEMPLATE_JOB_TYPE)
+    .from("rpa_runner_jobs").select("id,status,created_at,updated_at,error_code,error_type,error_category,error_message,payload").eq("job_type", TEMPLATE_JOB_TYPE)
     .eq("payload->>core_id", coreId).order("created_at", { ascending: false });
   if (existingError) throw existingError;
   const attempts = (existing ?? []).filter((job) => {
@@ -55,13 +55,13 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
   if (attempts.some((job) => ["pending", "claimed", "running", "completed"].includes(text(job.status)))) {
     return { registeredCount: 0, skipped: ["テンプレート作成ジョブが登録済みです"] };
   }
+  if (attempts.some((job) => isAmbiguousSharefullTemplateFailure(job))) {
+    return { registeredCount: 0, skipped: ["Sharefull側の作成有無を照合するまで再投入を保留しています"] };
+  }
   const latestAttempt = attempts[0];
   if (latestAttempt) {
     if (text(latestAttempt.status) !== "failed") {
       return { registeredCount: 0, skipped: ["テンプレート作成ジョブがキャンセルされています"] };
-    }
-    if (text(latestAttempt.error_code) === "SupabaseへのSharefull template ID保存失敗") {
-      return { registeredCount: 0, skipped: ["Sharefull作成済み・ID未記録の可能性があるため、重複防止の手動照合待ちです"] };
     }
     if (attempts.length >= TEMPLATE_JOB_MAX_ATTEMPTS) {
       return { registeredCount: 0, skipped: ["テンプレート作成ジョブの自動再試行上限に達しました"] };
@@ -81,13 +81,24 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
   return { registeredCount: 1, skipped: [] };
 }
 
+function isAmbiguousSharefullTemplateFailure(job: JsonRecord): boolean {
+  const values = [job.error_code, job.error_type, job.error_category, job.error_message]
+    .map((value) => text(value).toLowerCase());
+  return values.some((value) => value === "job_timeout"
+    || value === "timeout"
+    || value.includes("timeout")
+    || value.includes("timed out")
+    || value.includes("作成済み・id未記録")
+    || value.includes("id保存失敗"));
+}
+
 /**
- * 運用対象利用者ごとに最新の有効なMyFamilleテンプレートを1件選び、
+ * 運用対象利用者の全ての有効なMyFamilleテンプレートを選び、
  * Sharefull IDが未登録で安全確認を通ったものだけ作成ジョブへ登録する。
  * 全利用者化は既存の明示設定 SHAREFULL_SYNC_KAIPOKE_CS_IDS=* と
  * SHAREFULL_SYNC_ALLOW_ALL=true によって段階的に有効化できる。
  */
-export async function enqueueLatestSharefullTemplateCreationJobs(source: string) {
+export async function enqueueActiveSharefullTemplateCreationJobs(source: string) {
   const targetClientIds = sharefullSyncClientIds();
   let query = supabaseAdmin.from(sharefullTemplateTableName() as never)
     .select("*")
@@ -106,7 +117,7 @@ export async function enqueueLatestSharefullTemplateCreationJobs(source: string)
     if (page.length < pageSize) break;
   }
 
-  const latest = latestSharefullTemplatesByClient(rows);
+  const templates = activeSharefullTemplates(rows);
   const { data: envRows, error: envError } = await supabaseAdmin
     .from("env_variables").select("key_name,value").eq("group_key", "sukima");
   if (envError) throw envError;
@@ -114,7 +125,7 @@ export async function enqueueLatestSharefullTemplateCreationJobs(source: string)
   const registeredCoreIds: string[] = [];
   const skipped: string[] = [];
 
-  for (const template of latest) {
+  for (const template of templates) {
     const coreId = text(template.core_id);
     if (text(template.sharefull_template_id)) {
       skipped.push(`${coreId}:既にSharefullテンプレートIDがあります`);
@@ -157,7 +168,7 @@ export async function enqueueLatestSharefullTemplateCreationJobs(source: string)
     enabled: true,
     registeredCount: registeredCoreIds.length,
     skipped,
-    candidateClientCount: latest.length,
+    candidateTemplateCount: templates.length,
     registeredCoreIds,
     scope: sharefullSyncScopeLabel(),
   };
