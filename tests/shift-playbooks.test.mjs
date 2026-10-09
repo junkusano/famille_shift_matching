@@ -76,6 +76,7 @@ test('確認後に対象日時が変わった場合は削除しない',async()=>
 });
 
 test('受信口から追加・キャンセルへ接続し、実際のメンション形式を渡す',async()=>{
+  const quitIntent=load('../src/lib/agent-playbooks/quitIntent.ts');
   for(const [content,expectedMention] of [
     [{text:'@すまーとアイさん \n9/20 シフト削除して'},true],
     [{text:'<dm botno="6807751">@すまーとアイさん</dm>\n9/20 シフト削除して'},true],
@@ -89,11 +90,20 @@ test('受信口から追加・キャンセルへ接続し、実際のメンシ�
     const route=load('../src/app/api/webhook/route.ts',{
       '@supabase/supabase-js':{createClient:()=>db},'@/lib/supabase/service':{supabaseAdmin:db},'next/server':{NextResponse:{json:value=>value}},'@/lib/getAccessToken':{getAccessToken:()=>{throw Error('Unexpected send');}},crypto:{},
       '@/lib/agent-playbooks/shiftCreation':{handleShiftCreationAgent:async p=>{calls.push(['create',p]);return {handled:false};}},
-      '@/lib/agent-playbooks/shiftCancellation':{handleShiftCancellationAgent:async p=>{calls.push(['delete',p]);return {handled:true};}}
+      '@/lib/agent-playbooks/shiftCancellation':{handleShiftCancellationAgent:async p=>{calls.push(['delete',p]);return {handled:true};}},
+      '@/lib/agent-playbooks/quitIntent':quitIntent
     });
     const result=await route.POST({json:async()=>({type:'message',issuedTime:base.issuedAt,source:{userId:'requester',channelId:'room',domainId:'domain'},content})});
     assert.equal(result.handledBy,'shift-cancellation-agent');assert.deepEqual(calls.map(x=>x[0]),['create','delete']);assert.ok(calls.every(x=>x[1].hasBotMention===expectedMention));
   }
+});
+
+test('退出依頼は退会表現と利用者様グループ表現を認識する', async () => {
+  const quitIntent = load('../src/lib/agent-playbooks/quitIntent.ts');
+  assert.equal(quitIntent.isSelfQuitRequest('利用者様のグループを退会したい'), true);
+  assert.equal(quitIntent.isSelfQuitRequest('グループを退会したい'), true);
+  assert.equal(quitIntent.isSelfQuitRequest('私をこの部屋から退出させて'), true);
+  assert.equal(quitIntent.isSelfQuitRequest('グループの予定を確認したい'), false);
 });
 
 const createRequest={...base,message:'10/3 10:00〜16:00 test サービス追加して'};

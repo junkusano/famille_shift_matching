@@ -6,6 +6,7 @@ import { getAccessToken } from "@/lib/getAccessToken";
 import crypto from "crypto";
 import { handleShiftCancellationAgent } from "@/lib/agent-playbooks/shiftCancellation";
 import { handleShiftCreationAgent } from "@/lib/agent-playbooks/shiftCreation";
+import { isSelfQuitRequest } from "@/lib/agent-playbooks/quitIntent";
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -536,19 +537,6 @@ function shouldReplyToMessage(params: {
     return true;
 }
 
-function isSelfQuitRequest(text: string | null): boolean {
-    if (!text) return false;
-    const normalized = text
-        .replace(/@[\S]+/g, "")
-        .replace(/[\s　、。！？!?,.]/g, "")
-        .toLowerCase();
-
-    const refersToSelf = /(私|わたし|自分|僕|ぼく|俺)/.test(normalized);
-    const refersToRoom = /(この)?(部屋|ルーム|グループ|トーク)/.test(normalized);
-    const asksToLeave = /(退出|退室|抜け).*(して|させて|お願い)|.*(退出|退室|抜け)(したい)/.test(normalized);
-    return refersToSelf && refersToRoom && asksToLeave;
-}
-
 async function hasActiveQuitConfirmation(channelId: string, requesterLwUserid: string | null): Promise<boolean> {
     if (!requesterLwUserid) return false;
     const { data, error } = await supabaseAdmin
@@ -568,8 +556,11 @@ async function shouldRouteToQuitDialogflow(params: {
     text: string | null;
     channelId: string;
     requesterLwUserid: string | null;
+    hasBotMention: boolean;
 }) {
-    if (isSelfQuitRequest(params.text)) return true;
+    // 新しい退出依頼はメンションを必須にする。確認中の OK/キャンセルだけは
+    // hasActiveQuitConfirmation() によりメンションなしで継続できる。
+    if (params.hasBotMention && isSelfQuitRequest(params.text)) return true;
     return await hasActiveQuitConfirmation(params.channelId, params.requesterLwUserid);
 }
 
@@ -653,40 +644,10 @@ export async function POST(req: NextRequest) {
 
         console.log("[lw webhook] groupType=", groupType);
 
-        const shiftCreationResult = await handleShiftCreationAgent({
-            eventType,
-            message: message ?? "",
-            channelId,
-            requesterLwUserid: userId,
-            issuedAt: timestamp,
-            hasBotMention: hasSmartEyeMention(data, message),
-            mentionedLwUserids: mentionLwUserids,
-        });
+        const hasBotMention = hasSmartEyeMention(data, message);
 
-        if (shiftCreationResult.handled) {
-            if (shiftCreationResult.replyText) {
-                await sendLineworksMessage({ channelId, text: shiftCreationResult.replyText });
-            }
-            return NextResponse.json({ status: "ok", handledBy: "shift-creation-agent" }, { status: 200 });
-        }
-
-        const shiftCancellationResult = await handleShiftCancellationAgent({
-            eventType,
-            message: message ?? "",
-            channelId,
-            requesterLwUserid: userId,
-            issuedAt: timestamp,
-            hasBotMention: hasSmartEyeMention(data, message),
-        });
-
-        if (shiftCancellationResult.handled) {
-            if (shiftCancellationResult.replyText) {
-                await sendLineworksMessage({ channelId, text: shiftCancellationResult.replyText });
-            }
-            return NextResponse.json({ status: "ok", handledBy: "shift-cancellation-agent" }, { status: 200 });
-        }
-
-
+        // 退出はシフト操作より先に判定する。直前のシフトキャンセル履歴に
+        // 引っ張られて「日付と開始時刻」を尋ねる誤誘導を防ぐ。
         const routeToQuitDialogflow =
             shouldReplyToMessage({
                 eventType,
@@ -698,6 +659,7 @@ export async function POST(req: NextRequest) {
                 text: message,
                 channelId,
                 requesterLwUserid: userId,
+                hasBotMention,
             });
 
         if (routeToQuitDialogflow) {
@@ -743,25 +705,47 @@ export async function POST(req: NextRequest) {
                 ]);
 
                 if (replyText) {
-                    console.log("[lw webhook] dialogflow reply preview=", replyText);
-
-                    await sendLineworksMessage({
-                        channelId,
-                        text: replyText,
-                    });
-                } else {
-                    console.warn("[lw webhook] dialogflow reply text empty");
+                    await sendLineworksMessage({ channelId, text: replyText });
                 }
             } catch (dialogflowError) {
-                console.error("[lw webhook] dialogflow flow error", dialogflowError);
-
-                console.warn("[lw webhook] quit-only Dialogflow request failed", {
-                    eventType,
-                    channelId,
-                    groupType,
-                });
+                console.error("[lw webhook] quit-only Dialogflow request failed", dialogflowError);
             }
+            return NextResponse.json({ status: "ok", handledBy: "quit-dialogflow" }, { status: 200 });
         }
+
+        const shiftCreationResult = await handleShiftCreationAgent({
+            eventType,
+            message: message ?? "",
+            channelId,
+            requesterLwUserid: userId,
+            issuedAt: timestamp,
+            hasBotMention,
+            mentionedLwUserids: mentionLwUserids,
+        });
+
+        if (shiftCreationResult.handled) {
+            if (shiftCreationResult.replyText) {
+                await sendLineworksMessage({ channelId, text: shiftCreationResult.replyText });
+            }
+            return NextResponse.json({ status: "ok", handledBy: "shift-creation-agent" }, { status: 200 });
+        }
+
+        const shiftCancellationResult = await handleShiftCancellationAgent({
+            eventType,
+            message: message ?? "",
+            channelId,
+            requesterLwUserid: userId,
+            issuedAt: timestamp,
+            hasBotMention,
+        });
+
+        if (shiftCancellationResult.handled) {
+            if (shiftCancellationResult.replyText) {
+                await sendLineworksMessage({ channelId, text: shiftCancellationResult.replyText });
+            }
+            return NextResponse.json({ status: "ok", handledBy: "shift-cancellation-agent" }, { status: 200 });
+        }
+
 
         return NextResponse.json({ status: "ok" }, { status: 200 });
     } catch (err) {
