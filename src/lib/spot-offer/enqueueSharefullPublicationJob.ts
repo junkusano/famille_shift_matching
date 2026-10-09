@@ -44,7 +44,7 @@ function todayInJst(): string {
 async function enqueueSharefullTemplateCreationJob(coreId: string, source: string): Promise<{ registeredCount: number; skipped: string[] }> {
   const baseOperationKey = `sharefull:create_template:${coreId}`;
   const { data: existing, error: existingError } = await supabaseAdmin
-    .from("rpa_runner_jobs").select("id,status,created_at,updated_at,payload").eq("job_type", TEMPLATE_JOB_TYPE)
+    .from("rpa_runner_jobs").select("id,status,created_at,updated_at,error_code,payload").eq("job_type", TEMPLATE_JOB_TYPE)
     .eq("payload->>core_id", coreId).order("created_at", { ascending: false });
   if (existingError) throw existingError;
   const attempts = (existing ?? []).filter((job) => {
@@ -59,6 +59,9 @@ async function enqueueSharefullTemplateCreationJob(coreId: string, source: strin
   if (latestAttempt) {
     if (text(latestAttempt.status) !== "failed") {
       return { registeredCount: 0, skipped: ["テンプレート作成ジョブがキャンセルされています"] };
+    }
+    if (text(latestAttempt.error_code) === "SupabaseへのSharefull template ID保存失敗") {
+      return { registeredCount: 0, skipped: ["Sharefull作成済み・ID未記録の可能性があるため、重複防止の手動照合待ちです"] };
     }
     if (attempts.length >= TEMPLATE_JOB_MAX_ATTEMPTS) {
       return { registeredCount: 0, skipped: ["テンプレート作成ジョブの自動再試行上限に達しました"] };
