@@ -5,6 +5,7 @@ import { isRecord, redactDebug, text } from '@/lib/rpa-runner/validation';
 import { notifyRpaJobFailure, rpaErrorFingerprint, sanitizeRpaAlertText } from '@/lib/rpa-runner/alerts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SHAREFULL_TEMPLATE_ID_SAVE_FAILURE = 'SupabaseへのSharefull template ID保存失敗';
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       && typeof payload?.core_id === 'string'
       && (operationKey === `sharefull:create_template:${payload.core_id}` || operationKey.startsWith(`sharefull:create_template:${payload.core_id}:retry:`));
     const sharefullTemplateManualReview = sharefullTemplateFailure
-      && errorCode === 'SupabaseへのSharefull template ID保存失敗';
+      && (errorCode === SHAREFULL_TEMPLATE_ID_SAVE_FAILURE || safeMessage.includes(SHAREFULL_TEMPLATE_ID_SAVE_FAILURE));
     let sharefullTemplateAttempt: number | undefined;
     if (sharefullTemplateFailure && payload && typeof payload.core_id === 'string') {
       const { data: attempts, error: attemptLookupError } = await supabaseAdmin.from('rpa_runner_jobs')
