@@ -10,16 +10,22 @@ export const dynamic = "force-dynamic";
 const TRUSTED_DEVICE_COOKIE_NAME = "trusted_device";
 const TRUSTED_DEVICE_MAX_AGE_SEC = 60 * 60 * 24 * 14; // 14日
 
-const supabaseAuthClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
+let supabaseAuthClient: ReturnType<typeof createClient> | null = null;
+
+function getSupabaseAuthClient() {
+  if (supabaseAuthClient) return supabaseAuthClient;
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !anonKey) {
+    throw new Error("Supabase認証用の環境変数が未設定です");
   }
-);
+
+  supabaseAuthClient = createClient(supabaseUrl, anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  return supabaseAuthClient;
+}
 
 function normalizeEmail(v: unknown): string {
   return typeof v === "string" ? v.trim().toLowerCase() : "";
@@ -92,7 +98,7 @@ export async function POST(req: NextRequest) {
 
     // 本ログイン前にID/PWを再確認
     const { data: signInData, error: signInError } =
-      await supabaseAuthClient.auth.signInWithPassword({
+      await getSupabaseAuthClient().auth.signInWithPassword({
         email,
         password,
       });

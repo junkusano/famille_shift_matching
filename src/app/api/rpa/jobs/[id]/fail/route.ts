@@ -5,6 +5,7 @@ import { isRecord, redactDebug, text } from '@/lib/rpa-runner/validation';
 import { notifyRpaJobFailure, rpaErrorFingerprint, sanitizeRpaAlertText } from '@/lib/rpa-runner/alerts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SHAREFULL_TEMPLATE_ID_SAVE_FAILURE = 'SupabaseへのSharefull template ID保存失敗';
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -23,12 +24,40 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       .from('rpa_runner_jobs')
       .update({ status: 'failed', error_code: errorCode, error_type: errorType, error_category: errorCategory, error_message: safeMessage, error_debug: redactDebug(body.debug ?? {}), retry_count: retryCount, failed_at: new Date().toISOString(), completed_at: new Date().toISOString() })
       .eq('id', id).eq('claimed_runner_id', runner.runnerId).eq('status', 'claimed')
-      .select('id, job_type').maybeSingle();
+      .select('id, job_type, payload').maybeSingle();
     if (error) return NextResponse.json({ ok: false, error: 'Job failure could not be recorded' }, { status: 500 });
     if (!data) return NextResponse.json({ ok: false, error: 'Job is not claimable by this runner' }, { status: 409 });
     const fingerprint = rpaErrorFingerprint({ runnerId: runner.runnerId, jobType: data.job_type, errorCategory, errorCode });
     await supabaseAdmin.from('rpa_runner_jobs').update({ error_fingerprint: fingerprint }).eq('id', id);
-    await notifyRpaJobFailure({ jobId: id, runnerId: runner.runnerId, runnerName: runner.runnerName, jobType: data.job_type, errorCode, errorCategory, errorMessage: safeMessage, retryCount });
+    const payload = data.payload && typeof data.payload === 'object' && !Array.isArray(data.payload)
+      ? data.payload as Record<string, unknown>
+      : null;
+    const operationKey = typeof payload?.operation_key === 'string' ? payload.operation_key : '';
+    const sharefullTemplateFailure = data.job_type === 'sharefull.create_template'
+      && typeof payload?.core_id === 'string'
+      && (operationKey === `sharefull:create_template:${payload.core_id}` || operationKey.startsWith(`sharefull:create_template:${payload.core_id}:retry:`));
+    const sharefullTemplateManualReview = sharefullTemplateFailure
+      && (errorCode === SHAREFULL_TEMPLATE_ID_SAVE_FAILURE || safeMessage.includes(SHAREFULL_TEMPLATE_ID_SAVE_FAILURE));
+    let sharefullTemplateAttempt: number | undefined;
+    if (sharefullTemplateFailure && payload && typeof payload.core_id === 'string') {
+      const { data: attempts, error: attemptLookupError } = await supabaseAdmin.from('rpa_runner_jobs')
+        .select('payload')
+        .eq('job_type', 'sharefull.create_template')
+        .eq('payload->>core_id', payload.core_id);
+      const baseKey = `sharefull:create_template:${payload.core_id}`;
+      const attemptCount = (attempts ?? []).filter((job) => {
+        const jobPayload = job.payload && typeof job.payload === 'object' && !Array.isArray(job.payload)
+          ? job.payload as Record<string, unknown>
+          : null;
+        const key = typeof jobPayload?.operation_key === 'string' ? jobPayload.operation_key : '';
+        return key === baseKey || key.startsWith(`${baseKey}:retry:`);
+      }).length;
+      const retryIndex = /:retry:(\d+)$/.exec(operationKey);
+      sharefullTemplateAttempt = attemptLookupError
+        ? (retryIndex ? Number(retryIndex[1]) + 1 : 1)
+        : Math.max(attemptCount, 1);
+    }
+    await notifyRpaJobFailure({ jobId: id, runnerId: runner.runnerId, runnerName: runner.runnerName, jobType: data.job_type, errorCode, errorCategory, errorMessage: safeMessage, retryCount, sharefullTemplateFailure, sharefullTemplateAttempt, sharefullTemplateManualReview });
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof RpaRunnerAuthError) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });

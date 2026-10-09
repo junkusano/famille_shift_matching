@@ -37,6 +37,17 @@ type ServiceOption = {
     label: string;
 };
 
+export type MultipleServiceDialogContext = {
+    groupId: string;
+    shiftIds: number[];
+    serviceSummary: string;
+    kaipokeCsIds: Array<string | number>;
+    clientFieldsMixed: {
+        gender: boolean;
+        note: boolean;
+    };
+};
+
 type FormState = {
     shift_id: number | null;
     shift_start_date: string;
@@ -87,6 +98,7 @@ type Props = {
     staffOptions: RosterStaff[];
     serviceOptions: ServiceOption[];
     onSaved?: (next: RosterShiftDialogData) => void;
+    multipleService?: MultipleServiceDialogContext | null;
 };
 
 const GENDER_OPTIONS = [
@@ -320,6 +332,7 @@ export default function ShiftDialog({
     staffOptions,
     serviceOptions,
     onSaved,
+    multipleService = null,
 }: Props) {
     const { role } = useRoleContext();
     const [form, setForm] = useState<FormState>(emptyForm);
@@ -340,6 +353,9 @@ export default function ShiftDialog({
     const [spotConfirmed, setSpotConfirmed] =
     useState<SpotConfirmed | null>(null);
     const [spotError, setSpotError] = useState('');
+    const [clientInfoIds, setClientInfoIds] = useState<string[]>([]);
+    const [clientFieldsDirty, setClientFieldsDirty] = useState({ gender: false, note: false });
+    const multipleServiceKaipokeKey = multipleService?.kaipokeCsIds.map(String).join("\u0000") ?? "";
     const router = useRouter();
 
     const staffSelectOptions = useMemo<SearchableSelectOption[]>(
@@ -382,6 +398,7 @@ export default function ShiftDialog({
         if (!open || !shift) return;
         setErrorMsg('');
         setDoneMsg('');
+        setClientFieldsDirty({ gender: false, note: false });
         setForm({
             shift_id: shift.shift_id,
             shift_start_date: shift.shift_date ?? '',
@@ -447,15 +464,19 @@ export default function ShiftDialog({
     }, [shift]);
 
     const [clientDetailHref, setClientDetailHref] = useState('#');
-    const [clientInfoId, setClientInfoId] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
 
         const loadClientDetailHref = async () => {
-            if (!open || !shift?.kaipoke_cs_id) {
+            const targetKaipokeIds = multipleServiceKaipokeKey
+                ? multipleServiceKaipokeKey.split("\u0000")
+                : shift?.kaipoke_cs_id != null
+                    ? [String(shift.kaipoke_cs_id)]
+                    : [];
+            if (!open || targetKaipokeIds.length === 0) {
                 setClientDetailHref('#');
-                setClientInfoId(null);
+                setClientInfoIds([]);
                 return;
             }
 
@@ -469,21 +490,21 @@ export default function ShiftDialog({
                     kaipoke_cs_id?: string | number | null;
                 }>;
 
-                const hit = rows.find(
-                    (r) => String(r.kaipoke_cs_id ?? '') === String(shift.kaipoke_cs_id ?? '')
+                const hits = rows.filter((row) =>
+                    targetKaipokeIds.includes(String(row.kaipoke_cs_id ?? ''))
                 );
 
                 if (!cancelled) {
-                    setClientInfoId(hit?.id ? String(hit.id) : null);
+                    setClientInfoIds(hits.flatMap((row) => row.id ? [String(row.id)] : []));
                     setClientDetailHref(
-                        hit?.id
-                            ? `/portal/kaipoke-info-detail/${encodeURIComponent(String(hit.id))}`
+                        hits.length === 1 && hits[0]?.id
+                            ? `/portal/kaipoke-info-detail/${encodeURIComponent(String(hits[0].id))}`
                             : '#'
                     );
                 }
             } catch {
                 if (!cancelled) {
-                    setClientInfoId(null);
+                    setClientInfoIds([]);
                     setClientDetailHref('#');
                 }
             }
@@ -494,7 +515,7 @@ export default function ShiftDialog({
         return () => {
             cancelled = true;
         };
-    }, [open, shift?.kaipoke_cs_id]);
+    }, [multipleServiceKaipokeKey, open, shift?.kaipoke_cs_id]);
 
     if (!open || !shift) return null;
 
@@ -772,15 +793,29 @@ const saveShiftOnly = async () => {
                 throw new Error('ログインセッションが取得できません。再ログイン後にお試しください。');
             }
 
-            // ① shift 側を保存
-            const res = await fetch('/api/shifts', {
-                method: 'PUT',
+            // ① shift 側を保存。複数サービスは構成シフトをDB側で一括更新する。
+            const res = await fetch(multipleService ? '/api/multiple-services' : '/api/shifts', {
+                method: multipleService ? 'PATCH' : 'PUT',
                 credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({
+                body: JSON.stringify(multipleService ? {
+                    mode: 'dialog',
+                    groupId: multipleService.groupId,
+                    shiftIds: multipleService.shiftIds,
+                    date: form.shift_start_date,
+                    startAt: form.shift_start_time,
+                    endAt: form.shift_end_time,
+                    staff1Id: form.staff_01_user_id || null,
+                    staff2Id: form.staff_02_user_id || null,
+                    staff3Id: form.staff_03_user_id || null,
+                    staff2Attend: form.staff_02_attend_flg,
+                    staff3Attend: form.staff_03_attend_flg,
+                    requiredStaffCount: Number(form.required_staff_count || 1),
+                    twoPersonWork: form.two_person_work_flg,
+                } : {
                     shift_id: form.shift_id,
                     shift_start_date: form.shift_start_date,
                     shift_start_time: form.shift_start_time,
@@ -799,19 +834,32 @@ const saveShiftOnly = async () => {
 
             const json = await res.json().catch(() => ({}));
 
-            if (!res.ok) {
-                throw new Error(json?.error?.message ?? json?.error ?? '保存に失敗しました');
+            if (!res.ok || json?.ok === false) {
+                const responseError = json?.error;
+                throw new Error(
+                    (typeof responseError === 'object' && responseError?.message)
+                        ? responseError.message
+                        : typeof responseError === 'string'
+                            ? responseError
+                            : '保存に失敗しました'
+                );
             }
 
             // ② 利用者情報側を保存（希望性別・備考）
-            if (clientInfoId) {
+            const clientPatch = multipleService
+                ? {
+                    ...(clientFieldsDirty.gender ? { gender_request: form.gender_request || null } : {}),
+                    ...(clientFieldsDirty.note ? { biko: form.cs_note.trim() || null } : {}),
+                }
+                : {
+                    gender_request: form.gender_request || null,
+                    biko: form.cs_note.trim() || null,
+                };
+            if (clientInfoIds.length > 0 && Object.keys(clientPatch).length > 0) {
                 const { error: clientUpdateError } = await supabase
                     .from('cs_kaipoke_info')
-                    .update({
-                        gender_request: form.gender_request || null,
-                        biko: form.cs_note.trim() || null,
-                    })
-                    .eq('id', clientInfoId);
+                    .update(clientPatch)
+                    .in('id', clientInfoIds);
 
                 if (clientUpdateError) {
                     throw new Error(`利用者情報の保存に失敗しました: ${clientUpdateError.message}`);
@@ -825,10 +873,9 @@ const saveShiftOnly = async () => {
                 start_at: form.shift_start_time,
                 end_at: form.shift_end_time,
                 service_code: form.service_code,
-                service_name:
+                service_name: multipleService?.serviceSummary ??
                     serviceOptions.find((o) => o.value === form.service_code)?.label ??
-                    shift.service_name ??
-                    '',
+                    shift.service_name ?? '',
                 gender_request: form.gender_request || null,
                 gender_request_name:
                     GENDER_OPTIONS.find((g) => g.id === form.gender_request)?.label ?? null,
@@ -858,7 +905,19 @@ const saveShiftOnly = async () => {
                 <div className="mx-auto max-h-[90vh] w-full max-w-4xl overflow-auto rounded-xl bg-white p-4 shadow-xl">
                     <div className="mb-4 flex items-start justify-between gap-3">
                         <div>
-                            <div className="text-lg font-bold">シフト簡易編集</div>
+                            <div className="flex items-center gap-2 text-lg font-bold">
+                                シフト簡易編集
+                                {multipleService ? (
+                                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border-2 border-violet-700 text-xs font-bold text-violet-800">
+                                        複
+                                    </span>
+                                ) : null}
+                            </div>
+                            {multipleService ? (
+                                <div className="mt-1 text-xs text-gray-600">
+                                    構成する{multipleService.shiftIds.length}件のシフトへまとめて反映します
+                                </div>
+                            ) : null}
                         </div>
                         <button
                             type="button"
@@ -959,12 +1018,12 @@ const saveShiftOnly = async () => {
                                 <div className="text-xs text-gray-500">利用者名</div>
                                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                                     <span>{shift.client_name}</span>
-                                    <Link
+                                    {!multipleService || multipleService.kaipokeCsIds.length === 1 ? <Link
                                         href={disabilityRecordHref}
                                         className="text-sm font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
                                     >
                                         {formatRosterRecordMonthLabel(recordYearMonth)}
-                                    </Link>
+                                    </Link> : null}
                                 </div>
                             </div>
 
@@ -987,17 +1046,27 @@ const saveShiftOnly = async () => {
                                 <div className="text-xs text-gray-500">備考</div>
                                 <textarea
                                     value={form.cs_note}
-                                    onChange={(e) => setField('cs_note', e.target.value)}
+                                    onChange={(e) => {
+                                        setField('cs_note', e.target.value);
+                                        setClientFieldsDirty((current) => ({ ...current, note: true }));
+                                    }}
                                     rows={4}
+                                    placeholder={multipleService?.clientFieldsMixed.note ? '利用者ごとに異なります。入力すると全員へ共通反映します' : undefined}
                                     className="w-full rounded border p-2"
                                 />
+                                {multipleService?.clientFieldsMixed.note ? (
+                                    <div className="mt-1 text-xs text-amber-700">現在は利用者ごとに異なります。変更した場合のみ全員へ反映します。</div>
+                                ) : null}
                             </label>
 
                             <label className="block">
                                 <div className="text-xs text-gray-500">希望性別</div>
                                 <select
                                     value={form.gender_request}
-                                    onChange={(e) => setField('gender_request', e.target.value)}
+                                    onChange={(e) => {
+                                        setField('gender_request', e.target.value);
+                                        setClientFieldsDirty((current) => ({ ...current, gender: true }));
+                                    }}
                                     className="w-full rounded border p-2"
                                 >
                                     {GENDER_OPTIONS.map((g) => (
@@ -1006,6 +1075,9 @@ const saveShiftOnly = async () => {
                                         </option>
                                     ))}
                                 </select>
+                                {multipleService?.clientFieldsMixed.gender ? (
+                                    <div className="mt-1 text-xs text-amber-700">現在は利用者ごとに異なります。変更した場合のみ全員へ反映します。</div>
+                                ) : null}
                             </label>
 {spotError && <p role="alert" className="text-sm text-red-700">{spotError}</p>}
 {(taimeeJobUrl(spotConfirmed?.taimee_job_id) || spotConfirmed?.applicant_control_url) && (
@@ -1109,7 +1181,11 @@ const saveShiftOnly = async () => {
 
                             <label className="block">
                                 <div className="text-xs text-gray-500">サービス</div>
-                                <select
+                                {multipleService ? (
+                                    <div className="w-full rounded border bg-gray-50 p-2 text-gray-800">
+                                        {multipleService.serviceSummary}
+                                    </div>
+                                ) : <select
                                     value={form.service_code}
                                     onChange={(e) => setField('service_code', e.target.value)}
                                     className="w-full rounded border p-2"
@@ -1120,7 +1196,7 @@ const saveShiftOnly = async () => {
                                             {o.label}
                                         </option>
                                     ))}
-                                </select>
+                                </select>}
                             </label>
 
                             <div className="grid grid-cols-1 gap-3">
@@ -1213,8 +1289,13 @@ const saveShiftOnly = async () => {
         inputMode="numeric"
         maxLength={4}
         placeholder="例：0130"
-        className="w-full rounded border p-2"
+        disabled={Boolean(multipleService)}
+        title={multipleService ? "サービスごとの項目は個別シフトで編集してください" : undefined}
+        className="w-full rounded border p-2 disabled:bg-gray-100 disabled:text-gray-500"
     />
+    {multipleService ? (
+        <div className="mt-1 text-xs text-gray-500">サービスごとに異なるため個別シフトで編集します</div>
+    ) : null}
 </label>
                             </div>
                         </section>
@@ -1241,13 +1322,13 @@ const saveShiftOnly = async () => {
 
                         {doneMsg ? <span className="text-sm text-green-600">{doneMsg}</span> : null}
 
-                        <Link href={clientDetailHref} className="text-blue-600 underline">
+                        {(!multipleService || multipleService.kaipokeCsIds.length === 1) ? <Link href={clientDetailHref} className="text-blue-600 underline">
                             利用者情報（詳細）へ
-                        </Link>
+                        </Link> : null}
 
-                        <Link href={monthlyHref} className="text-blue-600 underline">
+                        {(!multipleService || multipleService.kaipokeCsIds.length === 1) ? <Link href={monthlyHref} className="text-blue-600 underline">
                             月間シフトへ
-                        </Link>
+                        </Link> : null}
 
                         <button
                             type="button"

@@ -2,15 +2,20 @@
 "use client";
 
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
     RosterDailyView,
     RosterShiftCard,
     RosterShiftDialogData,
     RosterStaff,
 } from "@/types/roster";
-import ShiftDialog from "@/components/roster/ShiftDialog";
+import ShiftDialog, { type MultipleServiceDialogContext } from "@/components/roster/ShiftDialog";
 import MultipleServicesBetaPanel from "@/components/roster/MultipleServicesBetaPanel";
+import {
+    buildRosterRenderItems,
+    rosterCardShiftId,
+    type RosterRenderItem,
+} from "@/lib/roster/multipleServiceCards";
 import { useRouter, useSearchParams } from "next/navigation";
 //import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { supabase } from "@/lib/supabaseClient";
@@ -164,6 +169,12 @@ interface DragState {
     ghostEndMin: number;
     ghostRowIdx: number;
     srcStaffId: string;       // ★ 触り始めたカードの元担当
+    multipleService: null | {
+        groupId: string;
+        shiftIds: number[];
+        staffSlot: 1 | 2 | 3;
+        lastShiftId: number;
+    };
 }
 
 export default function RosterBoardDaily({
@@ -215,7 +226,13 @@ export default function RosterBoardDaily({
     const [showAllStaff, setShowAllStaff] = useState(true);
     const [multipleServiceSelectedIds, setMultipleServiceSelectedIds] = useState<number[]>([]);
 
+    const renderItems = useMemo(
+        () => buildRosterRenderItems(cardsDate === date ? cards : initialView.shifts, beta),
+        [beta, cards, cardsDate, date, initialView.shifts]
+    );
+
     const [selectedShift, setSelectedShift] = useState<RosterShiftDialogData | null>(null);
+    const [selectedMultipleService, setSelectedMultipleService] = useState<MultipleServiceDialogContext | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
 
     useEffect(() => {
@@ -347,12 +364,33 @@ export default function RosterBoardDaily({
 
     const openShiftDialog = (card: RosterShiftCard) => {
         if (!card.dialog) return;
+        setSelectedMultipleService(null);
         setSelectedShift(card.dialog);
+        setDialogOpen(true);
+    };
+
+    const openMultipleServiceDialog = (
+        item: Extract<RosterRenderItem, { kind: "multiple-service" }>,
+    ) => {
+        if (!item.card.dialog) return;
+        setSelectedMultipleService({
+            groupId: item.groupId,
+            shiftIds: item.shiftIds,
+            serviceSummary: item.serviceSummary,
+            kaipokeCsIds: item.kaipokeCsIds,
+            clientFieldsMixed: item.clientFieldsMixed,
+        });
+        setSelectedShift(item.card.dialog);
         setDialogOpen(true);
     };
 
     const handleDialogSaved = (next: RosterShiftDialogData) => {
         setSelectedShift(next);
+
+        if (selectedMultipleService) {
+            window.setTimeout(() => window.location.reload(), 400);
+            return;
+        }
 
         setCards((prev) =>
             prev.map((c) => {
@@ -516,17 +554,36 @@ console.log(
         return clamp(x / PX_PER_MIN, 0, MINUTES_IN_DAY);
     };
 
-    const rowIdxFromDeltaY = (deltaY: number, origRowIdx: number) => {
+    const rowIdxFromDeltaY = useCallback((deltaY: number, origRowIdx: number) => {
         const dRows = Math.round(deltaY / ROW_HEIGHT);
         return clamp(origRowIdx + dRows, 0, Math.max(0, displayStaff.length - 1));
+    }, [displayStaff.length]);
+
+    const multipleServiceDragData = (item: RosterRenderItem): DragState["multipleService"] => {
+        if (item.kind !== "multiple-service") return null;
+        const memberTimes = item.memberCards.map((member) => ({
+            shiftId: rosterCardShiftId(member),
+            startMin: hhmmToMin(dispHHmm(member.start_at)),
+            endMin: hhmmToMin(dispHHmm(member.end_at)),
+        }));
+        const last = memberTimes.reduce((latest, member) =>
+            member.endMin >= latest.endMin ? member : latest
+        );
+        const slot = item.card.staff_slot;
+        return {
+            groupId: item.groupId,
+            shiftIds: item.shiftIds,
+            staffSlot: slot === 2 || slot === 3 ? slot : 1,
+            lastShiftId: last.shiftId,
+        };
     };
 
-    // 既存 onCardMouseDownMove / ResizeEnd 内でセット
-    const onCardMouseDownMove = (e: React.MouseEvent, card: RosterShiftCard) => {
+    const onCardMouseDownMove = (e: React.MouseEvent, item: RosterRenderItem) => {
         if (e.detail > 1) return;
         const target = e.target as HTMLElement | null;
         if (target && target.closest('a')) return; // リンク操作時はドラッグ開始しない
         e.preventDefault();
+        const card = item.card;
         const rowIdx = rowIndexByStaff.get(card.staff_id) ?? 0;
         const s = hhmmToMin(dispHHmm(card.start_at));
         const en = hhmmToMin(dispHHmm(card.end_at));
@@ -546,14 +603,16 @@ console.log(
             ghostEndMin: en,
             ghostRowIdx: rowIdx,
             srcStaffId: card.staff_id,
+            multipleService: multipleServiceDragData(item),
         });
     };
 
-    const onCardMouseDownResizeEnd = (e: React.MouseEvent, card: RosterShiftCard) => {
+    const onCardMouseDownResizeEnd = (e: React.MouseEvent, item: RosterRenderItem) => {
         const target = e.target as HTMLElement | null;
         if (target && target.closest('a')) return; // 念のため
         e.preventDefault();
         e.stopPropagation();
+        const card = item.card;
         const rowIdx = rowIndexByStaff.get(card.staff_id) ?? 0;
         const s = hhmmToMin(dispHHmm(card.start_at));
         const en = hhmmToMin(dispHHmm(card.end_at));
@@ -570,6 +629,7 @@ console.log(
             ghostEndMin: en,
             ghostRowIdx: rowIdx,
             srcStaffId: card.staff_id,
+            multipleService: multipleServiceDragData(item),
         });
     };
 
@@ -619,8 +679,8 @@ console.log(
                 origRowIdx,
                 pointerStartX,
                 pointerStartY,
+                multipleService,
             } = drag;
-            const { shiftId } = parseCardCompositeId(cardId);
             const targetStaff = displayStaff[ghostRowIdx];
             if (!targetStaff) { setDrag(null); return; }
             const start_at = toHHmm(ghostStartMin);
@@ -642,6 +702,89 @@ console.log(
                 setDrag(null);
                 return;
             }
+
+            if (multipleService) {
+                const deltaMinutes = ghostStartMin - origStartMin;
+                const memberShiftIds = new Set(multipleService.shiftIds);
+
+                (async () => {
+                    try {
+                        const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
+                        if (sessErr) console.warn("[roster] getSession error", sessErr);
+                        const token = sessionData.session?.access_token ?? null;
+                        const response = await fetch("/api/multiple-services", {
+                            method: "PATCH",
+                            headers: {
+                                "Content-Type": "application/json",
+                                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                            },
+                            body: JSON.stringify({
+                                groupId: multipleService.groupId,
+                                shiftIds: multipleService.shiftIds,
+                                date,
+                                mode: drag.mode,
+                                deltaMinutes: drag.mode === "move" ? deltaMinutes : null,
+                                endAt: drag.mode === "resizeEnd" ? end_at : null,
+                                staffSlot: multipleService.staffSlot,
+                                srcStaffId,
+                                staffId: staff_id,
+                            }),
+                        });
+                        const result = (await response.json().catch(() => null)) as
+                            | { ok?: boolean; error?: string }
+                            | null;
+                        if (!response.ok || !result?.ok) {
+                            throw new Error(result?.error || "複数サービスを変更できませんでした");
+                        }
+
+                        setCards((previous) => previous.map((card) => {
+                            const currentShiftId = rosterCardShiftId(card);
+                            if (!memberShiftIds.has(currentShiftId)) return card;
+
+                            const isLast = currentShiftId === multipleService.lastShiftId;
+                            const nextStart = drag.mode === "move"
+                                ? toHHmm(hhmmToMin(dispHHmm(card.start_at)) + deltaMinutes)
+                                : card.start_at;
+                            const nextEnd = drag.mode === "move"
+                                ? toHHmm(hhmmToMin(dispHHmm(card.end_at)) + deltaMinutes)
+                                : isLast ? end_at : card.end_at;
+                            const movesThisStaffCard =
+                                (card.staff_slot ?? 1) === multipleService.staffSlot &&
+                                card.staff_id === srcStaffId;
+                            const dialogStaffPatch = multipleService.staffSlot === 1
+                                ? { staff_id_1: staff_id }
+                                : multipleService.staffSlot === 2
+                                    ? { staff_id_2: staff_id }
+                                    : { staff_id_3: staff_id };
+
+                            return {
+                                ...card,
+                                ...(movesThisStaffCard
+                                    ? { id: `${currentShiftId}_${staff_id}`, staff_id }
+                                    : {}),
+                                start_at: nextStart,
+                                end_at: nextEnd,
+                                dialog: card.dialog ? {
+                                    ...card.dialog,
+                                    start_at: nextStart,
+                                    end_at: nextEnd,
+                                    ...dialogStaffPatch,
+                                } : card.dialog,
+                            };
+                        }));
+                        setMultipleServiceSelectedIds(multipleService.shiftIds);
+                    } catch (error) {
+                        console.error("[PATCH] multiple service update failed", error);
+                        window.alert(error instanceof Error ? error.message : "複数サービスを変更できませんでした");
+                        router.refresh();
+                    }
+                })();
+
+                setDrag(null);
+                return;
+            }
+
+            const { shiftId } = parseCardCompositeId(cardId);
 
             setCards((prev) =>
                 prev.map((c) => (c.id === cardId ? { ...c, id: `${shiftId}_${staff_id}`, staff_id, start_at, end_at } : c))
@@ -691,7 +834,7 @@ console.log(
             window.removeEventListener("mousemove", onMove);
             window.removeEventListener("mouseup", onUp);
         };
-    }, [drag, displayStaff, date]);
+    }, [drag, displayStaff, date, router, rowIdxFromDeltaY]);
 
     // ====== スタイル ======
     const MAX_H_MULTIPLIER = 10; // ← 4〜5倍にしたいときは 4 or 5 を指定
@@ -1095,38 +1238,53 @@ const topPx =
                                 <div key={idx} style={staffRowBgStyle(idx)} />
                             ))}
 
- {/* MyFamilleのシフトカード */}
-{cards.map((c) => {
+{/* MyFamilleのシフトカード */}
+{renderItems.map((item) => {
   if (cardsDate !== date) {
     return null;
   }
 
+  const c = item.card;
   const rowIdx = rowIndexByStaff.get(c.staff_id);
 
   if (rowIdx == null) {
     return null;
   }
 
-  const { shiftId } = parseCardCompositeId(c.id);
-  const selectionIndex = multipleServiceSelectedIds.indexOf(shiftId);
+  const isMultipleService = item.kind === "multiple-service";
+  const shiftId = isMultipleService ? null : rosterCardShiftId(c);
+  const selectionIndex = shiftId == null ? -1 : multipleServiceSelectedIds.indexOf(shiftId);
+  const groupSelected = isMultipleService &&
+    item.shiftIds.length === multipleServiceSelectedIds.length &&
+    item.shiftIds.every((id) => multipleServiceSelectedIds.includes(id));
 
   return (
     <div
-      key={c.id}
+      key={item.key}
       style={{
         ...cardStyle(c),
+        ...(isMultipleService ? { zIndex: 3 } : {}),
         ...(selectionIndex >= 0
           ? { outline: "3px solid #7c3aed", outlineOffset: "1px" }
           : {}),
       }}
       title={[
         `${dispHHmm(c.start_at)}-${dispHHmm(c.end_at)}`,
-        `${c.client_name}：${c.service_code ?? c.service_name ?? ""}`,
-        beta ? "ダブルクリックで複数サービスへ選択" : "",
+        isMultipleService ? item.title : `${c.client_name}：${c.service_code ?? c.service_name ?? ""}`,
+        isMultipleService ? `${item.serviceSummary}（${item.shiftIds.length}件）` : "",
+        isMultipleService
+          ? "クリックで選択。ドラッグで時間・担当をまとめて変更。右端で終了時刻を変更"
+          : beta ? "ダブルクリックで複数サービスへ選択" : "",
       ].filter(Boolean).join("\n")}
-      onMouseDown={(e) => onCardMouseDownMove(e, c)}
+      onMouseDown={(e) => onCardMouseDownMove(e, item)}
+      onClick={(e) => {
+        if (!isMultipleService) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setMultipleServiceSelectedIds(item.shiftIds);
+      }}
       onDoubleClick={(e) => {
-        if (!beta) return;
+        if (!beta || isMultipleService || shiftId == null) return;
         e.preventDefault();
         e.stopPropagation();
         setMultipleServiceSelectedIds((current) =>
@@ -1138,12 +1296,27 @@ const topPx =
     >
       <div className="flex items-center gap-1 text-[15px] font-semibold">
         {dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}
-        {beta && c.multiple_service_group_id?.startsWith("ms:") ? (
-          <span className="rounded bg-violet-700 px-1 py-0.5 text-[9px] font-bold leading-none text-white">
-            複数
+        {isMultipleService ? (
+          <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border-2 text-[10px] font-bold leading-none ${groupSelected ? "border-violet-700 bg-violet-700 text-white" : "border-violet-700 bg-white text-violet-800"}`}>
+            複
           </span>
         ) : null}
       </div>
+
+      {isMultipleService ? (
+        <button
+          type="button"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setMultipleServiceSelectedIds(item.shiftIds);
+            openMultipleServiceDialog(item);
+          }}
+          className={`max-w-full truncate text-left text-[17px] hover:underline ${c.has_roster_error ? "font-semibold text-red-600 hover:text-red-700" : "text-blue-700"}`}
+        >
+          {c.client_name}：{item.serviceSummary}
+        </button>
+      ) : null}
 
       {beta && selectionIndex >= 0 ? (
         <div className="absolute bottom-1 right-2 z-20 rounded bg-violet-700 px-1.5 py-0.5 text-[9px] font-bold text-white shadow">
@@ -1151,7 +1324,7 @@ const topPx =
         </div>
       ) : null}
 
-      <button
+      {!isMultipleService ? <button
         type="button"
         onMouseDown={(e) => {
           e.stopPropagation();
@@ -1167,7 +1340,7 @@ const topPx =
         }`}
       >
         {c.client_name}：{c.service_code ?? ""}
-      </button>
+      </button> : null}
 
       {c.spot_status === "募集中" && (
         <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[9px] font-bold text-gray-900 shadow">
@@ -1209,10 +1382,11 @@ const topPx =
 
       <div
         style={resizeHandleStyle}
-        onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)}
+        title={isMultipleService ? "複数サービス全体の終了時刻を変更" : "終了時刻を変更"}
+        onMouseDown={(e) => onCardMouseDownResizeEnd(e, item)}
       />
 
-      {deletable && (
+      {deletable && !isMultipleService && (
         <button
           type="button"
           aria-label="削除"
@@ -1300,11 +1474,15 @@ const topPx =
             </div >
             <ShiftDialog
                 open={dialogOpen}
-                onClose={() => setDialogOpen(false)}
+                onClose={() => {
+                    setDialogOpen(false);
+                    setSelectedMultipleService(null);
+                }}
                 shift={selectedShift}
                 staffOptions={displayStaff}
                 serviceOptions={serviceOptions}
                 onSaved={handleDialogSaved}
+                multipleService={selectedMultipleService}
             />
         </>
     );

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { MULTIPLE_SERVICE_PREFIX, timeToMinutes, toHm } from "@/lib/multiple-services";
+import { notifyShiftChange } from "@/lib/lineworks/shiftChangeNotify";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,26 @@ type DeleteBody = {
   shiftIds?: Array<number | string>;
 };
 
+type PatchBody = {
+  groupId?: string;
+  shiftIds?: Array<number | string>;
+  date?: string;
+  mode?: "move" | "resizeEnd" | "dialog";
+  deltaMinutes?: number;
+  endAt?: string | null;
+  staffSlot?: 1 | 2 | 3;
+  srcStaffId?: string;
+  staffId?: string;
+  startAt?: string;
+  staff1Id?: string | null;
+  staff2Id?: string | null;
+  staff3Id?: string | null;
+  staff2Attend?: boolean;
+  staff3Attend?: boolean;
+  requiredStaffCount?: number;
+  twoPersonWork?: boolean;
+};
+
 const SHIFT_SELECT = [
   "shift_id",
   "shift_start_date",
@@ -57,6 +78,10 @@ const SHIFT_SELECT = [
 
 function ymd(value: unknown): value is string {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function hm(value: unknown): value is string {
+  return typeof value === "string" && /^\d{2}:\d{2}$/.test(value);
 }
 
 function uniqueShiftIds(values: unknown) {
@@ -362,6 +387,173 @@ export async function DELETE(req: NextRequest) {
     console.error("[multiple-services][delete]", error);
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "複数サービスを解除できませんでした" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const actor = await requireManager(req);
+    if (!actor) {
+      return NextResponse.json({ ok: false, error: "ログインが必要です" }, { status: 401 });
+    }
+
+    const body = (await req.json()) as PatchBody;
+    const groupId = typeof body.groupId === "string" ? body.groupId : "";
+    const shiftIds = uniqueShiftIds(body.shiftIds);
+    const mode = body.mode;
+    const staffSlot = body.staffSlot === 2 || body.staffSlot === 3 ? body.staffSlot : 1;
+    const srcStaffId = String(body.srcStaffId ?? "").trim();
+    const staffId = String(body.staffId ?? "").trim();
+
+    if (mode !== "move" && mode !== "resizeEnd" && mode !== "dialog") {
+      return NextResponse.json({ ok: false, error: "変更方法が不正です" }, { status: 400 });
+    }
+    if (!groupId.startsWith(MULTIPLE_SERVICE_PREFIX) || shiftIds.length < 2) {
+      return NextResponse.json({ ok: false, error: "複数サービスの構成が不正です" }, { status: 400 });
+    }
+    if (!ymd(body.date)) {
+      return NextResponse.json({ ok: false, error: "日付が不正です" }, { status: 400 });
+    }
+    if (mode !== "dialog" && (!srcStaffId || !staffId)) {
+      return NextResponse.json({ ok: false, error: "担当者が不正です" }, { status: 400 });
+    }
+
+    const deltaMinutes = Number(body.deltaMinutes ?? 0);
+    if (mode === "move" && (!Number.isInteger(deltaMinutes) || deltaMinutes % 5 !== 0)) {
+      return NextResponse.json({ ok: false, error: "移動時間は5分単位で指定してください" }, { status: 400 });
+    }
+    if (mode === "resizeEnd" && !hm(body.endAt)) {
+      return NextResponse.json({ ok: false, error: "終了時刻が不正です" }, { status: 400 });
+    }
+
+    const staff1Id = String(body.staff1Id ?? "").trim();
+    const staff2Id = String(body.staff2Id ?? "").trim() || null;
+    const staff3Id = String(body.staff3Id ?? "").trim() || null;
+    const requiredStaffCount = Number(body.requiredStaffCount ?? 1);
+    if (mode === "dialog") {
+      if (!hm(body.startAt) || !hm(body.endAt)) {
+        return NextResponse.json({ ok: false, error: "開始・終了時刻が不正です" }, { status: 400 });
+      }
+      if (!staff1Id || !Number.isInteger(requiredStaffCount) || requiredStaffCount < 1 || requiredStaffCount > 3) {
+        return NextResponse.json({ ok: false, error: "スタッフまたは派遣人数が不正です" }, { status: 400 });
+      }
+      const assigned = [staff1Id, staff2Id, staff3Id].filter((value): value is string => Boolean(value));
+      if (assigned.length !== new Set(assigned).size) {
+        return NextResponse.json({ ok: false, error: "同じスタッフを複数の欄へ登録できません" }, { status: 400 });
+      }
+    }
+
+    const rows = await rowsForIds(shiftIds);
+    if (
+      rows.length !== shiftIds.length ||
+      rows.some((row) => row.shift_start_date !== body.date || row.head_shift_id !== groupId)
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "複数サービスの構成が更新されています。画面を再読込してください" },
+        { status: 409 },
+      );
+    }
+
+    const targetColumn = `staff_0${staffSlot}_user_id` as
+      | "staff_01_user_id"
+      | "staff_02_user_id"
+      | "staff_03_user_id";
+    if (mode !== "dialog" && rows.some((row) => row[targetColumn] !== srcStaffId)) {
+      return NextResponse.json(
+        { ok: false, error: "担当者構成が更新されています。画面を再読込してください" },
+        { status: 409 },
+      );
+    }
+
+    let requestPath = "/portal/roster/daily-beta";
+    const referer = req.headers.get("referer");
+    if (referer) {
+      try {
+        requestPath = new URL(referer).pathname;
+      } catch {
+        // 不正なRefererは監査用の既定値にフォールバックする。
+      }
+    }
+
+    const patchResult = mode === "dialog"
+      ? await supabaseAdmin.rpc("roster_patch_multiple_service_dialog_v1", {
+          p_group_id: groupId,
+          p_shift_ids: shiftIds,
+          p_date: body.date,
+          p_group_start: body.startAt,
+          p_group_end: body.endAt,
+          p_staff_01_user_id: staff1Id,
+          p_staff_02_user_id: staff2Id,
+          p_staff_03_user_id: staff3Id,
+          p_staff_02_attend_flg: Boolean(body.staff2Attend),
+          p_staff_03_attend_flg: Boolean(body.staff3Attend),
+          p_required_staff_count: requiredStaffCount,
+          p_two_person_work_flg: Boolean(body.twoPersonWork),
+          p_actor_user_id: actor.id,
+          p_request_path: requestPath,
+        })
+      : await supabaseAdmin.rpc("roster_patch_multiple_service_group_v1", {
+        p_group_id: groupId,
+        p_shift_ids: shiftIds,
+        p_date: body.date,
+        p_mode: mode,
+        p_delta_minutes: mode === "move" ? deltaMinutes : null,
+        p_last_end: mode === "resizeEnd" ? body.endAt : null,
+        p_target_col: targetColumn,
+        p_source_staff_id: srcStaffId,
+        p_staff_id: staffId,
+        p_actor_user_id: actor.id,
+        p_request_path: requestPath,
+      });
+    const patchError = patchResult.error;
+
+    if (patchError) {
+      const missingRpc = patchError.code === "PGRST202" || patchError.message.includes("schema cache");
+      return NextResponse.json(
+        {
+          ok: false,
+          error: missingRpc
+            ? "複数サービス一括変更のDB更新が未適用です"
+            : patchError.message,
+        },
+        { status: missingRpc ? 503 : 409 },
+      );
+    }
+
+    const { data: updatedRows, error: updatedError } = await supabaseAdmin
+      .from("shift")
+      .select(
+        "shift_id,kaipoke_cs_id,shift_start_date,shift_start_time,shift_end_time,staff_01_user_id",
+      )
+      .in("shift_id", shiftIds);
+    if (updatedError) throw new Error(updatedError.message);
+
+    const notificationResults = await Promise.allSettled(
+      (updatedRows ?? []).map((shift) =>
+        notifyShiftChange({
+          action: "UPDATE",
+          requestPath,
+          actorUserIdText: actor.id,
+          shift,
+        }),
+      ),
+    );
+    const notificationFailures = notificationResults.filter((result) => result.status === "rejected").length;
+    if (notificationFailures) {
+      console.warn("[multiple-services][patch] notification failures", notificationFailures);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      affectedShifts: shiftIds.length,
+      notificationFailures,
+    });
+  } catch (error) {
+    console.error("[multiple-services][patch]", error);
+    return NextResponse.json(
+      { ok: false, error: error instanceof Error ? error.message : "複数サービスを変更できませんでした" },
       { status: 500 },
     );
   }

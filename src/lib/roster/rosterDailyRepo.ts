@@ -101,6 +101,7 @@ interface ShiftDetailsRow {
   judo_ido: string | number | null;
   staff_02_attend_flg: boolean | null;
   staff_03_attend_flg: boolean | null;
+  head_shift_id: string | null;
 }
 
 interface ClientDetailsRow {
@@ -281,7 +282,6 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     "roster_error_transport_info",
     "roster_error_kodoengo_plan",
     "shift_event_alerts",
-    "multiple_service_group_id",
   ].join(",");
 
   let shiftRows: ShiftRowView[] | null = null;
@@ -429,7 +429,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     const { data: shiftDetailsRaw, error: shiftDetailsErr } = await SB
       .from("shift")
       .select(
-        "shift_id,required_staff_count,two_person_work_flg,judo_ido,staff_02_attend_flg,staff_03_attend_flg",
+        "shift_id,required_staff_count,two_person_work_flg,judo_ido,staff_02_attend_flg,staff_03_attend_flg,head_shift_id",
       )
       .in("shift_id", shiftIds);
 
@@ -458,6 +458,10 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
                 : null,
           staff_02_attend_flg: row.staff_02_attend_flg ?? details.staff_02_attend_flg,
           staff_03_attend_flg: row.staff_03_attend_flg ?? details.staff_03_attend_flg,
+          // multiple_service_group_id は段階導入中のView列に依存させない。
+          // shift.head_shift_id が同じ識別子の正本なので、ここで補完する。
+          multiple_service_group_id:
+            row.multiple_service_group_id ?? details.head_shift_id ?? null,
         };
       });
     }

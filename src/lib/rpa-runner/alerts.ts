@@ -16,6 +16,9 @@ export type RpaFailureAlert = {
   errorCategory: string;
   errorMessage: string;
   retryCount: number;
+  sharefullTemplateFailure?: boolean;
+  sharefullTemplateAttempt?: number;
+  sharefullTemplateManualReview?: boolean;
 };
 
 export function sanitizeRpaAlertText(value: string): string {
@@ -31,6 +34,13 @@ function jst(value = new Date()): string {
 }
 
 function message(alert: RpaFailureAlert): string {
+  const templateRetryState = alert.sharefullTemplateFailure
+    ? alert.sharefullTemplateManualReview
+      ? '自動再試行: 停止中（Sharefull作成済み・MyFamilleのID未記録の可能性があるため、重複防止の手動照合が必要です）。'
+      : alert.sharefullTemplateAttempt !== undefined && alert.sharefullTemplateAttempt >= 3
+      ? '自動再試行: 上限到達（3/3回）。以後は自動再投入されません。'
+      : `自動再試行: 1時間後以降のCronで再投入予定（${alert.sharefullTemplateAttempt ?? 1}/3回目）。`
+    : null;
   return [
     '【RPAエラー】',
     `処理名: ${alert.jobType}`,
@@ -40,10 +50,12 @@ function message(alert: RpaFailureAlert): string {
     `エラー分類: ${alert.errorCategory}`,
     `概要: ${sanitizeRpaAlertText(alert.errorMessage)}`,
     `再試行回数: ${alert.retryCount}`,
+    templateRetryState,
+    alert.sharefullTemplateFailure ? 'Sharefull側でテンプレート作成が完了したかは未確認です。Sharefull画面を確認し、作成済みならMyFamilleへのID反映を確認してください。' : null,
     '最終ステータス: failed',
     '',
     '端末またはRPA Runner管理画面で詳細を確認してください',
-  ].join('\n');
+  ].filter((line): line is string => line !== null).join('\n');
 }
 
 /** 失敗は必ずDBへ記録し、同じ未復旧原因のLINE WORKS通知は30分抑制する。 */

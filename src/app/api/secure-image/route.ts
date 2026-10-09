@@ -3,13 +3,22 @@
 import { google } from 'googleapis'
 import { NextRequest, NextResponse } from 'next/server'
 
-// Googleサービスアカウントの秘密鍵をJSON形式で環境変数から取得
-const serviceAccountKey = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY as string)
+let auth: google.auth.GoogleAuth | null = null
 
-const auth = new google.auth.GoogleAuth({
-  credentials: serviceAccountKey,
-  scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-})
+function getAuth() {
+  if (auth) return auth
+
+  const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
+  if (!serviceAccountKey) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY is not configured')
+  }
+
+  auth = new google.auth.GoogleAuth({
+    credentials: JSON.parse(serviceAccountKey),
+    scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+  })
+  return auth
+}
 
 export async function GET(req: NextRequest) {
   const fileId = req.nextUrl.searchParams.get('fileId')
@@ -18,7 +27,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'fileId is required' }, { status: 400 })
   }
 
-  const drive = google.drive({ version: 'v3', auth })
+  const drive = google.drive({ version: 'v3', auth: getAuth() })
 
   try {
     // supportsAllDrives: true を追加

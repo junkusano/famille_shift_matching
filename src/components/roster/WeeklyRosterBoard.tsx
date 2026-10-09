@@ -14,6 +14,7 @@ const HEADER_HEIGHT = 40;
 const CARD_VPAD = 4;
 const MIN_DURATION = 10;
 const UNASSIGNED = "__unassigned__";
+const MANAGER_TEAM_NAMES = new Set(["ヘルパーマネージャー", "ヘルパーマネジャー"]);
 
 type WeeklyTemplate = {
   template_id?: number;
@@ -36,8 +37,8 @@ type WeeklyTemplate = {
   holiday_off: boolean;
 };
 
-type Staff = { id: string; name: string; rosterSort: number };
-type ClientInfo = Record<string, unknown> & { kaipoke_cs_id: string; name?: string | null };
+type Staff = { id: string; name: string; rosterSort: number; team: string | null; systemRole: string | null };
+type ClientInfo = Record<string, unknown> & { kaipoke_cs_id: string; name?: string | null; address?: string | null };
 type ServiceOption = { value: string; label: string };
 type CardRef = { row: WeeklyTemplate; slot: 0 | 1 | 2 | 3; staffId: string };
 type DragState = CardRef & {
@@ -141,6 +142,24 @@ function WeeklyEditDialog({ value, clients, staff, services, onClose, onSave, on
     })),
     [staff],
   );
+  const clientSelectOptions = useMemo<SearchableSelectOption[]>(
+    () => clients.map((client) => {
+      const id = String(client.kaipoke_cs_id);
+      const name = String(client.name ?? id);
+      const address = client.address ? String(client.address) : "";
+      return {
+        value: id,
+        label: name,
+        searchText: `${name} ${id} ${address}`,
+      };
+    }),
+    [clients],
+  );
+  const selectedClient = clients.find((client) => String(client.kaipoke_cs_id) === String(draft.kaipoke_cs_id));
+  const clientAddress = selectedClient?.address ? String(selectedClient.address) : "";
+  const googleMapsUrl = clientAddress
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientAddress)}`
+    : null;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
@@ -166,17 +185,33 @@ function WeeklyEditDialog({ value, clients, staff, services, onClose, onSave, on
         </header>
 
         <div className="grid gap-4 p-5 md:grid-cols-2">
-          <label className="text-sm font-medium text-slate-700">利用者
-            <select className="mt-1 w-full rounded-lg border px-3 py-2" value={draft.kaipoke_cs_id} onChange={(event) => patch({ kaipoke_cs_id: event.target.value })}>
-              <option value="">-- 選択 --</option>
-              {clients.map((client) => <option key={client.kaipoke_cs_id} value={client.kaipoke_cs_id}>{client.name ?? client.kaipoke_cs_id}</option>)}
-            </select>
-          </label>
+          <div className="text-sm font-medium text-slate-700">
+            <div>利用者</div>
+            <SearchableSelect
+              className="mt-1"
+              options={clientSelectOptions}
+              value={draft.kaipoke_cs_id}
+              onChange={(value) => patch({ kaipoke_cs_id: value ?? "" })}
+              placeholder="利用者を選択"
+              searchPlaceholder="利用者名・ID・住所で検索"
+              ariaLabel="利用者"
+              popoverContentClassName="z-[150]"
+            />
+          </div>
           <label className="text-sm font-medium text-slate-700">曜日
             <select className="mt-1 w-full rounded-lg border px-3 py-2" value={draft.weekday} onChange={(event) => patch({ weekday: Number(event.target.value) })}>
               {WEEKDAYS.map((day, index) => <option key={day} value={index}>{day}曜日</option>)}
             </select>
           </label>
+
+          {clientAddress ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 md:col-span-2">
+              <span className="mr-3">住所：{clientAddress}</span>
+              <a href={googleMapsUrl ?? undefined} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-700 underline underline-offset-2 hover:text-blue-900">
+                Googleマップで開く
+              </a>
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
             <label className="text-sm font-medium text-slate-700">開始
@@ -215,6 +250,7 @@ function WeeklyEditDialog({ value, clients, staff, services, onClose, onSave, on
                   placeholder="未設定"
                   searchPlaceholder="担当者名・IDで検索"
                   ariaLabel={`担当${slot}`}
+                  popoverContentClassName="z-[150]"
                 />
                 {attend ? <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={Boolean(draft[attend])} onChange={(event) => patch({ [attend]: event.target.checked } as Partial<WeeklyTemplate>)} />同行</label> : <span className="mt-2 block text-xs text-slate-400">主担当</span>}
               </div>
@@ -273,7 +309,10 @@ export default function WeeklyRosterBoard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const staffRows = useMemo(() => [{ id: UNASSIGNED, name: "未担当", rosterSort: -1 }, ...staff], [staff]);
+  const [teamFilterOpen, setTeamFilterOpen] = useState(false);
+  const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
+  const [showManagers, setShowManagers] = useState(true);
+  const [showAllStaff, setShowAllStaff] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -286,11 +325,16 @@ export default function WeeklyRosterBoard() {
         requestJson<Array<Record<string, unknown>>>("/api/shift-service-code"),
       ]);
       setTemplates(templateRows.map(cleanRow));
-      setStaff(userRows.map((user) => ({
+      const nextStaff = userRows.map((user) => ({
         id: String(user.user_id ?? ""),
         name: `${String(user.last_name_kanji ?? "")} ${String(user.first_name_kanji ?? "")}`.trim(),
         rosterSort: Number(user.roster_sort ?? Number.MAX_SAFE_INTEGER),
-      })).filter((user) => user.id && user.name).sort((a, b) => a.rosterSort - b.rosterSort || a.name.localeCompare(b.name, "ja")));
+        team: user.orgunitname ? String(user.orgunitname) : null,
+        systemRole: user.system_role ? String(user.system_role) : null,
+      })).filter((user) => user.id && user.name).sort((a, b) => a.rosterSort - b.rosterSort || a.name.localeCompare(b.name, "ja"));
+      setStaff(nextStaff);
+      const nextTeams = [...new Set(nextStaff.map((user) => user.team).filter((team): team is string => typeof team === "string" && team.length > 0 && !MANAGER_TEAM_NAMES.has(team)))].sort((a, b) => a.localeCompare(b, "ja"));
+      setSelectedTeams((current) => current.length ? current.filter((team) => nextTeams.includes(team)) : nextTeams);
       setClients(clientRows.filter((client) => client.kaipoke_cs_id).sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? ""), "ja")));
       setServices(serviceRows.map((service) => ({ value: String(service.service_code ?? ""), label: String(service.service_name ?? service.service_code ?? "") })).filter((service) => service.value));
     } catch (error) {
@@ -300,6 +344,7 @@ export default function WeeklyRosterBoard() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const allTeams = useMemo(() => [...new Set(staff.map((person) => person.team).filter((team): team is string => typeof team === "string" && team.length > 0 && !MANAGER_TEAM_NAMES.has(team)))].sort((a, b) => a.localeCompare(b, "ja")), [staff]);
   const clientMap = useMemo(() => new Map(clients.map((client) => [String(client.kaipoke_cs_id), client])), [clients]);
   const visibleTemplates = useMemo(() => templates.filter((row) => row.active && visibleInWeek(row, selectedWeek)), [templates, selectedWeek]);
   const dayCounts = useMemo(() => WEEKDAYS.map((_, weekday) => visibleTemplates.filter((row) => row.weekday === weekday).length), [visibleTemplates]);
@@ -356,6 +401,21 @@ export default function WeeklyRosterBoard() {
     return refs;
   }, [visibleTemplates]);
 
+  const allSelectedCards = useMemo(() => cardRefsForDay(selectedDay), [cardRefsForDay, selectedDay]);
+  const assignedStaffIds = useMemo(() => new Set(allSelectedCards.map((card) => card.staffId)), [allSelectedCards]);
+  const filteredStaff = useMemo(() => staff.filter((person) => {
+    if (!showAllStaff && !assignedStaffIds.has(person.id)) return false;
+    const selectedTeam = Boolean(person.team && selectedTeams.includes(person.team));
+    const managerOrAdmin = showManagers && (person.systemRole === "manager" || person.systemRole === "admin");
+    return selectedTeam || managerOrAdmin;
+  }), [assignedStaffIds, selectedTeams, showAllStaff, showManagers, staff]);
+  const staffRows = useMemo<Staff[]>(() => [
+    { id: UNASSIGNED, name: "未担当", rosterSort: -1, team: null, systemRole: null },
+    ...filteredStaff,
+  ], [filteredStaff]);
+  const visibleStaffIds = useMemo(() => new Set(staffRows.map((person) => person.id)), [staffRows]);
+  const selectedCards = useMemo(() => allSelectedCards.filter((card) => visibleStaffIds.has(card.staffId)), [allSelectedCards, visibleStaffIds]);
+
   const beginDrag = (event: React.MouseEvent, ref: CardRef, mode: "move" | "resize") => {
     event.preventDefault();
     event.stopPropagation();
@@ -402,7 +462,6 @@ export default function WeeklyRosterBoard() {
     two_person_work_flg: false, judo_ido: null, staff_01_user_id: null, staff_02_user_id: null, staff_03_user_id: null,
     staff_02_attend_flg: false, staff_03_attend_flg: false, active: true, is_biweekly: false, nth_weeks: null, holiday_off: false,
   });
-  const selectedCards = useMemo(() => cardRefsForDay(selectedDay), [cardRefsForDay, selectedDay]);
   const selectedDayLabel = WEEKDAYS[selectedDay];
 
   return (
@@ -412,7 +471,43 @@ export default function WeeklyRosterBoard() {
           <h1 className="text-xl font-bold text-slate-900">週間シフト表</h1>
           <p className="text-xs text-slate-500">カードをドラッグして担当・時間を変更、右端をドラッグして所要時間を変更できます</p>
         </div>
-        <button type="button" onClick={addTemplate} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">＋ シフト追加</button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={addTemplate} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">＋ シフト追加</button>
+          <div className="relative">
+            <button type="button" onClick={() => setTeamFilterOpen((open) => !open)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50" title="表示する担当者を絞り込み" aria-expanded={teamFilterOpen}>
+              担当者
+            </button>
+            {teamFilterOpen ? (
+              <div className="absolute right-0 z-50 mt-1 max-h-72 w-64 overflow-auto rounded-md border bg-white p-2 shadow-lg" onMouseLeave={() => setTeamFilterOpen(false)}>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-600">担当者表示フィルター</span>
+                  <div className="space-x-2">
+                    <button type="button" className="text-xs text-blue-600 hover:underline" onClick={() => { setSelectedTeams(allTeams); setShowManagers(true); }}>全選択</button>
+                    <button type="button" className="text-xs text-blue-600 hover:underline" onClick={() => { setSelectedTeams([]); setShowManagers(false); }}>全解除</button>
+                  </div>
+                </div>
+                <label className="mb-2 flex items-center gap-2 border-b pb-2 text-sm">
+                  <input type="checkbox" checked={!showAllStaff} onChange={(event) => setShowAllStaff(!event.target.checked)} />
+                  <span>シフトがあるスタッフのみ</span>
+                </label>
+                <div className="mb-1 text-[11px] font-semibold text-slate-500">役割</div>
+                <label className="mb-2 flex items-center gap-2 border-b pb-2 text-sm">
+                  <input type="checkbox" checked={showManagers} onChange={(event) => setShowManagers(event.target.checked)} />
+                  <span>マネジャー・管理者</span>
+                </label>
+                <div className="mb-1 text-[11px] font-semibold text-slate-500">チーム</div>
+                <div className="space-y-1">
+                  {allTeams.length === 0 ? <div className="text-xs text-slate-400">（チーム情報なし）</div> : allTeams.map((team) => (
+                    <label key={team} className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={selectedTeams.includes(team)} onChange={(event) => setSelectedTeams((current) => event.target.checked ? [...new Set([...current, team])] : current.filter((item) => item !== team))} />
+                      <span className="truncate" title={team}>{team}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       <section className="rounded-2xl border-2 border-slate-300 bg-gradient-to-b from-white to-slate-50 p-3 shadow-sm">

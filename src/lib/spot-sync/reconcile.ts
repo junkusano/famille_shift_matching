@@ -35,8 +35,8 @@ export async function reconcileSpotProviders() {
       try {
         const shift = shifts?.find(s => String(s.shift_id) === String(request.shift_id)) ?? null;
         const apps = (applications ?? []).filter(a => a.request_id === request.id) as Application[];
-        const action = (provider: string) => desiredAction({provider, status:request.status, applications:apps as Application[], shift, assigned:!!shift && staffAssigned(shift,roles), manualStop:request.recruitment_paused});
-        if (!testMode && shouldEnqueueTaimeeClose({status: request.status, applications: apps as Application[], shift, assigned: !!shift && staffAssigned(shift, roles), manualStop: request.recruitment_paused})) await createCloseRequest(request, shift && staffAssigned(shift, roles) ? 'staff_confirmed' : 'other_application');
+        const action = (provider: string) => desiredAction({provider, status:request.status, applications:apps, shift, assigned:!!shift && staffAssigned(shift,roles), manualStop:request.recruitment_paused});
+        if (!testMode && shouldEnqueueTaimeeClose({status: request.status, applications: apps, shift, assigned: !!shift && staffAssigned(shift, roles), manualStop: request.recruitment_paused})) await createCloseRequest(request, shift && staffAssigned(shift, roles) ? 'staff_confirmed' : 'other_application');
         if (!testMode && action('taimee') !== 'close') {
           const {error: cancelError} = await db.from('rpa_command_requests').update({status:'cancelled'})
             .eq('request_details->>shift_id',String(request.shift_id)).eq('request_details->>reason','other_application')

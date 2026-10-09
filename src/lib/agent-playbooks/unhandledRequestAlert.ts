@@ -154,11 +154,14 @@ async function getEnabledPlaybook(): Promise<Playbook | null> {
 async function getDirectory(): Promise<DirectoryUser[]> {
   const { data, error } = await supabaseAdmin
     .from("user_entry_united_view_single")
-    .select("lw_userid,last_name_kanji,first_name_kanji,system_role")
+    .select("lw_userid,last_name_kanji,first_name_kanji,system_role,status")
     .not("lw_userid", "is", null)
     .limit(3000);
   if (error) throw error;
   return (data ?? []).flatMap((row) => {
+    if (String(row.status ?? "").trim().toLowerCase() === "removed_from_lineworks_kaipoke") {
+      return [];
+    }
     const lwUserId = String(row.lw_userid ?? "").trim();
     if (!lwUserId) return [];
     return [{

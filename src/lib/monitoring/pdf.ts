@@ -57,6 +57,18 @@ function multiline(value: unknown): string {
   return escapeHtml(value).replaceAll("\n", "<br />");
 }
 
+function withSama(value: unknown): string {
+  const name = String(value ?? "").trim();
+  if (!name) return "";
+  return name.endsWith("様") ? name : `${name} 様`;
+}
+
+function teamContactText(context: PdfContext): string {
+  return (context.team_contacts ?? [])
+    .map((contact) => `${escapeHtml(contact.name)}　TEL: ${escapeHtml(contact.phone ?? "電話番号未登録")}`)
+    .join("<br />") || "担当者未登録";
+}
+
 async function embeddedFontCss(): Promise<string> {
   try {
     const regular = await fs.readFile(BUNDLED_FONT_PATH);
@@ -135,8 +147,9 @@ function careInsuranceBody(snapshot: MonitoringPdfSnapshot): string {
       <tr><th>居宅介護支援事業者</th><td colspan="2">${escapeHtml(
         context.destination_office,
       )}</td><th>担当ケアマネジャー</th><td colspan="2">${escapeHtml(
-        context.care_manager_name,
+        withSama(context.care_manager_name),
       )}</td></tr>
+      <tr><th>ファミーユ担当マネジャー・電話番号</th><td colspan="5">${teamContactText(context)}</td></tr>
       <tr><th>対象期間</th><td colspan="5">${escapeHtml(
         formatMonitoringPeriod(monitoring.period_start, monitoring.period_end),
       )}</td></tr>
@@ -176,9 +189,6 @@ function disabilityBody(snapshot: MonitoringPdfSnapshot): string {
   const evaluatedGoals = goals.filter((goal) =>
     hasMonitoringGoalComment(goal.evaluation_text, goal.review_content),
   );
-  const teamContactText = (context.team_contacts ?? [])
-    .map((contact) => `${escapeHtml(contact.name)}　TEL: ${escapeHtml(contact.phone ?? "電話番号未登録")}`)
-    .join("<br />") || "担当者未登録";
   const assistanceGoals = goals
     .map(
       (goal) => `${goal.goal_type === "long_term" ? "長期" : "短期"}：${goal.goal_text}`,
@@ -208,7 +218,8 @@ function disabilityBody(snapshot: MonitoringPdfSnapshot): string {
     <h1>モニタリングメモ</h1>
     <table>
       <tr><th class="label">事業所名</th><td>${escapeHtml(context.office_name)}</td></tr>
-      <tr><th>担当者・電話番号</th><td>${teamContactText}</td></tr>
+      <tr><th>相談支援専門員</th><td>${escapeHtml(withSama(context.care_manager_name))}</td></tr>
+      <tr><th>担当者・電話番号</th><td>${teamContactText(context)}</td></tr>
       <tr><th>サービス実施期間</th><td>${escapeHtml(
         formatMonitoringPeriod(monitoring.period_start, monitoring.period_end),
       )}</td></tr>

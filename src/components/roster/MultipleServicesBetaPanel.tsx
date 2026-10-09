@@ -58,6 +58,13 @@ export default function MultipleServicesBetaPanel({ date, cards, selectedIds, se
 
   const selected = shifts.filter((shift) => selectedIds.includes(Number(shift.shift_id)));
   const previewTitle = selected.length >= 2 ? multipleServiceTitle(selected) : null;
+  const selectedGroup = useMemo(() => {
+    const selectedSet = new Set(selectedIds);
+    return groups.find((group) => {
+      const groupIds = group.shifts.map((shift) => Number(shift.shift_id));
+      return groupIds.length === selectedSet.size && groupIds.every((id) => selectedSet.has(id));
+    }) ?? null;
+  }, [groups, selectedIds]);
 
   const authHeaders = async () => {
     const session = await supabase.auth.getSession();
@@ -151,7 +158,7 @@ export default function MultipleServicesBetaPanel({ date, cards, selectedIds, se
             </span>
           </div>
           <p className="mt-1 text-xs text-violet-800">
-            シフトカードをダブルクリックすると、1件目・2件目の順に選択できます。名称・時間・利用者・サービスは自動生成します。
+            通常シフトはダブルクリック、登録済みの紫色グループカードはクリックで選択できます。名称・時間・利用者・サービスは自動生成します。
           </p>
         </div>
         <span className="rounded-full border border-violet-200 bg-white px-2 py-1 text-xs text-violet-800">
@@ -159,10 +166,45 @@ export default function MultipleServicesBetaPanel({ date, cards, selectedIds, se
         </span>
       </div>
 
+      {selectedGroup ? (
+        <div className="mt-3 rounded-lg border-2 border-violet-500 bg-white p-3 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div className="text-xs font-bold text-violet-700">選択中の複数サービス</div>
+              <div className="font-bold text-slate-950">{selectedGroup.title}</div>
+              <div className="text-xs text-slate-600">
+                {selectedGroup.startTime}～{selectedGroup.endTime}・{selectedGroup.shifts.length}サービス
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="rounded border px-3 py-1 text-xs hover:bg-slate-50"
+            >
+              選択解除
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={() => edit(selectedGroup)} className="rounded border px-3 py-1 text-xs hover:bg-slate-50">
+              構成を編集
+            </button>
+            <button type="button" onClick={() => void remove(selectedGroup, "single")} className="rounded border px-3 py-1 text-xs hover:bg-slate-50">
+              この日だけ解除
+            </button>
+            <button type="button" onClick={() => void remove(selectedGroup, "future")} className="rounded border border-red-200 px-3 py-1 text-xs text-red-700 hover:bg-red-50">
+              この日以降を解除
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {groups.length > 0 && (
         <div className="mt-3 grid gap-2 lg:grid-cols-2">
           {groups.map((group) => (
-            <article key={group.id} className="rounded-lg border border-violet-200 bg-white p-3">
+            <article
+              key={group.id}
+              className={`rounded-lg bg-white p-3 ${selectedGroup?.id === group.id ? "border-2 border-violet-500" : "border border-violet-200"}`}
+            >
               <div className="font-bold text-slate-950">{group.title}</div>
               <div className="mt-1 text-sm text-slate-700">
                 {group.startTime}～{group.endTime}（拘束 {minutesLabel(group.spanMinutes)}／サービス {minutesLabel(group.serviceMinutes)}）
