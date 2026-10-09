@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
 
-function loadPublisher({ env = {}, template = null, requests = [], shifts = [], existingJobs = [] } = {}) {
+function loadPublisher({ env = {}, template = null, requests = [], shifts = [], existingJobs = [], failTemplateCoreId = null } = {}) {
   const insertedJobs = [];
   const usedTables = [];
   const policyBlocks = [];
@@ -18,10 +18,10 @@ function loadPublisher({ env = {}, template = null, requests = [], shifts = [], 
     .replace(/export function/g, "function");
 
   function query(table) {
-    const state = { table, operation: "select", values: null, from: 0, to: Number.POSITIVE_INFINITY };
+    const state = { table, operation: "select", values: null, from: 0, to: Number.POSITIVE_INFINITY, filters: {} };
     const builder = {
       select() { state.operation = "select"; return builder; },
-      eq() { return builder; },
+      eq(column, value) { state.filters[column] = value; return builder; },
       in() { return builder; },
       limit() { return builder; },
       gte() { return builder; },
@@ -31,6 +31,7 @@ function loadPublisher({ env = {}, template = null, requests = [], shifts = [], 
       order() { return builder; },
       range(from, to) { state.from = from; state.to = to; return builder; },
       maybeSingle() {
+        if (state.filters.core_id === failTemplateCoreId) return Promise.reject(new Error("simulated template lookup failure"));
         return Promise.resolve({ data: template, error: null });
       },
       insert(values) {
@@ -46,9 +47,9 @@ function loadPublisher({ env = {}, template = null, requests = [], shifts = [], 
       },
       then(resolve, reject) {
         if (state.operation === "update") return Promise.resolve({ error: null }).then(resolve, reject);
-        if (table === "rpa_runner_jobs") return Promise.resolve({ data: existingJobs.slice(state.from, state.to + 1), error: null }).then(resolve, reject);
-        if (table === "shift") return Promise.resolve({ data: shifts.slice(state.from, state.to + 1), error: null }).then(resolve, reject);
-        if (table.includes("request_table")) return Promise.resolve({ data: requests.slice(state.from, state.to + 1), error: null }).then(resolve, reject);
+        if (table === "rpa_runner_jobs") return Promise.resolve({ data: existingJobs.filter((row) => !state.filters.core_id || row.payload?.core_id === state.filters.core_id).slice(state.from, state.to + 1), error: null }).then(resolve, reject);
+        if (table === "shift") return Promise.resolve({ data: shifts.filter((row) => !state.filters.shift_id || state.filters.shift_id === row.shift_id).slice(state.from, state.to + 1), error: null }).then(resolve, reject);
+        if (table.includes("request_table")) return Promise.resolve({ data: requests.filter((row) => !state.filters.core_id || row.core_id === state.filters.core_id).slice(state.from, state.to + 1), error: null }).then(resolve, reject);
         return Promise.resolve({ data: [], error: null }).then(resolve, reject);
       },
     };
@@ -83,7 +84,7 @@ function loadPublisher({ env = {}, template = null, requests = [], shifts = [], 
   const policyOutput = ts.transpileModule(policyCode, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  vm.runInContext(`${policyOutput}\n${output}\nexports.enqueueSharefullPublicationJobsForTemplate = enqueueSharefullPublicationJobsForTemplate;`, context);
+  vm.runInContext(`${policyOutput}\n${output}\nexports.enqueueSharefullPublicationJobsForTemplate = enqueueSharefullPublicationJobsForTemplate; exports.enqueueSharefullPublicationJobsForReadyTemplates = enqueueSharefullPublicationJobsForReadyTemplates;`, context);
   return { publisher: context.exports, insertedJobs, usedTables, policyBlocks };
 }
 
@@ -189,6 +190,52 @@ test("掲載前の設定・ログイン失敗は時間経過後に上限3回ま�
 
   assert.equal(result.registeredCount, 1);
   assert.equal(insertedJobs[0].payload.operation_key, "sharefull:create_spot_offer:save:42:3:retry:1");
+});
+
+test("掲載対象が再び有効になったcancelledジョブは再投入する", async () => {
+  const { publisher, insertedJobs } = loadPublisher({
+    env: baseEnv,
+    template: { core_id: "core-1", kaipoke_cs_id: "12782561", sharefull_template_id: "template-1", sharefull_template_status: "ready_for_offer" },
+    requests: [{ id: "request-1", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 42, shift_start_date: "2099-01-02", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: "taimee-1", sharefull_job_id: null, sharefull_status: "ready_for_offer", recruitment_revision: 3 }],
+    existingJobs: [{ id: "job-1", status: "cancelled", payload: { operation_key: "sharefull:create_spot_offer:save:42:3", spot_offer_request_id: "request-1" } }],
+  });
+
+  const result = await publisher.enqueueSharefullPublicationJobsForTemplate("core-1", "cron");
+
+  assert.equal(result.registeredCount, 1);
+  assert.equal(insertedJobs[0].payload.operation_key, "sharefull:create_spot_offer:save:42:3:retry:1");
+});
+
+test("1つのテンプレート照会が失敗しても後続coreの掲載ジョブを登録する", async () => {
+  const request = (id, coreId, shiftId) => ({
+    id,
+    core_id: coreId,
+    kaipoke_cs_id: "12782561",
+    shift_id: shiftId,
+    shift_start_date: "2099-01-02",
+    shift_start_time: "09:00",
+    shift_end_time: "10:00",
+    unit_amount: 1226,
+    commute_fee: 0,
+    status: "募集中",
+    taimee_job_id: `taimee-${shiftId}`,
+    sharefull_job_id: null,
+    sharefull_status: "ready_for_offer",
+    recruitment_revision: 0,
+  });
+  const { publisher, insertedJobs } = loadPublisher({
+    env: baseEnv,
+    template: { core_id: "core-2", kaipoke_cs_id: "12782561", sharefull_template_id: "template-2", sharefull_template_status: "ready_for_offer" },
+    requests: [request("request-1", "core-1", 41), request("request-2", "core-2", 42)],
+    shifts: [{ shift_id: 41, required_staff_count: 1 }, { shift_id: 42, required_staff_count: 1 }],
+    failTemplateCoreId: "core-1",
+  });
+
+  const result = await publisher.enqueueSharefullPublicationJobsForReadyTemplates("cron");
+
+  assert.equal(result.failedCoreCount, 1);
+  assert.equal(result.registeredCount, 1);
+  assert.equal(insertedJobs[0].payload.spot_offer_request_id, "request-2");
 });
 
 test("500件を超える掲載候補も複数ページからすべてキューへ登録する", async () => {

@@ -25,11 +25,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(testDeploymentCronSkippedResponse());
   }
 
-  const templateCreation = await enqueueActiveSharefullTemplateCreationJobs("cron.open-sharefull-jobs");
+  let templateCreation: Awaited<ReturnType<typeof enqueueActiveSharefullTemplateCreationJobs>>;
+  try {
+    templateCreation = await enqueueActiveSharefullTemplateCreationJobs("cron.open-sharefull-jobs");
+  } catch {
+    // Template creation discovery is independent from publication dispatch.
+    // Keep the publication sweep running even if this phase has a transient
+    // database error; the next cron will retry template discovery.
+    templateCreation = {
+      enabled: true,
+      registeredCount: 0,
+      skipped: ["テンプレート候補の取得に失敗しました。次回Cronで再確認します"],
+      candidateTemplateCount: 0,
+      failedTemplateCount: 1,
+      registeredCoreIds: [],
+      scope: "unknown",
+    };
+  }
   const result = await enqueueSharefullPublicationJobsForReadyTemplates("cron.open-sharefull-jobs");
+  const hasFailures = templateCreation.failedTemplateCount > 0 || (result.failedCoreCount ?? 0) > 0;
 
   return NextResponse.json({
-    ok: true,
+    ok: !hasFailures,
     enabled: result.enabled,
     registered_count: result.registeredCount,
     skipped_count: result.skipped.length,
@@ -37,8 +54,10 @@ export async function GET(request: NextRequest) {
     template_jobs_registered_count: templateCreation.registeredCount,
     template_candidate_count: templateCreation.candidateTemplateCount,
     template_skipped_count: templateCreation.skipped.length,
+    template_failed_count: templateCreation.failedTemplateCount,
     template_scope: templateCreation.scope,
+    publication_failed_core_count: result.failedCoreCount ?? 0,
     skipped: result.skipped,
     template_skipped: templateCreation.skipped,
-  });
+  }, { status: hasFailures ? 500 : 200 });
 }
