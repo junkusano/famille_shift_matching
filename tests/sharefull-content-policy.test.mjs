@@ -19,28 +19,28 @@ function loadPolicy() {
 
 const { applySharefullContentPolicy } = loadPolicy();
 
-test("公開本文のタイミー定型文をシェアフル表記へ変換する", () => {
+test("公開本文のタイミー表記とURLをシェアフル表記へ変換する", () => {
   const source = {
     template_title: "訪問介護",
-    work_description: "🌱タイミー掲載のお仕事はごく一部です！",
+    work_description: "🌱タイミー掲載のお仕事はごく一部です！ Timee https://timee.co.jp/jobs/123",
   };
 
   const result = applySharefullContentPolicy(source);
 
   assert.equal(result.report.status, "transformed");
-  assert.equal(result.data.work_description, "🌱シェアフル掲載のお仕事はごく一部です！");
-  assert.equal(result.report.findings.length, 1);
+  assert.equal(result.data.work_description, "🌱シェアフル掲載のお仕事はごく一部です！ Sharefull https://sharefull.com/");
+  assert.equal(result.report.findings.length, 3);
   assert.equal(result.report.findings[0].ruleId, "taimee-listing-banner");
 });
 
-test("審査上の要確認文言は公開前に停止する", () => {
+test("性別に関する要確認文言は記録対象にするが掲載は止めない", () => {
   const result = applySharefullContentPolicy({
     template_title: "女性ヘルパー活躍中",
     work_description: "女性の下着の洗濯等あるため応募には考慮お願いします。",
   });
 
-  assert.equal(result.report.status, "blocked");
-  assert.ok(result.report.findings.some((finding) => finding.ruleId === "gender-sensitive-recruiting"));
+  assert.equal(result.report.status, "flagged");
+  assert.ok(result.report.findings.some((finding) => finding.ruleId === "gender-sensitive-recruiting" && finding.action === "flag"));
 });
 
 test("非公開の管理情報は変更せず、入力データも破壊しない", () => {

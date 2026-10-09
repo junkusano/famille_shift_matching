@@ -104,7 +104,7 @@ export async function enqueueLatestSharefullTemplateCreationJobs(source: string)
         sukima_caution: text(envValues.sukima_caution),
       },
     });
-    if (policy.report.status === "blocked") {
+    if (policy.report.findings.length > 0) {
       await recordSharefullContentPolicyBlock({
         coreId,
         source,
@@ -113,6 +113,8 @@ export async function enqueueLatestSharefullTemplateCreationJobs(source: string)
         sourceData: template,
         report: policy.report,
       });
+    }
+    if (policy.report.status === "blocked") {
       console.warn("[sharefull/template-auto-create] blocked by content policy", {
         finding_count: policy.report.findings.length,
       });
@@ -163,7 +165,7 @@ export async function enqueueLatestSharefullTemplateCreationJobs(source: string)
   }
   if (templateRecord) {
     const policy = applySharefullContentPolicy(templateRecord);
-    if (policy.report.status === "blocked") {
+    if (policy.report.findings.length > 0) {
       const notification = await recordSharefullContentPolicyBlock({
         coreId,
         source,
@@ -172,14 +174,16 @@ export async function enqueueLatestSharefullTemplateCreationJobs(source: string)
         sourceData: templateRecord,
         report: policy.report,
       });
-      return {
-        enabled: true,
-        registeredCount: 0,
-        skipped: [notification.notified ? "公開本文の事前検査で停止しました" : "公開本文の事前検査で停止しました（LINE WORKS通知失敗）"],
-        diagnostic: { core_id: coreId, template_status: text(templateRecord.sharefull_template_status) || "missing", candidate_request_count: 0, duplicate_job_count: 0, registered_count: 0, skipped_count: 1 },
-        contentPolicy: policy.report,
-        notification,
-      };
+      if (policy.report.status === "blocked") {
+        return {
+          enabled: true,
+          registeredCount: 0,
+          skipped: [notification.notified ? "公開本文の事前検査で停止しました" : "公開本文の事前検査で停止しました（LINE WORKS通知失敗）"],
+          diagnostic: { core_id: coreId, template_status: text(templateRecord.sharefull_template_status) || "missing", candidate_request_count: 0, duplicate_job_count: 0, registered_count: 0, skipped_count: 1 },
+          contentPolicy: policy.report,
+          notification,
+        };
+      }
     }
   }
 

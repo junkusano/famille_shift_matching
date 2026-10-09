@@ -76,7 +76,9 @@ function notificationText(input: ContentPolicyBlockInput): string {
   ].filter(Boolean).join("\n")).join("\n\n");
 
   return [
-    "テンプレート作成を停止しました。",
+    input.report.status === "blocked"
+      ? "Sharefull文面チェックで処理を停止しました。"
+      : "Sharefull文面チェック結果を記録しました。案件掲載処理は継続します。",
     "",
     `対象テンプレート管理番号: ${input.coreId}`,
     input.templateId ? `SharefullテンプレートNo.: ${input.templateId}` : null,
@@ -84,8 +86,9 @@ function notificationText(input: ContentPolicyBlockInput): string {
     "",
     findings,
     "",
-    "停止理由: シェアフル掲載前に確認が必要な文言を検出しました。",
-    "対応: 内容を修正後、再実行してください。",
+    input.report.status === "blocked"
+      ? "停止理由: シェアフル掲載前に確認が必要な文言を検出しました。"
+      : "記録内容: タイミー表記はシェアフル表記へ変換し、性別に関する要確認表現は追跡記録しました。",
   ].filter((line): line is string => line !== null).join("\n");
 }
 
@@ -112,7 +115,7 @@ export async function recordSharefullContentPolicyBlock(input: ContentPolicyBloc
       // 監査用には掲載本文だけを残し、行全体や内部項目・利用者情報は保存しない。
       source_data: publicTextSnapshot(input.sourceData),
       policy_report: input.report,
-      status: "blocked",
+      status: input.report.status === "blocked" ? "blocked" : "recorded",
       updated_at: new Date().toISOString(),
     }, { onConflict: "fingerprint" })
     .select(isProduction ? "id,notified_at,notification_claimed_at,notification_error" : "id,notified_at,notification_error")
