@@ -35,6 +35,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const sharefullTemplateFailure = data.job_type === 'sharefull.create_template'
       && typeof payload?.core_id === 'string'
       && (operationKey === `sharefull:create_template:${payload.core_id}` || operationKey.startsWith(`sharefull:create_template:${payload.core_id}:retry:`));
+    const sharefullTemplateManualReview = sharefullTemplateFailure
+      && errorCode === 'SupabaseへのSharefull template ID保存失敗';
     let sharefullTemplateAttempt: number | undefined;
     if (sharefullTemplateFailure && payload && typeof payload.core_id === 'string') {
       const { data: attempts, error: attemptLookupError } = await supabaseAdmin.from('rpa_runner_jobs')
@@ -54,7 +56,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         ? (retryIndex ? Number(retryIndex[1]) + 1 : 1)
         : Math.max(attemptCount, 1);
     }
-    await notifyRpaJobFailure({ jobId: id, runnerId: runner.runnerId, runnerName: runner.runnerName, jobType: data.job_type, errorCode, errorCategory, errorMessage: safeMessage, retryCount, sharefullTemplateFailure, sharefullTemplateAttempt });
+    await notifyRpaJobFailure({ jobId: id, runnerId: runner.runnerId, runnerName: runner.runnerName, jobType: data.job_type, errorCode, errorCategory, errorMessage: safeMessage, retryCount, sharefullTemplateFailure, sharefullTemplateAttempt, sharefullTemplateManualReview });
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof RpaRunnerAuthError) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
