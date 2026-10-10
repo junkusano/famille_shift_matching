@@ -107,9 +107,14 @@ export default function MonitoringEditorPage() {
     () => new Map(data?.context.visit_records.map((visit) => [visit.evidence_id, visit]) ?? []),
     [data],
   );
-  const emailDeliveryPreferred = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-    data?.context.fax_target.email_address?.trim() ?? "",
-  );
+  const emailAddress = typeof data?.context.fax_target.email_address === "string"
+    ? data.context.fax_target.email_address.trim()
+    : "";
+  const faxNumber = typeof data?.context.fax_target.fax_number === "string"
+    ? data.context.fax_target.fax_number.trim()
+    : "";
+  const hasUsableFaxNumber = /^\d{1,20}$/.test(faxNumber.replace(/[\s()-]/g, ""));
+  const emailDeliveryPreferred = !hasUsableFaxNumber && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailAddress);
 
   function updateDraft(patch: Partial<MonitoringRecord>) {
     setDraft((current) => (current ? { ...current, ...patch } : current));
@@ -241,7 +246,7 @@ export default function MonitoringEditorPage() {
   async function sendFax() {
     if (!data) return;
     const target = data.context.fax_target;
-    if (!emailDeliveryPreferred && !target.fax_number) {
+    if (!emailDeliveryPreferred && !hasUsableFaxNumber) {
       setError(
         "モニタリングの送付先が登録されていません。担当ケアマネジャー・相談支援事業所等のメールアドレスまたはFAX番号を確認してください。",
       );
@@ -254,7 +259,7 @@ export default function MonitoringEditorPage() {
       "",
       `送信先：${target.office_name ?? "名称未設定"}`,
       `担当：${target.contact_name ?? "未登録"}`,
-      emailDeliveryPreferred ? `メール：${target.email_address}` : `FAX：${target.fax_number}`,
+      emailDeliveryPreferred ? `メール：${emailAddress}` : `FAX：${faxNumber}`,
       "",
       `対象期間：${formatMonitoringPeriod(data.monitoring.period_start, data.monitoring.period_end)}`,
       "",
@@ -468,10 +473,10 @@ export default function MonitoringEditorPage() {
                 <div><dt className="text-slate-500">訪問記録</dt><dd>{data.context.summary.visit_count}件</dd></div>
                 <div><dt className="text-slate-500">前回モニタリング</dt><dd>{data.context.summary.previous_monitoring_date ?? "なし"}</dd></div>
                 <div><dt className="text-slate-500">担当者</dt><dd>{data.context.summary.care_manager_name ?? "未登録"}</dd></div>
-                <div><dt className="text-slate-500">FAX</dt><dd>{data.context.summary.fax_number ?? "未登録"}</dd></div>
-                <div><dt className="text-slate-500">メール</dt><dd>{data.context.fax_target.email_address ?? "未登録"}</dd></div>
+                <div><dt className="text-slate-500">FAX</dt><dd>{faxNumber || "未登録"}</dd></div>
+                <div><dt className="text-slate-500">メール</dt><dd>{emailAddress || "未登録"}</dd></div>
               </dl>
-              {data.context.warnings.length > 0 && <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><div className="flex items-center gap-2 font-semibold"><AlertTriangle size={16} />確認事項</div><ul className="mt-2 list-disc pl-5">{data.context.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>{!data.context.fax_target.fax_number && !emailDeliveryPreferred && <Link href={`/portal/kaipoke-info-detail/${clientInfoId}`} className="mt-3 inline-block font-semibold text-blue-700 hover:underline">送信先情報を確認</Link>}</div>}
+              {data.context.warnings.length > 0 && <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><div className="flex items-center gap-2 font-semibold"><AlertTriangle size={16} />確認事項</div><ul className="mt-2 list-disc pl-5">{data.context.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>{!hasUsableFaxNumber && !emailDeliveryPreferred && <Link href={`/portal/kaipoke-info-detail/${clientInfoId}`} className="mt-3 inline-block font-semibold text-blue-700 hover:underline">送信先情報を確認</Link>}</div>}
             </section>
 
             <SourceDetails title="基本情報"><pre className="whitespace-pre-wrap text-xs">{formatJson(data.context.client)}</pre></SourceDetails>

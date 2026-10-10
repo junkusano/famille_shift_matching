@@ -6,7 +6,7 @@ const source = ts.transpileModule(fs.readFileSync('src/lib/monitoring/bulk.ts', 
 
 async function scenario(options = {}) {
   const calls = [];
-  const context = { signed_plan: { client_request: '希望', family_request: '', issues: '' }, assessment: { assessment_id: 'assessment' }, plan: null, goals: [], visit_records: [{ evidence_id: 'visit' }], service_type_detected: 'disability', fax_target: { fax_id: 'fax', office_name: '相談事業所', registered_office_name: '相談事業所', registered_contact_name: '担当', fax_number: options.noFax ? null : '0312345678', email_address: options.email ? 'office@example.com' : null }, team_contacts: [{ name: '担当', phone: '0312345678' }], client: { name: 'テスト利用者' }, office_notice: '共通通知', ...options.context };
+  const context = { signed_plan: { client_request: '希望', family_request: '', issues: '' }, assessment: { assessment_id: 'assessment' }, plan: null, goals: [], visit_records: [{ evidence_id: 'visit' }], service_type_detected: 'disability', fax_target: { fax_id: 'fax', office_name: '相談事業所', registered_office_name: '相談事業所', registered_contact_name: '担当', fax_number: options.noFax ? null : '0312345678', email_address: options.emailAddress ?? (options.email ? 'office@example.com' : null) }, team_contacts: [{ name: '担当', phone: '0312345678' }], client: { name: 'テスト利用者' }, office_notice: '共通通知', ...options.context };
   const db = { from(table) {
     let action = 'select', value;
     const query = new Proxy({}, { get(_, key) {
@@ -36,8 +36,8 @@ async function scenario(options = {}) {
       isMonitoringTestClient: value => String(value || '').trim().startsWith('99999999'),
     };
     if (name === './faxTarget') return {
-      monitoringDeliveryMethod: target => target.email_address ? 'email' : target.fax_number ? 'fax' : null,
-      validateMonitoringFaxTarget: target => (!target.fax_id || !target.office_name || (!target.email_address && !target.fax_number)) ? '送付先不備' : null,
+      monitoringDeliveryMethod: target => /^\d{1,20}$/.test(String(target.fax_number || '').replace(/[\s()-]/g, '')) ? 'fax' : (typeof target.email_address === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target.email_address.trim()) ? 'email' : null),
+      validateMonitoringFaxTarget: target => (!target.fax_id || !target.office_name || !( /^\d{1,20}$/.test(String(target.fax_number || '').replace(/[\s()-]/g, '')) || (typeof target.email_address === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target.email_address.trim())) )) ? '送付先不備' : null,
     };
     if (name === './deliveryEmail') return { sendMonitoringPdfEmail: async params => { calls.push({ email: params.to }); return params.to ? { status: 'sent', to: params.to, messageId: 'message' } : { status: 'skipped', to: null }; } };
     if (name === './context') return { loadMonitoringContext: async () => context };
@@ -72,13 +72,17 @@ async function scenario(options = {}) {
   assert.equal(success.calls.filter(c => c.fax).length, 1);
   const withEmail = await scenario({ email: true });
   assert.equal(withEmail.result?.status, 'sent', withEmail.error?.stack);
-  assert.equal(withEmail.calls.filter(c => c.email === 'office@example.com').length, 1);
-  assert.match(withEmail.result.note, /メール送信/);
+  assert.equal(withEmail.calls.filter(c => c.fax).length, 1);
+  assert.equal(withEmail.calls.filter(c => c.email === 'office@example.com').length, 0);
+  assert.match(withEmail.result.note, /FAX送付/);
   const emailOnly = await scenario({ email: true, noFax: true });
   assert.equal(emailOnly.result?.status, 'sent', emailOnly.error?.stack);
   assert.equal(emailOnly.calls.filter(c => c.fax).length, 0);
   assert.equal(emailOnly.calls.filter(c => c.email === 'office@example.com').length, 1);
   assert.match(emailOnly.result.note, /メール送信/);
+  const malformedEmailWithFax = await scenario({ emailAddress: { broken: true } });
+  assert.equal(malformedEmailWithFax.result?.status, 'sent', malformedEmailWithFax.error?.stack);
+  assert.equal(malformedEmailWithFax.calls.filter(c => c.fax).length, 1);
   const migrated = await scenario({ context: { assessment: null, plan: null } });
   assert.equal(migrated.result?.status, 'sent', migrated.error?.stack);
   assert.equal(migrated.calls.filter(c => c.fax).length, 1);

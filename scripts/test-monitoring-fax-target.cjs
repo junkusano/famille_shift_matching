@@ -21,5 +21,7 @@ const base = {
 assert.equal(api.monitoringDeliveryMethod({ ...base, email_address: 'office@example.com', fax_number: 'not-a-fax' }), 'email');
 assert.equal(api.validateMonitoringFaxTarget({ ...base, email_address: 'office@example.com', fax_number: 'not-a-fax' }), null);
 assert.equal(api.monitoringDeliveryMethod({ ...base, fax_number: '03-1234-5678' }), 'fax');
+assert.equal(api.monitoringDeliveryMethod({ ...base, email_address: 'office@example.com', fax_number: '03-1234-5678' }), 'fax');
+assert.equal(api.monitoringDeliveryMethod({ ...base, email_address: { malformed: true }, fax_number: '03-1234-5678' }), 'fax');
 assert.match(api.validateMonitoringFaxTarget({ ...base, fax_number: 'not-a-fax' }), /メールアドレスまたはFAX番号/);
-console.log('PASS: valid email permits delivery even when FAX is missing or invalid');
+console.log('PASS: FAX is preferred when usable; valid email is used only when FAX is unavailable');

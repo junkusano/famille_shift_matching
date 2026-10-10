@@ -44,6 +44,11 @@ function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function errorText(value: unknown, fallback = "送付処理に失敗しました"): string {
+  if (value instanceof Error && value.message.trim()) return value.message.trim();
+  return text(value) || fallback;
+}
+
 function planFields(context: MonitoringContext) {
   if (context.signed_plan) {
     return {
@@ -182,7 +187,7 @@ async function sendEmailOnly(params: {
   runId: string;
 }): Promise<MonitoringEmailDeliveryResult> {
   const target = params.context.fax_target;
-  const emailAddress = target.email_address?.trim();
+  const emailAddress = text(target.email_address);
   if (!emailAddress) throw new Error("送信先メールアドレスが登録されていません");
   const processKey = `mn${Date.now().toString(36)}${crypto.randomUUID().replaceAll("-", "").slice(0, 6)}`.slice(0, 20);
   const { data: history, error: historyError } = await supabaseAdmin
@@ -224,7 +229,7 @@ async function sendEmailOnly(params: {
       pdf,
     });
     if (emailDelivery.status !== "sent") {
-      throw new Error(emailDelivery.status === "failed" ? emailDelivery.error : "メール送信先が登録されていません");
+      throw new Error(emailDelivery.status === "failed" ? errorText(emailDelivery.error) : "メール送信先が登録されていません");
     }
     const sentAt = new Date().toISOString();
     const updates = await Promise.all([
@@ -249,7 +254,7 @@ async function sendEmailOnly(params: {
     return emailDelivery;
   } catch (error) {
     await supabaseAdmin.from("monitoring_fax_history").update({
-      status: "request_failed", error_message: error instanceof Error ? error.message : String(error),
+      status: "request_failed", error_message: errorText(error),
     }).eq("id", history.id);
     throw error;
   }
@@ -359,7 +364,7 @@ async function sendFax(params: {
     return emailDelivery;
   } catch (error) {
     await supabaseAdmin.from("monitoring_fax_history").update({
-      ...(accepted ? { status: "accepted" } : {}), error_message: error instanceof Error ? error.message : String(error),
+      ...(accepted ? { status: "accepted" } : {}), error_message: errorText(error),
     }).eq("id", history.id);
     await supabaseAdmin.from("fax_log").update({
       status: accepted ? "accepted" : "request_failed",
@@ -403,7 +408,7 @@ export async function processMonitoringBulkItem(params: {
   } catch (error) {
     const taskId = await createUrgentTask({
       templateId: params.run.event_template_id, item: params.item, dueDate: params.run.evaluation_date,
-      reasons: [`署名済みプランのテキスト化・要約処理に失敗しました（${error instanceof Error ? error.message : String(error)}）`],
+      reasons: [`署名済みプランのテキスト化・要約処理に失敗しました（${errorText(error)}）`],
     });
     return { status: "task_created", taskId, note: "署名済みプランの準備エラー" };
   }

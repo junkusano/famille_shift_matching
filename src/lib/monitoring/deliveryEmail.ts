@@ -20,6 +20,15 @@ function validEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function text(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function errorText(value: unknown, fallback: string): string {
+  if (value instanceof Error && value.message.trim()) return value.message.trim();
+  return text(value) || fallback;
+}
+
 export async function sendMonitoringPdfEmail(params: {
   to: string | null | undefined;
   officeName: string | null | undefined;
@@ -29,12 +38,12 @@ export async function sendMonitoringPdfEmail(params: {
   filename: string;
   pdf: Buffer;
 }): Promise<MonitoringEmailDeliveryResult> {
-  const to = params.to?.trim() ?? "";
+  const to = text(params.to);
   if (!to) return { status: "skipped", to: null };
   if (!validEmail(to)) return { status: "failed", to, error: "送信先メールアドレスの形式が正しくありません" };
 
   const subject = `【ファミーユ】モニタリング送付（${params.periodStart}～${params.periodEnd}）`;
-  const officeName = escapeHtml(params.officeName?.trim() || "ご担当事業所");
+  const officeName = escapeHtml(text(params.officeName) || "ご担当事業所");
   const clientName = escapeHtml(params.clientName.trim() || "ご利用者");
   const smtpUser = process.env.SMTP_USER?.trim();
   const configuredFrom = process.env.MONITORING_EMAIL_FROM?.trim();
@@ -56,12 +65,12 @@ export async function sendMonitoringPdfEmail(params: {
     if (result.status === "ok") {
       return { status: "sent", to, messageId: result.messageId ?? null };
     }
-    return { status: "failed", to, error: result.error || "メール送信に失敗しました" };
+    return { status: "failed", to, error: errorText(result.error, "メール送信に失敗しました") };
   } catch (error) {
     return {
       status: "failed",
       to,
-      error: error instanceof Error ? error.message : String(error),
+      error: errorText(error, "メール送信に失敗しました"),
     };
   }
 }

@@ -20,6 +20,15 @@ function processKey(): string {
   );
 }
 
+function text(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function errorText(value: unknown, fallback = "送付処理に失敗しました"): string {
+  if (value instanceof Error && value.message.trim()) return value.message.trim();
+  return text(value) || fallback;
+}
+
 export async function POST(request: NextRequest, { params }: Context) {
   let historyId: string | null = null;
   let faxLogBatchId: string | null = null;
@@ -89,7 +98,7 @@ export async function POST(request: NextRequest, { params }: Context) {
           sent_by: actor.userId,
           sent_by_name: actor.name,
           fax_number: null,
-          email_address: target.email_address?.trim() ?? null,
+          email_address: text(target.email_address) || null,
           delivery_method: "email",
           destination_name: target.office_name || "送信先名称未設定",
           contact_name: target.contact_name,
@@ -112,7 +121,7 @@ export async function POST(request: NextRequest, { params }: Context) {
         pdf,
       });
       if (emailDelivery.status !== "sent") {
-        throw new Error(emailDelivery.status === "failed" ? emailDelivery.error : "送信先メールアドレスが登録されていません");
+        throw new Error(emailDelivery.status === "failed" ? errorText(emailDelivery.error) : "送信先メールアドレスが登録されていません");
       }
       const sentAt = new Date().toISOString();
       const updates = await Promise.all([
@@ -268,7 +277,7 @@ export async function POST(request: NextRequest, { params }: Context) {
         .from("monitoring_fax_history")
         .update({
           status: "request_failed",
-          error_message: error instanceof Error ? error.message : String(error),
+          error_message: errorText(error),
         })
         .eq("id", historyId);
     }
@@ -277,7 +286,7 @@ export async function POST(request: NextRequest, { params }: Context) {
         .from("fax_log")
         .update({
           status: "request_failed",
-          status_message: error instanceof Error ? error.message : String(error),
+          status_message: errorText(error),
           updated_at: new Date().toISOString(),
         })
         .eq("batch_id", faxLogBatchId)

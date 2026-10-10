@@ -2,8 +2,12 @@ import type { MonitoringFaxTarget } from "@/types/monitoring";
 
 export type MonitoringDeliveryMethod = "fax" | "email";
 
-function normalizeOfficeName(value: string | null | undefined): string {
-  return (value ?? "")
+function text(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeOfficeName(value: unknown): string {
+  return text(value)
     .normalize("NFKC")
     .replace(/[\s　]/g, "")
     .replace(/[「」『』（）()・、，,./／]/g, "")
@@ -18,7 +22,7 @@ export function validateMonitoringFaxTarget(target: MonitoringFaxTarget): string
   if (!monitoringDeliveryMethod(target)) {
     return "送付先の有効なメールアドレスまたはFAX番号が登録されていません。FAX電話帳を確認してください。";
   }
-  const registeredOffice = target.registered_office_name?.trim() ?? "";
+  const registeredOffice = text(target.registered_office_name);
   if (
     registeredOffice &&
     normalizeOfficeName(target.office_name) !== normalizeOfficeName(registeredOffice)
@@ -29,17 +33,17 @@ export function validateMonitoringFaxTarget(target: MonitoringFaxTarget): string
 }
 
 export function hasMonitoringEmailAddress(target: MonitoringFaxTarget): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target.email_address?.trim() ?? "");
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text(target.email_address));
 }
 
 export function hasUsableMonitoringFaxNumber(target: MonitoringFaxTarget): boolean {
-  const normalized = target.fax_number?.replace(/[\s()-]/g, "") ?? "";
+  const normalized = text(target.fax_number).replace(/[\s()-]/g, "");
   return /^\d{1,20}$/.test(normalized);
 }
 
-/** メールアドレスがある宛先はメールを優先し、FAX番号の不備では止めない。 */
+/** FAX番号が有効ならFAXを使用し、FAXが使えないときだけメールで送付する。 */
 export function monitoringDeliveryMethod(target: MonitoringFaxTarget): MonitoringDeliveryMethod | null {
-  if (hasMonitoringEmailAddress(target)) return "email";
   if (hasUsableMonitoringFaxNumber(target)) return "fax";
+  if (hasMonitoringEmailAddress(target)) return "email";
   return null;
 }
