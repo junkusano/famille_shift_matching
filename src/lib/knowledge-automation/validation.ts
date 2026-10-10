@@ -27,6 +27,9 @@ export const knowledgeAutomationTaskInputSchema = z.object({
   settings: z.record(z.unknown()).optional().default({}),
   is_enabled: z.boolean(),
 }).superRefine((value, context) => {
+  if (value.settings.operation === "recruitment_analytics" && (value.destination !== "none" || value.task_type !== "custom")) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["destination"], message: "応募導線分析は「その他の自動化」「保存のみ」で登録してください。" });
+  }
   const publicNotice = value.task_type === "weather_alert" || ["traffic_restrictions", "police_enforcement"].includes(String(value.settings.operation));
   if (publicNotice && value.is_enabled && value.destination === "lineworks_board" && !/^\d+$/.test(String(value.settings.lineworksBoardId ?? ""))) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["settings", "lineworksBoardId"], message: "配信先の掲示板IDを入力してください。" });

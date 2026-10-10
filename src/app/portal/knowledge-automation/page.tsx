@@ -449,7 +449,9 @@ export default function KnowledgeAutomationPage() {
           {form.approval_mode === "automatic" && (
             <div className="mt-4 flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <AlertTriangle className="mt-0.5 shrink-0" size={18} aria-hidden />
-              {form.settings?.operation === "system_diagnostics"
+              {form.settings?.operation === "recruitment_analytics"
+                  ? "応募導線の週次レポートと改善案をナレッジサマリーへ保存します。レポートは「応募導線分析」で確認できます。"
+                  : form.settings?.operation === "system_diagnostics"
                   ? "診断と修正候補の保存を自動実行します。結果は「診断結果を見る」で確認できます。"
                   : form.settings?.operation === "wordpress_blog_rewrite"
                 ? "対象記事を分析し、既存の公開記事をリライトして反映・表示確認まで自動実行します。"
@@ -508,7 +510,7 @@ export default function KnowledgeAutomationPage() {
               </div>}
               <dl className="mt-4 grid gap-3 rounded-lg bg-slate-50 p-3 text-sm sm:grid-cols-2">
                 <div><dt className="text-xs font-semibold text-slate-500">タイミング</dt><dd className="mt-0.5 flex items-center gap-1.5"><Clock3 size={15} className="text-slate-400" aria-hidden />{scheduleLabel(task)}</dd></div>
-                <div><dt className="text-xs font-semibold text-slate-500">反映先</dt><dd className="mt-0.5">{DESTINATION_LABELS[task.destination]}</dd></div>
+                <div><dt className="text-xs font-semibold text-slate-500">反映先</dt><dd className="mt-0.5">{task.settings.operation === "recruitment_analytics" ? "応募導線分析・ナレッジサマリー" : DESTINATION_LABELS[task.destination]}</dd></div>
                 <div><dt className="text-xs font-semibold text-slate-500">承認方法</dt><dd className="mt-0.5">{APPROVAL_MODE_LABELS[task.approval_mode]}</dd></div>
                 <div><dt className="text-xs font-semibold text-slate-500">次回予定</dt><dd className="mt-0.5">{task.trigger_type === "event" ? "情報受信時" : formatDate(task.next_run_at)}</dd></div>
               </dl>
@@ -521,6 +523,7 @@ export default function KnowledgeAutomationPage() {
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
                 <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700"><CheckCircle2 size={15} aria-hidden />安全チェック適用</div>
                 <div className="flex flex-wrap gap-2">
+                  {task.settings.operation === "recruitment_analytics" && <a href="/portal/recruitment-analytics" className="rounded-lg border px-4 py-2 text-sm text-indigo-700">週次レポートを見る</a>}
                   {task.settings.operation === "system_diagnostics" && <button type="button" onClick={() => void showDiagnostics(task)} className="rounded-lg border px-4 py-2 text-sm">診断結果を見る</button>}
                   <button type="button" disabled={runningId === task.id} onClick={() => void runNow(task)} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
                       <Play size={15} aria-hidden />{runningId === task.id ? "実行中…" : "今すぐ実行"}
