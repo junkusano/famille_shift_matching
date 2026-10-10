@@ -11,7 +11,7 @@ import type {
   MonitoringVisitRecord,
 } from "@/types/monitoring";
 import { cleanMonitoringGoalText, detectMonitoringServiceType, monitoringContactWarnings } from "./core";
-import { validateMonitoringFaxTarget } from "./faxTarget";
+import { hasMonitoringEmailAddress, hasUsableMonitoringFaxNumber, validateMonitoringFaxTarget } from "./faxTarget";
 import { getMonitoringMonthlyNotice } from "./notices";
 import { loadMonitoringSignedPlan } from "./signed-plan";
 
@@ -396,7 +396,8 @@ export async function loadMonitoringContext(params: {
     ...monitoringContactWarnings({
       serviceType: serviceTypeDetected,
       hasContact: hasRegisteredContact,
-      hasFax: Boolean(faxTarget.fax_number),
+      hasFax: hasUsableMonitoringFaxNumber(faxTarget),
+      hasEmail: hasMonitoringEmailAddress(faxTarget),
     }),
   );
   const faxTargetValidationError = validateMonitoringFaxTarget(faxTarget);

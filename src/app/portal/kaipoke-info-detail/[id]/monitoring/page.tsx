@@ -20,6 +20,7 @@ type ListRow = MonitoringRecord & {
     sent_at?: string | null;
     destination_name?: string | null;
     contact_name?: string | null;
+    delivery_method?: "fax" | "email";
   } | null;
 };
 
@@ -293,8 +294,8 @@ export default function MonitoringListPage() {
                     <th className="px-4 py-3">対象期間</th><th className="px-4 py-3">評価日</th>
                     <th className="px-4 py-3">サービス種別</th><th className="px-4 py-3">作成日時</th>
                     <th className="px-4 py-3">作成者</th><th className="px-4 py-3">ステータス</th>
-                    <th className="px-4 py-3">PDF</th><th className="px-4 py-3">FAX送信状況</th>
-                    <th className="px-4 py-3">FAX送信日時</th><th className="px-4 py-3">送信先</th>
+                    <th className="px-4 py-3">PDF</th><th className="px-4 py-3">送付状況</th>
+                    <th className="px-4 py-3">送付日時</th><th className="px-4 py-3">送付先</th>
                     <th className="px-4 py-3">操作</th>
                   </tr>
                 </thead>
@@ -308,7 +309,7 @@ export default function MonitoringListPage() {
                       <td className="px-4 py-3">{row.created_by_name || row.created_by}</td>
                       <td className="px-4 py-3"><span className="rounded-full bg-slate-200 px-2 py-1 text-xs font-semibold">{MONITORING_STATUS_LABELS[row.status]}</span></td>
                       <td className="px-4 py-3">{row.current_pdf_snapshot_id ? "確定版あり" : "未作成"}</td>
-                      <td className="px-4 py-3">{row.latest_fax?.status === "accepted" ? "送信受付済み" : row.latest_fax?.status === "request_failed" ? "送信失敗" : "未送信"}</td>
+                      <td className="px-4 py-3">{row.latest_fax?.status === "accepted" ? `${row.latest_fax.delivery_method === "email" ? "メール" : "FAX"}送付済み` : row.latest_fax?.status === "request_failed" ? "送付失敗" : "未送信"}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{row.latest_fax?.sent_at ? new Date(row.latest_fax.sent_at).toLocaleString("ja-JP") : "-"}</td>
                       <td className="px-4 py-3">{row.latest_fax?.destination_name ?? "-"}</td>
                       <td className="px-4 py-3">

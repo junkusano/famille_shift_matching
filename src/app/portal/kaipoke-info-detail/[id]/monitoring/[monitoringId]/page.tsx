@@ -107,6 +107,9 @@ export default function MonitoringEditorPage() {
     () => new Map(data?.context.visit_records.map((visit) => [visit.evidence_id, visit]) ?? []),
     [data],
   );
+  const emailDeliveryPreferred = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    data?.context.fax_target.email_address?.trim() ?? "",
+  );
 
   function updateDraft(patch: Partial<MonitoringRecord>) {
     setDraft((current) => (current ? { ...current, ...patch } : current));
@@ -238,20 +241,20 @@ export default function MonitoringEditorPage() {
   async function sendFax() {
     if (!data) return;
     const target = data.context.fax_target;
-    if (!target.fax_number) {
+    if (!emailDeliveryPreferred && !target.fax_number) {
       setError(
-        "モニタリングのFAX送信先が登録されていません。担当ケアマネジャー・相談支援事業所等のFAX番号を確認してください。",
+        "モニタリングの送付先が登録されていません。担当ケアマネジャー・相談支援事業所等のメールアドレスまたはFAX番号を確認してください。",
       );
       return;
     }
     const acceptedBefore = data.fax_history.some((history) => history.status === "accepted");
+    const deliveryLabel = emailDeliveryPreferred ? "メール" : "FAX";
     const prompt = [
-      acceptedBefore ? "モニタリングを再度FAX送信します。" : "モニタリングをFAX送信します。",
+      acceptedBefore ? `モニタリングを再度${deliveryLabel}送付します。` : `モニタリングを${deliveryLabel}送付します。`,
       "",
       `送信先：${target.office_name ?? "名称未設定"}`,
       `担当：${target.contact_name ?? "未登録"}`,
-      `FAX：${target.fax_number}`,
-      `メール：${target.email_address ?? "未登録"}`,
+      emailDeliveryPreferred ? `メール：${target.email_address}` : `FAX：${target.fax_number}`,
       "",
       `対象期間：${formatMonitoringPeriod(data.monitoring.period_start, data.monitoring.period_end)}`,
       "",
@@ -263,13 +266,12 @@ export default function MonitoringEditorPage() {
     setMessage("");
     try {
       const result = await api(`/api/monitorings/${monitoringId}/fax`, { method: "POST" });
+      const deliveryMethod = result.data?.delivery_method;
       const emailStatus = result.data?.email?.status;
       setMessage(
-        emailStatus === "sent"
-          ? "FAX送信依頼を受け付け、メールも送信しました"
-          : emailStatus === "failed"
-            ? `FAX送信依頼は受け付けましたが、メール送信に失敗しました：${result.data.email.error}`
-            : "FAX送信依頼が受け付けられました",
+        deliveryMethod === "email" && emailStatus === "sent"
+          ? "メール送付を受け付けました"
+          : "FAX送付を受け付けました",
       );
       await load();
     } catch (caught) {
@@ -340,7 +342,7 @@ export default function MonitoringEditorPage() {
                 <button onClick={generate} disabled={Boolean(working)} className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 font-semibold text-white hover:bg-violet-700 disabled:opacity-50"><Bot size={17} />{draft.generated_by_ai ? "AI再生成" : "AIモニタリング生成"}</button>
                 <button onClick={confirmMonitoring} disabled={Boolean(working) || draft.status === "fax_sent"} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50"><CheckCircle2 size={17} />確定</button>
                 <button onClick={createPdf} disabled={Boolean(working) || !isConfirmed} className="rounded-lg bg-slate-800 px-4 py-2 font-semibold text-white disabled:opacity-40">PDF作成</button>
-                <button onClick={sendFax} disabled={Boolean(working) || !pdfReady} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white disabled:opacity-40"><Send size={17} />{data.fax_history.some((history) => history.status === "accepted") ? "FAX再送" : "FAX送信"}</button>
+                <button onClick={sendFax} disabled={Boolean(working) || !pdfReady} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white disabled:opacity-40"><Send size={17} />{data.fax_history.some((history) => history.status === "accepted") ? `${emailDeliveryPreferred ? "メール" : "FAX"}再送` : `${emailDeliveryPreferred ? "メール" : "FAX"}送信`}</button>
               </div>
             )}
           </div>
@@ -447,9 +449,9 @@ export default function MonitoringEditorPage() {
             )}
 
             <section className="rounded-xl border bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold">FAX送信履歴</h2>
+              <h2 className="text-lg font-bold">送付履歴</h2>
               {data.fax_history.length === 0 ? <p className="mt-3 text-sm text-slate-500">送信履歴はありません。</p> : (
-                <div className="mt-3 overflow-x-auto"><table className="min-w-[750px] w-full text-sm"><thead className="bg-slate-100"><tr><th className="p-2 text-left">日時</th><th className="p-2 text-left">送信先</th><th className="p-2 text-left">FAX</th><th className="p-2 text-left">結果</th><th className="p-2 text-left">送信PDF</th></tr></thead><tbody className="divide-y">{data.fax_history.map((history) => <tr key={String(history.id)}><td className="p-2">{history.sent_at ? new Date(String(history.sent_at)).toLocaleString("ja-JP") : new Date(String(history.created_at)).toLocaleString("ja-JP")}</td><td className="p-2">{String(history.destination_name ?? "")}</td><td className="p-2">{String(history.fax_number ?? "")}</td><td className="p-2">{history.status === "accepted" ? "受付済み" : history.status === "request_failed" ? `失敗：${String(history.error_message ?? "")}` : "送信中"}</td><td className="p-2"><button onClick={() => void showPdf("view", String(history.pdf_snapshot_id))} className="text-blue-700 hover:underline">この時送信したPDF</button></td></tr>)}</tbody></table></div>
+                <div className="mt-3 overflow-x-auto"><table className="min-w-[750px] w-full text-sm"><thead className="bg-slate-100"><tr><th className="p-2 text-left">日時</th><th className="p-2 text-left">送信先</th><th className="p-2 text-left">方法</th><th className="p-2 text-left">宛先</th><th className="p-2 text-left">結果</th><th className="p-2 text-left">送信PDF</th></tr></thead><tbody className="divide-y">{data.fax_history.map((history) => <tr key={String(history.id)}><td className="p-2">{history.sent_at ? new Date(String(history.sent_at)).toLocaleString("ja-JP") : new Date(String(history.created_at)).toLocaleString("ja-JP")}</td><td className="p-2">{String(history.destination_name ?? "")}</td><td className="p-2">{history.delivery_method === "email" ? "メール" : "FAX"}</td><td className="p-2">{String(history.delivery_method === "email" ? history.email_address ?? "" : history.fax_number ?? "")}</td><td className="p-2">{history.status === "accepted" ? "送付済み" : history.status === "request_failed" ? `失敗：${String(history.error_message ?? "")}` : "送付中"}</td><td className="p-2"><button onClick={() => void showPdf("view", String(history.pdf_snapshot_id))} className="text-blue-700 hover:underline">この時送信したPDF</button></td></tr>)}</tbody></table></div>
               )}
             </section>
 
@@ -469,7 +471,7 @@ export default function MonitoringEditorPage() {
                 <div><dt className="text-slate-500">FAX</dt><dd>{data.context.summary.fax_number ?? "未登録"}</dd></div>
                 <div><dt className="text-slate-500">メール</dt><dd>{data.context.fax_target.email_address ?? "未登録"}</dd></div>
               </dl>
-              {data.context.warnings.length > 0 && <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><div className="flex items-center gap-2 font-semibold"><AlertTriangle size={16} />確認事項</div><ul className="mt-2 list-disc pl-5">{data.context.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>{!data.context.fax_target.fax_number && <Link href={`/portal/kaipoke-info-detail/${clientInfoId}`} className="mt-3 inline-block font-semibold text-blue-700 hover:underline">送信先情報を確認</Link>}</div>}
+              {data.context.warnings.length > 0 && <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><div className="flex items-center gap-2 font-semibold"><AlertTriangle size={16} />確認事項</div><ul className="mt-2 list-disc pl-5">{data.context.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>{!data.context.fax_target.fax_number && !emailDeliveryPreferred && <Link href={`/portal/kaipoke-info-detail/${clientInfoId}`} className="mt-3 inline-block font-semibold text-blue-700 hover:underline">送信先情報を確認</Link>}</div>}
             </section>
 
             <SourceDetails title="基本情報"><pre className="whitespace-pre-wrap text-xs">{formatJson(data.context.client)}</pre></SourceDetails>

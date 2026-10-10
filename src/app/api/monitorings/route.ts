@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     if (ids.length > 0) {
       const { data: historyRows, error: historyError } = await supabaseAdmin
         .from("monitoring_fax_history")
-        .select("monitoring_id,status,sent_at,destination_name,contact_name,fax_number,created_at")
+        .select("monitoring_id,status,sent_at,destination_name,contact_name,fax_number,email_address,delivery_method,created_at")
         .in("monitoring_id", ids)
         .order("created_at", { ascending: false });
       if (historyError) throw historyError;

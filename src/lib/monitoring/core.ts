@@ -74,11 +74,12 @@ export function monitoringContactWarnings(params: {
   serviceType: MonitoringServiceType | null;
   hasContact: boolean;
   hasFax: boolean;
+  hasEmail: boolean;
 }): string[] {
-  const { serviceType, hasContact, hasFax } = params;
+  const { serviceType, hasContact, hasFax, hasEmail } = params;
   const contactLabel = serviceType === "disability" ? "相談支援専門員" : "ケアマネジャー";
   if (!hasContact) return [`${contactLabel}が登録されていません`];
-  if (!hasFax) return [`${contactLabel}は登録されていますが、FAX番号が登録されていません`];
+  if (!hasFax && !hasEmail) return [`${contactLabel}は登録されていますが、有効なメールアドレスまたはFAX番号が登録されていません`];
   return [];
 }
 

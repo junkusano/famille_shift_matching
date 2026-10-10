@@ -32,7 +32,10 @@ async function scenario(options = {}) {
     if (name === './ai') return { generateMonitoringWithAi: async () => { calls.push({ ai: true }); return { summary: '清掃を実施した', notable_observations: [], goals: [], model: 'test' }; } };
     if (name === './audit') return { recordMonitoringEvent: async () => {} };
     if (name === './core') return { effectiveOfficeNotice: (a,b) => a || b };
-    if (name === './faxTarget') return { validateMonitoringFaxTarget: target => (!target.fax_id || !target.office_name || !target.fax_number) ? 'FAX送信先不備' : null };
+    if (name === './faxTarget') return {
+      monitoringDeliveryMethod: target => target.email_address ? 'email' : target.fax_number ? 'fax' : null,
+      validateMonitoringFaxTarget: target => (!target.fax_id || !target.office_name || (!target.email_address && !target.fax_number)) ? '送付先不備' : null,
+    };
     if (name === './deliveryEmail') return { sendMonitoringPdfEmail: async params => { calls.push({ email: params.to }); return params.to ? { status: 'sent', to: params.to, messageId: 'message' } : { status: 'skipped', to: null }; } };
     if (name === './context') return { loadMonitoringContext: async () => context };
     if (name === './pdf') return { renderMonitoringPdf: async () => Buffer.from('pdf') };
@@ -64,6 +67,11 @@ async function scenario(options = {}) {
   assert.equal(withEmail.result?.status, 'sent', withEmail.error?.stack);
   assert.equal(withEmail.calls.filter(c => c.email === 'office@example.com').length, 1);
   assert.match(withEmail.result.note, /メール送信/);
+  const emailOnly = await scenario({ email: true, noFax: true });
+  assert.equal(emailOnly.result?.status, 'sent', emailOnly.error?.stack);
+  assert.equal(emailOnly.calls.filter(c => c.fax).length, 0);
+  assert.equal(emailOnly.calls.filter(c => c.email === 'office@example.com').length, 1);
+  assert.match(emailOnly.result.note, /メール送信/);
   const migrated = await scenario({ context: { assessment: null, plan: null } });
   assert.equal(migrated.result?.status, 'sent', migrated.error?.stack);
   assert.equal(migrated.calls.filter(c => c.fax).length, 1);
@@ -72,5 +80,5 @@ async function scenario(options = {}) {
   const uncertain = await scenario({ faxError: true });
   assert.ok(uncertain.error);
   assert.equal(uncertain.calls.filter(c => c.fax).length, 1);
-  console.log('PASS: document/contact/team deficiencies, existing monitoring, PDF/FAX pipeline, no automatic fax retry (all external services mocked)');
+  console.log('PASS: document/contact/team deficiencies, existing monitoring, email-only and FAX delivery pipelines, no automatic fax retry (all external services mocked)');
 })().catch(e => { console.error(e); process.exitCode = 1; });
