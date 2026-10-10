@@ -24,9 +24,15 @@ type FieldSpec = {
 };
 
 const SIGNED_PLAN_NAME = /(?:訪問介護計画書|訪問介護予防計画書|介護予防訪問介護計画書|居宅介護計画書|重度訪問介護計画書|同行援護計画書|行動援護計画書|移動支援計画書|障害サービス計画書|障害(?:福祉サービス)?(?:個別)?計画書|重度就労計画書|介護計画書)/;
+const PROVIDER_PLAN_NAME = /(?:訪問介護(?:予防)?計画書|介護予防訪問介護計画書|居宅介護計画書|重度訪問介護計画書|同行援護計画書|行動援護計画書|移動支援計画書|重度就労計画書|^介護計画書$)/;
 
 export function isMonitoringSignedPlanName(value: unknown): boolean {
   return SIGNED_PLAN_NAME.test(text(value));
+}
+
+/** 相談支援の計画書より、事業所が作成したサービス計画書を優先する。 */
+export function isProviderMonitoringPlanName(value: unknown): boolean {
+  return PROVIDER_PLAN_NAME.test(text(value));
 }
 const COMMON_STOPS = [
   /本人\s*[（(]\s*家族\s*[）)]\s*の希望/,
@@ -165,6 +171,15 @@ function toSignedPlan(row: CsDocRow): MonitoringSignedPlan {
   };
 }
 
+export function selectMonitoringSignedPlan(
+  candidates: CsDocRow[],
+  periodEnd: string,
+): CsDocRow | null {
+  const dated = candidates.filter((row) => documentDate(row) <= periodEnd);
+  const eligible = dated.length > 0 ? dated : candidates;
+  return eligible.find((row) => isProviderMonitoringPlanName(row.doc_name)) ?? eligible[0] ?? null;
+}
+
 async function findSignedPlan(params: {
   kaipokeCsId: string;
   periodEnd: string;
@@ -179,8 +194,7 @@ async function findSignedPlan(params: {
   if (error) throw error;
 
   const candidates = ((data ?? []) as CsDocRow[]).filter((row) => isMonitoringSignedPlanName(row.doc_name));
-  const dated = candidates.filter((row) => documentDate(row) <= params.periodEnd);
-  return dated[0] ?? candidates[0] ?? null;
+  return selectMonitoringSignedPlan(candidates, params.periodEnd);
 }
 
 export async function loadMonitoringSignedPlan(params: {
