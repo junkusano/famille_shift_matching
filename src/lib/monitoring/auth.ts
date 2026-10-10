@@ -28,6 +28,23 @@ export type MonitoringActor = {
   canManage: boolean;
 };
 
+function monitoringErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  if (error && typeof error === "object") {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) {
+      if (
+        message.includes("monitoring_fax_history") &&
+        (message.includes("delivery_method") || message.includes("email_address"))
+      ) {
+        return "モニタリング送付のDB更新が未適用です。管理者へ連絡してください。";
+      }
+      return message.trim();
+    }
+  }
+  return "モニタリング処理に失敗しました。";
+}
+
 export async function requireMonitoringActor(
   request: NextRequest,
   options: { manage?: boolean } = {},
@@ -76,7 +93,7 @@ export function monitoringAuthErrorResponse(error: unknown): { message: string; 
     return { message: error.message, status: error.status };
   }
   return {
-    message: error instanceof Error ? error.message : String(error),
+    message: monitoringErrorMessage(error),
     status: 500,
   };
 }
