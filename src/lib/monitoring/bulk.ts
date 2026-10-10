@@ -6,7 +6,7 @@ import { sendFaximoFax } from "@/lib/faximo/client";
 import { uploadBufferToGoogleDrive, downloadGoogleDriveFile } from "@/lib/google-drive/upload";
 import { generateMonitoringWithAi } from "./ai";
 import { recordMonitoringEvent } from "./audit";
-import { effectiveOfficeNotice } from "./core";
+import { effectiveOfficeNotice, isMonitoringTestClient } from "./core";
 import { loadMonitoringContext } from "./context";
 import { renderMonitoringPdf, type MonitoringPdfSnapshot } from "./pdf";
 import { getMonitoringGoals, monitoringFilename } from "./repository";
@@ -38,7 +38,7 @@ export type MonitoringBulkRun = {
 export type MonitoringBulkResult =
   | { status: "sent"; monitoringId: string; note: string }
   | { status: "task_created"; taskId: string; note: string }
-  | { status: "skipped"; monitoringId: string; note: string };
+  | { status: "skipped"; monitoringId?: string; note: string };
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -375,6 +375,9 @@ export async function processMonitoringBulkItem(params: {
   actor: MonitoringActor;
   accessToken: string;
 }): Promise<MonitoringBulkResult> {
+  if (isMonitoringTestClient(params.item.kaipoke_cs_id)) {
+    return { status: "skipped", note: "テスト顧客のため一斉モニタリングの対象外です" };
+  }
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("client_monitorings")
     .select("id")

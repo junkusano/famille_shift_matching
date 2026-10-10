@@ -38,6 +38,11 @@ export function detectMonitoringServiceType(
   return null;
 }
 
+/** カイポケのテスト利用者IDは、実運用の一斉処理対象にしない。 */
+export function isMonitoringTestClient(value: unknown): boolean {
+  return String(value ?? "").trim().startsWith("99999999");
+}
+
 export function validateMonitoringPeriod(start: string, end: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
     return "対象期間を正しい日付で指定してください";

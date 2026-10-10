@@ -25,7 +25,7 @@ export async function POST(request: NextRequest, { params }: Context) {
         const result = await processMonitoringBulkItem({ run: run.data, item, actor, accessToken: token });
         const saved = await db.from("monitoring_bulk_run_items").update({
           status: result.status, note: result.note,
-          monitoring_id: "monitoringId" in result ? result.monitoringId : null,
+          monitoring_id: result.monitoringId ?? null,
           event_task_id: "taskId" in result ? result.taskId : null, processed_at: new Date().toISOString(),
         }).eq("id", item.id);
         if (saved.error) throw saved.error;

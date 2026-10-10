@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as db } from "@/lib/supabase/service";
 import { requireMonitoringActor, monitoringAuthErrorResponse } from "@/lib/monitoring/auth";
-import { monthStart, monthEnd } from "@/lib/monitoring/core";
+import { isMonitoringTestClient, monthStart, monthEnd } from "@/lib/monitoring/core";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -35,7 +35,11 @@ export async function POST(request: NextRequest) {
     for (let offset = 0; ; offset += 1000) {
       const shifts = await db.from("shift").select("shift_id,kaipoke_cs_id").gte("shift_start_date", start).lte("shift_start_date", end).order("shift_id").range(offset, offset + 999);
       if (shifts.error) throw shifts.error;
-      for (const shift of shifts.data ?? []) if (shift.kaipoke_cs_id) ids.add(String(shift.kaipoke_cs_id));
+      for (const shift of shifts.data ?? []) {
+        if (shift.kaipoke_cs_id && !isMonitoringTestClient(shift.kaipoke_cs_id)) {
+          ids.add(String(shift.kaipoke_cs_id));
+        }
+      }
       if ((shifts.data?.length ?? 0) < 1000) break;
     }
     const clients: Array<{ id: string; kaipoke_cs_id: string; name: string; asigned_org: string | null }> = [];
@@ -43,7 +47,7 @@ export async function POST(request: NextRequest) {
     for (let offset = 0; offset < clientIds.length; offset += 100) {
       const result = await db.from("cs_kaipoke_info").select("id,kaipoke_cs_id,name,asigned_org").in("kaipoke_cs_id", clientIds.slice(offset, offset + 100));
       if (result.error) throw result.error;
-      clients.push(...(result.data ?? []));
+      clients.push(...(result.data ?? []).filter((client) => !isMonitoringTestClient(client.kaipoke_cs_id)));
     }
     if (!clients.length) throw new Error("前月にシフトがある利用者がいません");
     const run = await db.from("monitoring_bulk_runs").insert({

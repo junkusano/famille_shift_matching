@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, { params }: Context) {
       const result = await processMonitoringBulkItem({ run: runResult.data, item: itemResult.data, actor, accessToken: token });
       const { error } = await db.from("monitoring_bulk_run_items").update({
         status: result.status, note: result.note,
-        monitoring_id: "monitoringId" in result ? result.monitoringId : null,
+        monitoring_id: result.monitoringId ?? null,
         event_task_id: "taskId" in result ? result.taskId : null,
         processed_at: new Date().toISOString(),
       }).eq("id", itemId);

@@ -31,7 +31,10 @@ async function scenario(options = {}) {
     if (name.includes('google-drive')) return { uploadBufferToGoogleDrive: async () => ({ fileId: 'drive' }), downloadGoogleDriveFile: async () => Buffer.from('pdf') };
     if (name === './ai') return { generateMonitoringWithAi: async () => { calls.push({ ai: true }); return { summary: '清掃を実施した', notable_observations: [], goals: [], model: 'test' }; } };
     if (name === './audit') return { recordMonitoringEvent: async () => {} };
-    if (name === './core') return { effectiveOfficeNotice: (a,b) => a || b };
+    if (name === './core') return {
+      effectiveOfficeNotice: (a,b) => a || b,
+      isMonitoringTestClient: value => String(value || '').trim().startsWith('99999999'),
+    };
     if (name === './faxTarget') return {
       monitoringDeliveryMethod: target => target.email_address ? 'email' : target.fax_number ? 'fax' : null,
       validateMonitoringFaxTarget: target => (!target.fax_id || !target.office_name || (!target.email_address && !target.fax_number)) ? '送付先不備' : null,
@@ -46,7 +49,7 @@ async function scenario(options = {}) {
   const exports = {};
   vm.runInNewContext(source, { exports, require: fakeRequire, process, Buffer, console, crypto: require('node:crypto').webcrypto, Intl, Date, Set, Map });
   let result, error;
-  try { result = await exports.processMonitoringBulkItem({ run: { id: 'run', period_start: '2026-08-01', period_end: '2026-08-31', evaluation_date: '2026-09-01', event_template_id: 'template' }, item: { client_info_id: 'client', kaipoke_cs_id: 'kaipoke', orgunitid: 'team' }, actor: { userId: 'actor', name: '担当' }, accessToken: 'mock' }); } catch (e) { error = e; }
+  try { result = await exports.processMonitoringBulkItem({ run: { id: 'run', period_start: '2026-08-01', period_end: '2026-08-31', evaluation_date: '2026-09-01', event_template_id: 'template' }, item: { client_info_id: 'client', kaipoke_cs_id: options.kaipokeCsId || 'kaipoke', orgunitid: 'team' }, actor: { userId: 'actor', name: '担当' }, accessToken: 'mock' }); } catch (e) { error = e; }
   return { calls, result, error };
 }
 
@@ -60,6 +63,10 @@ async function scenario(options = {}) {
   const duplicate = await scenario({ existing: true });
   assert.equal(duplicate.result.status, 'skipped');
   assert.ok(!duplicate.calls.some(c => c.fax || c.ai));
+  const testClient = await scenario({ kaipokeCsId: '999999990001' });
+  assert.equal(testClient.result?.status, 'skipped');
+  assert.match(testClient.result.note, /テスト顧客/);
+  assert.equal(testClient.calls.length, 0);
   const success = await scenario();
   assert.equal(success.result?.status, 'sent', success.error?.stack);
   assert.equal(success.calls.filter(c => c.fax).length, 1);
