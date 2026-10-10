@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     .select("id")
     .eq("enabled", true)
     .neq("sync_frequency", "manual")
+    .not("connector_key", "in", "(google_analytics,microsoft_clarity)")
     .lte("next_run_at", new Date().toISOString())
     .order("next_run_at")
     .limit(3);
@@ -46,4 +47,3 @@ export async function GET(request: NextRequest) {
   }
   return NextResponse.json({ ok: true, count: results.length, results });
 }
-

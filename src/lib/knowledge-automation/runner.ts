@@ -1,4 +1,5 @@
 import "server-only";
+import { runRecruitmentAnalytics } from "./recruitmentAnalytics";
 
 import { runSystemDiagnostics } from "@/lib/knowledge-automation/diagnostics";
 import { randomUUID } from "crypto";
@@ -92,12 +93,15 @@ export async function runKnowledgeAutomationTask(input: {
     const isRewrite = task.settings.operation === "wordpress_blog_rewrite";
     const isDiagnostics = task.settings.operation === "system_diagnostics";
     const isKnowledgeDiff = task.settings.operation === "knowledge_diff_extract";
+    const isRecruitmentAnalytics = task.settings.operation === "recruitment_analytics";
     const externalResult = await runExternalInformationAutomation(task, input.triggerSource);
-    if (!externalResult && !isDiagnostics && !isKnowledgeDiff && ((!isRewrite && task.task_type !== "wordpress_blog") || task.destination !== "wordpress_post")) {
+    if (!externalResult && !isDiagnostics && !isKnowledgeDiff && !isRecruitmentAnalytics && ((!isRewrite && task.task_type !== "wordpress_blog") || task.destination !== "wordpress_post")) {
       throw new Error("この種類の自動化はまだ実行処理が登録されていません。");
     }
     const result = externalResult
       ? externalResult
+      : isRecruitmentAnalytics
+        ? await runRecruitmentAnalytics(task)
       : isDiagnostics
         ? await runSystemDiagnostics(task)
         : isKnowledgeDiff
