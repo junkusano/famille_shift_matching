@@ -67,13 +67,16 @@ function parseSharefullTestMail_(message, config) {
   var senderAllowed = config.allowedSenders.indexOf(from) >= 0;
   var syntheticTestMail = /^\[テスト\]\s*sharefull応募通知/i.test(subject) && /SHAREFULL_TEST_EVENT/.test(body);
   if (!senderAllowed && !syntheticTestMail) return null;
-  if (!/(応募|マッチング|採用)/i.test(subject)) return null;
+  if (!/(応募|マッチング|採用|候補者が決定)/i.test(subject)) return null;
   var jobId = capture_(text, /(?:求人ID|求人番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   var orderId = capture_(text, /(?:管理番号|URL管理番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   var requestId = capture_(text, /(?:テスト案件ID|request_id)\s*[：:]?\s*([0-9a-f-]{36})/i);
   var applicationId = capture_(text, /(?:応募ID|応募番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   if (!jobId && !orderId && !requestId) return null;
-  if (syntheticTestMail && (jobId !== config.testJobId && orderId !== config.testOrderId && requestId !== config.testRequestId)) return null;
+  const isAllowedTestTarget = (jobId && jobId === config.testJobId)
+    || (orderId && orderId === config.testOrderId)
+    || (requestId && requestId === config.testRequestId);
+  if (!isAllowedTestTarget) return null;
 
   return {
     request_id: requestId || undefined,
