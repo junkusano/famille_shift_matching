@@ -4,100 +4,130 @@
  * Script Propertiesに次を設定してから時間主導トリガーで実行する。
  * - MYFAMILLE_TEST_API_BASE_URL
  * - MYFAMILLE_TEST_API_TOKEN
- * - SHAREFULL_TEST_GMAIL_QUERY（例: from:(sharefull) newer_than:7d）
- * - SHAREFULL_TEST_LINEWORKS_API_URL
- * - SHAREFULL_TEST_LINEWORKS_ACCESS_TOKEN
- * - SHAREFULL_TEST_LINEWORKS_CHANNEL_ID
+ * - SHAREFULL_TEST_GMAIL_QUERY（必須: label:SharefullTest を含む、実メール用検索条件）
+ * - SHAREFULL_TEST_ALLOWED_SENDERS (comma-separated exact email addresses)
+ * - SHAREFULL_TEST_JOB_ID, SHAREFULL_TEST_ORDER_ID, or SHAREFULL_TEST_REQUEST_ID (test fixture)
  *
- * 本番Gmail・本番API・本番LINE WORKSの値は設定しない。
+ * LINE WORKS認証情報はGASに置かず、テストAPI側で既存の送信設定を使う。
  */
 function processSharefullTestApplicationNotifications() {
-  var config = readConfig_();
-  var threads = GmailApp.search(config.gmailQuery, 0, 50);
-  var processed = processedIds_();
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) {
+    console.warn("別の通知処理が実行中のため、今回はスキップしました");
+    return;
+  }
+  try {
+    var config = readConfig_();
+    var processed = notificationState_();
+    var messagesById = {};
+    searchGmailMessages_(config.gmailQuery, 50).forEach(function(message) { messagesById[message.id] = message; });
+    // 実メール検索とは別に、合成メールは自分宛て・専用件名だけを追加取得する。
+    var testLabel = config.gmailQuery.match(/\blabel:[^\s]+/i)[0];
+    searchGmailMessages_('from:me to:me ' + testLabel + ' subject:"[テスト] Sharefull応募通知" newer_than:2d', 20)
+      .forEach(function(message) { messagesById[message.id] = message; });
+    var messages = Object.keys(messagesById).map(function(id) { return messagesById[id]; });
 
-  threads.forEach(function(thread) {
-    thread.getMessages().forEach(function(message) {
-      var messageId = message.getId();
-      if (processed[messageId]) return;
+    messages.forEach(function(message) {
+        var messageId = message.id;
+        if (processed[messageId] === "sent") return;
 
-      var event = parseSharefullTestMail_(message);
-      if (!event) return;
+        var event = parseSharefullTestMail_(message, config);
+        if (!event) return;
 
-      var ingest = UrlFetchApp.fetch(config.apiBaseUrl + "/api/rpa/sharefull/test-application", {
-        method: "post",
-        contentType: "application/json",
-        headers: { Authorization: "Bearer " + config.apiToken },
-        payload: JSON.stringify(event),
-        muteHttpExceptions: true
-      });
-      var ingestCode = ingest.getResponseCode();
-      var ingestBody = JSON.parse(ingest.getContentText() || "{}");
-      if (ingestCode < 200 || ingestCode >= 300 || !ingestBody.ok) {
-        console.warn("Sharefull応募の登録に失敗: " + ingestCode);
-        return;
-      }
+        var ingest = UrlFetchApp.fetch(config.apiBaseUrl + "/api/rpa/sharefull/test-application", {
+          method: "post",
+          contentType: "application/json",
+          headers: { Authorization: "Bearer " + config.apiToken },
+          payload: JSON.stringify(event),
+          muteHttpExceptions: true
+        });
+        var ingestCode = ingest.getResponseCode();
+        var ingestBody = JSON.parse(ingest.getContentText() || "{}");
+        if (ingestCode < 200 || ingestCode >= 300 || !ingestBody.ok) {
+          console.warn("Sharefull応募の登録に失敗: " + ingestCode);
+          return;
+        }
 
-      // API側で重複だった場合も、このGmailメッセージは処理済みにする。
-      if (!ingestBody.duplicate) {
-        sendLineWorks_(config, buildNotificationText_(event, ingestBody.request || {}));
-      }
-      markProcessed_(messageId);
+        // APIはテストDBへの記録とLINE WORKS送信の両方が成功してから200を返す。
+        // LINE WORKSの資格情報・チャンネル選択はAPI側で既存設定を共有する。
+        markNotificationSent_(messageId);
+        processed[messageId] = "sent";
     });
-  });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
-function parseSharefullTestMail_(message) {
-  var body = message.getPlainBody();
-  var subject = message.getSubject();
+function parseSharefullTestMail_(message, config) {
+  var body = message.body;
+  var subject = message.subject;
   var text = subject + "\n" + body;
+  var from = String(message.from || "").match(/<([^>]+)>/);
+  from = (from ? from[1] : String(message.from || "")).trim().toLowerCase();
+  var senderAllowed = config.allowedSenders.indexOf(from) >= 0;
+  var syntheticTestMail = /^\[テスト\]\s*sharefull応募通知/i.test(subject) && /SHAREFULL_TEST_EVENT/.test(body);
+  if (!senderAllowed && !syntheticTestMail) return null;
+  if (!/(応募|マッチング|採用)/i.test(subject)) return null;
   var jobId = capture_(text, /(?:求人ID|求人番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   var orderId = capture_(text, /(?:管理番号|URL管理番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
+  var requestId = capture_(text, /(?:テスト案件ID|request_id)\s*[：:]?\s*([0-9a-f-]{36})/i);
   var applicationId = capture_(text, /(?:応募ID|応募番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
-  var applicant = capture_(text, /(?:応募者|氏名)\s*[：:]?\s*([^\n\r]+)/i);
-  if (!jobId && !orderId) return null;
+  if (!jobId && !orderId && !requestId) return null;
+  if (syntheticTestMail && (jobId !== config.testJobId && orderId !== config.testOrderId && requestId !== config.testRequestId)) return null;
 
   return {
+    request_id: requestId || undefined,
     sharefull_job_id: jobId || undefined,
     sharefull_order_id: orderId || undefined,
     provider: "sharefull",
     // 応募メールと応募確定メールが同じ応募を更新できるよう、message IDとは分離した安定キーにする。
-    application_key: applicationId || [jobId || orderId, applicant || "unknown"].join("::"),
-    event_id: message.getId(),
-    state: detectState_(text),
-    applicant_name: applicant || null,
-    occurred_at: message.getDate().toISOString()
+    application_key: applicationId || [jobId || orderId || requestId, detectState_(subject + "\n" + body)].join("::"),
+    event_id: message.id,
+    state: detectState_(subject + "\n" + body),
+    occurred_at: message.date
   };
 }
 
-function detectState_(text) {
-  return /応募確定|採用決定|マッチング成立|確定/.test(text) ? "confirmed" : "applied";
-}
-
-function sendLineWorks_(config, text) {
-  var response = UrlFetchApp.fetch(config.lineworksApiUrl + "/channels/" + encodeURIComponent(config.lineworksChannelId) + "/messages", {
-    method: "post",
-    contentType: "application/json",
-    headers: { Authorization: "Bearer " + config.lineworksAccessToken },
-    payload: JSON.stringify({ content: { type: "text", text: text } }),
-    muteHttpExceptions: true
+function searchGmailMessages_(query, limit) {
+  var list = gmailApiRequest_("messages?q=" + encodeURIComponent(query) + "&maxResults=" + limit);
+  return (list.messages || []).map(function(item) {
+    var message = gmailApiRequest_("messages/" + encodeURIComponent(item.id) + "?format=full");
+    var headers = {};
+    ((message.payload && message.payload.headers) || []).forEach(function(header) {
+      headers[String(header.name || "").toLowerCase()] = header.value || "";
+    });
+    return {
+      id: message.id,
+      from: headers.from || "",
+      subject: headers.subject || "",
+      date: message.internalDate ? new Date(Number(message.internalDate)).toISOString() : new Date().toISOString(),
+      body: plainTextFromPayload_(message.payload)
+    };
   });
-  if (response.getResponseCode() < 200 || response.getResponseCode() >= 300) {
-    throw new Error("LINE WORKS通知に失敗: " + response.getResponseCode());
-  }
 }
 
-function buildNotificationText_(event, request) {
-  return [
-    "【テスト】シェアフル応募通知",
-    "状態: " + event.state,
-    "応募者: " + (event.applicant_name || "不明"),
-    "求人ID: " + (request.sharefull_job_id || event.sharefull_job_id || "不明"),
-    "管理番号: " + (request.sharefull_order_id || event.sharefull_order_id || "不明"),
-    "勤務日: " + (request.shift_start_date || "不明"),
-    "勤務開始: " + (request.shift_start_time || "不明"),
-    "受信日時: " + event.occurred_at
-  ].join("\n");
+function gmailApiRequest_(path, options) {
+  var response = UrlFetchApp.fetch("https://gmail.googleapis.com/gmail/v1/users/me/" + path, Object.assign({
+    method: "get",
+    headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true
+  }, options || {}));
+  var code = response.getResponseCode();
+  if (code < 200 || code >= 300) throw new Error("Gmail API request failed: " + code);
+  return JSON.parse(response.getContentText() || "{}");
+}
+
+function plainTextFromPayload_(payload) {
+  if (!payload) return "";
+  if (payload.mimeType === "text/plain" && payload.body && payload.body.data) {
+    return Utilities.newBlob(Utilities.base64DecodeWebSafe(payload.body.data)).getDataAsString();
+  }
+  return (payload.parts || []).map(plainTextFromPayload_).filter(Boolean).join("\n");
+}
+
+function detectState_(text) {
+  if (/応募取消|応募キャンセル|辞退/.test(text)) return "cancelled";
+  return /応募確定|採用決定|マッチング成立|確定/.test(text) ? "confirmed" : "applied";
 }
 
 function readConfig_() {
@@ -106,12 +136,16 @@ function readConfig_() {
     apiBaseUrl: required_(props, "MYFAMILLE_TEST_API_BASE_URL").replace(/\/$/, ""),
     apiToken: required_(props, "MYFAMILLE_TEST_API_TOKEN"),
     gmailQuery: required_(props, "SHAREFULL_TEST_GMAIL_QUERY"),
-    lineworksApiUrl: required_(props, "SHAREFULL_TEST_LINEWORKS_API_URL").replace(/\/$/, ""),
-    lineworksAccessToken: required_(props, "SHAREFULL_TEST_LINEWORKS_ACCESS_TOKEN"),
-    lineworksChannelId: required_(props, "SHAREFULL_TEST_LINEWORKS_CHANNEL_ID")
+    allowedSenders: (props.getProperty("SHAREFULL_TEST_ALLOWED_SENDERS") || "").split(",").map(function(value) { return value.trim().toLowerCase(); }).filter(Boolean),
+    testJobId: (props.getProperty("SHAREFULL_TEST_JOB_ID") || "").trim(),
+    testOrderId: (props.getProperty("SHAREFULL_TEST_ORDER_ID") || "").trim(),
+    testRequestId: (props.getProperty("SHAREFULL_TEST_REQUEST_ID") || "").trim()
   };
-  if (config.apiBaseUrl.indexOf("famille-shift-matching-test.vercel.app") === -1) {
+  if (!/^https:\/\/famille-shift-matching-test\.vercel\.app\/?$/.test(config.apiBaseUrl)) {
     throw new Error("テスト用Vercel URL以外は設定できません");
+  }
+  if (!/\blabel:[^\s]+/i.test(config.gmailQuery) || /\bin:anywhere\b/i.test(config.gmailQuery)) {
+    throw new Error("実メール検索条件にはテスト用Gmailラベルを指定してください（label:...）。");
   }
   return config;
 }
@@ -127,14 +161,55 @@ function capture_(text, pattern) {
   return match ? match[1].trim() : "";
 }
 
-function processedIds_() {
-  var raw = PropertiesService.getScriptProperties().getProperty("SHAREFULL_TEST_PROCESSED_MESSAGE_IDS") || "[]";
-  try { return JSON.parse(raw).reduce(function(map, id) { map[id] = true; return map; }, {}); } catch (e) { return {}; }
+function notificationState_() {
+  var raw = PropertiesService.getScriptProperties().getProperty("SHAREFULL_TEST_NOTIFICATION_STATE") || "{}";
+  try { return JSON.parse(raw); } catch (e) { return {}; }
 }
 
-function markProcessed_(messageId) {
+function markNotificationSent_(messageId) {
   var props = PropertiesService.getScriptProperties();
-  var current = Object.keys(processedIds_());
-  current.push(messageId);
-  props.setProperty("SHAREFULL_TEST_PROCESSED_MESSAGE_IDS", JSON.stringify(current.slice(-1000)));
+  var state = notificationState_();
+  state[messageId] = "sent";
+  var ids = Object.keys(state);
+  if (ids.length > 1000) ids.slice(0, ids.length - 1000).forEach(function(id) { delete state[id]; });
+  props.setProperty("SHAREFULL_TEST_NOTIFICATION_STATE", JSON.stringify(state));
+}
+
+/**
+ * 実メール形式の疎通確認用。テスト案件ID/管理番号/テスト案件UUIDが設定済みの場合だけ、
+ * ログイン中のGoogleアカウント自身へ合成テストメールを1通送信する。
+ * 外部送信を伴うため、検証者が明示的に手動実行する。
+ */
+function sendSharefullSyntheticTestEmail() {
+  var config = readConfig_();
+  var recipient = Session.getActiveUser().getEmail();
+  if (!recipient) throw new Error("送信先アカウントを特定できません");
+  if (!config.testJobId && !config.testOrderId && !config.testRequestId) throw new Error("テスト求人ID・管理番号・案件UUIDのいずれかが未設定です");
+  var applicationId = "GAS-TEST-" + Utilities.getUuid();
+  var lines = [
+    "SHAREFULL_TEST_EVENT",
+    "応募ID: " + applicationId,
+    config.testRequestId ? "テスト案件ID: " + config.testRequestId : null,
+    config.testJobId ? "求人ID: " + config.testJobId : null,
+    config.testOrderId ? "管理番号: " + config.testOrderId : null,
+    "応募日時: " + new Date().toISOString()
+  ].filter(Boolean);
+  sendGmailMessage_(recipient, "[テスト] Sharefull応募通知", lines.join("\n"));
+  console.info("合成テストメールを自身のアカウントへ送信しました。応募ID: " + applicationId);
+}
+
+function sendGmailMessage_(recipient, subject, body) {
+  if (!/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(recipient)) throw new Error("送信先メールアドレスが不正です");
+  var encodedSubject = Utilities.base64Encode(Utilities.newBlob(subject).getBytes());
+  var mime = [
+    "To: " + recipient,
+    "Subject: =?UTF-8?B?" + encodedSubject + "?=",
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    body
+  ].join("\r\n");
+  var raw = Utilities.base64EncodeWebSafe(Utilities.newBlob(mime).getBytes()).replace(/=+$/, "");
+  gmailApiRequest_("messages/send", { method: "post", contentType: "application/json", payload: JSON.stringify({ raw: raw }) });
 }
