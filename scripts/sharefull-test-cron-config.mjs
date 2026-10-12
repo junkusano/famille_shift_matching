@@ -1,3 +1,6 @@
+import { join } from "node:path";
+import { writeFile } from "node:fs/promises";
+
 export const SHAREFULL_DECISION_CRON = Object.freeze({
   path: "/api/cron/sharefull-decision-status",
   schedule: "*/5 * * * *",
@@ -40,4 +43,24 @@ export function buildSharefullTestVercelConfig(sharedConfig, testOverrides = {})
     ...testOverrides,
     crons: [...sharedConfig.crons, SHAREFULL_DECISION_CRON],
   };
+}
+
+export async function writeSharefullTestVercelConfig(stagingRoot, sharedConfig, testOverrides = {}) {
+  const deployConfig = buildSharefullTestVercelConfig(sharedConfig, testOverrides);
+  const configPath = join(stagingRoot, "vercel.json");
+  await writeFile(configPath, `${JSON.stringify(deployConfig, null, 2)}\n`, "utf8");
+  return configPath;
+}
+
+export function assertSharefullTestCronRegistration(listing, expectedCount) {
+  if (!Array.isArray(listing?.crons) || listing.crons.length !== expectedCount) {
+    throw new Error(`Expected ${expectedCount} test-project crons, received ${listing?.crons?.length ?? "no list"}`);
+  }
+  const matches = listing.crons.filter((cron) => cron?.path === SHAREFULL_DECISION_CRON.path);
+  if (matches.length !== 1
+    || matches[0]?.schedule !== SHAREFULL_DECISION_CRON.schedule
+    || !matches[0]?.host?.startsWith("famille-shift-matching-test-")) {
+    throw new Error("Sharefull decision cron is missing, duplicated, or not hosted by the test Vercel project");
+  }
+  return true;
 }
