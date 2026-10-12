@@ -265,6 +265,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/knowledge-analytics-sync",
+      "schedule": "35 22 * * *"
+    },
+    {
       "path": "/api/cron/knowledge-automation",
       "schedule": "*/5 * * * *"
     },

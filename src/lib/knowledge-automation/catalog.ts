@@ -50,6 +50,14 @@ export type AutomationTemplate = {
 
 export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
   {
+    key: "recruitment-analytics", label: "応募導線分析・週次レポート",
+    summary: "Analytics・Clarity・応募実数とナレッジを照合し、ページやコラムの影響と改善案を蓄積します。",
+    input: { name: "応募導線分析・週次レポート", description: "2つのLPからエントリーへの導線を分析し、レポートと改善案をナレッジサマリーへ保存します。",
+      task_type: "custom", trigger_type: "weekly", schedule: { dayOfWeek: 1, time: "09:00" }, destination: "none", approval_mode: "automatic",
+      condition_summary: "前週（月〜日）と前々週を比較。欠測をゼロ扱いせず、測定事実・仮説・改善案・次回検証指標を記録。公開ページの変更は行わない。",
+      settings: { operation: "recruitment_analytics" }, is_enabled: true },
+  },
+  {
     key: "traffic-restrictions", label: "名古屋市周辺の交通規制",
     summary: "大会・マラソン・道路規制の公式情報を確認し、同じ案件はお知らせ掲示板を更新します。",
     input: { name: "名古屋市周辺の交通規制", description: "名古屋市周辺の公式交通規制情報と訪問ルートへの注意をお知らせ掲示板へ反映します。",
