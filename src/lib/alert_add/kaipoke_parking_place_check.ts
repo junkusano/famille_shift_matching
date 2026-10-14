@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/service';
+import { shouldKeepParkingPlaceAlert } from '@/lib/alert_add/parking_place_alert_policy';
 
 type ShiftRow = {
     shift_id: number;
@@ -21,6 +22,16 @@ type ExistingAlertRow = {
     id: string;
     message: string;
 };
+
+function targetMapHasClient(
+    targetMap: Map<string, { kaipoke_cs_id: string }>,
+    kaipokeCsId: string,
+) {
+    for (const target of targetMap.values()) {
+        if (target.kaipoke_cs_id === kaipokeCsId) return true;
+    }
+    return false;
+}
 
 /*function addMonths(date: Date, months: number) {
     const d = new Date(date);
@@ -142,7 +153,9 @@ export async function runKaipokeParkingPlaceCheck() {
         if (!shift.kaipoke_cs_id) continue;
         if (!shift.shift_start_date) continue;
 
-        if (parkingSet.has(shift.kaipoke_cs_id)) continue;
+        if (!shouldKeepParkingPlaceAlert({
+            hasActiveParkingPlace: parkingSet.has(shift.kaipoke_cs_id),
+        })) continue;
 
         const ym = ymKey(shift.shift_start_date);
         const mapKey = `${shift.kaipoke_cs_id}:${ym}`;
@@ -159,6 +172,38 @@ export async function runKaipokeParkingPlaceCheck() {
 
     let alertsCreated = 0;
     let alertsUpdated = 0;
+
+    // 駐車場登録後も残っている旧アラートを、今回の判定結果に合わせて解消する。
+    const { data: openParkingAlerts, error: openParkingAlertsError } = await supabaseAdmin
+        .from('alert_log')
+        .select('id, kaipoke_cs_id')
+        .eq('status', 'open')
+        .eq('status_source', 'system')
+        .in('kaipoke_cs_id', csIds)
+        .like('message', '%【駐車場所未入力】%');
+
+    if (openParkingAlertsError) {
+        throw new Error(
+            `alert_log stale parking load failed: message=${openParkingAlertsError.message}, details=${openParkingAlertsError.details ?? ''}, hint=${openParkingAlertsError.hint ?? ''}, code=${openParkingAlertsError.code ?? ''}`
+        );
+    }
+
+    for (const alert of openParkingAlerts ?? []) {
+        const clientId = String(alert.kaipoke_cs_id ?? '');
+        if (!clientId || targetMapHasClient(targetMap, clientId)) continue;
+
+        const { error: resolveError } = await supabaseAdmin
+            .from('alert_log')
+            .update({
+                status: 'done',
+                status_source: 'auto_done',
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', alert.id);
+
+        if (resolveError) throw resolveError;
+        alertsUpdated++;
+    }
 
     for (const target of targetMap.values()) {
         const cs = csMap.get(target.kaipoke_cs_id);

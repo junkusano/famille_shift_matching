@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
         }
 
         const { monthStartStr } = parseYm(ym);
-        const staffIds = await getMonthlyMeetingStaffIds();
+        const staffIds = await getMonthlyMeetingStaffIds(ym);
         
         // 対象者が0人なら何もしない（shift + meeting_must 合算）
         if (staffIds.length === 0) {
