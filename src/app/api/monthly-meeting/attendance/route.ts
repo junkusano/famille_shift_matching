@@ -159,7 +159,7 @@ export async function GET(req: NextRequest) {
 
         // 既存shift対象 + meeting_must対象 を合体
         // 在籍職員を必ず含める。シフト未作成・所属の meeting_must=false でも一覧対象にする。
-        const registeredStaffIds = await getMonthlyMeetingStaffIds();
+        const registeredStaffIds = await getMonthlyMeetingStaffIds(ym);
         let staffIds = Array.from(
             new Set([
                 ...staffIdsFromShift,
@@ -168,6 +168,9 @@ export async function GET(req: NextRequest) {
                 ...FORCE_MONTHLY_MEETING_USER_IDS,
             ])
         );
+
+        const eligibleStaffIds = new Set(registeredStaffIds);
+        staffIds = staffIds.filter((userId) => eligibleStaffIds.has(userId));
 
         // 一覧は当月の対象者だけを表示する。attendance の行自体は在籍職員分を
         // 自動作成しておき、今後シフトが入った月にはそのまま表示できるようにする。
@@ -193,6 +196,7 @@ export async function GET(req: NextRequest) {
                         .filter((v) => v.length > 0)
                 )
             );
+            staffIds = staffIds.filter((userId) => eligibleStaffIds.has(userId));
         }
 
         // それでも0件なら空で返す

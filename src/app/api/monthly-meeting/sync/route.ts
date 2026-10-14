@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
+import { getMonthlyMeetingStaffIds } from "@/lib/monthlyMeeting/staff";
 
 export const dynamic = "force-dynamic";
 
@@ -93,9 +94,10 @@ export async function POST(req: NextRequest) {
             if (r.staff_03_user_id) set.add(r.staff_03_user_id);
         }
 
+        const eligibleStaffIds = new Set(await getMonthlyMeetingStaffIds(ym));
         const staffIds = Array.from(
             new Set([...set, ...FORCE_MONTHLY_MEETING_USER_IDS]),
-        );
+        ).filter((userId) => eligibleStaffIds.has(userId));
 
         // 2) monthly_meeting_attendance へ upsert（required=true）
         const upserts = staffIds.map((user_id) => ({
