@@ -9,6 +9,7 @@ import {
     type MentionTarget,
 } from "@/lib/lineworks/sendLWBotMentionMessage";
 import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
+import { isMeetingMonthEligible } from "@/lib/monthlyMeeting/eligibility";
 
 const LW_BOT_NO =
     process.env.LINEWORKS_BOT_NO || process.env.WORKS_BOT_NO || process.env.LW_BOT_NO || "6807751";
@@ -25,6 +26,8 @@ type AttendanceRow = {
 
 type StaffInfoRow = {
     user_id: string | null;
+    entry_date_original: string | null;
+    entry_date_latest: string | null;
     channel_id: string | null; // 人事労務サポートルーム
     lw_userid: string | null;  // メンション用
     last_name_kanji: string | null;
@@ -96,7 +99,7 @@ async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInf
 
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
-        .select("user_id, channel_id, lw_userid, last_name_kanji, first_name_kanji, orgunitname")
+        .select("user_id, entry_date_original, entry_date_latest, channel_id, lw_userid, last_name_kanji, first_name_kanji, orgunitname")
         .in("user_id", userIds);
 
     if (error) {
@@ -229,12 +232,33 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
     );
 
     const staffMap = await loadStaffInfoMap(userIds);
+    const eligibleRows = filteredRows.filter((row) => {
+        const staff = staffMap.get(String(row.user_id ?? "").trim());
+        return isMeetingMonthEligible(
+            staff?.entry_date_original,
+            staff?.entry_date_latest,
+            row.target_month.slice(0, 7),
+        );
+    });
+
+    if (!eligibleRows.length) {
+        return {
+            enabled: true,
+            scanned,
+            targetRows: 0,
+            sentUsers: 0,
+            errors: 0,
+            dryRun,
+            targetYearMonth: targetYm,
+            skippedBecauseDay: false,
+        };
+    }
     const accessToken = await getAccessToken();
 
     let sentUsers = 0;
     let errors = 0;
 
-    for (const row of filteredRows) {
+    for (const row of eligibleRows) {
         const userId = String(row.user_id ?? "").trim();
         if (!userId) continue;
 
@@ -297,7 +321,7 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
     return {
         enabled: true,
         scanned,
-        targetRows: filteredRows.length,
+        targetRows: eligibleRows.length,
         sentUsers,
         errors,
         dryRun,

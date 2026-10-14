@@ -7,6 +7,7 @@ import { shouldKeepParkingPlaceAlert } from "../src/lib/alert_add/parking_place_
 test("入社前に丸ごと該当する月は月例会議の対象外", () => {
   assert.equal(isMeetingMonthEligible(null, "2026-10-01", "2026-09"), false);
   assert.equal(isMeetingMonthEligible(null, "2026-10-01", "2026-10"), true);
+  assert.equal(isMeetingMonthEligible(null, "2026-08-01", "2026-03"), false);
 });
 
 test("入社日が不明な既存職員は従来どおり月例会議の対象", () => {
