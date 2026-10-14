@@ -3,6 +3,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { ensureSystemAlert } from "@/lib/alert/ensureSystemAlert";
+import { isMeetingMonthEligible } from "@/lib/monthlyMeeting/eligibility";
 
 type AttendanceRow = {
     target_month: string; // YYYY-MM-01
@@ -16,6 +17,8 @@ type AttendanceRow = {
 
 type StaffInfoRow = {
     user_id: string | null;
+    entry_date_original: string | null;
+    entry_date_latest: string | null;
     last_name_kanji: string | null;
     first_name_kanji: string | null;
     org_unit_id: string | null;
@@ -72,7 +75,7 @@ async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInf
 
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
-        .select("user_id, last_name_kanji, first_name_kanji, org_unit_id, orgunitname")
+        .select("user_id, entry_date_original, entry_date_latest, last_name_kanji, first_name_kanji, org_unit_id, orgunitname")
         .in("user_id", userIds);
 
     if (error) {
@@ -123,7 +126,7 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
     const rows = (data ?? []) as AttendanceRow[];
     const scanned = rows.length;
 
-    const filteredRows = rows.filter((row) => {
+    const dateFilteredRows = rows.filter((row) => {
         if (row.target_month < "2026-03-01") return false;
 
         const diff = monthDiff(now, row.target_month);
@@ -135,6 +138,32 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
         }
 
         return true;
+    });
+
+    if (!dateFilteredRows.length) {
+        return {
+            enabled: true,
+            scanned,
+            targetRows: 0,
+            alertCount: 0,
+            errors: 0,
+            dryRun,
+            targetYearMonth: targetYm,
+            skippedBecauseDay: false,
+        };
+    }
+
+    const userIds = Array.from(
+        new Set(dateFilteredRows.map((r) => String(r.user_id ?? "").trim()).filter(Boolean))
+    );
+    const staffMap = await loadStaffInfoMap(userIds);
+    const filteredRows = dateFilteredRows.filter((row) => {
+        const staff = staffMap.get(String(row.user_id ?? "").trim());
+        return isMeetingMonthEligible(
+            staff?.entry_date_original,
+            staff?.entry_date_latest,
+            row.target_month.slice(0, 7),
+        );
     });
 
     if (!filteredRows.length) {
@@ -149,11 +178,6 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
             skippedBecauseDay: false,
         };
     }
-
-    const userIds = Array.from(
-        new Set(filteredRows.map((r) => String(r.user_id ?? "").trim()).filter(Boolean))
-    );
-    const staffMap = await loadStaffInfoMap(userIds);
 
     let alertCount = 0;
     let errors = 0;
