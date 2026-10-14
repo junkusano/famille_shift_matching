@@ -6,10 +6,11 @@ import { fileURLToPath } from 'node:url';
 const migration = await readFile(fileURLToPath(new URL('../supabase/migrations/202610071000_visit_care_employee_total_service_hours.sql', import.meta.url)), 'utf8');
 
 test('訪問介護だけ社員の他サービス時間を総時間へ加算する', () => {
-  assert.match(migration, /lower\(coalesce\(staff\.system_role, ''\)\) in \('admin', 'manager'\)/);
+  assert.match(migration, /lower\(coalesce\(staff\.system_role, ''\)\) in \('admin', 'manager', 'member'\)/g);
   assert.match(migration, /'訪問介護' as service_category/);
   assert.match(migration, /service_category <> '訪問介護'/);
-  assert.match(migration, /false as qualified/);
+  assert.doesNotMatch(migration, /false as qualified/);
+  assert.match(migration, /total_hours,\n    qualified/);
 });
 
 test('林淳之さんは訪問介護の集計から除外する', () => {
