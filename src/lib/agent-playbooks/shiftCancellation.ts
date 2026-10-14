@@ -41,6 +41,10 @@ function normalizeTime(value: string | null) {
   return value?.slice(0, 5) ?? null;
 }
 
+function isClientId(value: string) {
+  return /^\d+$/.test(value);
+}
+
 function formatRequest(request: ShiftCancellationRequest) {
   const date = request.date.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$1年$2月$3日");
   if (!request.startTime) return date;
@@ -389,7 +393,7 @@ async function startRequest(params: {
     .maybeSingle();
   if (roomError) throw roomError;
   const clientId = String(room?.group_account ?? "").trim();
-  if (room?.group_type !== "利用者様情報連携グループ" || !/^\d{8}$/.test(clientId)) {
+  if (room?.group_type !== "利用者様情報連携グループ" || !isClientId(clientId)) {
     await updateRun(params.runId, { status: "blocked", decision_summary: { reason: "client_room_not_resolved" }, finished_at: new Date().toISOString() });
     return { handled: true, replyText: "この部屋から利用者様を特定できないため、シフトを確認できませんでした。" };
   }
