@@ -23,7 +23,9 @@ const configSchema = z.object({
 });
 
 type RowHashes = Record<string, Record<string, string>>;
-const NORMALIZATION_VERSION = 2;
+const NORMALIZATION_VERSION = 3;
+// Bound serial database writes so a large initial scan can advance its checkpoint.
+const MAX_CHANGED_ROWS = 25;
 
 function hash(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -149,6 +151,29 @@ function makeKnowledge(
   fields: Record<string, string>,
   sourceObject: NormalizedSourceObject
 ): ProposedKnowledge | null {
+  if (ctx.source.config.mode === "lesson_index") {
+    // Keep the original restricted. An editor can derive and approve a public
+    // summary in the existing knowledge screen; ingestion never approves it.
+    const managerSheet = /^For(?:全|ヘルパー)?マネジャー$/.test(sheetName);
+    const lesson = fields["リマインド"] || fields["リマインド怪談"] || fields["Reminder"];
+    if (!managerSheet || !lesson?.trim()) return null;
+    return {
+      knowledgeKey: `lesson:${spreadsheetId}:${sheetName}:${rowNumber}`,
+      knowledgeType: "lesson_principle",
+      title: `${sheetName} ${rowNumber}行の教訓`,
+      summary: lesson.slice(0, 20_000),
+      sourceUrl: sourceObject.sourceUrl,
+      category: fields["カテゴリ"] || "管理職向け教訓",
+      tags: ["lesson-reminder", "management"],
+      importance: 4,
+      confidence: 1,
+      privacyLevel: 3,
+      publishability: "never_publish",
+      authorship: "source",
+      evidenceExternalIds: [sourceObject.externalId],
+      metadata: { spreadsheetId, sheetName, rowNumber, sourceRevision: sourceObject.sourceRevision },
+    };
+  }
   if (ctx.source.config.mode !== "thought_log") return null;
   const summary = fields["会話の要約"] || fields["草野の考え・主張"];
   if (!summary) return null;
@@ -218,6 +243,7 @@ export const googleSheetsConnector: KnowledgeConnector = {
     const objects: NormalizedSourceObject[] = [];
     const proposedKnowledge: ProposedKnowledge[] = [];
     const lastRows: Record<string, number> = {};
+    let hasMore = false;
 
     for (const sheetConfig of config.sheets) {
       if (ctx.signal.aborted) throw new Error("同期がタイムアウトしました。");
@@ -240,8 +266,18 @@ export const googleSheetsConnector: KnowledgeConnector = {
           if (header) fields[header] = stringValue(row[column]);
         });
         const contentHash = hash({ headers, row });
+        const previousHash = canUsePreviousHashes ? previousHashes[sheetConfig.name]?.[String(rowNumber)] : undefined;
+        if (previousHash === contentHash) {
+          nextHashes[sheetConfig.name][String(rowNumber)] = contentHash;
+          continue;
+        }
+        if (objects.length >= MAX_CHANGED_ROWS) {
+          // Never acknowledge a row that was not returned for persistence.
+          if (previousHash) nextHashes[sheetConfig.name][String(rowNumber)] = previousHash;
+          hasMore = true;
+          continue;
+        }
         nextHashes[sheetConfig.name][String(rowNumber)] = contentHash;
-        if (canUsePreviousHashes && previousHashes[sheetConfig.name]?.[String(rowNumber)] === contentHash) continue;
 
         const object = makeSourceObject({
           ctx,
@@ -274,7 +310,7 @@ export const googleSheetsConnector: KnowledgeConnector = {
         rowHashes: nextHashes,
         lastCheckedAt: new Date().toISOString(),
       },
-      hasMore: false,
+      hasMore,
       warnings: [],
     };
   },
