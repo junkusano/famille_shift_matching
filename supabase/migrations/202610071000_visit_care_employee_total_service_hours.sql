@@ -15,7 +15,7 @@ with source_rows as (
     rows.staff_user_id,
     rows.qualified,
     concat_ws('', staff.last_name_kanji, staff.first_name_kanji) as staff_name,
-    lower(coalesce(staff.system_role, '')) in ('admin', 'manager') as is_employee,
+    lower(coalesce(staff.system_role, '')) in ('admin', 'manager', 'member') as is_employee,
     concat_ws('', staff.last_name_kanji, staff.first_name_kanji) = '林淳之' as is_hayashi
   from public.dashboard_service_time_qualification_staff_rows() rows
   join public.user_entry_united_view_single staff
@@ -33,12 +33,12 @@ with source_rows as (
   union all
 
   -- 社員の訪問介護以外の時間を、訪問介護の総時間へ加算する。
-  -- qualified=false とし、資格者時間の分子は訪問介護の実時間だけに限定する。
+  -- サ責資格を持つ社員は、他サービス時間も資格者時間へ加算する。
   select
     year_month,
     '訪問介護' as service_category,
     total_hours,
-    false as qualified
+    qualified
   from source_rows
   where is_employee
     and not is_hayashi
@@ -98,7 +98,7 @@ with source_rows as (
     rows.staff_user_id,
     rows.qualified,
     concat_ws('', staff.last_name_kanji, staff.first_name_kanji) as staff_name,
-    lower(coalesce(staff.system_role, '')) in ('admin', 'manager') as is_employee,
+    lower(coalesce(staff.system_role, '')) in ('admin', 'manager', 'member') as is_employee,
     concat_ws('', staff.last_name_kanji, staff.first_name_kanji) = '林淳之' as is_hayashi
   from public.dashboard_service_time_qualification_staff_rows() rows
   join public.user_entry_united_view_single staff
@@ -108,7 +108,7 @@ with source_rows as (
   from source_rows
   where not (service_category = '訪問介護' and is_hayashi)
   union all
-  select year_month, '訪問介護', total_hours, staff_user_id, false
+  select year_month, '訪問介護', total_hours, staff_user_id, qualified
   from source_rows
   where is_employee
     and not is_hayashi
