@@ -79,6 +79,10 @@ function normalizeTime(value: string | null) {
   return value?.slice(0, 5) ?? null;
 }
 
+function isClientId(value: string) {
+  return /^\d+$/.test(value);
+}
+
 function toHms(value: string) {
   return `${value}:00`;
 }
@@ -661,7 +665,7 @@ export async function handleShiftCreationAgent(params: {
     .maybeSingle();
   if (roomError) throw roomError;
   const clientId = String(room?.group_account ?? "").trim();
-  if (room?.group_type !== "利用者様情報連携グループ" || !/^\d{8}$/.test(clientId)) {
+  if (room?.group_type !== "利用者様情報連携グループ" || !isClientId(clientId)) {
     return { handled: true, replyText: "この部屋から利用者様を特定できないため、シフトを追加できません。" };
   }
 
