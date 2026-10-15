@@ -105,13 +105,19 @@ test('既存のタイミーGASを同時に読み込んでも両方の処理関�
 
 test('統合版の5分ハンドラーが新しいタイミー停止処理を呼び出す', () => {
   const calls = [];
+  const sharefullHandler = context.processSharefullConfirmationsForTaimeeCloseLocked_;
+  const taimeeHandler = context.processSpotOfferTaimeeConfirmationsForSharefullCloseLocked_;
   context.LockService = { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) };
   context.processSharefullConfirmationsForTaimeeCloseLocked_ = () => calls.push('sharefull');
   context.processSpotOfferTaimeeConfirmationsForSharefullCloseLocked_ = () => calls.push('taimee');
 
-  context.processSpotOfferConfirmationEmails();
-
-  assert.deepEqual(calls, ['sharefull', 'taimee']);
+  try {
+    context.processSpotOfferConfirmationEmails();
+    assert.deepEqual(calls, ['sharefull', 'taimee']);
+  } finally {
+    context.processSharefullConfirmationsForTaimeeCloseLocked_ = sharefullHandler;
+    context.processSpotOfferTaimeeConfirmationsForSharefullCloseLocked_ = taimeeHandler;
+  }
 });
 
 test('有効化時刻以前および同時刻のメールは処理対象外にする', () => {
@@ -123,6 +129,51 @@ test('有効化時刻以前および同時刻のメールは処理対象外に�
   assert.equal(context.isConfirmationMessageBeforeActivation_(before, activationTimestamp), true);
   assert.equal(context.isConfirmationMessageBeforeActivation_(atActivation, activationTimestamp), true);
   assert.equal(context.isConfirmationMessageBeforeActivation_(after, activationTimestamp), false);
+});
+
+test('停止対象のタイミー求人ID不足による409ではメールを処理済みにしない', () => {
+  const messageToRetry = message({
+    from: 'Sharefull <notify@sharefull.example>',
+    subject: '応募確定のお知らせ',
+    body: '応募確定\n求人ID: sf-123\n応募ID: application-1',
+    date: '2026-10-09T09:00:00+09:00',
+  });
+  let labeled = false;
+  let savedProcessedIds;
+  let requestCount = 0;
+  let searchCount = 0;
+  const properties = {
+    MYFAMILLE_API_BASE_URL: 'https://myfamille.shi-on.net',
+    SHAREFULL_CONFIRMATION_GAS_TOKEN: 'test-token',
+    SHAREFULL_CONFIRMATION_GMAIL_QUERY: 'from:notify@sharefull.example',
+    SHAREFULL_CONFIRMATION_FROM_EMAIL: 'notify@sharefull.example',
+    SPOT_OFFER_CONFIRMATION_ACTIVATED_AT: '2026-10-08T00:00:00.000Z',
+    SHAREFULL_CONFIRMATION_PROCESSED_MESSAGE_IDS: '[]',
+  };
+  assert.ok(context.parseSharefullConfirmationMail_(messageToRetry, 'notify@sharefull.example'));
+  context.PropertiesService = { getScriptProperties: () => ({
+    getProperty: (key) => properties[key] ?? null,
+    setProperty: (key, value) => { savedProcessedIds = value; },
+  }) };
+  context.GmailApp = {
+    search: () => { searchCount += 1; return [{
+      getMessages: () => [messageToRetry],
+      addLabel: () => { labeled = true; },
+    }]; },
+    getUserLabelByName: () => null,
+    createLabel: (name) => ({ getName: () => name }),
+  };
+  context.UrlFetchApp = { fetch: () => {
+    requestCount += 1;
+    return { getResponseCode: () => 409, getContentText: () => '{"ok":false}' };
+  } };
+
+  context.processSharefullConfirmationsForTaimeeCloseLocked_();
+
+  assert.equal(searchCount, 1);
+  assert.equal(requestCount, 1);
+  assert.equal(labeled, false);
+  assert.equal(savedProcessedIds, undefined);
 });
 
 
