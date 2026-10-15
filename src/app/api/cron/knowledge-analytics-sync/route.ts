@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
   const actual = Buffer.from(request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "");
   const expected = Buffer.from(process.env.CRON_SECRET || "");
   if (!expected.length || actual.length !== expected.length || !timingSafeEqual(actual, expected)) return NextResponse.json({ ok: false }, { status: 401 });
+  const retention = await supabaseAdmin.from("recruitment_journey_events").delete().lt("created_at", new Date(Date.now() - 180 * 86400000).toISOString());
   const { data, error } = await supabaseAdmin.from("knowledge_sources").select("id")
     .eq("enabled", true).neq("sync_frequency", "manual").in("connector_key", ["google_analytics", "microsoft_clarity"])
     .lte("next_run_at", new Date().toISOString()).order("next_run_at").limit(8);
@@ -23,6 +24,6 @@ export async function GET(request: NextRequest) {
       return { sourceId: source.id, ok: true, runId: result.runId };
     } catch { return { sourceId: source.id, ok: false, message: "集計できませんでした。ナレッジ管理の同期履歴を確認してください。" }; }
   }));
-  const ok = results.every(r => r.ok);
-  return NextResponse.json({ ok, results }, { status: ok ? 200 : 500 });
+  const ok = results.every(r => r.ok) && !retention.error;
+  return NextResponse.json({ ok, results, retentionOk: !retention.error }, { status: ok ? 200 : 500 });
 }
