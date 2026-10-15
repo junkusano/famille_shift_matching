@@ -117,7 +117,15 @@ test('統合版の5分ハンドラーが新しいタイミー停止処理を呼�
 test('統合トリガー導入時に旧単独トリガーを削除し、5分トリガーを1つ登録する', () => {
   const deleted = [];
   const created = [];
-  const properties = new Map();
+  const properties = new Map([
+    ['MYFAMILLE_API_BASE_URL', 'https://myfamille.shi-on.net'],
+    ['SHAREFULL_CONFIRMATION_GAS_TOKEN', 'sharefull-test-token'],
+    ['SHAREFULL_CONFIRMATION_GMAIL_QUERY', 'from:sharefull@example.com'],
+    ['SHAREFULL_CONFIRMATION_FROM_EMAIL', 'sharefull@example.com'],
+    ['TAIMEE_CONFIRMATION_GAS_TOKEN', 'taimee-test-token'],
+    ['TAIMEE_CONFIRMATION_GMAIL_QUERY', 'from:supporter@timee.co.jp'],
+    ['TAIMEE_CONFIRMATION_FROM_EMAIL', 'supporter@timee.co.jp'],
+  ]);
   context.PropertiesService = {
     getScriptProperties: () => ({
       getProperty: (key) => properties.get(key) ?? null,
@@ -141,6 +149,33 @@ test('統合トリガー導入時に旧単独トリガーを削除し、5分ト�
   assert.deepEqual(deleted, ['sharefull', 'taimee']);
   assert.deepEqual(created, [{ handler: 'processSpotOfferConfirmationEmails', minutes: 5 }]);
   assert.ok(properties.get('SPOT_OFFER_CONFIRMATION_ACTIVATED_AT'));
+});
+
+test('必須Script Propertiesが未設定ならトリガーも有効化時刻も作らない', () => {
+  const deleted = [];
+  const created = [];
+  const properties = new Map();
+  context.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (key) => properties.get(key) ?? null,
+      setProperty: (key, value) => properties.set(key, value),
+    }),
+  };
+  context.ScriptApp = {
+    getProjectTriggers: () => [{
+      getHandlerFunction: () => 'processTaimeeConfirmationsForSharefullClose',
+      deleteTrigger: () => deleted.push('taimee'),
+    }],
+    deleteTrigger: (trigger) => trigger.deleteTrigger(),
+    newTrigger: (handler) => ({
+      timeBased: () => ({ everyMinutes: (minutes) => ({ create: () => created.push({ handler, minutes }) }) }),
+    }),
+  };
+
+  assert.throws(() => context.installSpotOfferConfirmationTriggers(), /MYFAMILLE_API_BASE_URL/);
+  assert.deepEqual(deleted, []);
+  assert.deepEqual(created, []);
+  assert.equal(properties.has('SPOT_OFFER_CONFIRMATION_ACTIVATED_AT'), false);
 });
 
 test('有効化時刻以前および同時刻のメールは処理対象外にする', () => {

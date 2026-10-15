@@ -86,6 +86,10 @@ function processSpotOfferConfirmationEmails() {
 
 /** 初回設定時に一度実行し、両メール種別の5分ごとの確認トリガーを作成する。 */
 function installSpotOfferConfirmationTriggers() {
+  // 必須設定が不足した状態でトリガーや有効化時刻だけを先に作らない。
+  readSharefullCloseConfig_();
+  readTaimeeCloseConfig_();
+
   var props = PropertiesService.getScriptProperties();
   if (!props.getProperty("SPOT_OFFER_CONFIRMATION_ACTIVATED_AT")) {
     props.setProperty("SPOT_OFFER_CONFIRMATION_ACTIVATED_AT", new Date().toISOString());
