@@ -17,6 +17,8 @@ const DEFAULT_TARGET_CLIENT_IDS = [
   "12988540",
   "8065144",
   "9003819",
+  "13611106",
+  "13673338",
 ];
 
 export type SharefullRpaMode = "production" | "test";

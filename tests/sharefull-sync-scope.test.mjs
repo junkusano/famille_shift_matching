@@ -30,11 +30,15 @@ test("Sharefull同期は初期値で検証利用者だけを対象にする", ()
     "12988540",
     "8065144",
     "9003819",
+    "13611106",
+    "13673338",
   ];
   assert.deepEqual([...scope.sharefullSyncClientIds()], expectedClientIds);
   assert.equal(new Set(expectedClientIds).size, expectedClientIds.length);
   assert.equal(scope.isSharefullSyncClient("8111577"), true);
   assert.equal(scope.isSharefullSyncClient("12782561"), true);
+  assert.equal(scope.isSharefullSyncClient("13611106"), true);
+  assert.equal(scope.isSharefullSyncClient("13673338"), true);
   assert.equal(scope.isSharefullSyncClient("99999999"), false);
 });
 
@@ -52,6 +56,8 @@ test("全利用者化には対象指定と明示許可の両方を必要とす�
     "12988540",
     "8065144",
     "9003819",
+    "13611106",
+    "13673338",
   ]);
 
   const allowed = loadScope({
