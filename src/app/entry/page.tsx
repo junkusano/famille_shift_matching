@@ -1,7 +1,9 @@
 //entry
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import RecruitmentTracking from "@/components/RecruitmentTracking";
+import { recruitmentEvent, recruitmentJourney } from "@/lib/recruitmentTracking";
 import { supabase } from "@/lib/supabase";
 import PostSubmitMessage from "@/components/PostSubmitMessage";
 import { HomeIcon } from "@heroicons/react/24/solid";
@@ -17,6 +19,9 @@ export default function EntryPage() {
     const MAX_FILE_MB = 4;
     const [submitted, setSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const submitting = useRef(false);
+    const attempt = useRef<{ id: string; payload: string } | null>(null);
+    const [submitError, setSubmitError] = useState("");
     // 失敗時の共通関数
     //const fail = (msg: string) => { alert(msg); setIsSubmitting(false); };
 
@@ -76,6 +81,7 @@ export default function EntryPage() {
     // - メール送信
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
+        if (submitting.current) return;
 
         const formEl = e.currentTarget;
         const form = new FormData(formEl);
@@ -92,10 +98,12 @@ export default function EntryPage() {
         const email = String(form.get("email") || "").trim();
 
         if (!lastNameKanji || !firstNameKanji) {
+            recruitmentEvent("validation_error");
             alert("氏名を入力してください。");
             return;
         }
         if (!email) {
+            recruitmentEvent("validation_error");
             alert("メールアドレスを入力してください。");
             return;
         }
@@ -107,10 +115,12 @@ export default function EntryPage() {
         const photoFile = (form.get("photo") as File) ?? null;
 
         setIsSubmitting(true);
+        submitting.current = true;
+        setSubmitError("");
+        recruitmentEvent("submit_attempt");
 
         // Entry itself is committed first by the server.  Files are deliberately
         // sent afterwards so a slow Drive upload never holds the submission open.
-        const submissionId = crypto.randomUUID();
         const payloadForServer = {
             last_name_kanji: lastNameKanji,
             first_name_kanji: firstNameKanji,
@@ -133,13 +143,16 @@ export default function EntryPage() {
             agreed_privacy: form.get("agreePrivacy") === "on",
         };
         try {
+            const encoded = JSON.stringify(payloadForServer);
+            if (!attempt.current || attempt.current.payload !== encoded) attempt.current = { id: crypto.randomUUID(), payload: encoded };
+            const submissionId = attempt.current.id;
             const response = await fetch("/api/entry/submit", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ submissionId, payload: payloadForServer }),
+                body: JSON.stringify({ submissionId, payload: payloadForServer, journey: recruitmentJourney() }),
             });
             const result = await response.json();
-            if (!response.ok || !result.ok) throw new Error(result.message || "submit failed");
+            if (!response.ok || !result.ok || !["created", "candidate"].includes(result.outcome)) throw new Error("submit failed");
             if (result.outcome === "candidate") {
                 alert("過去の応募情報が確認されました。新しい応募情報は作成せず、再応募として採用担当へ確認を依頼しました。ご案内メールをご確認ください。");
             } else {
@@ -163,8 +176,9 @@ export default function EntryPage() {
             setSubmitted(true);
             return;
         } catch (error) {
-            console.error("[entry] submit failed", error);
-            alert("送信処理を完了できませんでした。時間をおいてもう一度お試しください。");
+            recruitmentEvent("submit_error");
+            setSubmitError("送信を確認できませんでした。入力内容は残っています。時間をおいて、もう一度送信してください。");
+            submitting.current = false;
             setIsSubmitting(false);
             return;
         }
@@ -180,6 +194,7 @@ export default function EntryPage() {
 
     return (
         <main className="min-h-screen bg-famille text-gray-800 px-4 py-10">
+            <RecruitmentTracking />
             <div className="max-w-[1600px] mx-auto bg-white p-8 rounded shadow space-y-8">
 
                 <div className="text-right">
@@ -203,7 +218,7 @@ export default function EntryPage() {
                 <p className="text-sm text-gray-600 mb-4">
                     <span className="text-red-500">*</span> 印の項目は必須です。
                 </p>
-                <form className="space-y-6" onSubmit={handleSubmit}>
+                <form className="space-y-6" onSubmit={handleSubmit} onChange={() => recruitmentEvent("form_start")} onInvalidCapture={() => recruitmentEvent("validation_error")}>
                     {/* 1. 基本情報 */}
                     <div>
                         <h2 className="text-lg font-semibold mb-2">1. 基本情報</h2>
@@ -501,6 +516,7 @@ export default function EntryPage() {
                         </div>
                     </div>
                     {/* 送信ボタン */}
+                    {submitError && <p role="alert" className="rounded border border-red-300 bg-red-50 p-4 text-red-800">{submitError}</p>}
                     <div className="text-center pt-6">
                         <button
                             type="submit"

@@ -38,6 +38,7 @@ export async function middleware(req: NextRequest) {
   if (apiKeyRpaPaths.includes(pathname)) return NextResponse.next()
 
   const publicEntryApiPaths = [
+    '/api/recruitment-events',
     '/api/entry/submit',
     '/api/entry/attachments',
   ]

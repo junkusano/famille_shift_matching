@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient"; // supabaseClient を使用
 import type { User } from "@supabase/supabase-js";
 import Footer from '@/components/Footer'; // ← 追加
+import RecruitmentTracking from "@/components/RecruitmentTracking";
 
 
 export default function Home() {
@@ -28,6 +29,7 @@ export default function Home() {
   return (
 
     <main className="min-h-screen bg-famille text-gray-800 px-4 py-8">
+      <RecruitmentTracking />
       {/* 🔷 ナビゲーションバー */}
       <div className="absolute top-4 right-4 flex gap-3 items-center text-sm text-gray-700 z-10">
         {user ? (
@@ -56,6 +58,7 @@ export default function Home() {
           </a>
           <h1 className="text-3xl sm:text-4xl font-bold text-famille">ファミーユ・ヘルパーサービスへようこそ</h1>
           <p className="text-lg text-gray-700">あなたの働き方に、もっと自由を。</p>
+          <Link href="/entry?recruitment_source=myfamille_lp" data-recruitment-placement="top" className="button button-primary inline-block">応募フォームへ進む</Link>
 
         </div>
 
@@ -121,7 +124,7 @@ export default function Home() {
 
         {/* ボタンエリア：統一デザイン */}
         <div className="flex flex-col sm:flex-row flex-wrap gap-4 justify-center pt-6 items-center">
-          <Link href="/entry" className="button button-primary">登録フォームへ進む</Link>
+          <Link href="/entry?recruitment_source=myfamille_lp" data-recruitment-placement="bottom" className="button button-primary">応募フォームへ進む</Link>
           <br />
           <a href="https://www.shi-on.net/recruit" className="button button-primary" target="_blank">
             ファミーユについてもっと知る

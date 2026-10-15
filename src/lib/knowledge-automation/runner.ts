@@ -116,6 +116,7 @@ export async function runKnowledgeAutomationTask(input: {
     const postLink = "postLink" in result ? result.postLink ?? null : null;
     const outputSummary = {
       ...("audit" in result ? result.audit : {}),
+      ...("sourceWarnings" in result ? { sourceWarnings: result.sourceWarnings, candidateCounts: result.candidateCounts } : {}),
       message: result.message,
       sourceId: "sourceId" in result ? result.sourceId ?? null : null,
       sourceTitle: "sourceTitle" in result ? result.sourceTitle ?? null : null,

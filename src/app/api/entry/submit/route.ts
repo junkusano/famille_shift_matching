@@ -1,26 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { notifyRecruitment, sendApplicantGuide, sendNewApplicantConfirmation } from "@/lib/entry/notifications";
+import { journeySchema } from "@/lib/recruitmentTracking";
 
 export const runtime = "nodejs";
 const safeError = "送信処理を完了できませんでした。時間をおいてもう一度お試しください。";
 
 export async function POST(req: NextRequest) {
   try {
-    const { submissionId, payload } = await req.json();
+    const { submissionId, payload, journey } = await req.json();
     const validSubmissionId = typeof submissionId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionId);
     const validPayload = payload && typeof payload === "object"
       && typeof payload.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email.trim())
-      && typeof payload.last_name_kanji === "string" && payload.last_name_kanji.trim().length <= 100
-      && typeof payload.first_name_kanji === "string" && payload.first_name_kanji.trim().length <= 100
+      && typeof payload.last_name_kanji === "string" && payload.last_name_kanji.trim().length > 0 && payload.last_name_kanji.trim().length <= 100
+      && typeof payload.first_name_kanji === "string" && payload.first_name_kanji.trim().length > 0 && payload.first_name_kanji.trim().length <= 100
       && payload.agreed_terms === true && payload.agreed_privacy === true;
     if (!validSubmissionId || !validPayload) return NextResponse.json({ ok: false, message: safeError }, { status: 400 });
     const { data, error } = await supabaseAdmin.rpc("submit_entry_application", { p_submission_id: submissionId, p_payload: payload });
     if (error || !data) throw error ?? new Error("Missing submission result");
-    const result = data as { kind: string; entry_id?: string; candidate_count?: number };
+    const result = data as { kind: string; entry_id?: string; candidate_count?: number; idempotent?: boolean };
+    if (!["created", "duplicate_email", "duplicate_candidate", "multiple_candidates"].includes(result.kind)) throw new Error("Unexpected submission result");
+    const context = journeySchema.safeParse(journey);
+    if (context.success && !result.idempotent) {
+      // Server confirms success; the public measurement endpoint cannot forge it.
+      // Missing telemetry must never turn a saved application into a failure.
+      try {
+        const { error: trackingError } = await supabaseAdmin.from("recruitment_journey_events").upsert({ journey_id: context.data.journeyId, source: context.data.source, page: "entry", placement: "body", event: result.kind === "created" ? "submit_success" : "existing_applicant" }, { onConflict: "journey_id,event,page,placement", ignoreDuplicates: true }).abortSignal(AbortSignal.timeout(1500));
+        if (trackingError) console.warn("[entry.submit] journey measurement unavailable");
+      } catch { console.warn("[entry.submit] journey measurement unavailable"); }
+    }
     const applicant = { name: `${payload.last_name_kanji ?? ""}${payload.first_name_kanji ?? ""}`, kana: `${payload.last_name_kana ?? ""}${payload.first_name_kana ?? ""}`, birth: `${payload.birth_year ?? ""}-${payload.birth_month ?? ""}-${payload.birth_day ?? ""}`, phone: String(payload.phone ?? ""), email: String(payload.email ?? "").trim() };
     console.info("[entry.submit]", { submissionId, entryId: result.entry_id ?? null, result: result.kind });
     if (result.kind === "created") {
+      if (result.idempotent) return NextResponse.json({ ok: true, outcome: "created" });
       void Promise.allSettled([
         notifyRecruitment("new", applicant, `Entry ID：${result.entry_id ?? ""}\n通常応募がありました。`),
         sendNewApplicantConfirmation(applicant, payload),

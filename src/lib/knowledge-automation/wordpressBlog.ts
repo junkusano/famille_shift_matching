@@ -65,6 +65,8 @@ export type WordPressBlogResult = {
   postId?: number;
   postLink?: string;
   socialPublication?: SocialPublication;
+  sourceWarnings?: string[];
+  candidateCounts?: Record<StorySeed["kind"], number>;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -121,14 +123,16 @@ function articleHtml(article: z.infer<typeof articleSchema>, sources: PublicSour
 }
 
 async function refreshBlogSources() {
-  const { data } = await supabaseAdmin.from("knowledge_sources").select("id,source_key")
+  const { data, error } = await supabaseAdmin.from("knowledge_sources").select("id,source_key")
     .in("source_key", ["external-rss", "kusano-thought-log", "lesson-reminders"]).eq("enabled", true).limit(6);
+  if (error) throw new Error("記事の情報源一覧を取得できませんでした。");
   const warnings: string[] = [];
   for (const source of data ?? []) {
     try {
-      await runKnowledgeSource({ sourceId: source.id, jobType: "incremental", triggerType: "system" });
+      const result = await runKnowledgeSource({ sourceId: source.id, jobType: "incremental", triggerType: "system" });
+      if (result?.hasMore) warnings.push(`${source.source_key}: 分割同期中です。未取得の行は次回以降に取り込みます。`);
     } catch (error) {
-      warnings.push(error instanceof Error ? error.message : `${source.source_key}の更新に失敗しました。`);
+      warnings.push(`${source.source_key}: ${error instanceof Error ? error.message : "更新に失敗しました。"}`);
     }
   }
   return { sourceKeys: new Set((data ?? []).map((source) => source.source_key)), warnings };
@@ -162,16 +166,29 @@ function compareOrganizedKnowledge(left: StorySeed, right: StorySeed) {
   return compareSeeds(left, right);
 }
 
+async function loadAllCandidateRows<T>(
+  query: (offset: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  errorMessage: string,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let offset = 0; ; offset += 100) {
+    const result = await query(offset);
+    if (result.error) throw new Error(errorMessage);
+    rows.push(...(result.data ?? []));
+    if (!result.data || result.data.length < 100) return rows;
+  }
+}
+
 async function loadStorySeeds(allowInternalAiContext: boolean, history: BlogHistory[]): Promise<StorySeed[]> {
   const used = await usedSourceIds();
-  const { data: thoughtRows, error: thoughtError } = allowInternalAiContext
-    ? await supabaseAdmin.from("knowledge_items")
+  const thoughtRows = allowInternalAiContext
+    ? await loadAllCandidateRows(offset => supabaseAdmin.from("knowledge_items")
       .select("id,title,summary,content,occurred_at,category,metadata,source:knowledge_sources!inner(source_key)")
       .eq("source.source_key", "kusano-thought-log").eq("is_current", true).lte("privacy_level", 1)
       .eq("contains_personal_data", false).in("review_status", ["needs_review", "approved"])
-      .order("occurred_at", { ascending: false, nullsFirst: false }).limit(100)
-    : { data: [], error: null };
-  if (thoughtError) throw new Error("記事候補の読み取りに失敗しました。");
+      .order("occurred_at", { ascending: false, nullsFirst: false }).order("id").range(offset, offset + 99),
+      "記事候補の読み取りに失敗しました。")
+    : [];
   const thoughts: StorySeed[] = (thoughtRows ?? []).flatMap((row) => {
     const metadata = isRecord(row.metadata) ? row.metadata : {};
     const articleCandidate = String(metadata.articleCandidate ?? "").trim();
@@ -183,16 +200,16 @@ async function loadStorySeeds(allowInternalAiContext: boolean, history: BlogHist
       category: row.category, externalUrl: null, metadata,
     }];
   }).sort(compareSeeds);
-  const { data: knowledgeRows, error: knowledgeError } = allowInternalAiContext
-    ? await supabaseAdmin.from("knowledge_items")
+  const knowledgeRows = allowInternalAiContext
+    ? await loadAllCandidateRows(offset => supabaseAdmin.from("knowledge_items")
       .select("id,knowledge_key,knowledge_type,title,summary,content,public_summary,occurred_at,category,metadata,privacy_level,publishability,importance,concept_level,stability,updated_at")
       .eq("is_current", true).eq("knowledge_type", "key").eq("review_status", "approved").eq("contains_personal_data", false)
       .lte("privacy_level", 1).in("publishability", ["public", "anonymize"]).gte("importance", 4)
       .not("concept_level", "is", null).not("public_summary", "is", null)
       .order("concept_level", { ascending: true }).order("importance", { ascending: false })
-      .order("updated_at", { ascending: false }).limit(100)
-    : { data: [], error: null };
-  if (knowledgeError) throw new Error("キーナレッジ候補の読み取りに失敗しました。");
+      .order("updated_at", { ascending: false }).order("id").range(offset, offset + 99),
+      "キーナレッジ候補の読み取りに失敗しました。")
+    : [];
   const curatedKnowledge: StorySeed[] = (knowledgeRows ?? []).flatMap((row) => {
     const publicSummary = typeof row.public_summary === "string" ? row.public_summary.trim() : "";
     const knowledgeKey = typeof row.knowledge_key === "string" ? row.knowledge_key : "";
@@ -223,13 +240,39 @@ async function loadStorySeeds(allowInternalAiContext: boolean, history: BlogHist
       },
     }];
   }).sort(compareOrganizedKnowledge);
+  // Manager reminders are imported separately from curated key knowledge.
+  // Only the reviewed, generalized public summary may leave the system.
+  // No concept-level assignment is required to make a concrete lesson usable.
+  const lessons: StorySeed[] = [];
+  if (allowInternalAiContext) {
+    for (let offset = 0; ; offset += 100) {
+      const { data: rows, error } = await supabaseAdmin.from("knowledge_items")
+        .select("id,public_summary,updated_at,source:knowledge_sources!inner(source_key)")
+        .eq("source.source_key", "lesson-reminders").eq("knowledge_type", "lesson_principle")
+        .eq("is_current", true).eq("review_status", "approved")
+        .eq("contains_personal_data", false).lte("privacy_level", 1)
+        .in("publishability", ["public", "anonymize"]).eq("redaction_status", "completed")
+        .not("public_summary", "is", null).order("id").range(offset, offset + 99);
+      if (error) throw new Error("教訓の記事候補の読み取りに失敗しました。");
+      for (const row of rows ?? []) {
+        const summary = typeof row.public_summary === "string" ? row.public_summary.trim() : "";
+        if (!summary || used.has(row.id) || sourceWasPublished(row.id, history)) continue;
+        lessons.push({
+          id: row.id, kind: "lesson_principle", title: summary.slice(0, 100),
+          summary, detail: null, occurredAt: row.updated_at, category: null, externalUrl: null,
+          metadata: { importance: 4, conceptLevel: 3, sourceKind: "manager_lesson" },
+        });
+      }
+      if (!rows || rows.length < 100) break;
+    }
+  }
   const { data: rssRows, error: rssError } = await supabaseAdmin.from("knowledge_source_objects")
     .select("id,title,safe_excerpt,source_url,occurred_at,metadata,source:knowledge_sources!inner(source_key)")
     .eq("source.source_key", "external-rss").eq("object_type", "rss_article").eq("is_current", true)
     .eq("privacy_level", 0).eq("publishability", "public").eq("contains_personal_data", false)
     .in("processing_status", ["indexed", "promoted"]).order("occurred_at", { ascending: false, nullsFirst: false }).limit(100);
   if (rssError) throw new Error("外部記事候補の読み取りに失敗しました。");
-  const candidates = [...thoughts, ...curatedKnowledge];
+  const candidates = [...thoughts, ...curatedKnowledge, ...lessons];
   for (const row of rssRows ?? []) {
     const metadata = isRecord(row.metadata) ? row.metadata : {};
     const externalUrl = safePublicUrl(row.source_url);
@@ -540,13 +583,18 @@ export async function createWordPressBlogDraft(task: KnowledgeAutomationTask, ru
   if (!process.env.OPENAI_API_KEY) throw new Error("OpenAIの接続設定がありません。");
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 240_000, maxRetries: 0 });
   let candidates = await loadStorySeeds(allowInternalAiContext, history);
+  const candidateCounts: Record<StorySeed["kind"], number> = {
+    thought: 0, lesson_principle: 0, key_knowledge: 0, rss_article: 0,
+  };
+  for (const candidate of candidates) candidateCounts[candidate.kind] += 1;
+  const diagnostics = { candidateCounts, sourceWarnings: refreshed.warnings };
   const rejected: { sourceId: string; reason: string }[] = [];
   const selectionStartedAt = Date.now();
   const reject = async (sourceId: string, reason: string) => {
     rejected.push({ sourceId, reason });
     if (runId) {
       const { error } = await supabaseAdmin.from("knowledge_automation_runs").update({
-        input_summary: { taskType: task.task_type, destination: task.destination, editorialRejections: rejected },
+        input_summary: { taskType: task.task_type, destination: task.destination, editorialRejections: rejected, ...diagnostics },
       }).eq("id", runId);
       if (error) throw new Error("見送り理由を記録できないため、再選定を中止しました。");
     }
@@ -560,7 +608,13 @@ export async function createWordPressBlogDraft(task: KnowledgeAutomationTask, ru
     const consentMessage = allowInternalAiContext
       ? null
       : "草野思考ログを記事生成AIへ渡す許可がないため、公開RSSの実記事だけを確認しました。";
-    return { status: "skipped", message: rejected.length ? `別の題材も再選定しましたが、公開できる候補がありませんでした。${rejected.at(-1)?.reason}` : refreshed.warnings[0] ?? consentMessage ?? "未使用の具体的な記事候補がありません。監視先だけでは記事を作りません。" };
+    const hasViewpoints = candidateCounts.thought + candidateCounts.lesson_principle + candidateCounts.key_knowledge > 0;
+    const reason = rejected.length
+      ? `別の題材も再選定しましたが、公開できる候補がありませんでした。${rejected.at(-1)?.reason}`
+      : consentMessage ?? (hasViewpoints
+        ? "記事候補はありますが、今回の独自性・重複の審査で採用できませんでした。"
+        : "公開条件を満たす未使用の草野ナレッジ・教訓候補がありません。教訓は公開用要約の一般化・承認状況を確認してください。");
+    return { status: "skipped", ...diagnostics, message: reason + (refreshed.warnings.length ? ` 情報源の同期にも注意事項が${refreshed.warnings.length}件あります。` : "") };
   }
   const date = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" })
     .format(new Date()).replaceAll("/", "");
@@ -615,6 +669,7 @@ export async function createWordPressBlogDraft(task: KnowledgeAutomationTask, ru
   if (runId) {
     const { error } = await supabaseAdmin.from("knowledge_automation_runs").update({
       output_summary: {
+        ...diagnostics,
         sourceId: seed.id,
         sourceTitle: seed.title,
         editorialPriority: editorialPriority(seed),
@@ -635,6 +690,7 @@ export async function createWordPressBlogDraft(task: KnowledgeAutomationTask, ru
   }
   return {
     status: "created",
+    ...diagnostics,
     message: `「${article.title}」をWordPress${publish ? "に公開し、表示を確認しました" : "の下書きに追加しました"}。${featuredImage ? `アイキャッチは${featuredImage.source === "existing" ? "既存画像を再利用" : "新規生成"}しました。` : ""}${categoryIds.length > 0 ? "コラムカテゴリも設定しました。" : ""}`,
     sourceId: seed.id, sourceTitle: seed.title, postId: post.id, postLink: post.link,
     editorialPriority: editorialPriority(seed),
@@ -642,5 +698,5 @@ export async function createWordPressBlogDraft(task: KnowledgeAutomationTask, ru
     ...(publish ? { socialPublication: socialPublication(post.id, post.link, article.title, content, "created") } : {}),
   };
   }
-  return { status: "skipped", message: `候補を${rejected.length}件見送り、今回の生成上限に達しました。${rejected.at(-1)?.reason ?? "再選定の時間上限"}` };
+  return { status: "skipped", ...diagnostics, message: `候補を${rejected.length}件見送り、今回の生成上限に達しました。${rejected.at(-1)?.reason ?? "再選定の時間上限"}` };
 }

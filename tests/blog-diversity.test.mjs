@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url), ts=require('typescript');
 function moduleAt(file,mocks={}) {
- const context=vm.createContext({exports:{},require:n=>n in mocks?mocks[n]:require(n),Date,URL,URLSearchParams,Map,Set,Buffer,Headers,AbortSignal,fetch:globalThis.fetch,process});
+ const context=vm.createContext({exports:{},require:n=>n in mocks?mocks[n]:require(n),Error,Date,URL,URLSearchParams,Map,Set,Buffer,Headers,AbortSignal,fetch:globalThis.fetch,process});
  vm.runInContext(ts.transpileModule(readFileSync(new URL(file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
  return context.exports;
 }
@@ -23,16 +23,16 @@ test('history includes conclusions, excludes private drafts and is bounded',()=>
  const posts=Array.from({length:35},(_,i)=>({id:i,slug:'test',status:i===0?'private':'publish',title:{raw:'題'},content:{raw:'<p>冒頭</p><h2>結論</h2><p>固有の結論</p>'}}));
  const recent=policy.editorialHistory(posts);assert.equal(recent.length,30);assert.equal(recent[0].id,1);assert.match(recent[0].content,/固有の結論/);
 });
-function harness({history=[],historyError=false,runError=false,distinct=true,verifyError=false,thoughts=null,knowledge=[],rss=[],selectionResults=[],noveltyResults=[],researchMissing=0,researchError=false}={}) {
+function harness({history=[],historyError=false,runError=false,distinct=true,verifyError=false,thoughts=null,knowledge=[],lessons=[],syncError=false,rss=[],selectionResults=[],noveltyResults=[],researchMissing=0,researchError=false}={}) {
  process.env.OPENAI_API_KEY??='test';const calls=[];const seed={id:'80b2f759-aaaa-bbbb-cccc-000000000000',title:'新しい題材',summary:'別の読者の問い',content:'具体的な内容',metadata:{articleCandidate:'高'},category:'採用'};
  const article={title:'新人が質問できる職場づくりを考える',excerpt:'概要'.repeat(30),thesis:'主張'.repeat(45),trigger_heading:'最初の具体的な場面',trigger_body:'場面'.repeat(100),tension_heading:'質問する側が感じること',tension_body:'課題'.repeat(150),viewpoint_heading:'先輩と管理者の役割を考える',viewpoint_body:'視点'.repeat(150),action_heading:'実際の仕事で試せる工夫',actions:['行動'.repeat(100),'提案'.repeat(100)],conclusion:'結論'.repeat(100),category_id:null,featured_image_search_terms:['新人','相談'],featured_image_prompt:'写真'.repeat(50),featured_image_alt:'新人と先輩が相談する場面を示す写真'};
- const db={from(table){const filters=[];const q={
+ const db={from(table){const filters=[];let pageStart=0;const q={
   select(){return q},eq(column,value){filters.push(['eq',column,value]);return q},not(column,operator,value){filters.push(['not',column,operator,value]);return q},
   in(column,value){filters.push(['in',column,value]);return q},lte(column,value){filters.push(['lte',column,value]);return q},gte(column,value){filters.push(['gte',column,value]);return q},
-  order(){return q},limit(){return q},update(value){calls.push(['record',value]);return q},then(resolve){
+  order(){return q},limit(){return q},range(start){pageStart=start;return q},update(value){calls.push(['record',value]);return q},then(resolve){
    if(table==='knowledge_sources')return Promise.resolve({data:[{id:'s',source_key:'kusano-thought-log'}]}).then(resolve);
    if(table==='knowledge_automation_runs')return Promise.resolve({data:[],error:runError?{message:'offline'}:null}).then(resolve);
-   if(table==='knowledge_items'){const curated=filters.some(f=>f[0]==='not'&&f[1]==='concept_level');return Promise.resolve({data:curated?knowledge:(thoughts??[seed]),error:null}).then(resolve)}
+   if(table==='knowledge_items'){if(filters.some(f=>f[1]==='knowledge_type'&&f[2]==='lesson_principle')){calls.push(['lesson-query',filters]);return Promise.resolve({data:lessons.slice(pageStart,pageStart+100),error:null}).then(resolve)}const curated=filters.some(f=>f[0]==='not'&&f[1]==='concept_level');return Promise.resolve({data:(curated?knowledge:(thoughts??[seed])).slice(pageStart,pageStart+100),error:null}).then(resolve)}
    if(table==='knowledge_source_objects')return Promise.resolve({data:rss,error:null}).then(resolve);
    return Promise.resolve({data:[],error:null}).then(resolve);
   }};return q}};
@@ -46,15 +46,15 @@ function harness({history=[],historyError=false,runError=false,distinct=true,ver
  }}}
  const m=moduleAt('../src/lib/knowledge-automation/wordpressBlog.ts',{
   'server-only':{},openai:{default:AI},'./blogDiversity':policy,'./blogRss':{loadLiveRssArticles:async()=>({articles:[],failed:[],feedCount:0})},'./socialSharing':{socialPublication:()=>({})},
-  '@/lib/knowledge/pipeline':{runKnowledgeSource:async()=>{}},'@/lib/openaiProfiles':{OPENAI_PROFILES:{standard:{model:'test'},heavy:{model:'test'}}},
+  '@/lib/knowledge/pipeline':{runKnowledgeSource:async()=>{if(syncError)throw Error('同期失敗');return{hasMore:false}}},'@/lib/openaiProfiles':{OPENAI_PROFILES:{standard:{model:'test'},heavy:{model:'test'}}},
   '@/lib/supabase/service':{supabaseAdmin:db},'@/lib/wordpress/blogPosts':{verifyPublishedBlogPost:async()=>{calls.push(['verify']);if(verifyError)throw Error('verify failed')}},
   '@/lib/wordpress/server':{wordpressFetch:async()=>{if(historyError)throw Error('history unavailable');return{data:history,response:{headers:new Headers({'x-wp-totalpages':'1'})}}},assertWordPressPostDraftAvailable:async()=>{},listWordPressPostCategories:async()=>[],createWordPressPost:async()=>{calls.push(['create']);return{id:1,status:'publish',link:'https://example.org/article'}}},
  });
  return {calls,run:()=>m.createWordPressBlogDraft({id:'task',name:'blog',settings:{allow_external_ai_context:true,wordpress_featured_image:false,wordpress_auto_category:false},approval_mode:'automatic'},'run')};
 }
-test('history lookup failure stops before AI and publication',async()=>{const h=harness({historyError:true});await assert.rejects(h.run(),/history unavailable|使用済み題材/);assert.equal(h.calls.length,0)});
-test('run history errors do not silently become an empty used-source set',async()=>{const h=harness({runError:true});await assert.rejects(h.run(),/history unavailable|使用済み題材/);assert.equal(h.calls.length,0)});
-test('failed-run source already in WordPress is excluded before generation',async()=>{const h=harness({history:[{id:5,slug:'smart-ai-20260916-80b2f759',title:{raw:'以前の記事'},content:{raw:'本文'},status:'publish'}]});const r=await h.run();assert.equal(r.status,'skipped');assert.equal(h.calls.length,0)});
+test('history lookup failure stops before AI and publication',async()=>{const h=harness({historyError:true});await assert.rejects(h.run(),/history unavailable|使用済み題材/);assert.equal(h.calls.filter(c=>c[0]!=='lesson-query').length,0)});
+test('run history errors do not silently become an empty used-source set',async()=>{const h=harness({runError:true});await assert.rejects(h.run(),/history unavailable|使用済み題材/);assert.equal(h.calls.filter(c=>c[0]!=='lesson-query').length,0)});
+test('failed-run source already in WordPress is excluded before generation',async()=>{const h=harness({history:[{id:5,slug:'smart-ai-20260916-80b2f759',title:{raw:'以前の記事'},content:{raw:'本文'},status:'publish'}]});const r=await h.run();assert.equal(r.status,'skipped');assert.equal(h.calls.filter(c=>c[0]!=='lesson-query').length,0)});
 test('semantic duplicate is not uploaded or published',async()=>{process.env.OPENAI_API_KEY??='test';const h=harness({distinct:false});const r=await h.run();assert.equal(r.status,'skipped');assert.equal(h.calls.some(c=>c[0]==='create'),false)});
 test('publication is recorded before verification fails',async()=>{process.env.OPENAI_API_KEY??='test';const h=harness({verifyError:true});await assert.rejects(h.run(),/verify failed/);const actions=h.calls.filter(c=>['create','record','verify'].includes(c[0]));assert.deepEqual(actions.map(c=>c[0]),['create','record','verify']);assert.equal(actions[1][1].output_summary.sourceId,'80b2f759-aaaa-bbbb-cccc-000000000000');assert.equal(actions[1][1].output_summary.postId,1)});
 
@@ -105,4 +105,37 @@ test('missing public evidence advances to another seed before writing an article
 });
 test('service errors stop rather than causing repeated generation charges',async()=>{
  const h=harness({thoughts:retryThoughts,selectionResults:['retry-0'],researchError:true});await assert.rejects(h.run(),/research unavailable/);assert.equal(h.calls.filter(c=>c[1]==='editorial_selection').length,1);assert.equal(h.calls.filter(c=>c[0]==='create').length,0);
+});
+
+
+test('approved lesson summaries join editorial selection without source text or concept-level requirements',async()=>{
+ const h=harness({thoughts:[],lessons:[{id:'lesson-1',public_summary:'問題を担当外で終わらせず、必要な人へつなぎ解決まで確かめる。',title:'非公開の名前',summary:'非公開の事例',content:'社内の操作手順',updated_at:'2026-10-14'}],selectionResults:['lesson-1']});
+ const r=await h.run();assert.equal(r.status,'created');assert.equal(r.sourceId,'lesson-1');assert.equal(r.candidateCounts.lesson_principle,1);
+ const q=h.calls.find(c=>c[0]==='lesson-query')[1];
+ for(const [key,value] of [['review_status','approved'],['redaction_status','completed'],['contains_personal_data',false]])assert.ok(q.some(f=>f[1]===key&&f[2]===value));
+ assert.ok(q.some(f=>f[0]==='lte'&&f[1]==='privacy_level'&&f[2]===1));
+ const sent=JSON.stringify(h.calls.filter(c=>c[0]==='ai'));assert.doesNotMatch(sent,/非公開|操作手順/);
+});
+
+test('lesson candidates beyond the first hundred remain available',async()=>{
+ const lessons=Array.from({length:101},(_,i)=>({id:'lesson-'+i,public_summary:'教訓の判断基準 '+i,updated_at:'2026-10-14'}));
+ const history=lessons.slice(0,100).map(s=>({slug:'smart-ai-20261001-'+s.id.slice(0,8),status:'publish',title:{raw:'過去の記事'},content:{raw:'本文'}}));
+ // Use unique UUID prefixes because production history matches the first eight characters.
+ lessons.forEach((s,i)=>s.id=String(i).padStart(8,'0')+'-aaaa');
+ history.forEach((s,i)=>s.slug='smart-ai-20261001-'+lessons[i].id.slice(0,8));
+ const h=harness({thoughts:[],lessons,history,selectionResults:[lessons[100].id]});const r=await h.run();
+ assert.equal(r.sourceId,lessons[100].id);assert.equal(r.candidateCounts.lesson_principle,1);
+});
+
+test('sync failure is recorded separately and cannot masquerade as the candidate skip reason',async()=>{
+ const h=harness({thoughts:[],syncError:true});const r=await h.run();
+ assert.equal(r.status,'skipped');assert.match(r.message,/公開条件/);assert.notEqual(r.message,'同期失敗');assert.match(r.sourceWarnings[0],/kusano-thought-log: 同期失敗/);
+ assert.equal(r.candidateCounts.thought,0);
+});
+
+
+test('older raw knowledge is not starved by the first hundred already used entries',async()=>{
+ const thoughts=Array.from({length:101},(_,i)=>({id:String(i).padStart(8,'0')+'-bbbb',title:'思考'+i,summary:'判断基準',metadata:{articleCandidate:'高'}}));
+ const history=thoughts.slice(0,100).map(s=>({slug:'smart-ai-20261001-'+s.id.slice(0,8),status:'publish',title:{raw:'過去'},content:{raw:'本文'}}));
+ const h=harness({thoughts,history,selectionResults:[thoughts[100].id]});const r=await h.run();assert.equal(r.sourceId,thoughts[100].id);
 });
