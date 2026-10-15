@@ -9,7 +9,7 @@
 1. `processSpotOfferConfirmationEmails` が5分ごとに両方の対象Gmailを検索する。
 2. 送信元を完全一致で確認し、確定語句とシェアフル求人IDまたは管理番号を抽出する。
 3. `/api/rpa/sharefull/confirmed` がMyFamille案件とIDを照合し、`sharefull` の応募状態を `confirmed` として記録する。
-4. タイミーPAD用 `close_job` を登録する。
+4. 停止対象のタイミー求人IDが案件に登録済みの場合だけ、タイミーPAD用 `close_job` を登録する。
 
 ### タイミー確定メール → シェアフル募集停止
 
@@ -18,7 +18,7 @@
 3. `/api/rpa/taimee/confirmed` が案件を一意照合し、`taimee` の応募状態を `confirmed` として記録する。
 4. シェアフル `sharefull.close_spot_offer` ジョブを登録する。
 
-いずれもID・日時・タイトルの照合で複数一致や不一致があれば停止指示を作らない。GmailメッセージIDと同期キーで再送・二重登録を防ぐ。
+いずれもID・日時・タイトルの照合で複数一致や不一致があれば停止指示を作らない。Sharefull案件にタイミー求人IDがない場合もAPIは409を返し、応募記録とGASの処理済み化を行わない。案件へ正しいタイミー求人IDを登録後に次回のメール確認で再処理する。GmailメッセージIDと同期キーで再送・二重登録を防ぐ。
 
 GASはGmailを5分間隔で確認するため、メール到着から検知まで最大約5分かかる。検知後、APIが停止ジョブを登録し、既存のRPA処理が実行する。Vercelの `/api/cron/spot-offer-sync-check` も5分ごとに実行されるが、これはGmailを読む処理ではなく、案件状態の同期・照合を行う。
 
@@ -36,7 +36,9 @@ GASはGmailを5分間隔で確認するため、メール到着から検知ま�
 | `TAIMEE_CONFIRMATION_GMAIL_QUERY` | タイミーの個別マッチング通知に絞るGmail検索式。例: `from:supporter@timee.co.jp subject:マッチング newer_than:14d` |
 | `TAIMEE_CONFIRMATION_FROM_EMAIL` | `supporter@timee.co.jp`（完全一致で照合） |
 
-保存後、`installSpotOfferConfirmationTriggers` を一度実行し、Gmail・外部通信・トリガーの権限を承認する。この実行時刻を `SPOT_OFFER_CONFIRMATION_ACTIVATED_AT` に保存し、その時刻以前のメールは停止APIへ送らず、処理済みとして除外する。検索式が過去メールに一致しても遡って案件停止しない。トリガーを再インストールしても最初の有効化時刻は維持される。
+既存の `taimee-confirmation-close-sharefull.gs` はGASプロジェクトに残してよい。統合スクリプトは既存スクリプトと異なる関数名を使うため、両方を読み込んでも処理が上書きされない。
+
+保存後、`installSpotOfferConfirmationTriggers` を一度実行し、Gmail・外部通信・トリガーの権限を承認する。この関数は旧 `processTaimeeConfirmationsForSharefullClose` の単独トリガーを削除し、両方向を処理する `processSpotOfferConfirmationEmails` の5分トリガーを1つ登録する。これ以降、旧 `installTaimeeConfirmationSharefullCloseTrigger` は実行しない。この実行時刻を `SPOT_OFFER_CONFIRMATION_ACTIVATED_AT` に保存し、その時刻以前のメールは停止APIへ送らず、処理済みとして除外する。検索式が過去メールに一致しても遡って案件停止しない。トリガーを再インストールしても最初の有効化時刻は維持される。
 
 初回実行時に処理済みメール用のGmailラベル `MYFAMILLE_SHAREFULL_CONFIRMATION_PROCESSED` と `MYFAMILLE_TAIMEE_CONFIRMATION_PROCESSED` を自動作成する。正常に処理したスレッドは次回以降の検索から除外し、APIエラーのスレッドはラベルを付けず次回トリガーで再試行する。
 
@@ -53,3 +55,4 @@ GASはGmailを5分間隔で確認するため、メール到着から検知ま�
 本番Vercel環境に `SHAREFULL_CONFIRMATION_GAS_TOKEN` と `TAIMEE_CONFIRMATION_GAS_TOKEN` を設定する。タイミーからシェアフルを停止するAPIは `SPOT_PROVIDER_SYNC_ENABLED=true` かつ本番モードの場合だけ処理する。秘密値はリポジトリやログへ記録しない。APIはBearerトークンを検証し、MyFamille DBの `spot_offer_applications` と相手媒体のRPA指示キューを更新する。
 
 参照: [タイミー「マッチングした際のお知らせメールについて」](https://clients-help.timee.co.jp/hc/ja/articles/19324681452697-%E3%83%9E%E3%83%83%E3%83%81%E3%83%B3%E3%82%B0%E3%81%97%E3%81%9F%E9%9A%9B%E3%81%AE%E3%81%8A%E7%9F%A5%E3%82%89%E3%81%9B%E3%83%A1%E3%83%BC%E3%83%AB%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6)、[タイミー「タイミーからのメールが届かない」](https://clients-help.timee.co.jp/hc/ja/articles/17525852371993-%E3%82%BF%E3%82%A4%E3%83%9F%E3%83%BC%E3%81%8B%E3%82%89%E3%81%AE%E3%83%A1%E3%83%BC%E3%83%AB%E3%81%8C%E5%B1%8A%E3%81%8B%E3%81%AA%E3%81%84)
+
