@@ -36,7 +36,7 @@ test('内部画面・UUID・メール・クエリを分析のページURLに残�
 
 function setup({ duplicate = false, entryError = false, gaFailure = false, race = false } = {}) {
   let aiCalls = 0; let saved; const selections = []; const queries = [];
-  const db = { from(table) {
+  const db = { rpc: async()=>({data:[],error:null}), from(table) {
     const state = { table, filters: [] };
     const chain = new Proxy({}, { get: (_, name) => {
       if (name === 'then') return resolve => {
@@ -52,10 +52,10 @@ function setup({ duplicate = false, entryError = false, gaFailure = false, race 
     return chain;
   } };
   const implementation = load('../src/lib/knowledge-automation/recruitmentAnalytics.ts', {
-    '@/lib/supabase/service': {supabaseAdmin:db}, './recruitmentAnalyticsCore':core,
+    '@/lib/supabase/service': {supabaseAdmin:db}, './recruitmentAnalyticsCore':core, '@/lib/recruitmentTracking':load('../src/lib/recruitmentTracking.ts'),
     '@/lib/openaiProfiles':{OPENAI_PROFILES:{standard:{model:'test'}}},
     '@/lib/knowledge/connectors/googleAnalytics': {createAnalyticsClient:async()=>({properties:{runReport:async(request)=>{queries.push(request);if(gaFailure)throw new Error('secret failure');return {data:{rows:[],rowCount:0}};}}})},
-    openai: class { responses = {create:async()=>{aiCalls++;return {model:'test',output_text:JSON.stringify({overview:'根拠を整理',routeAssessment:'経路未確認',contentAssessment:'影響は仮説',improvements:[{priority:'高',target:'LP',evidence:'未計測',hypothesis:'計測不足',action:'確認',metric:'参照元',discussion:'計測設計'}]})};}} },
+    openai: class { responses = {create:async()=>{aiCalls++;return {status:'completed',model:'test',output_text:JSON.stringify({overview:'根拠を整理',routeAssessment:'経路未確認',contentAssessment:'影響は仮説',improvements:[{priority:'高',target:'LP',evidence:'未計測',hypothesis:'計測不足',action:'確認',metric:'参照元',discussion:'計測設計'}]})};}} },
   });
   return { implementation, get saved(){return saved;}, get aiCalls(){return aiCalls;}, selections, queries };
 }
@@ -108,4 +108,11 @@ test('日次集計はcron認証を必須にし、一方の情報源失敗でも�
     assert.doesNotMatch(await response.text(),/private error/);
     assert.ok(filters.some(f=>f[0]==='in'&&f[1]==='connector_key'&&f[2].includes('microsoft_clarity')));
   } finally {if(prior===undefined)delete process.env.CRON_SECRET;else process.env.CRON_SECRET=prior;}
+});
+
+ test('生成途中・拒否・配列への型逸脱を保存せず、診断に本文を出さない', () => {
+const s=setup(); const parse=s.implementation.parseRecruitmentAssessment;
+assert.throws(()=>parse({status:'incomplete',output_text:'secret'}), /生成が完了/);
+assert.throws(()=>parse({status:'completed',output_text:''}), /本文を取得/);
+assert.throws(()=>parse({status:'completed',output_text:JSON.stringify({overview:['private text']})}), e=>e.message.includes('overview')&&!e.message.includes('private text'));
 });
