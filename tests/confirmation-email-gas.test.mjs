@@ -17,18 +17,31 @@ function message({ from, subject, body, id = 'mail-1', date = '2026-10-09T09:00:
   };
 }
 
-test('タイミーのマッチング通知を求人IDと勤務情報から識別する', () => {
+test('タイミー求人URLのIDを業務タイトル内の事業所IDより優先する', () => {
   const parsed = context.parseTaimeeConfirmationMail_(message({
     from: 'タイミー <supporter@timee.co.jp>',
     subject: 'マッチングのお知らせ',
-    body: 'ワーカーが1名マッチングしましたので、お知らせいたします。\n◆業務タイトル\n介護スタッフ@123456@\n◆日時\n2026年10月10日 09:30～17:30',
+    body: 'ワーカーが1名マッチングしましたので、お知らせいたします。\n◆業務タイトル\n訪問介護@12668737@\n◆日時\n2026年10月09日 10:30～12:00\nhttps://app-new.taimee.co.jp/clients/263546/offerings/55761129',
   }), 'supporter@timee.co.jp');
 
-  assert.equal(parsed.taimee_job_id, '123456');
-  assert.equal(parsed.template_title, '介護スタッフ');
-  assert.equal(parsed.shift_start_date, '2026-10-10');
-  assert.equal(parsed.shift_start_time, '09:30');
+  assert.equal(parsed.taimee_job_id, '55761129');
+  assert.equal(parsed.template_title, '訪問介護');
+  assert.equal(parsed.shift_start_date, '2026-10-09');
+  assert.equal(parsed.shift_start_time, '10:30');
   assert.equal(parsed.event_id, 'mail-1');
+});
+
+test('URLがない通知では業務タイトルの@数字@を求人IDと誤認しない', () => {
+  const parsed = context.parseTaimeeConfirmationMail_(message({
+    from: 'タイミー <supporter@timee.co.jp>',
+    subject: 'マッチングのお知らせ',
+    body: 'ワーカーが1名マッチングしましたので、お知らせいたします。\n◆業務タイトル\n訪問介護@12668737@\n◆日時\n2026年10月09日 10:30～12:00',
+  }), 'supporter@timee.co.jp');
+
+  assert.equal(parsed.taimee_job_id, undefined);
+  assert.equal(parsed.template_title, '訪問介護');
+  assert.equal(parsed.shift_start_date, '2026-10-09');
+  assert.equal(parsed.shift_start_time, '10:30');
 });
 
 test('タイミー求人IDが無いときはタイトルと日時が揃わなければ処理しない', () => {
