@@ -13,6 +13,14 @@ function load(file, mocks={}) {
 }
 const tracking=load('../src/lib/recruitmentTracking.ts');
 const journey={journeyId:'11111111-1111-4111-8111-111111111111',source:'myfamille_lp'};
+test('期限切れ・追加の入力値を含む保存データを応募計測へ渡さない',()=>{
+  const previous=globalThis.sessionStorage;
+  try {
+    globalThis.sessionStorage={getItem:()=>JSON.stringify({context:journey,expires:Date.now()-1})};assert.equal(tracking.recruitmentJourney(),undefined);
+    globalThis.sessionStorage={getItem:()=>JSON.stringify({context:{...journey,email:'private'},expires:Date.now()+1000})};assert.equal(tracking.recruitmentJourney(),undefined);
+    globalThis.sessionStorage={getItem:()=>JSON.stringify({context:journey,expires:Date.now()+1000})};assert.deepEqual(tracking.recruitmentJourney(),journey);
+  } finally {if(previous===undefined)delete globalThis.sessionStorage;else globalThis.sessionStorage=previous;}
+});
 test('未ログインの計測はルートの公開APIへ届き、管理APIは保護する',async()=>{
   const next={next:()=>new Response(null,{status:204}),json:Response.json,redirect:()=>new Response(null,{status:307})};
   const auth={getSession:async()=>({data:{session:null}}),getUser:async()=>({data:{user:null}})};

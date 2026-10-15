@@ -22,6 +22,10 @@ export function recruitmentEvent(event: "form_start" | "validation_error" | "sub
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("recruitment:event", { detail: event }));
 }
 export function recruitmentJourney(): unknown {
-  try { return journeySchema.parse(JSON.parse(sessionStorage.getItem("recruitment-journey-v1") || "{}").context); }
+  try {
+    const stored = JSON.parse(sessionStorage.getItem("recruitment-journey-v1") || "{}");
+    if (typeof stored.expires !== "number" || stored.expires <= Date.now()) return undefined;
+    return journeySchema.parse(stored.context);
+  }
   catch { return undefined; }
 }
