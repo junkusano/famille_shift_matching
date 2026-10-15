@@ -50,9 +50,10 @@ test('SQL: 重複・逆順メール・他媒体キャンセル・同時応募・
  create table rpa_command_requests(request_details jsonb,status text);
  create table dummy_shift(id uuid); create view shift_self_coordinate_card_view2 as select d.id,s.applicant_control_url from dummy_shift d left join spot_offer_request_table s on d.id=s.id;`);
  await db.exec(readFileSync(new URL('../supabase/migrations/202609080900_spot_provider_sync.sql',import.meta.url),'utf8'));
+ await db.exec(readFileSync(new URL('../supabase/migrations/202610151400_sharefull_application_notification_claims.sql',import.meta.url),'utf8'));
  const id='00000000-0000-4000-8000-000000000001';
  await db.query("insert into spot_offer_request_table(id,status) values($1,'募集中')",[id]);
- const event=async(provider,key,state,time,eventId)=>db.query('select record_spot_offer_application($1,$2,$3,$4,$5,$6,$7,null,null)',[id,provider,key,eventId,state,time,provider+'さん']);
+ const event=async(provider,key,state,time,eventId)=>(await db.query('select record_spot_offer_application($1,$2,$3,$4,$5,$6,$7,null,null)',[id,provider,key,eventId,state,time,provider+'さん'])).rows[0].record_spot_offer_application;
  const row=async()=>(await db.query('select * from spot_offer_request_table where id=$1',[id])).rows[0];
  await event('sharefull','s1','applied','2026-09-08T01:00Z','s1-apply');
  assert.equal((await row()).status,'確定');assert.equal((await row()).application_state,'applied');
@@ -71,9 +72,15 @@ test('SQL: 重複・逆順メール・他媒体キャンセル・同時応募・
  const rev=(await row()).recruitment_revision;
  await event('taimee','legacy','cancelled','2026-09-08T01:04Z','t2-cancel');
  assert.equal((await row()).recruitment_revision,rev);
+ await event('sharefull','s2','confirmed','2026-09-08T01:05Z','s2-confirm');
+ const cancellation=await event('sharefull','s2','cancelled','2026-09-08T01:06Z','s2-cancel');
+ assert.equal(cancellation.previous_application_state,'confirmed');
+ const duplicateCancellation=await event('sharefull','s2','cancelled','2026-09-08T01:06Z','s2-cancel');
+ assert.equal(duplicateCancellation.duplicate,true);
+ assert.equal(duplicateCancellation.previous_application_state,'confirmed');
  await db.query("update spot_offer_request_table set recruitment_paused=true where id=$1",[id]);
  await event('sharefull','s2','applied','2026-09-08T02:00Z','s2-apply');
- await event('sharefull','s2','cancelled','2026-09-08T02:01Z','s2-cancel');
+ await event('sharefull','s2','cancelled','2026-09-08T02:01Z','s2-cancel-paused');
  assert.equal((await row()).status,'募集なし');
  const job='00000000-0000-4000-8000-000000000002';
  await db.query("update spot_offer_request_table set sharefull_job_id='123',sharefull_order_id='456',sharefull_status='published' where id=$1",[id]);
