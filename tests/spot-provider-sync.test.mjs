@@ -50,6 +50,7 @@ test('SQL: 重複・逆順メール・他媒体キャンセル・同時応募・
  create table rpa_command_requests(request_details jsonb,status text);
  create table dummy_shift(id uuid); create view shift_self_coordinate_card_view2 as select d.id,s.applicant_control_url from dummy_shift d left join spot_offer_request_table s on d.id=s.id;`);
  await db.exec(readFileSync(new URL('../supabase/migrations/202609080900_spot_provider_sync.sql',import.meta.url),'utf8'));
+ await db.exec(readFileSync(new URL('../supabase/migrations/202610151400_allow_orphaned_sharefull_close_test_completion.sql',import.meta.url),'utf8'));
  const id='00000000-0000-4000-8000-000000000001';
  await db.query("insert into spot_offer_request_table(id,status) values($1,'募集中')",[id]);
  const event=async(provider,key,state,time,eventId)=>db.query('select record_spot_offer_application($1,$2,$3,$4,$5,$6,$7,null,null)',[id,provider,key,eventId,state,time,provider+'さん']);
@@ -88,5 +89,19 @@ test('SQL: 重複・逆順メール・他媒体キャンセル・同時応募・
  assert.equal((await db.query('select status from rpa_runner_jobs where id=$1',[job])).rows[0].status,'completed');
  await complete({closed:true,sharefull_job_id:'123',sharefull_order_id:'456'});
  assert.equal((await db.query('select count(*)::int as n from spot_offer_publication_history')).rows[0].n,1);
+
+ const orphanTestJob='00000000-0000-4000-8000-000000000003';
+ await db.query("insert into rpa_runner_jobs(id,claimed_runner_id,status,job_type,payload) values($1,'runner','claimed','sharefull.close_spot_offer',$2)",[orphanTestJob,JSON.stringify({sharefull_job_id:'789',sharefull_order_id:'987',created_from:'codex-stop-test'})]);
+ const completeOrphan=result=>db.query("select complete_sharefull_sync_job($1,'runner',$2)",[orphanTestJob,JSON.stringify(result)]);
+ await assert.rejects(completeOrphan({closed:true,sharefull_job_id:'789',sharefull_order_id:'wrong'}));
+ assert.equal((await db.query('select status from rpa_runner_jobs where id=$1',[orphanTestJob])).rows[0].status,'claimed');
+ await completeOrphan({closed:true,sharefull_job_id:'789',sharefull_order_id:'987',already_closed:true});
+ assert.equal((await db.query('select status from rpa_runner_jobs where id=$1',[orphanTestJob])).rows[0].status,'completed');
+ assert.equal((await db.query('select count(*)::int as n from spot_offer_publication_history')).rows[0].n,1);
+
+ const unmarkedJob='00000000-0000-4000-8000-000000000004';
+ await db.query("insert into rpa_runner_jobs(id,claimed_runner_id,status,job_type,payload) values($1,'runner','claimed','sharefull.close_spot_offer',$2)",[unmarkedJob,JSON.stringify({sharefull_job_id:'789',sharefull_order_id:'987'})]);
+ await assert.rejects(db.query("select complete_sharefull_sync_job($1,'runner',$2)",[unmarkedJob,JSON.stringify({closed:true,sharefull_job_id:'789',sharefull_order_id:'987'})]));
+ assert.equal((await db.query('select status from rpa_runner_jobs where id=$1',[unmarkedJob])).rows[0].status,'claimed');
  } finally {await db.close();}
 });
