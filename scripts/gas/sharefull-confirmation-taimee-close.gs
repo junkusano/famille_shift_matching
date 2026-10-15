@@ -72,7 +72,7 @@ function processSharefullConfirmationsForTaimeeCloseLocked_() {
   }
 }
 
-/** 両媒体のメールをまとめて1分ごとに確認する。 */
+/** 両媒体のメールをまとめて5分ごとに確認する。 */
 function processSpotOfferConfirmationEmails() {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return;
@@ -84,7 +84,7 @@ function processSpotOfferConfirmationEmails() {
   }
 }
 
-/** 初回設定時に一度実行し、両メール種別の1分ごとの確認トリガーを作成する。 */
+/** 初回設定時に一度実行し、両メール種別の5分ごとの確認トリガーを作成する。 */
 function installSpotOfferConfirmationTriggers() {
   var props = PropertiesService.getScriptProperties();
   if (!props.getProperty("SPOT_OFFER_CONFIRMATION_ACTIVATED_AT")) {
@@ -99,7 +99,7 @@ function installSpotOfferConfirmationTriggers() {
       ScriptApp.deleteTrigger(trigger);
     }
   });
-  ScriptApp.newTrigger("processSpotOfferConfirmationEmails").timeBased().everyMinutes(1).create();
+  ScriptApp.newTrigger("processSpotOfferConfirmationEmails").timeBased().everyMinutes(5).create();
 }
 
 function confirmationActivationTimestamp_() {
