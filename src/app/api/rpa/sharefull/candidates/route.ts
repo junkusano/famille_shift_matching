@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /**
  * Sharefull連携候補の読み取り専用一覧。
  *
- * 対象は、未来の勤務日でタイミー募集済み、かつSharefull未募集の案件です。
+ * 対象は、未来の勤務日で募集中、かつSharefull未掲載の案件です。
  * このAPIは検出のみを行い、既存テーブルへの登録・更新は行いません。
  * 既存のSharefullテンプレートがある案件だけを対象にします。
  * テンプレート審査中の案件は掲載候補から除外します。
@@ -26,7 +26,6 @@ export async function GET(request: NextRequest) {
         "id, core_id, kaipoke_cs_id, shift_id, shift_start_date, shift_start_time, shift_end_time, unit_amount, commute_fee, status, taimee_job_id, sharefull_job_id, sharefull_status"
       )
       .eq("status", "募集中")
-      .not("taimee_job_id", "is", null)
       .gte("shift_start_date", today)
       .or("sharefull_status.is.null,sharefull_status.in.(template_review,ready_for_offer)")
       .order("shift_start_date", { ascending: true })

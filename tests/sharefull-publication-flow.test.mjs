@@ -18,14 +18,14 @@ function loadPublisher({ env = {}, template = null, requests = [], shifts = [], 
     .replace(/export function/g, "function");
 
   function query(table) {
-    const state = { table, operation: "select", values: null, from: 0, to: Number.POSITIVE_INFINITY, filters: {} };
+    const state = { table, operation: "select", values: null, from: 0, to: Number.POSITIVE_INFINITY, filters: {}, notNullFilters: [] };
     const builder = {
       select() { state.operation = "select"; return builder; },
       eq(column, value) { state.filters[column] = value; return builder; },
       in() { return builder; },
       limit() { return builder; },
       gte() { return builder; },
-      not() { return builder; },
+      not(column, operator, value) { if (operator === "is" && value === null) state.notNullFilters.push(column); return builder; },
       is() { return builder; },
       or() { return builder; },
       order() { return builder; },
@@ -49,7 +49,8 @@ function loadPublisher({ env = {}, template = null, requests = [], shifts = [], 
         if (state.operation === "update") return Promise.resolve({ error: null }).then(resolve, reject);
         if (table === "rpa_runner_jobs") return Promise.resolve({ data: existingJobs.filter((row) => !state.filters.core_id || row.payload?.core_id === state.filters.core_id).slice(state.from, state.to + 1), error: null }).then(resolve, reject);
         if (table === "shift") return Promise.resolve({ data: shifts.filter((row) => !state.filters.shift_id || state.filters.shift_id === row.shift_id).slice(state.from, state.to + 1), error: null }).then(resolve, reject);
-        if (table.includes("request_table")) return Promise.resolve({ data: requests.filter((row) => !state.filters.core_id || row.core_id === state.filters.core_id).slice(state.from, state.to + 1), error: null }).then(resolve, reject);
+        if (table.includes("request_table")) return Promise.resolve({ data: requests.filter((row) => (!state.filters.core_id || row.core_id === state.filters.core_id)
+          && state.notNullFilters.every((column) => row[column] !== null && row[column] !== undefined)).slice(state.from, state.to + 1), error: null }).then(resolve, reject);
         return Promise.resolve({ data: [], error: null }).then(resolve, reject);
       },
     };
@@ -126,6 +127,36 @@ test("審査完了テンプレートからテスト用案件掲載ジョブを�
   assert.equal(insertedJobs[0].payload.rpa_mode, "test");
   assert.equal(insertedJobs[0].payload.execution_mode, "save");
   assert.ok(usedTables.includes("sharefull_rpa_test_spot_offer_request_table"));
+});
+
+test("タイミー案件IDが空でも審査完了テンプレートから掲載ジョブを登録する", async () => {
+  const { publisher, insertedJobs } = loadPublisher({
+    env: baseEnv,
+    template: { core_id: "core-1", kaipoke_cs_id: "12782561", sharefull_template_id: "template-1", sharefull_template_status: "ready_for_offer" },
+    requests: [{ id: "request-no-taimee-id", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 43, shift_start_date: "2099-01-03", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: null, sharefull_job_id: null, sharefull_status: "ready_for_offer", recruitment_revision: 0 }],
+    shifts: [{ shift_id: 43, required_staff_count: 1 }],
+  });
+
+  const result = await publisher.enqueueSharefullPublicationJobsForTemplate("core-1", "test");
+
+  assert.equal(result.registeredCount, 1);
+  assert.equal(insertedJobs[0].job_type, "sharefull.create_spot_offer");
+  assert.equal(insertedJobs[0].payload.spot_offer_request_id, "request-no-taimee-id");
+  assert.equal(insertedJobs[0].payload.taimee_job_id, null);
+});
+
+test("全テンプレートの定期照合でもタイミー案件IDなしの案件を掲載対象にする", async () => {
+  const { publisher, insertedJobs } = loadPublisher({
+    env: baseEnv,
+    template: { core_id: "core-1", kaipoke_cs_id: "12782561", sharefull_template_id: "template-1", sharefull_template_status: "ready_for_offer" },
+    requests: [{ id: "request-no-taimee-id", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 44, shift_start_date: "2099-01-04", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: null, sharefull_job_id: null, sharefull_status: "ready_for_offer", recruitment_revision: 0 }],
+    shifts: [{ shift_id: 44, required_staff_count: 1 }],
+  });
+
+  const result = await publisher.enqueueSharefullPublicationJobsForReadyTemplates("cron-test");
+
+  assert.equal(result.registeredCount, 1);
+  assert.equal(insertedJobs[0].payload.spot_offer_request_id, "request-no-taimee-id");
 });
 
 test("掲載結果が不明な失敗は同じRunnerから保存済み結果だけを照合する", async () => {
