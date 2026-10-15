@@ -6,6 +6,7 @@
  * 明示的に両方設定する。
  */
 const DEFAULT_TARGET_CLIENT_IDS = [
+  "8111577",
   "10857804",
   "12278553",
   "12581399",
@@ -16,6 +17,8 @@ const DEFAULT_TARGET_CLIENT_IDS = [
   "12988540",
   "8065144",
   "9003819",
+  "13611106",
+  "13673338",
 ];
 
 export type SharefullRpaMode = "production" | "test";

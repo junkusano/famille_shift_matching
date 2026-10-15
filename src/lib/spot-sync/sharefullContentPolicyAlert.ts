@@ -69,11 +69,13 @@ function fingerprint(input: ContentPolicyBlockInput): string {
 }
 
 function notificationText(input: ContentPolicyBlockInput): string {
-  const findings = input.report.findings.map((finding) => [
-    `検出項目: ${finding.matchedText}`,
-    `検出ルール: ${finding.ruleId}`,
-    finding.replacement ? `自動変換先: ${finding.replacement}` : null,
-  ].filter(Boolean).join("\n")).join("\n\n");
+  const findings = input.report.findings
+    .filter((finding) => finding.ruleId !== "gender-sensitive-recruiting")
+    .map((finding) => [
+      `検出項目: ${finding.matchedText}`,
+      `検出ルール: ${finding.ruleId}`,
+      finding.replacement ? `自動変換先: ${finding.replacement}` : null,
+    ].filter(Boolean).join("\n")).join("\n\n");
 
   return [
     input.report.status === "blocked"
@@ -88,11 +90,11 @@ function notificationText(input: ContentPolicyBlockInput): string {
     "",
     input.report.status === "blocked"
       ? "停止理由: シェアフル掲載前に確認が必要な文言を検出しました。"
-      : "記録内容: タイミー表記はシェアフル表記へ変換し、性別に関する要確認表現を監査記録・通知しました。これらの表現を理由に処理は停止していません。",
+      : "記録内容: タイミー表記はシェアフル表記へ変換し、要確認表現を監査記録しました。",
   ].filter((line): line is string => line !== null).join("\n");
 }
 
-/** 文面ポリシーの監査記録を保存し、停止対象または性別関連表現をLINE WORKSへ通知する。 */
+/** 文面ポリシーの監査記録を保存し、停止対象だけをLINE WORKSへ通知する。 */
 export async function recordSharefullContentPolicyBlock(input: ContentPolicyBlockInput): Promise<{
   recorded: boolean;
   notified: boolean;
@@ -122,10 +124,10 @@ export async function recordSharefullContentPolicyBlock(input: ContentPolicyBloc
     .single();
   const rowRecord = row as unknown as { id: string; notified_at?: string | null; notification_claimed_at?: string | null; notification_error?: string | null } | null;
   if (error || !rowRecord) throw error ?? new Error("停止記録を保存できませんでした");
-  // 性別関連表現は非ブロッキングの監査通知とする。その他は従来どおり、実際に停止する場合だけ通知する。
-  const hasGenderSensitiveFinding = input.report.findings.some((finding) => finding.ruleId === "gender-sensitive-recruiting");
-  const hasBlockingFinding = input.report.findings.some((finding) => finding.action === "block");
-  if (!hasGenderSensitiveFinding && (input.report.status !== "blocked" || !hasBlockingFinding)) {
+  // 性別関連表現は監査記録だけに留め、通知の判定・本文から除外する。
+  const notificationFindings = input.report.findings.filter((finding) => finding.ruleId !== "gender-sensitive-recruiting");
+  const hasBlockingFinding = notificationFindings.some((finding) => finding.action === "block");
+  if (input.report.status !== "blocked" || !hasBlockingFinding) {
     return { recorded: true, notified: false };
   }
   if (rowRecord.notified_at) return { recorded: true, notified: true };

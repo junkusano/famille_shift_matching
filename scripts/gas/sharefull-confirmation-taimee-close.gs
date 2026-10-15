@@ -72,7 +72,7 @@ function processSharefullConfirmationsForTaimeeCloseLocked_() {
   }
 }
 
-/** 両媒体のメールをまとめて1分ごとに確認する。 */
+/** 両媒体のメールをまとめて5分ごとに確認する。 */
 function processSpotOfferConfirmationEmails() {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return;
@@ -84,7 +84,7 @@ function processSpotOfferConfirmationEmails() {
   }
 }
 
-/** 初回設定時に一度実行し、両メール種別の1分ごとの確認トリガーを作成する。 */
+/** 初回設定時に一度実行し、両メール種別の5分ごとの確認トリガーを作成する。 */
 function installSpotOfferConfirmationTriggers() {
   var props = PropertiesService.getScriptProperties();
   if (!props.getProperty("SPOT_OFFER_CONFIRMATION_ACTIVATED_AT")) {
@@ -99,7 +99,7 @@ function installSpotOfferConfirmationTriggers() {
       ScriptApp.deleteTrigger(trigger);
     }
   });
-  ScriptApp.newTrigger("processSpotOfferConfirmationEmails").timeBased().everyMinutes(1).create();
+  ScriptApp.newTrigger("processSpotOfferConfirmationEmails").timeBased().everyMinutes(5).create();
 }
 
 function confirmationActivationTimestamp_() {
@@ -266,10 +266,14 @@ function parseTaimeeConfirmationMail_(message, expectedSender) {
   // Only accept the individual worker-confirmation notification.
   if (!/ワーカーが\s*\d+名マッチングしました/.test(fullText)) return null;
 
-  var taimeeJobId = taimeeCloseCapture_(fullText, /(?:求人ID|求人番号|募集ID|募集番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
+  // タイミー通知に含まれる /offerings/{id} は実際のタイミー求人ID。
+  // 業務タイトルの @数字@ はMyFamille側の介護事業所IDとして使われるため、求人IDには使わない。
+  var taimeeJobId = taimeeCloseCapture_(fullText, /\/offerings\/([0-9]{4,})(?:[/?#\s)\]>]|$)/i);
+  if (!taimeeJobId) {
+    taimeeJobId = taimeeCloseCapture_(fullText, /(?:求人ID|求人番号|募集ID|募集番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
+  }
   var title = taimeeCloseCapture_(fullText, /(?:業務タイトル|求人タイトル|仕事タイトル)\s*[：:]?\s*([^\n\r]+)/i);
   var titleJobId = /@([0-9]{4,})@/.exec(title);
-  if (!taimeeJobId && titleJobId) taimeeJobId = titleJobId[1];
   if (titleJobId) title = title.replace(/\s*@([0-9]{4,})@\s*/g, " ").trim();
   var workStart = parseTaimeeWorkStart_(fullText);
   if (!taimeeJobId && (!title || !workStart)) return null;

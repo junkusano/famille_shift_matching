@@ -274,7 +274,6 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
     .eq("core_id", coreId)
     .eq("status", "募集中")
     .gte("shift_start_date", today)
-    .not("taimee_job_id", "is", null)
     .is("sharefull_job_id", null)
     .or("sharefull_status.is.null,sharefull_status.in.(template_review,ready_for_offer)")
     .order("shift_start_date", { ascending: true })
@@ -448,7 +447,6 @@ export async function enqueueSharefullPublicationJobsForReadyTemplates(source: s
     .select("id, core_id, kaipoke_cs_id")
     .eq("status", "募集中")
     .gte("shift_start_date", today)
-    .not("taimee_job_id", "is", null)
     .is("sharefull_job_id", null)
     .or("sharefull_status.is.null,sharefull_status.in.(template_review,ready_for_offer)");
   const scopeClientIds = sharefullSyncClientIds();

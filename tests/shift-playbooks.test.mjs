@@ -14,12 +14,12 @@ function load(file, overrides = {}) {
 const parser = load('../src/lib/agent-playbooks/shiftCancellationParser.ts');
 const base = { eventType:'message', channelId:'room', requesterLwUserid:'requester', issuedAt:'2026-09-13T09:21:00Z', hasBotMention:true, mentionedLwUserids:[] };
 const application = '@すまーとアイさん\nいつもお世話になります。\n10月利用申込、\n3(土)10:00自宅～おでかけ～16:00自宅\n24(土)10:00自宅～おでかけ～16:00自宅\n調整よろしくお願いします🙏';
-function fixture(action) {
+function fixture(action, clientId = '12345678') {
   const tables = {
     agent_playbooks:[{id:'book', category:'shift', room_scope:'client_room',trigger_mode:'lineworks_mention',execution_mode:'native_agent',is_enabled:true, allowed_actions:['shift.list', action], context_minutes:30,context_message_limit:10,session_ttl_minutes:7}],
     agent_sessions:[], agent_runs:[], msg_lw_log:[],
-    group_lw_channel_view:[{channel_id:'room',group_account:'12345678',group_type:'利用者様情報連携グループ',group_name:'Test'}],
-    shift:[{shift_id:1,kaipoke_cs_id:'12345678',shift_start_date:'2026-09-20',shift_start_time:'10:00:00',shift_end_time:'16:00:00',service_code:'test',staff_01_user_id:'staff',required_staff_count:1}],
+    group_lw_channel_view:[{channel_id:'room',group_account:clientId,group_type:'利用者様情報連携グループ',group_name:'Test'}],
+    shift:[{shift_id:1,kaipoke_cs_id:clientId,shift_start_date:'2026-09-20',shift_start_time:'10:00:00',shift_end_time:'16:00:00',service_code:'test',staff_01_user_id:'staff',required_staff_count:1}],
     user_entry_united_view_single:[{user_id:'staff',lw_userid:'staff-lw',last_name_kanji:'担当',first_name_kanji:'職員',status:'lineworks_kaipoke_joined'}],
     shift_service_code:[{service_code:'test'}], users:[]
   };
@@ -73,6 +73,24 @@ test('期限切れの確認にOKを返しても削除しない',async()=>{
 test('確認後に対象日時が変わった場合は削除しない',async()=>{
   const f=fixture('shift.delete');await f.cancel.handleShiftCancellationAgent({...base,message:'9/20 シフト削除して'});
   f.tables.shift[0].shift_start_time='11:00:00';const result=await f.cancel.handleShiftCancellationAgent({...base,message:'OK',hasBotMention:false});assert.match(result.replyText,/内容が変わった/);assert.equal(f.rpcCalls.length,0);
+});
+
+test('7桁の利用者IDの部屋でもシフト削除の確認まで進む', async () => {
+  const f = fixture('shift.delete', '7310056');
+  const result = await f.cancel.handleShiftCancellationAgent({ ...base, message: '9/20 シフト削除して' });
+  assert.equal(result.handled, true);
+  assert.match(result.replyText, /2026-09-20/);
+  assert.match(result.replyText, /OK/);
+  assert.equal(f.rpcCalls.length, 0);
+});
+
+test('7桁の利用者IDの部屋でもシフト追加の確認まで進む', async () => {
+  const f = fixture('shift.create', '7310056');
+  const result = await f.create.handleShiftCreationAgent({ ...base, message: '10/3 10:00〜16:00 サービス追加して' });
+  assert.equal(result.handled, true);
+  assert.match(result.replyText, /2026-10-03/);
+  assert.match(result.replyText, /OK/);
+  assert.equal(f.rpcCalls.length, 0);
 });
 
 test('受信口から追加・キャンセルへ接続し、実際のメンション形式を渡す',async()=>{
