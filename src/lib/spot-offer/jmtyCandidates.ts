@@ -13,8 +13,8 @@ export type JmtyRequest = {
 export type JmtyTemplate = {
   core_id: string;
   jmty_template_status: string | null;
-  jmty_title: string | null;
-  jmty_description: string | null;
+  template_title: string | null;
+  work_description: string | null;
   matching_place_name: string | null;
 };
 
@@ -60,9 +60,9 @@ export function buildJmtyCandidates(
 
     const template = byCoreId.get(request.core_id);
     if (template?.jmty_template_status !== "ready_for_offer") return [];
-    const title = safeTitle(template.jmty_title ?? "");
-    // 空の承認フラグや空文面を誤って候補にしない。
-    if (!title || !template.jmty_description?.trim()) return [];
+    const title = safeTitle(template.template_title ?? "");
+    // ジモティー専用の承認状態を必須にし、本文はタイミー由来の既存文面を使う。
+    if (!title || !template.work_description?.trim()) return [];
 
     const pay = money(request.unit_amount);
     const commute = money(request.commute_fee);
@@ -76,7 +76,7 @@ export function buildJmtyCandidates(
       title,
       workplace_summary: workplaceSummary(template.matching_place_name),
       recruitment_summary: recruitmentSummary,
-      reason: "募集中・勤務日が未来・ジモティー文面承認済み・Sharefull掲載なし",
+      reason: "募集中・勤務日が未来・ジモティー掲載用承認済み・Sharefull掲載なし",
       status: request.jmty_status === "ready_for_offer"
         ? "掲載準備済み"
         : request.jmty_status === "template_review" ? "確認待ち" : "未掲載",

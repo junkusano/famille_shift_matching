@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const coreIds = [...new Set(requests.map((row) => row.core_id).filter((id): id is string => Boolean(id)))];
     const { data: sourceTemplates, error: templateError } = coreIds.length
       ? await supabaseAdmin.from(sharefullTemplateTableName() as never)
-          .select("core_id, jmty_template_status, jmty_title, jmty_description, matching_place_name, kaipoke_cs_id")
+          .select("core_id, jmty_template_status, template_title, work_description, matching_place_name, kaipoke_cs_id")
           .in("core_id", coreIds)
       : { data: [], error: null };
     if (templateError) throw templateError;

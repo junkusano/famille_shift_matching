@@ -20,8 +20,8 @@ const request = (overrides = {}) => ({
   ...overrides,
 });
 const template = (overrides = {}) => ({
-  core_id: "core-1", jmty_template_status: "ready_for_offer", jmty_title: "訪問介護スタッフ",
-  jmty_description: "勤務条件の承認済み文面", matching_place_name: "愛知県名古屋市千種区1-2-3 052-123-4567",
+  core_id: "core-1", jmty_template_status: "ready_for_offer", template_title: "訪問介護スタッフ",
+  work_description: "タイミーから取得した募集文面", matching_place_name: "愛知県名古屋市千種区1-2-3 052-123-4567",
   ...overrides,
 });
 
@@ -44,7 +44,7 @@ test("承認前、文面不足、終了案件、Sharefull掲載済み案件を�
   ], [
     template(),
     template({ core_id: "core-review", jmty_template_status: "template_review" }),
-    template({ core_id: "core-empty", jmty_description: "  " }),
+    template({ core_id: "core-empty", work_description: "  " }),
   ], "2026-10-15");
   assert.deepEqual(Array.from(result, (item) => item.id), ["request-1"]);
 });

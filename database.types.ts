@@ -10682,9 +10682,7 @@ export type Database = {
           end_at: string | null
           fare: string | null
           internal_label: string | null
-          jmty_description: string | null
           jmty_template_status: string | null
-          jmty_title: string | null
           kaipoke_cs_id: string | null
           kaiteku_offer_id: string | null
           kaiteku_scraped_at: string | null
@@ -10727,9 +10725,7 @@ export type Database = {
           end_at?: string | null
           fare?: string | null
           internal_label?: string | null
-          jmty_description?: string | null
           jmty_template_status?: string | null
-          jmty_title?: string | null
           kaipoke_cs_id?: string | null
           kaiteku_offer_id?: string | null
           kaiteku_scraped_at?: string | null
@@ -10772,9 +10768,7 @@ export type Database = {
           end_at?: string | null
           fare?: string | null
           internal_label?: string | null
-          jmty_description?: string | null
           jmty_template_status?: string | null
-          jmty_title?: string | null
           kaipoke_cs_id?: string | null
           kaiteku_offer_id?: string | null
           kaiteku_scraped_at?: string | null
