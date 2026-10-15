@@ -1,4 +1,5 @@
 import "server-only";
+import { safeSyncError } from "@/lib/knowledge/syncErrors";
 import { createClient } from "@supabase/supabase-js";
 
 import { supabaseAdmin } from "@/lib/supabase/service";
@@ -20,14 +21,6 @@ type RunOptions = {
   triggerType: "cron" | "manual" | "system";
   actorAuthUserId?: string;
 };
-
-function safeError(error: unknown) {
-  const message = error instanceof Error ? error.message : "同期に失敗しました。";
-  if (/token|secret|authorization|credential/i.test(message)) {
-    return { code: "CONNECTION_FAILED", message: "外部サービスの認証または接続に失敗しました。" };
-  }
-  return { code: "SYNC_FAILED", message: message.slice(0, 1_000) };
-}
 
 async function persistSourceObject(db: typeof supabaseAdmin, source: KnowledgeSource, object: NormalizedSourceObject) {
   const { data: existing, error: existingError } = await db
@@ -391,7 +384,7 @@ export async function runKnowledgeSource(options: RunOptions): Promise<Knowledge
       warnings: result.warnings,
     };
   } catch (error) {
-    const safe = safeError(error);
+    const safe = safeSyncError(error);
     const finishedAt = new Date().toISOString();
     await supabaseAdmin.from("knowledge_sync_runs").update({
       status: "failed",

@@ -49,3 +49,13 @@ test('リライトは新規記事作成へ流さず、同日の再実行を防�
  assert.equal((await m.runKnowledgeAutomationTask({taskId:task.id,triggerSource:'schedule'})).status,'skipped');
  assert.equal(rewrites,1);assert.equal(creates,0);
 });
+
+test('候補不足でも候補数と情報源別の同期警告を実行履歴へ保存する',async()=>{
+ const updates=[];const task={id:'blog-task',task_type:'wordpress_blog',destination:'wordpress_post',is_enabled:true,settings:{social_sharing:false},next_run_at:null,trigger_type:'daily',schedule:{}};
+ const db={from(table){const q={select:()=>q,eq:()=>q,insert:()=>q,update(value){updates.push({table,value});return q},maybeSingle:async()=>({data:task}),single:async()=>({data:{id:'run'}}),then(resolve){return Promise.resolve({error:null}).then(resolve)}};return q}};
+ const candidateCounts={thought:0,lesson_principle:0,key_knowledge:0,rss_article:12};const sourceWarnings=['lesson-reminders: 分割同期中'];
+ const m=loadModule('../src/lib/knowledge-automation/runner.ts',{'server-only':{},'@/lib/knowledge-automation/scheduling':{calculateAutomationNextRunAt:()=>null},'@/lib/supabase/service':{supabaseAdmin:db},'@/lib/wordpress/server':{WordPressApiError:class extends Error{}},'@/lib/knowledge-automation/wordpressRewrite':{},'@/lib/knowledge-automation/wordpressBlog':{createWordPressBlogDraft:async()=>({status:'skipped',message:'公開用要約の承認待ち',candidateCounts,sourceWarnings})}});
+ const r=await m.runKnowledgeAutomationTask({taskId:task.id,triggerSource:'manual'});assert.equal(r.status,'skipped');
+ const saved=updates.find(u=>u.value.output_summary)?.value.output_summary;
+ assert.deepEqual(saved.candidateCounts,candidateCounts);assert.deepEqual(saved.sourceWarnings,sourceWarnings);
+});
