@@ -13,6 +13,13 @@ function load(file, mocks={}) {
 }
 const tracking=load('../src/lib/recruitmentTracking.ts');
 const journey={journeyId:'11111111-1111-4111-8111-111111111111',source:'myfamille_lp'};
+test('未ログインの計測はルートの公開APIへ届き、管理APIは保護する',async()=>{
+  const next={next:()=>new Response(null,{status:204}),json:Response.json,redirect:()=>new Response(null,{status:307})};
+  const auth={getSession:async()=>({data:{session:null}}),getUser:async()=>({data:{user:null}})};
+  const m=load('../middleware.ts',{'next/server':{NextResponse:next},'@supabase/auth-helpers-nextjs':{createMiddlewareClient:()=>({auth})}});
+  assert.equal((await m.middleware({nextUrl:{pathname:'/api/recruitment-events'}})).status,204);
+  assert.equal((await m.middleware({nextUrl:{pathname:'/api/recruitment-analytics'}})).status,401);
+});
 test('公開計測APIは成功偽装、個人情報、未許可originを拒否する',async()=>{
   const writes=[];const api=load('../src/app/api/recruitment-events/route.ts',{
     'next/server':{NextResponse:Response},'@/lib/recruitmentTracking':tracking,
