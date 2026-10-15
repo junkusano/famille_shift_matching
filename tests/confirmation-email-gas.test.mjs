@@ -114,6 +114,35 @@ test('統合版の5分ハンドラーが新しいタイミー停止処理を呼�
   assert.deepEqual(calls, ['sharefull', 'taimee']);
 });
 
+test('統合トリガー導入時に旧単独トリガーを削除し、5分トリガーを1つ登録する', () => {
+  const deleted = [];
+  const created = [];
+  const properties = new Map();
+  context.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (key) => properties.get(key) ?? null,
+      setProperty: (key, value) => properties.set(key, value),
+    }),
+  };
+  context.ScriptApp = {
+    getProjectTriggers: () => [
+      { getHandlerFunction: () => 'processSharefullConfirmationsForTaimeeClose', deleteTrigger: () => deleted.push('sharefull') },
+      { getHandlerFunction: () => 'processTaimeeConfirmationsForSharefullClose', deleteTrigger: () => deleted.push('taimee') },
+      { getHandlerFunction: () => 'unrelatedAutomation', deleteTrigger: () => deleted.push('unrelated') },
+    ],
+    deleteTrigger: (trigger) => trigger.deleteTrigger(),
+    newTrigger: (handler) => ({
+      timeBased: () => ({ everyMinutes: (minutes) => ({ create: () => created.push({ handler, minutes }) }) }),
+    }),
+  };
+
+  context.installSpotOfferConfirmationTriggers();
+
+  assert.deepEqual(deleted, ['sharefull', 'taimee']);
+  assert.deepEqual(created, [{ handler: 'processSpotOfferConfirmationEmails', minutes: 5 }]);
+  assert.ok(properties.get('SPOT_OFFER_CONFIRMATION_ACTIVATED_AT'));
+});
+
 test('有効化時刻以前および同時刻のメールは処理対象外にする', () => {
   const activationTimestamp = new Date('2026-10-09T10:00:00+09:00').getTime();
   const before = message({ date: '2026-10-09T09:59:59+09:00' });
