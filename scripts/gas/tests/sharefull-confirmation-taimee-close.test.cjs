@@ -6,6 +6,16 @@ const assert = require("node:assert/strict");
 
 const source = fs.readFileSync(path.join(__dirname, "..", "sharefull-confirmation-taimee-close.gs"), "utf8");
 const context = vm.createContext({});
+const requests = [];
+context.UrlFetchApp = {
+  fetch(url, options) {
+    requests.push({ url, payload: JSON.parse(options.payload) });
+    return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ ok: true }) };
+  },
+};
+context.PropertiesService = {
+  getScriptProperties: () => ({ setProperty: () => {} }),
+};
 vm.runInContext(source, context);
 
 function message(subject, body) {
@@ -44,4 +54,17 @@ test("別の送信元から来たメールはSharefullイベントとして扱�
     "system@sharefull.com",
   );
   assert.equal(result, null);
+});
+
+test("キャンセル検索では確定イベントを再送せず、キャンセルをキャンセルAPIへ送る", () => {
+  const config = { apiBaseUrl: "https://myfamille.shi-on.net", apiToken: "token", senderEmail: "system@sharefull.com" };
+  const processed = {};
+  const confirmed = message("【候補者が決定しました】", "候補者\n坪下由奈さん\nhttps://client.sharefull.com/orders/8302484");
+  const cancelled = message("【応募キャンセル】", "キャンセルした応募者\n坪下由奈 さん（女性）\nhttps://client.sharefull.com/orders/8302484");
+
+  assert.equal(context.processSharefullConfirmationMessage_(confirmed, config, 0, processed, "cancelled"), true);
+  assert.equal(context.processSharefullConfirmationMessage_(cancelled, config, 0, processed, "cancelled"), true);
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].url, /\/api\/rpa\/sharefull\/cancelled$/);
+  assert.equal(requests[0].payload.state, "cancelled");
 });

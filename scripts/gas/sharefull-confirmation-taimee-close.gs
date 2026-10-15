@@ -26,45 +26,14 @@ function processSharefullConfirmationsForTaimeeCloseLocked_() {
   var activationTimestamp = confirmationActivationTimestamp_();
 
   for (var start = 0; ; start += 100) {
-    // スレッド単位の処理済みラベルで絞らない。ラベル済みスレッドへ後から
-    // 追加されたキャンセルメールも、未処理メッセージIDで検出できるようにする。
-    var threads = GmailApp.search(config.gmailQuery, start, 100);
+    // 通常の確定メールは処理済みスレッドを除外する。
+    var threads = GmailApp.search(config.gmailQuery + " -label:" + label.getName(), start, 100);
     if (!threads.length) break;
     var failed = false;
     threads.forEach(function(thread) {
       var threadSucceeded = true;
       thread.getMessages().forEach(function(message) {
-        var messageId = message.getId();
-        if (processed[messageId]) return;
-
-        if (isConfirmationMessageBeforeActivation_(message, activationTimestamp)) {
-          processed[messageId] = true;
-          saveSharefullCloseProcessedIds_(processed);
-          return;
-        }
-
-        var event = parseSharefullConfirmationMail_(message, config.senderEmail);
-        if (!event) return;
-
-        var endpoint = event.state === "cancelled" ? "cancelled" : "confirmed";
-        var response = UrlFetchApp.fetch(config.apiBaseUrl + "/api/rpa/sharefull/" + endpoint, {
-          method: "post",
-          contentType: "application/json",
-          headers: { Authorization: "Bearer " + config.apiToken },
-          payload: JSON.stringify(event),
-          muteHttpExceptions: true
-        });
-        var code = response.getResponseCode();
-        var result;
-        try { result = JSON.parse(response.getContentText() || "{}"); } catch (e) { result = {}; }
-        if (code < 200 || code >= 300 || !result.ok) {
-          console.warn("Sharefull応募イベントの処理に失敗しました。HTTP " + code);
-          threadSucceeded = false;
-          return;
-        }
-
-        processed[messageId] = true;
-        saveSharefullCloseProcessedIds_(processed);
+        if (!processSharefullConfirmationMessage_(message, config, activationTimestamp, processed, "confirmed")) threadSucceeded = false;
       });
       if (threadSucceeded) thread.addLabel(label);
       else failed = true;
@@ -72,6 +41,55 @@ function processSharefullConfirmationsForTaimeeCloseLocked_() {
     // 失敗メールを残して次回トリガーで再試行する。
     if (failed) break;
   }
+
+  // 処理済みラベルが付いたスレッドにも後からキャンセル通知が届くため、
+  // キャンセルだけはラベルを除外せず検索する。通常の確定メールは再送しない。
+  for (var cancellationStart = 0; ; cancellationStart += 100) {
+    var cancellationThreads = GmailApp.search(config.gmailQuery, cancellationStart, 100);
+    if (!cancellationThreads.length) break;
+    var cancellationFailed = false;
+    cancellationThreads.forEach(function(thread) {
+      thread.getMessages().forEach(function(message) {
+        if (!processSharefullConfirmationMessage_(message, config, activationTimestamp, processed, "cancelled")) {
+          cancellationFailed = true;
+        }
+      });
+    });
+    if (cancellationFailed) break;
+  }
+}
+
+function processSharefullConfirmationMessage_(message, config, activationTimestamp, processed, requiredState) {
+  var messageId = message.getId();
+  if (processed[messageId]) return true;
+  if (isConfirmationMessageBeforeActivation_(message, activationTimestamp)) {
+    processed[messageId] = true;
+    saveSharefullCloseProcessedIds_(processed);
+    return true;
+  }
+
+  var event = parseSharefullConfirmationMail_(message, config.senderEmail);
+  if (!event || event.state !== requiredState) return true;
+
+  var endpoint = event.state === "cancelled" ? "cancelled" : "confirmed";
+  var response = UrlFetchApp.fetch(config.apiBaseUrl + "/api/rpa/sharefull/" + endpoint, {
+    method: "post",
+    contentType: "application/json",
+    headers: { Authorization: "Bearer " + config.apiToken },
+    payload: JSON.stringify(event),
+    muteHttpExceptions: true
+  });
+  var code = response.getResponseCode();
+  var result;
+  try { result = JSON.parse(response.getContentText() || "{}"); } catch (e) { result = {}; }
+  if (code < 200 || code >= 300 || !result.ok) {
+    console.warn("Sharefull応募イベントの処理に失敗しました。HTTP " + code);
+    return false;
+  }
+
+  processed[messageId] = true;
+  saveSharefullCloseProcessedIds_(processed);
+  return true;
 }
 
 /** 両媒体のメールをまとめて5分ごとに確認する。 */

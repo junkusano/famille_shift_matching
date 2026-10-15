@@ -90,28 +90,26 @@ export async function POST(request: NextRequest) {
     const result = recorded as Record<string, unknown> | null;
     if (result?.stale) return NextResponse.json({ ok: true, stale: true });
 
-    let notification: { sent: boolean; alreadySent?: boolean; inProgress?: boolean } | undefined;
-    if (result?.previous_application_state === "confirmed") {
-      const shiftStart = `${target.shift_start_date ?? ""}T${String(target.shift_start_time ?? "").slice(0, 5)}:00+09:00`;
-      const startsAt = Date.parse(shiftStart);
-      const urgent = Number.isFinite(startsAt) && startsAt - Date.now() <= 24 * 60 * 60 * 1000;
-      const message = [
-        urgent ? "【要至急対応】Sharefull 決定後キャンセル" : "【Sharefull 決定後キャンセル】再調整が必要です",
-        `管理番号: ${target.sharefull_order_id || orderId || "不明"}`,
-        `求人ID: ${target.sharefull_job_id || jobId || "不明"}`,
-        `勤務日: ${target.shift_start_date || "不明"}`,
-        `勤務開始: ${target.shift_start_time || "不明"}`,
-        "応募はキャンセル済みです。次の候補者を自動確定せず、空き状況と応募者を確認してください。",
-      ].join("\n");
-      notification = await notifySharefullApplication({
-        provider: "sharefull",
-        eventId,
-        text: message,
-        eventTable: "spot_offer_application_events",
-      });
-      if (!notification.sent) {
-        return NextResponse.json({ ok: false, error: "再調整通知を別処理が送信中です", notification }, { status: 503 });
-      }
+    const shiftStart = `${target.shift_start_date ?? ""}T${String(target.shift_start_time ?? "").slice(0, 5)}:00+09:00`;
+    const startsAt = Date.parse(shiftStart);
+    const urgent = Number.isFinite(startsAt) && startsAt - Date.now() <= 24 * 60 * 60 * 1000;
+    const wasConfirmed = result?.previous_application_state === "confirmed";
+    const message = [
+      urgent ? "【要至急対応】Sharefull 応募キャンセル" : wasConfirmed ? "【Sharefull 決定後キャンセル】再調整が必要です" : "【Sharefull 応募キャンセル】確認してください",
+      `管理番号: ${target.sharefull_order_id || orderId || "不明"}`,
+      `求人ID: ${target.sharefull_job_id || jobId || "不明"}`,
+      `勤務日: ${target.shift_start_date || "不明"}`,
+      `勤務開始: ${target.shift_start_time || "不明"}`,
+      "応募はキャンセル済みです。次の候補者を自動確定せず、募集状況と応募者を確認してください。",
+    ].join("\n");
+    const notification = await notifySharefullApplication({
+      provider: "sharefull",
+      eventId,
+      text: message,
+      eventTable: "spot_offer_application_events",
+    });
+    if (!notification.sent) {
+      return NextResponse.json({ ok: false, error: "キャンセル通知を別処理が送信中です", notification }, { status: 503 });
     }
 
     return NextResponse.json({ ok: true, duplicate: Boolean(result?.duplicate), notification });
