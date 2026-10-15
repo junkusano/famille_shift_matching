@@ -6,21 +6,21 @@
 
 ### シェアフル確定メール → タイミー募集停止
 
-1. `processSpotOfferConfirmationEmails` が1分ごとに両方の対象Gmailを検索する。
+1. `processSpotOfferConfirmationEmails` が5分ごとに両方の対象Gmailを検索する。
 2. 送信元を完全一致で確認し、確定語句とシェアフル求人IDまたは管理番号を抽出する。
 3. `/api/rpa/sharefull/confirmed` がMyFamille案件とIDを照合し、`sharefull` の応募状態を `confirmed` として記録する。
 4. タイミーPAD用 `close_job` を登録する。
 
 ### タイミー確定メール → シェアフル募集停止
 
-1. `processSpotOfferConfirmationEmails` が1分ごとに両方の対象Gmailを検索する。
+1. `processSpotOfferConfirmationEmails` が5分ごとに両方の対象Gmailを検索する。
 2. 送信元とマッチング通知を確認し、タイミー求人ID、または業務タイトル・勤務日・開始時刻を抽出する。
 3. `/api/rpa/taimee/confirmed` が案件を一意照合し、`taimee` の応募状態を `confirmed` として記録する。
 4. シェアフル `sharefull.close_spot_offer` ジョブを登録する。
 
 いずれもID・日時・タイトルの照合で複数一致や不一致があれば停止指示を作らない。GmailメッセージIDと同期キーで再送・二重登録を防ぐ。
 
-GASはGmailを最大1分間隔で確認する。実際の掲載停止はタイミーPADが停止指示を取得して実行した後となる。
+GASはGmailを5分間隔で確認するため、メール到着から検知まで最大約5分かかる。検知後、APIが停止ジョブを登録し、既存のRPA処理が実行する。Vercelの `/api/cron/spot-offer-sync-check` も5分ごとに実行されるが、これはGmailを読む処理ではなく、案件状態の同期・照合を行う。
 
 ## GASの設定
 
