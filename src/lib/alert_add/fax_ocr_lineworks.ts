@@ -4,6 +4,8 @@ import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { FAX_UNHANDLED_GROUP_NAME } from "@/lib/alert_add/fax_unhandled_lineworks";
 
+const LEGACY_FAX_UNHANDLED_GROUP_NAME = "◆（Fax）対応忘れ防止グループ（ケアマネ）";
+
 const MAX_OCR_TEXT_LENGTH = 7000;
 // LINE WORKSのcontent.text制限を超えないよう、UTF-8換算でも余裕を持たせる。
 const MAX_LINEWORKS_MESSAGE_LENGTH = 1000;
@@ -59,15 +61,16 @@ function splitMessage(message: string): string[] {
 export async function notifyFaxOcrCompleted(
   input: FaxOcrNotificationInput,
 ): Promise<FaxOcrNotificationResult> {
-  const { data: group, error: groupError } = await supabaseAdmin
+  const { data: groups, error: groupError } = await supabaseAdmin
     .from("group_lw_channel_view")
     .select("group_name, channel_id")
-    .eq("group_name", FAX_UNHANDLED_GROUP_NAME)
+    .in("group_name", [FAX_UNHANDLED_GROUP_NAME, LEGACY_FAX_UNHANDLED_GROUP_NAME])
     .not("channel_id", "is", null)
-    .limit(1)
-    .maybeSingle();
+    .limit(10);
 
   if (groupError) throw groupError;
+  const group = (groups ?? []).find((item) => item.group_name === FAX_UNHANDLED_GROUP_NAME)
+    ?? (groups ?? []).find((item) => item.group_name === LEGACY_FAX_UNHANDLED_GROUP_NAME);
   if (!group?.channel_id) {
     return {
       sent: false,

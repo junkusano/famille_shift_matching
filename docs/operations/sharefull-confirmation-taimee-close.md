@@ -55,3 +55,4 @@ GASはGmailを5分間隔で確認するため、メール到着から検知ま�
 本番Vercel環境に `SHAREFULL_CONFIRMATION_GAS_TOKEN` と `TAIMEE_CONFIRMATION_GAS_TOKEN` を設定する。タイミーからシェアフルを停止するAPIは `SPOT_PROVIDER_SYNC_ENABLED=true` かつ本番モードの場合だけ処理する。秘密値はリポジトリやログへ記録しない。APIはBearerトークンを検証し、MyFamille DBの `spot_offer_applications` と相手媒体のRPA指示キューを更新する。
 
 参照: [タイミー「マッチングした際のお知らせメールについて」](https://clients-help.timee.co.jp/hc/ja/articles/19324681452697-%E3%83%9E%E3%83%83%E3%83%81%E3%83%B3%E3%82%B0%E3%81%97%E3%81%9F%E9%9A%9B%E3%81%AE%E3%81%8A%E7%9F%A5%E3%82%89%E3%81%9B%E3%83%A1%E3%83%BC%E3%83%AB%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6)、[タイミー「タイミーからのメールが届かない」](https://clients-help.timee.co.jp/hc/ja/articles/17525852371993-%E3%82%BF%E3%82%A4%E3%83%9F%E3%83%BC%E3%81%8B%E3%82%89%E3%81%AE%E3%83%A1%E3%83%BC%E3%83%AB%E3%81%8C%E5%B1%8A%E3%81%8B%E3%81%AA%E3%81%84)
+

@@ -8,6 +8,7 @@ import { useRoleContext } from "@/context/RoleContext";
 import {
   CalendarDays,
   FileText,
+  KeyRound,
   Wallet,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
@@ -350,6 +351,23 @@ const isManagerOrAdmin =
       <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800 md:hidden">
         📱 各機能は左のオレンジ色のバーから利用できます。タップしてメニューを開いてください。
       </div>
+
+      <button
+        type="button"
+        onClick={() => router.push('/portal/account/password')}
+        className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-left text-blue-950 shadow-sm transition hover:border-blue-300 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-blue-700 shadow-sm">
+          <KeyRound aria-hidden="true" className="h-5 w-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold">Famille Voice用パスワード設定</span>
+          <span className="mt-0.5 block text-sm text-blue-800">
+            Googleログインをご利用の方も、Famille Voiceで使うパスワードを設定できます。
+          </span>
+        </span>
+        <span aria-hidden="true" className="text-xl text-blue-500">›</span>
+      </button>
 
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[160px_1fr] md:items-stretch">
         {/* プロフィール */}
