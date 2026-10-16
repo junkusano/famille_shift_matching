@@ -19,6 +19,7 @@ type AgentSession = {
   playbook_id: string | null;
   status: string;
   pending_action: Record<string, unknown> | null;
+  state?: Record<string, unknown> | null;
   expires_at: string;
 };
 
@@ -89,10 +90,21 @@ function isNo(text: string) {
   return /^(no|キャンセル|中止|やめて|やめます|取り消し|取消)$/.test(normalized);
 }
 
+function selectCandidateShift(text: string, candidates: ShiftRow[]) {
+  const normalized = text.replace(/[０-９]/g, (character) => String.fromCharCode(character.charCodeAt(0) - 0xfee0));
+  const number = /(?:候補\s*)?(\d+)\s*(?:番|番目)?/.exec(normalized);
+  if (number && Number(number[1]) >= 1 && Number(number[1]) <= candidates.length) return candidates[Number(number[1]) - 1];
+
+  const time = /(\d{1,2})\s*(?::|時)\s*(\d{1,2})?/.exec(normalized);
+  if (!time) return null;
+  const startTime = `${String(Number(time[1])).padStart(2, "0")}:${String(Number(time[2] ?? "0")).padStart(2, "0")}`;
+  return candidates.find((candidate) => normalizeTime(candidate.shift_start_time) === startTime) ?? null;
+}
+
 async function getActiveSession(channelId: string, requesterLwUserid: string) {
   const { data, error } = await supabaseAdmin
     .from("agent_sessions")
-    .select("id,playbook_id,status,pending_action,expires_at")
+    .select("id,playbook_id,status,state,pending_action,expires_at")
     .eq("channel_id", channelId)
     .eq("requester_lw_userid", requesterLwUserid)
     .in("status", ["active", "awaiting_input", "awaiting_confirmation"])
@@ -355,13 +367,26 @@ export async function handleShiftCancellationAgent(params: {
     if (!(data ?? []).some((row) => containsShiftCancellationIntent(String(row.message ?? "")))) return { handled: false };
   }
 
-  const requests = await findRequests({
+  let requests = await findRequests({
     channelId: params.channelId,
     playbook,
     issuedAt: params.issuedAt,
     currentText: params.message,
     clarificationText: activeSession?.status === "awaiting_input" ? params.message : undefined,
   });
+  if (requests.length === 0 && activeSession?.status === "awaiting_input") {
+    const candidates = Array.isArray(activeSession.state?.candidate_shifts)
+      ? activeSession.state.candidate_shifts as ShiftRow[]
+      : [];
+    const selected = selectCandidateShift(params.message, candidates);
+    if (selected?.shift_start_date && selected.shift_start_time) {
+      requests = [{
+        date: selected.shift_start_date,
+        startTime: normalizeTime(selected.shift_start_time),
+        endTime: normalizeTime(selected.shift_end_time),
+      }];
+    }
+  }
   const runId = await createRun({
     playbookId: playbook.id,
     sessionId: activeSession?.id,
@@ -445,7 +470,7 @@ async function startRequest(params: {
       channel_id: params.channelId,
       requester_lw_userid: params.requesterLwUserid,
       status: "awaiting_input",
-      state: { requests: params.requests, client_id: clientId },
+      state: { requests: params.requests, client_id: clientId, candidate_shifts: ambiguous },
       source_message_ids: [],
       pending_action: null,
       expires_at: expiresAt,
@@ -461,7 +486,7 @@ async function startRequest(params: {
     });
     return {
       handled: true,
-      replyText: `複数のシフトが該当します。削除する日付と開始時刻を指定してください。\n${ambiguous.map((shift) => `・${formatShift(shift)}`).join("\n")}`,
+      replyText: `複数のシフトが該当します。削除するシフトの開始時刻を返信してください。\n${ambiguous.map((shift, index) => `${index + 1}. ${formatShift(shift)}`).join("\n")}`,
     };
   }
 

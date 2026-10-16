@@ -111,6 +111,23 @@ test('日付だけの「10/16のシフト削除」は当日の候補確認まで
   assert.equal(f.rpcCalls.length, 0);
 });
 
+test('同日に複数シフトがある場合は候補を提示し、開始時刻の返信で選択できる', async () => {
+  const f = fixture('shift.delete', '12345678', '2026-10-16', '10:00:00', '11:00:00');
+  f.tables.shift.push({ ...f.tables.shift[0], shift_id: 2, shift_start_time: '14:15:00', shift_end_time: '15:45:00' });
+  const initial = await f.cancel.handleShiftCancellationAgent({ ...base, message: '10/16のシフト削除' });
+  assert.match(initial.replyText, /複数のシフト/);
+  assert.match(initial.replyText, /1\./);
+  assert.match(initial.replyText, /2\./);
+  assert.equal(f.tables.agent_sessions[0].status, 'awaiting_input');
+
+  f.tables.msg_lw_log.push({ message: '10/16のシフト削除', timestamp: base.issuedAt });
+  const selected = await f.cancel.handleShiftCancellationAgent({ ...base, message: '14:15のシフト', hasBotMention: false });
+  assert.match(selected.replyText, /2026-10-16 14:15～15:45/);
+  assert.match(selected.replyText, /OK/);
+  assert.equal(f.tables.agent_sessions[0].status, 'awaiting_confirmation');
+  assert.equal(f.rpcCalls.length, 0);
+});
+
 test('相対日付と頃付き時刻を会話から組み合わせて解釈する', () => {
   const requests = parser.parseShiftCancellationRequests(
     ['明日のサービスキャンセルと', '13時頃かな シフト削除'],
