@@ -69,7 +69,21 @@ function processSharefullConfirmationMessage_(message, config, activationTimesta
   }
 
   var event = parseSharefullConfirmationMail_(message, config.senderEmail);
-  if (!event || event.state !== requiredState) return true;
+  if (!event) {
+    // 検索条件に合う送信元から届いた確定/取消通知なのにIDを抽出できない場合、
+    // 成功扱いにするとスレッドが処理済みになり、次回以降の再試行から漏れる。
+    var from = message.getFrom();
+    var senderMatch = /<([^>]+)>/.exec(from);
+    var senderEmail = (senderMatch ? senderMatch[1] : from).trim().toLowerCase();
+    var text = message.getSubject() + "\n" + message.getPlainBody();
+    var hasEventSignal = sharefullConfirmationSignal_(text, requiredState);
+    if (senderEmail === config.senderEmail && hasEventSignal) {
+      console.warn("Sharefull通知の案件IDを抽出できません。処理済みにせず次回再試行します。");
+      return false;
+    }
+    return true;
+  }
+  if (event.state !== requiredState) return true;
 
   var endpoint = event.state === "cancelled" ? "cancelled" : "confirmed";
   var response = UrlFetchApp.fetch(config.apiBaseUrl + "/api/rpa/sharefull/" + endpoint, {
@@ -106,6 +120,10 @@ function processSpotOfferConfirmationEmails() {
 
 /** 初回設定時に一度実行し、両メール種別の5分ごとの確認トリガーを作成する。 */
 function installSpotOfferConfirmationTriggers() {
+  // 必須設定が不足した状態でトリガーや有効化時刻だけを先に作らない。
+  readSharefullCloseConfig_();
+  readTaimeeCloseConfig_();
+
   var props = PropertiesService.getScriptProperties();
   if (!props.getProperty("SPOT_OFFER_CONFIRMATION_ACTIVATED_AT")) {
     props.setProperty("SPOT_OFFER_CONFIRMATION_ACTIVATED_AT", new Date().toISOString());
@@ -144,13 +162,14 @@ function parseSharefullConfirmationMail_(message, expectedSender) {
   var subject = message.getSubject();
   var body = message.getPlainBody();
   var text = subject + "\n" + body;
-  var cancelled = /応募キャンセル|応募者のキャンセル|キャンセルした応募者|応募をキャンセル/.test(text);
+  var cancelled = sharefullConfirmationSignal_(text, "cancelled");
   // 一般的な「確定」を含むだけのメールを誤検知しないよう、決定を表す語を限定する。
-  if (!cancelled && !/(応募確定|応募が確定|採用決定|採用が決定|マッチング成立|候補者決定|候補者が決定|案件確定)/.test(text)) return null;
+  if (!cancelled && !sharefullConfirmationSignal_(text, "confirmed")) return null;
 
   var jobId = sharefullCloseCapture_(text, /(?:求人ID|求人番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   var orderId = sharefullCloseCapture_(text, /(?:管理番号|URL管理番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i)
-    || sharefullCloseCapture_(text, /client\.sharefull\.com\/orders\/([0-9]+)/i);
+    || sharefullCloseCapture_(text, /https?:\/\/client\.sharefull\.com\/orders\/([0-9]+)/i)
+    || sharefullCloseCapture_(text, /(?:^|[\s(])\/orders\/([0-9]+)/im);
   var applicationId = sharefullCloseCapture_(text, /(?:応募ID|応募番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   var applicant = sharefullCloseCapture_(text, /(?:^|\r?\n)[ \t]*[◆♦]?[ \t]*(?:キャンセルした応募者|応募者|候補者|氏名)[ \t]*[：:][ \t]*([^\n\r]+)/i)
     || sharefullCloseCapture_(text, /(?:^|\r?\n)[ \t]*[◆♦]?[ \t]*(?:キャンセルした応募者|応募者|候補者)[ \t]*\r?\n[ \t]*([^\n\r]+)/i);
@@ -170,6 +189,13 @@ function parseSharefullConfirmationMail_(message, expectedSender) {
     state: cancelled ? "cancelled" : "confirmed",
     occurred_at: message.getDate().toISOString()
   };
+}
+
+function sharefullConfirmationSignal_(text, state) {
+  if (state === "cancelled") {
+    return /応募キャンセル|応募者のキャンセル|キャンセルした応募者|応募をキャンセル/.test(text);
+  }
+  return /応募確定|応募が確定|採用決定|採用が決定|マッチング成立|候補者決定|候補者が決定|案件確定/.test(text);
 }
 
 function readSharefullCloseConfig_() {
