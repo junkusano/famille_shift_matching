@@ -57,6 +57,15 @@ test("ホスト名のない /orders/ID リンクから注文IDを抽出する", 
   assert.equal(result.sharefull_order_id, "8348295");
 });
 
+test("Sharefull以外のホストにある /orders/ID は注文IDとして受け入れない", () => {
+  const result = context.parseSharefullConfirmationMail_(message(
+    "【候補者が決定しました】訪問介護",
+    "候補者\n候補者名\nhttps://example.invalid/orders/8348295",
+  ), "system@sharefull.com");
+
+  assert.equal(result, null);
+});
+
 test("別の送信元から来たメールはSharefullイベントとして扱わない", () => {
   const result = context.parseSharefullConfirmationMail_(
     { ...message("【応募キャンセル】", "応募キャンセル\n管理番号: 123"), getFrom: () => "attacker@example.com" },
