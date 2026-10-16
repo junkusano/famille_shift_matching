@@ -25,7 +25,7 @@ export type FaxOcrOnReceiveResult = {
 };
 
 /**
- * 受信済みでOCR通知が完了していないFAXを先着順に処理する。
+ * 受信済みでOCR通知が完了していないFAXを新着順に処理する。
  *
  * 処理開始前にstatusを「OCR処理中」へ更新するため、Cronが重複起動しても
  * 同じFAXを同時にOCRしない。一定時間更新されていない処理中FAXは、途中失敗から復旧する。
@@ -36,7 +36,8 @@ export async function runFaxOcrOnReceive(): Promise<FaxOcrOnReceiveResult> {
     .select("id, status, meta, updated_at")
     .not("file_id", "is", null)
     .gte("received_at", OCR_RECEIVE_START_AT)
-    .order("received_at", { ascending: true })
+    // 古い処理中FAXが大量に残っていても、新着FAXの通知を優先する。
+    .order("received_at", { ascending: false })
     .limit(CANDIDATE_SCAN_LIMIT);
 
   if (selectError) throw selectError;
