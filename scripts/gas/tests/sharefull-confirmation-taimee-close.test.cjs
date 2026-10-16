@@ -48,12 +48,31 @@ test("候補者決定メールと応募キャンセルメールを同じ応募�
   assert.equal(confirmed.application_key, cancelled.application_key);
 });
 
+test("ホスト名のない /orders/ID リンクから注文IDを抽出する", () => {
+  const result = context.parseSharefullConfirmationMail_(message(
+    "【候補者が決定しました】訪問介護",
+    "候補者\n候補者名\n/orders/8348295?source=email",
+  ), "system@sharefull.com");
+
+  assert.equal(result.sharefull_order_id, "8348295");
+});
+
 test("別の送信元から来たメールはSharefullイベントとして扱わない", () => {
   const result = context.parseSharefullConfirmationMail_(
     { ...message("【応募キャンセル】", "応募キャンセル\n管理番号: 123"), getFrom: () => "attacker@example.com" },
     "system@sharefull.com",
   );
   assert.equal(result, null);
+});
+
+test("IDのない確定通知は成功扱いせず、API送信も処理済み記録もしない", () => {
+  const config = { apiBaseUrl: "https://myfamille.shi-on.net", apiToken: "token", senderEmail: "system@sharefull.com" };
+  const processed = {};
+  const malformed = message("【候補者が決定しました】", "候補者が決定しました。案件URLは本文にありません。");
+
+  assert.equal(context.processSharefullConfirmationMessage_(malformed, config, 0, processed, "confirmed"), false);
+  assert.equal(processed[malformed.getId()], undefined);
+  assert.equal(requests.length, 0);
 });
 
 test("キャンセル検索では確定イベントを再送せず、キャンセルをキャンセルAPIへ送る", () => {

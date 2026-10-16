@@ -69,7 +69,23 @@ function processSharefullConfirmationMessage_(message, config, activationTimesta
   }
 
   var event = parseSharefullConfirmationMail_(message, config.senderEmail);
-  if (!event || event.state !== requiredState) return true;
+  if (!event) {
+    // 検索条件に合う送信元から届いた確定/取消通知なのにIDを抽出できない場合、
+    // 成功扱いにするとスレッドが処理済みになり、次回以降の再試行から漏れる。
+    var from = message.getFrom();
+    var senderMatch = /<([^>]+)>/.exec(from);
+    var senderEmail = (senderMatch ? senderMatch[1] : from).trim().toLowerCase();
+    var text = message.getSubject() + "\n" + message.getPlainBody();
+    var hasEventSignal = requiredState === "cancelled"
+      ? /応募キャンセル|応募者のキャンセル|キャンセルした応募者|応募をキャンセル/.test(text)
+      : /応募確定|応募が確定|採用決定|採用が決定|マッチング成立|候補者決定|候補者が決定|案件確定/.test(text);
+    if (senderEmail === config.senderEmail && hasEventSignal) {
+      console.warn("Sharefull通知の案件IDを抽出できません。処理済みにせず次回再試行します。");
+      return false;
+    }
+    return true;
+  }
+  if (event.state !== requiredState) return true;
 
   var endpoint = event.state === "cancelled" ? "cancelled" : "confirmed";
   var response = UrlFetchApp.fetch(config.apiBaseUrl + "/api/rpa/sharefull/" + endpoint, {
@@ -150,7 +166,7 @@ function parseSharefullConfirmationMail_(message, expectedSender) {
 
   var jobId = sharefullCloseCapture_(text, /(?:求人ID|求人番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   var orderId = sharefullCloseCapture_(text, /(?:管理番号|URL管理番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i)
-    || sharefullCloseCapture_(text, /client\.sharefull\.com\/orders\/([0-9]+)/i);
+    || sharefullCloseCapture_(text, /(?:client\.sharefull\.com)?\/orders\/([0-9]+)/i);
   var applicationId = sharefullCloseCapture_(text, /(?:応募ID|応募番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
   var applicant = sharefullCloseCapture_(text, /(?:^|\r?\n)[ \t]*[◆♦]?[ \t]*(?:キャンセルした応募者|応募者|候補者|氏名)[ \t]*[：:][ \t]*([^\n\r]+)/i)
     || sharefullCloseCapture_(text, /(?:^|\r?\n)[ \t]*[◆♦]?[ \t]*(?:キャンセルした応募者|応募者|候補者)[ \t]*\r?\n[ \t]*([^\n\r]+)/i);
