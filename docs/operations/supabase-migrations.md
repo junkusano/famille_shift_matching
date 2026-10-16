@@ -63,3 +63,7 @@ supabase/migrations/202609251100_add_sharefull_rpa_test_tables.sql
 ```sql
 select public.seed_sharefull_rpa_test_data('12782561');
 ```
+
+## Sharefull手動募集終了監査記録
+
+`supabase/migrations/202610171000_sharefull_manual_close_audit.sql` は `sharefull_manual_close_audit` を追加する。適用前は新しい拡張機能がMyFamille APIへ記録できず、Chrome拡張のローカル送信キューに保留する。現在のmigration履歴不一致を解消するまでは一括 `db push` を使わず、既存手順どおり migration list と dry-run で対象を確認し、承認された適用経路を使う。この実装作業では本番DBに適用していない。
