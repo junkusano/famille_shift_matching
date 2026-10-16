@@ -98,7 +98,7 @@ function processSpotOfferConfirmationEmails() {
   if (!lock.tryLock(1000)) return;
   try {
     processSharefullConfirmationsForTaimeeCloseLocked_();
-    processTaimeeConfirmationsForSharefullCloseLocked_();
+    processSpotOfferTaimeeConfirmationsForSharefullCloseLocked_();
   } finally {
     lock.releaseLock();
   }
@@ -219,17 +219,17 @@ function saveSharefullCloseProcessedIds_(processed) {
 }
 
 /** タイミーのマッチング通知を受け、シェアフル募集停止を依頼する。 */
-function processTaimeeConfirmationsForSharefullClose() {
+function processSpotOfferTaimeeConfirmationsForSharefullClose() {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return;
   try {
-    processTaimeeConfirmationsForSharefullCloseLocked_();
+    processSpotOfferTaimeeConfirmationsForSharefullCloseLocked_();
   } finally {
     lock.releaseLock();
   }
 }
 
-function processTaimeeConfirmationsForSharefullCloseLocked_() {
+function processSpotOfferTaimeeConfirmationsForSharefullCloseLocked_() {
   var config = readTaimeeCloseConfig_();
   var processed = taimeeCloseProcessedIds_();
   var label = confirmationProcessedLabel_("MYFAMILLE_TAIMEE_CONFIRMATION_PROCESSED");
@@ -252,7 +252,7 @@ function processTaimeeConfirmationsForSharefullCloseLocked_() {
           return;
         }
 
-        var event = parseTaimeeConfirmationMail_(message, config.senderEmail);
+        var event = parseSpotOfferTaimeeConfirmationMail_(message, config.senderEmail);
         if (!event) return;
 
         var response = UrlFetchApp.fetch(config.apiBaseUrl + "/api/rpa/taimee/confirmed", {
@@ -282,7 +282,7 @@ function processTaimeeConfirmationsForSharefullCloseLocked_() {
   }
 }
 
-function parseTaimeeConfirmationMail_(message, expectedSender) {
+function parseSpotOfferTaimeeConfirmationMail_(message, expectedSender) {
   var from = message.getFrom();
   var senderMatch = /<([^>]+)>/.exec(from);
   var senderEmail = (senderMatch ? senderMatch[1] : from).trim().toLowerCase();
@@ -365,3 +365,4 @@ function saveTaimeeCloseProcessedIds_(processed) {
     JSON.stringify(ids.slice(-100))
   );
 }
+

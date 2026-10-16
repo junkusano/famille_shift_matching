@@ -43,7 +43,9 @@ GASはGmailを5分間隔で確認するため、メール到着から検知ま�
 | `TAIMEE_CONFIRMATION_GMAIL_QUERY` | タイミーの個別マッチング通知に絞るGmail検索式。例: `from:supporter@timee.co.jp subject:マッチング newer_than:14d` |
 | `TAIMEE_CONFIRMATION_FROM_EMAIL` | `supporter@timee.co.jp`（完全一致で照合） |
 
-保存後、`installSpotOfferConfirmationTriggers` を一度実行し、Gmail・外部通信・トリガーの権限を承認する。この実行時刻を `SPOT_OFFER_CONFIRMATION_ACTIVATED_AT` に保存し、その時刻以前のメールは停止APIへ送らず、処理済みとして除外する。検索式が過去メールに一致しても遡って案件停止しない。トリガーを再インストールしても最初の有効化時刻は維持される。
+既存の `taimee-confirmation-close-sharefull.gs` はGASプロジェクトに残してよい。統合スクリプトは既存スクリプトと異なる関数名を使うため、両方を読み込んでも処理が上書きされない。
+
+保存後、`installSpotOfferConfirmationTriggers` を一度実行し、Gmail・外部通信・トリガーの権限を承認する。この関数は旧 `processTaimeeConfirmationsForSharefullClose` の単独トリガーを削除し、両方向を処理する `processSpotOfferConfirmationEmails` の5分トリガーを1つ登録する。これ以降、旧 `installTaimeeConfirmationSharefullCloseTrigger` は実行しない。この実行時刻を `SPOT_OFFER_CONFIRMATION_ACTIVATED_AT` に保存し、その時刻以前のメールは停止APIへ送らず、処理済みとして除外する。検索式が過去メールに一致しても遡って案件停止しない。トリガーを再インストールしても最初の有効化時刻は維持される。
 
 初回実行時に処理済みメール用のGmailラベル `MYFAMILLE_SHAREFULL_CONFIRMATION_PROCESSED` と `MYFAMILLE_TAIMEE_CONFIRMATION_PROCESSED` を自動作成する。シェアフル確定メールは処理済みラベルの付いたスレッドを次回以降の検索から除外する。キャンセル通知は確定済みスレッドへ後から追加される場合があるため、ラベル付きスレッドも検索し、キャンセルだけをAPIへ送る。キャンセルAPIはイベントIDで重複記録と通知を防ぐ。APIエラーは次回トリガーで再試行する。
 
@@ -60,3 +62,4 @@ GASはGmailを5分間隔で確認するため、メール到着から検知ま�
 本番Vercel環境に `SHAREFULL_CONFIRMATION_GAS_TOKEN` と `TAIMEE_CONFIRMATION_GAS_TOKEN` を設定する。タイミーからシェアフルを停止するAPIは `SPOT_PROVIDER_SYNC_ENABLED=true` かつ本番モードの場合だけ処理する。秘密値はリポジトリやログへ記録しない。APIはBearerトークンを検証し、MyFamille DBの `spot_offer_applications` と相手媒体のRPA指示キューを更新する。
 
 参照: [タイミー「マッチングした際のお知らせメールについて」](https://clients-help.timee.co.jp/hc/ja/articles/19324681452697-%E3%83%9E%E3%83%83%E3%83%81%E3%83%B3%E3%82%B0%E3%81%97%E3%81%9F%E9%9A%9B%E3%81%AE%E3%81%8A%E7%9F%A5%E3%82%89%E3%81%9B%E3%83%A1%E3%83%BC%E3%83%AB%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6)、[タイミー「タイミーからのメールが届かない」](https://clients-help.timee.co.jp/hc/ja/articles/17525852371993-%E3%82%BF%E3%82%A4%E3%83%9F%E3%83%BC%E3%81%8B%E3%82%89%E3%81%AE%E3%83%A1%E3%83%BC%E3%83%AB%E3%81%8C%E5%B1%8A%E3%81%8B%E3%81%AA%E3%81%84)
+

@@ -14,12 +14,12 @@ function load(file, overrides = {}) {
 const parser = load('../src/lib/agent-playbooks/shiftCancellationParser.ts');
 const base = { eventType:'message', channelId:'room', requesterLwUserid:'requester', issuedAt:'2026-09-13T09:21:00Z', hasBotMention:true, mentionedLwUserids:[] };
 const application = '@すまーとアイさん\nいつもお世話になります。\n10月利用申込、\n3(土)10:00自宅～おでかけ～16:00自宅\n24(土)10:00自宅～おでかけ～16:00自宅\n調整よろしくお願いします🙏';
-function fixture(action, clientId = '12345678') {
+function fixture(action, clientId = '12345678', shiftDate = '2026-09-20', shiftStart = '10:00:00', shiftEnd = '16:00:00') {
   const tables = {
     agent_playbooks:[{id:'book', category:'shift', room_scope:'client_room',trigger_mode:'lineworks_mention',execution_mode:'native_agent',is_enabled:true, allowed_actions:['shift.list', action], context_minutes:30,context_message_limit:10,session_ttl_minutes:7}],
     agent_sessions:[], agent_runs:[], msg_lw_log:[],
     group_lw_channel_view:[{channel_id:'room',group_account:clientId,group_type:'利用者様情報連携グループ',group_name:'Test'}],
-    shift:[{shift_id:1,kaipoke_cs_id:clientId,shift_start_date:'2026-09-20',shift_start_time:'10:00:00',shift_end_time:'16:00:00',service_code:'test',staff_01_user_id:'staff',required_staff_count:1}],
+    shift:[{shift_id:1,kaipoke_cs_id:clientId,shift_start_date:shiftDate,shift_start_time:shiftStart,shift_end_time:shiftEnd,service_code:'test',staff_01_user_id:'staff',required_staff_count:1}],
     user_entry_united_view_single:[{user_id:'staff',lw_userid:'staff-lw',last_name_kanji:'担当',first_name_kanji:'職員',status:'lineworks_kaipoke_joined'}],
     shift_service_code:[{service_code:'test'}], users:[]
   };
@@ -89,6 +89,62 @@ test('7桁の利用者IDの部屋でもシフト追加の確認まで進む', as
   const result = await f.create.handleShiftCreationAgent({ ...base, message: '10/3 10:00〜16:00 サービス追加して' });
   assert.equal(result.handled, true);
   assert.match(result.replyText, /2026-10-03/);
+  assert.match(result.replyText, /OK/);
+  assert.equal(f.rpcCalls.length, 0);
+});
+
+test('明日のシフトだけを指定した依頼は候補確認まで進む', async () => {
+  const f = fixture('shift.delete', '12345678', '2026-09-14', '14:15:00', '15:45:00');
+  const result = await f.cancel.handleShiftCancellationAgent({ ...base, message: '明日のサービスキャンセルと' });
+  assert.equal(result.handled, true);
+  assert.match(result.replyText, /2026-09-14 14:15～15:45/);
+  assert.match(result.replyText, /OK/);
+  assert.equal(f.rpcCalls.length, 0);
+});
+
+test('日付だけの「10/16のシフト削除」は当日の候補確認まで進む', async () => {
+  const f = fixture('shift.delete', '12345678', '2026-10-16', '14:15:00', '15:45:00');
+  const result = await f.cancel.handleShiftCancellationAgent({ ...base, message: '10/16のシフト削除' });
+  assert.equal(result.handled, true);
+  assert.match(result.replyText, /2026-10-16 14:15～15:45/);
+  assert.match(result.replyText, /OK/);
+  assert.equal(f.rpcCalls.length, 0);
+});
+
+test('同日に複数シフトがある場合は候補を提示し、開始時刻の返信で選択できる', async () => {
+  const f = fixture('shift.delete', '12345678', '2026-10-16', '10:00:00', '11:00:00');
+  f.tables.shift.push({ ...f.tables.shift[0], shift_id: 2, shift_start_time: '14:15:00', shift_end_time: '15:45:00' });
+  const initial = await f.cancel.handleShiftCancellationAgent({ ...base, message: '10/16のシフト削除' });
+  assert.match(initial.replyText, /複数のシフト/);
+  assert.match(initial.replyText, /1\./);
+  assert.match(initial.replyText, /2\./);
+  assert.equal(f.tables.agent_sessions[0].status, 'awaiting_input');
+
+  f.tables.msg_lw_log.push({ message: '10/16のシフト削除', timestamp: base.issuedAt });
+  const selected = await f.cancel.handleShiftCancellationAgent({ ...base, message: '14:15のシフト', hasBotMention: false });
+  assert.match(selected.replyText, /2026-10-16 14:15～15:45/);
+  assert.match(selected.replyText, /OK/);
+  assert.equal(f.tables.agent_sessions[0].status, 'awaiting_confirmation');
+  assert.equal(f.rpcCalls.length, 0);
+});
+
+test('相対日付と頃付き時刻を会話から組み合わせて解釈する', () => {
+  const requests = parser.parseShiftCancellationRequests(
+    ['明日のサービスキャンセルと', '13時頃かな シフト削除'],
+    new Date(base.issuedAt),
+  );
+  assert.deepEqual(requests, [{
+    date: '2026-09-14',
+    startTime: '13:00',
+    endTime: null,
+    timeApproximate: true,
+  }]);
+});
+
+test('頃付き時刻は近い開始時刻を候補として確認する', async () => {
+  const f = fixture('shift.delete', '12345678', '2026-09-14', '14:15:00', '15:45:00');
+  const result = await f.cancel.handleShiftCancellationAgent({ ...base, message: '明日の13時頃サービスキャンセル' });
+  assert.match(result.replyText, /2026-09-14 14:15～15:45/);
   assert.match(result.replyText, /OK/);
   assert.equal(f.rpcCalls.length, 0);
 });

@@ -4,6 +4,7 @@ export type ShiftCancellationRequest = {
   date: string;
   startTime: string | null;
   endTime: string | null;
+  timeApproximate?: boolean;
 };
 
 function normalizeDigits(text: string) {
@@ -38,6 +39,11 @@ function nextMonth(year: number, month: number) {
   return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
 }
 
+function shiftDate(reference: { year: number; month: number; day: number }, offset: number) {
+  const date = new Date(Date.UTC(reference.year, reference.month - 1, reference.day + offset));
+  return toYmd(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+}
+
 function resolveDate(params: {
   explicitYear: number | null;
   explicitMonth: number | null;
@@ -68,19 +74,21 @@ function toTime(hourText: string, minuteText: string | undefined) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-function extractTime(segment: string): { startTime: string | null; endTime: string | null } {
+function extractTime(segment: string): { startTime: string | null; endTime: string | null; timeApproximate: boolean } {
+  const timeApproximate = /(?:頃|ごろ|ぐらい|くらい|前後)/.test(segment);
   const range = /(\d{1,2})\s*(?::|時)\s*(\d{1,2})?\s*分?\s*(?:-|–|—|〜|～|~|から)\s*(\d{1,2})\s*(?::|時)\s*(\d{1,2})?\s*分?/.exec(segment);
   if (range) {
     return {
       startTime: toTime(range[1], range[2]),
       endTime: toTime(range[3], range[4]),
+      timeApproximate: false,
     };
   }
 
   const single = /(\d{1,2})\s*(?::|時)\s*(\d{1,2})?\s*分?/.exec(segment);
   return single
-    ? { startTime: toTime(single[1], single[2]), endTime: null }
-    : { startTime: null, endTime: null };
+    ? { startTime: toTime(single[1], single[2]), endTime: null, timeApproximate }
+    : { startTime: null, endTime: null, timeApproximate: false };
 }
 
 export function parseShiftTimeRange(text: string) {
@@ -96,6 +104,8 @@ export function parseShiftDateTimeRequests(texts: string[], referenceDate: Date)
   const reference = jstDateParts(referenceDate);
   const parsed: ShiftCancellationRequest[] = [];
   const datePattern = /(?:(\d{4})\s*年\s*)?(?:(\d{1,2})\s*(?:月|\/)\s*(\d{1,2})\s*日?|(\d{1,2})\s*日)/g;
+  const relativeDatePattern = /今日|本日|明日|あした|翌日|明後日|あさって/g;
+  let lastDate: string | null = null;
 
   for (const originalText of texts) {
     let text = normalizeDigits(originalText);
@@ -105,20 +115,39 @@ export function parseShiftDateTimeRequests(texts: string[], referenceDate: Date)
       text = text.replace(/(^|\n)(\s*)(\d{1,2})(?=[（(][月火水木金土日](?:曜日)?[）)])/g,
         (_, line, space, day) => line + space + monthHeading[1] + '月' + day + '日');
     }
-    const matches = Array.from(text.matchAll(datePattern));
+    const matches = [
+      ...Array.from(text.matchAll(datePattern)).map((match) => ({
+        index: match.index ?? 0,
+        length: match[0].length,
+        date: resolveDate({
+          explicitYear: match[1] ? Number(match[1]) : null,
+          explicitMonth: match[2] ? Number(match[2]) : null,
+          day: Number(match[3] ?? match[4]),
+          reference,
+        }),
+      })),
+      ...Array.from(text.matchAll(relativeDatePattern)).map((match) => ({
+        index: match.index ?? 0,
+        length: match[0].length,
+        date: shiftDate(reference, /^(?:今日|本日)$/.test(match[0]) ? 0 : /^(?:明後日|あさって)$/.test(match[0]) ? 2 : 1),
+      })),
+    ].sort((a, b) => a.index - b.index);
 
     for (let index = 0; index < matches.length; index += 1) {
       const match = matches[index];
-      const explicitYear = match[1] ? Number(match[1]) : null;
-      const explicitMonth = match[2] ? Number(match[2]) : null;
-      const day = Number(match[3] ?? match[4]);
-      const date = resolveDate({ explicitYear, explicitMonth, day, reference });
-      if (!date || match.index === undefined) continue;
+      const date = match.date;
+      if (!date) continue;
+      lastDate = date;
 
-      const segmentStart = match.index + match[0].length;
+      const segmentStart = match.index + match.length;
       const segmentEnd = matches[index + 1]?.index ?? text.length;
-      const { startTime, endTime } = extractTime(text.slice(segmentStart, segmentEnd));
-      parsed.push({ date, startTime, endTime });
+      const { startTime, endTime, timeApproximate } = extractTime(text.slice(segmentStart, segmentEnd));
+      parsed.push({ date, startTime, endTime, ...(timeApproximate ? { timeApproximate: true } : {}) });
+    }
+
+    if (matches.length === 0 && lastDate) {
+      const { startTime, endTime, timeApproximate } = extractTime(text);
+      if (startTime) parsed.push({ date: lastDate, startTime, endTime, ...(timeApproximate ? { timeApproximate: true } : {}) });
     }
   }
 
@@ -134,7 +163,7 @@ export function parseShiftDateTimeRequests(texts: string[], referenceDate: Date)
     const timed = requests.filter((request) => request.startTime);
     const selected = timed.length > 0 ? timed : [{ date, startTime: null, endTime: null }];
     for (const request of selected) {
-      if (!result.some((item) => item.date === request.date && item.startTime === request.startTime && item.endTime === request.endTime)) {
+      if (!result.some((item) => item.date === request.date && item.startTime === request.startTime && item.endTime === request.endTime && item.timeApproximate === request.timeApproximate)) {
         result.push(request);
       }
     }
