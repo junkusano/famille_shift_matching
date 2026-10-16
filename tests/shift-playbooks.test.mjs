@@ -102,6 +102,15 @@ test('明日のシフトだけを指定した依頼は候補確認まで進む',
   assert.equal(f.rpcCalls.length, 0);
 });
 
+test('日付だけの「10/16のシフト削除」は当日の候補確認まで進む', async () => {
+  const f = fixture('shift.delete', '12345678', '2026-10-16', '14:15:00', '15:45:00');
+  const result = await f.cancel.handleShiftCancellationAgent({ ...base, message: '10/16のシフト削除' });
+  assert.equal(result.handled, true);
+  assert.match(result.replyText, /2026-10-16 14:15～15:45/);
+  assert.match(result.replyText, /OK/);
+  assert.equal(f.rpcCalls.length, 0);
+});
+
 test('相対日付と頃付き時刻を会話から組み合わせて解釈する', () => {
   const requests = parser.parseShiftCancellationRequests(
     ['明日のサービスキャンセルと', '13時頃かな シフト削除'],
