@@ -6,7 +6,6 @@ import { FAX_UNHANDLED_GROUP_NAME } from "@/lib/alert_add/fax_unhandled_linework
 
 const LEGACY_FAX_UNHANDLED_GROUP_NAME = "◆（Fax）対応忘れ防止グループ（ケアマネ）";
 
-const MAX_OCR_TEXT_LENGTH = 7000;
 // LINE WORKSのcontent.text制限を超えないよう、UTF-8換算でも余裕を持たせる。
 const MAX_LINEWORKS_MESSAGE_LENGTH = 1000;
 
@@ -27,10 +26,10 @@ export type FaxOcrNotificationResult = {
 function buildMessage(input: FaxOcrNotificationInput): string {
   const text = input.pages
     .map(({ pageNumber, text }) => `【ページ${pageNumber}】\n${text.trim()}`)
-    .join("\n\n")
-    .slice(0, MAX_OCR_TEXT_LENGTH);
+    .join("\n\n");
 
-  return [
+  const detailUrl = `${getAppBaseUrl()}/cm-portal/fax/${input.faxId}`;
+  const prefix = [
     "📠 FAXのOCR処理が完了しました",
     "",
     `受信日時: ${input.receivedAt ?? "不明"}`,
@@ -39,23 +38,23 @@ function buildMessage(input: FaxOcrNotificationInput): string {
     `処理ページ: ${input.pages.length}ページ`,
     "",
     "▼ OCR結果",
-    text || "読み取れる内容はありません。",
+  ].join("\n");
+  const suffix = [
     "",
-    `▼ FAX詳細: ${getAppBaseUrl()}/cm-portal/fax/${input.faxId}`,
+    `▼ FAX詳細: ${detailUrl}`,
     "",
     "※ OCR結果は必ず原本と照合してください。",
   ].join("\n");
-}
+  const availableOcrLength = Math.max(
+    0,
+    MAX_LINEWORKS_MESSAGE_LENGTH - Array.from(prefix + suffix).length - 40,
+  );
+  const ocrPreview = Array.from(text || "読み取れる内容はありません。").slice(0, availableOcrLength).join("");
+  const truncationNotice = ocrPreview.length < text.length
+    ? "\n…（続きはFAX詳細で確認してください）"
+    : "";
 
-function splitMessage(message: string): string[] {
-  const characters = Array.from(message);
-  const chunks: string[] = [];
-
-  for (let index = 0; index < characters.length; index += MAX_LINEWORKS_MESSAGE_LENGTH) {
-    chunks.push(characters.slice(index, index + MAX_LINEWORKS_MESSAGE_LENGTH).join(""));
-  }
-
-  return chunks.length > 0 ? chunks : ["読み取れる内容はありません。"];
+  return `${prefix}\n${ocrPreview}${truncationNotice}${suffix}`;
 }
 
 export async function notifyFaxOcrCompleted(
@@ -80,12 +79,7 @@ export async function notifyFaxOcrCompleted(
   }
 
   const accessToken = await getAccessToken();
-  const messages = splitMessage(buildMessage(input));
-
-  for (const [index, message] of messages.entries()) {
-    const partLabel = messages.length > 1 ? `\n[${index + 1}/${messages.length}]` : "";
-    await sendLWBotMessage(group.channel_id, `${message}${partLabel}`, accessToken);
-  }
+  await sendLWBotMessage(group.channel_id, buildMessage(input), accessToken);
 
   return { sent: true, groupName: FAX_UNHANDLED_GROUP_NAME };
 }
