@@ -8,6 +8,26 @@ import { notifyFaxOcrCompleted } from "@/lib/alert_add/fax_ocr_lineworks";
 export const maxDuration = 120;
 
 type FaxPage = { id: number; page_number: number; ocr_status: string | null };
+const LINEWORKS_NOTIFIED_META_KEY = "fax_ocr_lineworks_notified_at";
+
+function hasLineworksNotificationMarker(meta: unknown): boolean {
+  return Boolean(
+    meta && typeof meta === "object" &&
+      (meta as Record<string, unknown>)[LINEWORKS_NOTIFIED_META_KEY],
+  );
+}
+
+async function markLineworksNotificationSent(faxId: number, meta: unknown): Promise<void> {
+  const nextMeta = meta && typeof meta === "object"
+    ? { ...(meta as Record<string, unknown>) }
+    : {};
+  nextMeta[LINEWORKS_NOTIFIED_META_KEY] = new Date().toISOString();
+  const { error } = await supabaseAdmin
+    .from("cm_fax_received")
+    .update({ meta: nextMeta })
+    .eq("id", faxId);
+  if (error) throw error;
+}
 
 function formatOcrError(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -89,7 +109,7 @@ export async function POST(
 
     const { data: fax, error: faxError } = await supabaseAdmin
       .from("cm_fax_received")
-      .select("id,file_id,file_path,page_count,fax_number,file_name,received_at")
+      .select("id,file_id,file_path,page_count,fax_number,file_name,received_at,meta")
       .eq("id", faxId)
       .single();
     if (faxError || !fax?.file_id) {
@@ -147,6 +167,29 @@ export async function POST(
       .map((page, index) => ({ page, index }))
       .filter(({ page }) => page.ocr_status !== "completed");
     if (targetPages.length === 0) {
+      if (!hasLineworksNotificationMarker(fax.meta)) {
+        const { data: ocrResults, error: ocrResultError } = await supabaseAdmin
+          .from("cm_fax_ocr_results")
+          .select("page_number,detected_text")
+          .eq("fax_received_id", faxId)
+          .order("page_number", { ascending: true });
+        if (ocrResultError) throw ocrResultError;
+
+        const pagesForNotification = (ocrResults ?? [])
+          .filter((row) => typeof row.detected_text === "string" && row.detected_text.trim())
+          .map((row) => ({ pageNumber: row.page_number, text: row.detected_text }));
+        if (pagesForNotification.length > 0) {
+          const lineworks = await notifyFaxOcrCompleted({
+            faxId,
+            faxNumber: fax.fax_number ?? null,
+            receivedAt: fax.received_at ?? null,
+            fileName: fax.file_name ?? null,
+            pages: pagesForNotification,
+          });
+          if (lineworks.sent) await markLineworksNotificationSent(faxId, fax.meta);
+          return NextResponse.json({ ok: true, faxId, processedPages: 0, skipped: true, lineworks });
+        }
+      }
       return NextResponse.json({ ok: true, faxId, processedPages: 0, skipped: true });
     }
 
@@ -241,6 +284,16 @@ export async function POST(
           message: notificationMessage,
         });
         lineworks = { sent: false, error: notificationMessage };
+      }
+    }
+    if (lineworks.sent) {
+      try {
+        await markLineworksNotificationSent(faxId, fax.meta);
+      } catch (markerError) {
+        console.error("[api][cm][fax][ocr] notification marker update error", {
+          faxId,
+          message: formatOcrError(markerError),
+        });
       }
     }
 

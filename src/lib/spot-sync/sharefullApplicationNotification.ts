@@ -9,10 +9,11 @@ type ApplicationNotification = {
   provider: string;
   eventId: string;
   text: string;
+  eventTable?: "spot_offer_application_events" | "sharefull_rpa_test_spot_offer_application_events";
 };
 
 /**
- * テスト応募通知を既存のSharefull内容ポリシー通知と同じLINE WORKS設定で送る。
+ * Sharefull応募通知を既存のSharefull内容ポリシー通知と同じLINE WORKS設定で送る。
  * イベント行を短時間claimし、失敗時はclaimを解放してGASから再試行可能にする。
  */
 export async function notifySharefullApplication(input: ApplicationNotification): Promise<{
@@ -20,11 +21,12 @@ export async function notifySharefullApplication(input: ApplicationNotification)
   alreadySent?: boolean;
   inProgress?: boolean;
 }> {
+  const eventTable = input.eventTable ?? "sharefull_rpa_test_spot_offer_application_events";
   const now = new Date();
   const staleBefore = new Date(now.getTime() - CLAIM_TIMEOUT_MS).toISOString();
   const channelId = process.env.SHAREFULL_CONTENT_POLICY_CHANNEL_ID?.trim() || DEFAULT_CHANNEL_ID;
   const { data: claim, error: claimError } = await supabaseAdmin
-    .from("sharefull_rpa_test_spot_offer_application_events" as never)
+    .from(eventTable as never)
     .update({ notification_claimed_at: now.toISOString(), notification_error: null })
     .eq("provider", input.provider)
     .eq("event_id", input.eventId)
@@ -36,7 +38,7 @@ export async function notifySharefullApplication(input: ApplicationNotification)
   if (claimError) throw claimError;
   if (!claim) {
     const { data: event, error: eventError } = await supabaseAdmin
-      .from("sharefull_rpa_test_spot_offer_application_events" as never)
+      .from(eventTable as never)
       .select("notified_at")
       .eq("provider", input.provider)
       .eq("event_id", input.eventId)
@@ -49,7 +51,7 @@ export async function notifySharefullApplication(input: ApplicationNotification)
   try {
     await sendLWBotMessage(channelId, input.text, await getAccessToken());
     const { error: deliveredError } = await supabaseAdmin
-      .from("sharefull_rpa_test_spot_offer_application_events" as never)
+      .from(eventTable as never)
       .update({ notified_at: new Date().toISOString(), notification_claimed_at: null, notification_error: null })
       .eq("provider", input.provider)
       .eq("event_id", input.eventId);
@@ -58,7 +60,7 @@ export async function notifySharefullApplication(input: ApplicationNotification)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await supabaseAdmin
-      .from("sharefull_rpa_test_spot_offer_application_events" as never)
+      .from(eventTable as never)
       .update({ notification_claimed_at: null, notification_error: message.slice(0, 1000) })
       .eq("provider", input.provider)
       .eq("event_id", input.eventId);

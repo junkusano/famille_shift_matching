@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
 
-function loadNotifier({ notifiedAt = null, sendFails = false } = {}) {
+function loadNotifier({ notifiedAt = null, sendFails = false, eventTable = "sharefull_rpa_test_spot_offer_application_events" } = {}) {
   const source = readFileSync(new URL("../src/lib/spot-sync/sharefullApplicationNotification.ts", import.meta.url), "utf8")
     .replace(/^import .*;\r?\n/gm, "");
   const calls = [];
@@ -15,7 +15,7 @@ function loadNotifier({ notifiedAt = null, sendFails = false } = {}) {
   let claimAllowed = !notifiedAt;
   const db = {
     from(table) {
-      assert.equal(table, "sharefull_rpa_test_spot_offer_application_events");
+      assert.equal(table, eventTable);
       const state = { operation: "select", values: null };
       const builder = {
         update(values) { state.operation = "update"; state.values = values; return builder; },
@@ -79,4 +79,17 @@ test("送信失敗はclaimを解除して再試行できるようにする", asy
   await assert.rejects(notifier.notifySharefullApplication({ provider: "sharefull", eventId: "event-1", text: "retry" }), /simulated send failure/);
   assert.equal(calls.at(-1).values.notification_claimed_at, null);
   assert.match(calls.at(-1).values.notification_error, /simulated send failure/);
+});
+
+test("本番応募イベントテーブルを指定して再調整通知をclaimできる", async () => {
+  const eventTable = "spot_offer_application_events";
+  const { notifier, calls } = loadNotifier({ eventTable });
+  const result = await notifier.notifySharefullApplication({
+    provider: "sharefull",
+    eventId: "event-1",
+    text: "【Sharefull 決定後キャンセル】",
+    eventTable,
+  });
+  assert.equal(result.sent, true);
+  assert.ok(calls.some((call) => call.table === eventTable));
 });

@@ -11,6 +11,13 @@
 3. `/api/rpa/sharefull/confirmed` がMyFamille案件とIDを照合し、`sharefull` の応募状態を `confirmed` として記録する。
 4. タイミーPAD用 `close_job` を登録する。
 
+### シェアフル応募キャンセル → 応募状態更新・スタッフ通知
+
+1. GAS が確定メールを処理済みラベルの有無にかかわらず検索し、新しく届いたキャンセル通知を検出する。
+2. `/api/rpa/sharefull/cancelled` が管理番号・求人ID・応募者を照合し、応募を `cancelled` として記録する。キャンセル理由もイベント履歴に保存する。
+3. 該当応募の取消後、他に有効な応募がなければ既存の同期処理が募集状態を開放する。次の候補者を自動確定しない。
+4. 応募キャンセルをスタッフへ通知する。確定後のキャンセルは再調整が必要と分かる通知にし、勤務開始が24時間以内なら至急として知らせる。
+
 ### タイミー確定メール → シェアフル募集停止
 
 1. `processSpotOfferConfirmationEmails` が5分ごとに両方の対象Gmailを検索する。
@@ -40,7 +47,7 @@ GASはGmailを5分間隔で確認するため、メール到着から検知ま�
 
 保存後、`installSpotOfferConfirmationTriggers` を一度実行し、Gmail・外部通信・トリガーの権限を承認する。この関数は旧 `processTaimeeConfirmationsForSharefullClose` の単独トリガーを削除し、両方向を処理する `processSpotOfferConfirmationEmails` の5分トリガーを1つ登録する。これ以降、旧 `installTaimeeConfirmationSharefullCloseTrigger` は実行しない。この実行時刻を `SPOT_OFFER_CONFIRMATION_ACTIVATED_AT` に保存し、その時刻以前のメールは停止APIへ送らず、処理済みとして除外する。検索式が過去メールに一致しても遡って案件停止しない。トリガーを再インストールしても最初の有効化時刻は維持される。
 
-初回実行時に処理済みメール用のGmailラベル `MYFAMILLE_SHAREFULL_CONFIRMATION_PROCESSED` と `MYFAMILLE_TAIMEE_CONFIRMATION_PROCESSED` を自動作成する。正常に処理したスレッドは次回以降の検索から除外し、APIエラーのスレッドはラベルを付けず次回トリガーで再試行する。
+初回実行時に処理済みメール用のGmailラベル `MYFAMILLE_SHAREFULL_CONFIRMATION_PROCESSED` と `MYFAMILLE_TAIMEE_CONFIRMATION_PROCESSED` を自動作成する。シェアフル確定メールは処理済みラベルの付いたスレッドを次回以降の検索から除外する。キャンセル通知は確定済みスレッドへ後から追加される場合があるため、ラベル付きスレッドも検索し、キャンセルだけをAPIへ送る。キャンセルAPIはイベントIDで重複記録と通知を防ぐ。APIエラーは次回トリガーで再試行する。
 
 ## メール形式
 
