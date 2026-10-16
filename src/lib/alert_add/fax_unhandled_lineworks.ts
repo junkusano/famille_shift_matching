@@ -4,7 +4,8 @@ import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
 import { buildFaxOcrSummary } from "@/lib/alert_add/fax_ocr_summary";
 
-export const FAX_UNHANDLED_GROUP_NAME = "◆（Fax）対応忘れ防止グループ（ケアマネ）";
+export const FAX_UNHANDLED_GROUP_NAME = "◆（Ｆａｘ）対応忘れ防止グループ（ケアマネ）";
+const LEGACY_FAX_UNHANDLED_GROUP_NAME = "◆（Fax）対応忘れ防止グループ（ケアマネ）";
 const FAX_UNHANDLED_AFTER_HOURS = 24;
 const FAX_UNHANDLED_LOOKBACK_DAYS = 30;
 const FAX_MESSAGE_LIMIT = 50;
@@ -86,15 +87,16 @@ export type FaxUnhandledLineworksResult = {
 };
 
 export async function runFaxUnhandledLineworksCheck(): Promise<FaxUnhandledLineworksResult> {
-  const { data: group, error: groupError } = await supabaseAdmin
+  const { data: groups, error: groupError } = await supabaseAdmin
     .from("group_lw_channel_view")
     .select("group_name, channel_id")
-    .eq("group_name", FAX_UNHANDLED_GROUP_NAME)
+    .in("group_name", [FAX_UNHANDLED_GROUP_NAME, LEGACY_FAX_UNHANDLED_GROUP_NAME])
     .not("channel_id", "is", null)
-    .limit(1)
-    .maybeSingle();
+    .limit(10);
 
   if (groupError) throw groupError;
+  const group = (groups ?? []).find((item) => item.group_name === FAX_UNHANDLED_GROUP_NAME)
+    ?? (groups ?? []).find((item) => item.group_name === LEGACY_FAX_UNHANDLED_GROUP_NAME);
   if (!group?.channel_id) {
     return {
       ok: false,
