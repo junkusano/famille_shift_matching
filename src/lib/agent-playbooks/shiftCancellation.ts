@@ -41,6 +41,23 @@ function normalizeTime(value: string | null) {
   return value?.slice(0, 5) ?? null;
 }
 
+function timeToMinutes(value: string | null) {
+  if (!value) return null;
+  const [hour, minute] = value.split(":").map(Number);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+  return hour * 60 + minute;
+}
+
+function matchesRequestedStart(shift: ShiftRow, request: ShiftCancellationRequest) {
+  if (!request.startTime) return true;
+  const shiftStart = normalizeTime(shift.shift_start_time);
+  if (!request.timeApproximate) return shiftStart === request.startTime;
+  const requestedMinutes = timeToMinutes(request.startTime);
+  const shiftMinutes = timeToMinutes(shiftStart);
+  return requestedMinutes !== null && shiftMinutes !== null
+    && Math.abs(shiftMinutes - requestedMinutes) <= 120;
+}
+
 function isClientId(value: string) {
   return /^\d+$/.test(value);
 }
@@ -414,7 +431,7 @@ async function startRequest(params: {
   const ambiguous: ShiftRow[] = [];
   for (const request of params.requests) {
     const matches = shifts.filter((shift) => shift.shift_start_date === request.date
-      && (!request.startTime || normalizeTime(shift.shift_start_time) === request.startTime)
+      && matchesRequestedStart(shift, request)
       && (!request.endTime || normalizeTime(shift.shift_end_time) === request.endTime));
     if (matches.length === 0) missing.push(request);
     else if (matches.length > 1) ambiguous.push(...matches);
