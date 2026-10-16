@@ -9,6 +9,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { supabase } from '@/lib/supabaseClient'
 import { useUserRole } from '@/context/RoleContext'
+import ManualDeletionRecovery from '@/components/sharefull/ManualDeletionRecovery'
 
 interface RpaRequestView {
   id: string
@@ -178,6 +179,7 @@ export default function RpaRequestListPage() {
   return (
     <div className="w-full overflow-x-hidden px-2 md:px-4 py-2 space-y-3 md:space-y-4 text-sm">
       <h1 className="text-base md:text-lg font-bold">RPAリクエスト一覧</h1>
+      <ManualDeletionRecovery />
 
       {/* ===== 上部フィルター（Fax相当のレイアウト） ===== */}
       <div
