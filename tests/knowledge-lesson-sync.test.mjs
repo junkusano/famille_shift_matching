@@ -43,6 +43,13 @@ test('batching continues into following sheets and retains hashes of untouched r
  const second=await h.fetch(first.nextCursor);assert.equal(second.objects.length,2);assert.equal(second.hasMore,false);
  const last=await h.fetch(second.nextCursor);assert.equal(last.objects.length,0);
 });
+test('observed changes beyond the batch limit are visible to publication checks',async()=>{
+ const rows=[header,...Array.from({length:26},(_,i)=>[i,'','旧教訓'+i])];const h=harness({'For全マネジャー':rows});
+ let r=await h.fetch();r=await h.fetch(r.nextCursor);const previous=r.nextCursor;
+ rows.slice(1).forEach(row=>row[2]+='変更');const changed=await h.fetch(previous);
+ assert.equal(changed.hasMore,true);assert.equal(changed.nextCursor.rowHashes['For全マネジャー']['27'],previous.rowHashes['For全マネジャー']['27']);
+ assert.notEqual(changed.nextCursor.observedRowHashes['For全マネジャー']['27'],previous.rowHashes['For全マネジャー']['27']);
+});
 const {safeSyncError}=load('../src/lib/knowledge/syncErrors.ts');
 test('plain database errors preserve actionable code without leaking row details',()=>{
  const e=safeSyncError({code:'23505',message:'duplicate patient@example.com',details:'secret private row'});assert.equal(e.code,'23505');assert.doesNotMatch(e.message,/patient|secret|private/);
