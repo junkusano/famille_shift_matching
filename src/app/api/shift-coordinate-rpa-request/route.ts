@@ -2,13 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
 
-// RPCの戻り値型
-type AssignResult = {
-    status: 'assigned' | 'replaced' | 'error' | 'noop';
-    slot?: 'staff_01' | 'staff_02' | 'staff_03';
-    message?: string;
-};
-
 export async function POST(req: NextRequest) {
     // ---- APIロギング用 ----
     const stages: Array<Record<string, unknown>> = [];
@@ -38,9 +31,11 @@ export async function POST(req: NextRequest) {
             client_name,
             // 依頼者情報
             requested_by_user_id,        // ※ shift.staff_**_user_id と同じ体系のIDを渡す
+            requester_id = requested_by_user_id, // rpa_command_requests の申請者ID（通常は auth user id）
             requested_kaipoke_user_id,
             accompany = true,
             role_code = null,
+            time_adjust_note = null,
             // RPA テンプレ
             template_id = '92932ea2-b450-4ed0-a07b-4888750da641',
         } = body ?? {};
@@ -55,37 +50,6 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'bad request' }, { status: 400 });
         }
 
-        // 1) shift を先に確定（RPC）
-        stages.push({ t: now(), stage: 'rpc_call', shift_id, requested_by_user_id, accompany });
-        const { data: assignRes, error: assignErr } = await supabaseAdmin.rpc(
-            'assign_user_to_shift',
-            {
-                p_shift_id: Number(shift_id),
-                p_user_id: String(requested_by_user_id),
-                p_role_code: role_code,
-                p_accompany: !!accompany,
-            }
-        );
-
-        if (assignErr) {
-            apiLogError = `RPC Error: ${assignErr.message}`;
-            stages.push({ t: now(), stage: 'rpc_error', error: assignErr.message });
-            return NextResponse.json({ error: '割当処理に失敗しました' }, { status: 500 });
-        }
-
-        const res: AssignResult = (assignRes as AssignResult | null) ?? { status: 'error' };
-        stages.push({ t: now(), stage: 'rpc_done', res });
-
-        if (res.status === 'error') {
-            const msg =
-                res.message ||
-                '交代できる人が見つけられないため、希望シフトを登録できませんでした。マネジャーに問い合わせください';
-            apiLogError = msg;
-            return NextResponse.json({ error: msg }, { status: 409 });
-        }
-
-        // 2) 成功時のみ RPA リクエスト登録
-        stages.push({ t: now(), stage: 'rpa_insert_try' });
         const request_details = {
             shift_id,
             kaipoke_cs_id,
@@ -98,27 +62,36 @@ export async function POST(req: NextRequest) {
             requested_by: requested_by_user_id,
             requested_kaipoke_user_id,
             attend_request: !!accompany,
+            time_adjust_note,
         };
 
-        const { error } = await supabaseAdmin
-            .from('rpa_command_requests')
-            .insert({
-                template_id,
-                requester_id: requested_by_user_id,
-                approver_id: requested_by_user_id,
-                status: 'approved',
-                request_details,
-            });
+        // 割当・申請登録・重複判定をDBの1トランザクションで実行する。
+        stages.push({ t: now(), stage: 'coordinate_request_rpc' });
+        const { data: result, error } = await supabaseAdmin.rpc(
+            'create_shift_coordinate_request_v1',
+            {
+                p_shift_id: Number(shift_id),
+                p_user_id: String(requested_by_user_id),
+                p_requester_id: String(requester_id),
+                p_requested_kaipoke_user_id: requested_kaipoke_user_id ?? null,
+                p_accompany: !!accompany,
+                p_role_code: role_code,
+                p_template_id: String(template_id),
+                p_request_details: request_details,
+            },
+        );
 
         if (error) {
-            apiLogError = `RPA insert error: ${error.message}`;
-            stages.push({ t: now(), stage: 'rpa_insert_error', error: error.message });
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            apiLogError = `Coordinate request RPC error: ${error.message}`;
+            stages.push({ t: now(), stage: 'coordinate_request_rpc_error', error: error.message });
+            return NextResponse.json({ error: 'シフト反映と申請登録に失敗しました' }, { status: 500 });
         }
 
-        stages.push({ t: now(), stage: 'done' });
+        stages.push({ t: now(), stage: 'done', result });
 
-        return NextResponse.json({ ok: true, assign: res });
+        return NextResponse.json(result ?? { ok: false, error: '処理結果を取得できませんでした' }, {
+            status: result?.ok ? 200 : 409,
+        });
     } catch (e: unknown) {
         const msg =
             e instanceof Error ? e.message : typeof e === 'string' ? e : JSON.stringify(e);
