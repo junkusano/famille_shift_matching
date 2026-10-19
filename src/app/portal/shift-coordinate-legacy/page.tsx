@@ -474,6 +474,17 @@ for (const row of csDocsData ?? []) {
                     }
                 } else {
                     console.warn("チャネルIDが取得できませんでした");
+                    try {
+                        await notifyShiftCoordinateFailureToManager(
+                            shift,
+                            applicantName,
+                            "利用者グループの通知先チャンネルを取得できませんでした",
+                        );
+                        alert("シフト反映は完了しましたが、通知先を取得できなかったためヘルパーマネジャーへ要対応通知を送りました。");
+                    } catch (managerError) {
+                        alert("シフト反映は完了しましたが、通知先取得とヘルパーマネジャーへの要対応通知に失敗しました。至急管理者へ連絡してください。");
+                        console.error("通知先取得失敗時のヘルパーマネジャー通知に失敗しました", managerError);
+                    }
                 }
 
                 // 5) 時間調整のアラートも作成（cs_kaipoke_info.name を優先）
