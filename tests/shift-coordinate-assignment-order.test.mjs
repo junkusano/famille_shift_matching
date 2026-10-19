@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const page = readFileSync(new URL('../src/app/portal/shift-coordinate-legacy/page.tsx', import.meta.url), 'utf8');
 const route = readFileSync(new URL('../src/app/api/shift-coordinate-rpa-request/route.ts', import.meta.url), 'utf8');
+const notificationAlertRoute = readFileSync(new URL('../src/app/api/shift-coordinate-notification-alert/route.ts', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../supabase/migrations/202610191200_atomic_shift_coordinate_request.sql', import.meta.url), 'utf8');
 
 test('シフ子は担当者反映と申請登録を完了してから成功通知する', () => {
@@ -39,5 +40,13 @@ test('シフト反映とLINE WORKS通知は30秒でタイムアウトする', ()
   assert.match(page, /SHIFT_COORDINATE_TIMEOUT_MS = 30_000/);
   assert.match(page, /fetchShiftCoordinateWithTimeout/);
   assert.match(page, /シフト反映が30秒以内に完了しませんでした/);
-  assert.match(page, /LINE WORKS通知が30秒以内に完了しませんでした/);
+  assert.match(page, /利用者グループへの通知が30秒以内に完了しませんでした/);
+});
+
+test('LINE WORKS通知失敗時はヘルパーマネジャーへ要対応通知を送る', () => {
+  assert.match(page, /\/api\/shift-coordinate-notification-alert/);
+  assert.match(page, /ヘルパーマネジャー通知/);
+  assert.match(notificationAlertRoute, /HELPER_MANAGER_CHANNEL_ID/);
+  assert.match(notificationAlertRoute, /【要対応：シフ子の通知失敗】/);
+  assert.match(notificationAlertRoute, /元の通知が遅れて届く可能性/);
 });

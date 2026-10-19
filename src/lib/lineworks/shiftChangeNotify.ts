@@ -3,13 +3,13 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { getAccessToken } from "@/lib/getAccessToken";
 import { sendLWBotMentionMessage, type MentionTarget } from "@/lib/lineworks/sendLWBotMentionMessage";
 import { SignJWT, importPKCS8 } from "jose";
+import { HELPER_MANAGER_CHANNEL_ID } from "@/lib/lineworks/managerChannel";
 
 /**
  * 送信先（ヘルパーマネジャー固定チャンネル）
  * ※ご指定：Channel_id：99142491
  */
-//const MANAGER_CHANNEL_ID = "99142491";
-const MANAGER_CHANNEL_ID = "52e31296-6764-0a1e-5b37-11023360216b";
+const MANAGER_CHANNEL_ID = HELPER_MANAGER_CHANNEL_ID;
 
 const LW_CLIENT_ID =
   process.env.LINEWORKS_CLIENT_ID ||
