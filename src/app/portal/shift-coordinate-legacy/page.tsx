@@ -14,6 +14,34 @@ import { createTimeAdjustAlertFromShift } from "@/lib/shift/shift_card_alert";
 
 
 const PAGE_SIZE = 100;
+const SHIFT_COORDINATE_TIMEOUT_MS = 30_000;
+
+class ShiftCoordinateTimeoutError extends Error {
+    constructor(label: string) {
+        super(`${label} timed out after ${SHIFT_COORDINATE_TIMEOUT_MS}ms`);
+        this.name = "ShiftCoordinateTimeoutError";
+    }
+}
+
+async function fetchShiftCoordinateWithTimeout(
+    input: RequestInfo | URL,
+    init: RequestInit,
+    label: string,
+): Promise<Response> {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), SHIFT_COORDINATE_TIMEOUT_MS);
+
+    try {
+        return await fetch(input, { ...init, signal: controller.signal });
+    } catch (error) {
+        if (controller.signal.aborted) {
+            throw new ShiftCoordinateTimeoutError(label);
+        }
+        throw error;
+    } finally {
+        window.clearTimeout(timer);
+    }
+}
 
 
 export default function ShiftPage() {
@@ -327,26 +355,39 @@ for (const row of csDocsData ?? []) {
 
             // 担当者反映とRPA申請登録をサーバー側で先に完了させる。
             // 受付通知を先に送ると、反映前に別の申請が成立する競合が起きる。
-            const assignResponse = await fetch("/api/shift-coordinate-rpa-request", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    shift_id: shift.shift_id,
-                    kaipoke_cs_id: shift.kaipoke_cs_id,
-                    shift_start_date: shift.shift_start_date,
-                    shift_start_time: shift.shift_start_time,
-                    shift_end_time: shift.shift_end_time,
-                    service_code: shift.service_code,
-                    postal_code_3: shift.postal_code_3,
-                    client_name: shift.client_name,
-                    requested_by_user_id: accountId,
-                    requester_id: userId,
-                    requested_kaipoke_user_id: kaipokeUserId,
-                    accompany: attendRequest,
-                    role_code: null,
-                    time_adjust_note: timeAdjustNote ?? null,
-                }),
-            });
+            let assignResponse: Response;
+            try {
+                assignResponse = await fetchShiftCoordinateWithTimeout(
+                    "/api/shift-coordinate-rpa-request",
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            shift_id: shift.shift_id,
+                            kaipoke_cs_id: shift.kaipoke_cs_id,
+                            shift_start_date: shift.shift_start_date,
+                            shift_start_time: shift.shift_start_time,
+                            shift_end_time: shift.shift_end_time,
+                            service_code: shift.service_code,
+                            postal_code_3: shift.postal_code_3,
+                            client_name: shift.client_name,
+                            requested_by_user_id: accountId,
+                            requester_id: userId,
+                            requested_kaipoke_user_id: kaipokeUserId,
+                            accompany: attendRequest,
+                            role_code: null,
+                            time_adjust_note: timeAdjustNote ?? null,
+                        }),
+                    },
+                    "シフト反映",
+                );
+            } catch (error) {
+                if (error instanceof ShiftCoordinateTimeoutError) {
+                    alert("シフト反映が30秒以内に完了しませんでした。反映状況を確認してから再操作してください。");
+                    return;
+                }
+                throw error;
+            }
             const assignRaw = await assignResponse.text();
             let assignPayload: { ok?: boolean; error?: string } | null = null;
             try { assignPayload = JSON.parse(assignRaw) as { ok?: boolean; error?: string }; } catch { }
@@ -381,11 +422,24 @@ for (const row of csDocsData ?? []) {
                 if (chanData?.channel_id) {
                     const message = `✅シフト反映が完了しました\n\n・日付: ${shift.shift_start_date}\n・時間: ${shift.shift_start_time}～${shift.shift_end_time}\n・利用者: ${shift.client_name} 様\n・種別: ${shift.service_code}\n・エリア: ${shift.postal_code_3}（${shift.district}）\n・同行希望: ${attendRequest ? "あり" : "なし"}\n・担当者: ${mention}`;
 
-                    await fetch("/api/lw-send-botmessage", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ channelId: chanData.channel_id, text: message }),
-                    });
+                    try {
+                        await fetchShiftCoordinateWithTimeout(
+                            "/api/lw-send-botmessage",
+                            {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ channelId: chanData.channel_id, text: message }),
+                            },
+                            "LINE WORKS通知",
+                        );
+                    } catch (error) {
+                        if (error instanceof ShiftCoordinateTimeoutError) {
+                            alert("シフト反映は完了しましたが、LINE WORKS通知が30秒以内に完了しませんでした。管理者に確認してください。");
+                            console.warn("LINE WORKS通知がタイムアウトしました", error);
+                        } else {
+                            console.warn("LINE WORKS通知の送信に失敗しました", error);
+                        }
+                    }
                 } else {
                     console.warn("チャネルIDが取得できませんでした");
                 }
