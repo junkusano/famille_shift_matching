@@ -43,6 +43,30 @@ async function fetchShiftCoordinateWithTimeout(
     }
 }
 
+async function notifyShiftCoordinateFailureToManager(
+    shift: ShiftData,
+    applicantName: string,
+    failureReason: string,
+): Promise<void> {
+    await fetchShiftCoordinateWithTimeout(
+        "/api/shift-coordinate-notification-alert",
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                applicantName,
+                shiftId: shift.shift_id,
+                shiftStartDate: shift.shift_start_date,
+                shiftStartTime: shift.shift_start_time,
+                shiftEndTime: shift.shift_end_time,
+                clientName: shift.client_name,
+                failureReason,
+            }),
+        },
+        "ヘルパーマネジャー通知",
+    );
+}
+
 
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]);
@@ -418,6 +442,9 @@ for (const row of csDocsData ?? []) {
 
                 const sender = userData?.lw_userid;
                 const mention = sender ? `<m userId="${sender}">さん` : `${sender ?? "不明"}さん`;
+                const applicantName = [userData?.last_name_kanji, userData?.first_name_kanji]
+                    .filter(Boolean)
+                    .join(" ") || "不明";
 
                 if (chanData?.channel_id) {
                     const message = `✅シフト反映が完了しました\n\n・日付: ${shift.shift_start_date}\n・時間: ${shift.shift_start_time}～${shift.shift_end_time}\n・利用者: ${shift.client_name} 様\n・種別: ${shift.service_code}\n・エリア: ${shift.postal_code_3}（${shift.district}）\n・同行希望: ${attendRequest ? "あり" : "なし"}\n・担当者: ${mention}`;
@@ -433,12 +460,17 @@ for (const row of csDocsData ?? []) {
                             "LINE WORKS通知",
                         );
                     } catch (error) {
-                        if (error instanceof ShiftCoordinateTimeoutError) {
-                            alert("シフト反映は完了しましたが、LINE WORKS通知が30秒以内に完了しませんでした。管理者に確認してください。");
-                            console.warn("LINE WORKS通知がタイムアウトしました", error);
-                        } else {
-                            console.warn("LINE WORKS通知の送信に失敗しました", error);
+                        const failureReason = error instanceof ShiftCoordinateTimeoutError
+                            ? "利用者グループへの通知が30秒以内に完了しませんでした"
+                            : "利用者グループへの通知送信に失敗しました";
+                        try {
+                            await notifyShiftCoordinateFailureToManager(shift, applicantName, failureReason);
+                            alert(`シフト反映は完了しましたが、LINE WORKS通知に失敗したためヘルパーマネジャーへ要対応通知を送りました。`);
+                        } catch (managerError) {
+                            alert("シフト反映は完了しましたが、LINE WORKS通知とヘルパーマネジャーへの要対応通知に失敗しました。至急管理者へ連絡してください。");
+                            console.error("ヘルパーマネジャー通知の送信に失敗しました", managerError);
                         }
+                        console.warn("利用者グループへのLINE WORKS通知に失敗しました", error);
                     }
                 } else {
                     console.warn("チャネルIDが取得できませんでした");
