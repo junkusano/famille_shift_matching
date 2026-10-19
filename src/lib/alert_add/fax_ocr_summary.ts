@@ -91,7 +91,8 @@ async function getOcrText(
     const { data: ocrRows } = await supabaseAdmin
       .from("cm_fax_ocr_results")
       .select("fax_page_id, ocr_text, detected_text, extracted_client_name, suggested_reason")
-      .in("fax_page_id", ids);
+      .in("fax_page_id", ids)
+      .order("page_number", { ascending: true });
     const existing = (ocrRows ?? []) as OcrRow[];
     const text = existing
       .map((row) => (row.ocr_text || row.detected_text || "").trim())
