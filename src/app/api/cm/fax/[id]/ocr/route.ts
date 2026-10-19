@@ -184,6 +184,7 @@ export async function POST(
             faxNumber: fax.fax_number ?? null,
             receivedAt: fax.received_at ?? null,
             fileName: fax.file_name ?? null,
+            fileId: fax.file_id ?? null,
             pages: pagesForNotification,
           });
           if (lineworks.sent) await markLineworksNotificationSent(faxId, fax.meta);
@@ -275,6 +276,7 @@ export async function POST(
           faxNumber: fax.fax_number ?? null,
           receivedAt: fax.received_at ?? null,
           fileName: fax.file_name ?? null,
+          fileId: fax.file_id ?? null,
           pages: processed.map(({ pageNumber, text }) => ({ pageNumber, text })),
         });
       } catch (notificationError) {
