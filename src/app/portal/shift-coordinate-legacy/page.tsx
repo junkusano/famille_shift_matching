@@ -38,17 +38,6 @@ export default function ShiftPage() {
     const [filterGender, setFilterGender] = useState<string[]>([]);
     const [creatingShiftRequest, setCreatingShiftRequest] = useState(false);
 
-    // --- 型: 割当APIの返却 ---
-    type AssignResult = {
-        status: 'assigned' | 'replaced' | 'error' | 'noop';
-        slot?: 'staff_01' | 'staff_02' | 'staff_03';
-        message?: string;
-    };
-
-    type ShiftAssignApiResponse =
-        | { ok: true; assign: AssignResult; stages?: unknown }
-        | { ok?: false; error: string; assign?: AssignResult; stages?: unknown };
-
     // --- ユーティリティ: JSONを安全にパース ---
 
     useEffect(() => {
@@ -336,34 +325,43 @@ for (const row of csDocsData ?? []) {
                 return;
             }
 
-            // --- 既存：RPAリクエスト作成（変更なし） ---
-            const { error } = await supabase.from("rpa_command_requests").insert({
-                template_id: "92932ea2-b450-4ed0-a07b-4888750da641",
-                requester_id: userId,
-                approver_id: userId,
-                status: "approved",
-                request_details: {
+            // 担当者反映とRPA申請登録をサーバー側で先に完了させる。
+            // 受付通知を先に送ると、反映前に別の申請が成立する競合が起きる。
+            const assignResponse = await fetch("/api/shift-coordinate-rpa-request", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
                     shift_id: shift.shift_id,
                     kaipoke_cs_id: shift.kaipoke_cs_id,
                     shift_start_date: shift.shift_start_date,
                     shift_start_time: shift.shift_start_time,
+                    shift_end_time: shift.shift_end_time,
                     service_code: shift.service_code,
                     postal_code_3: shift.postal_code_3,
                     client_name: shift.client_name,
-                    requested_by: accountId,            // ← users.user_id（社内ID）
+                    requested_by_user_id: accountId,
+                    requester_id: userId,
                     requested_kaipoke_user_id: kaipokeUserId,
-                    attend_request: attendRequest,
-                    // 任意メモ
+                    accompany: attendRequest,
+                    role_code: null,
                     time_adjust_note: timeAdjustNote ?? null,
-                },
+                }),
             });
+            const assignRaw = await assignResponse.text();
+            let assignPayload: { ok?: boolean; error?: string } | null = null;
+            try { assignPayload = JSON.parse(assignRaw) as { ok?: boolean; error?: string }; } catch { }
+            if (!assignResponse.ok || !assignPayload?.ok) {
+                const message = assignPayload?.error ?? `HTTP ${assignResponse.status}`;
+                alert(`シフト反映に失敗しました: ${message}`);
+                return;
+            }
 
-            if (error) {
-                alert("送信に失敗しました: " + error.message);
-            } else {
-                alert("希望リクエストを登録しました！");
+            // 反映済みのシフトは、この画面の候補一覧から直ちに除外する。
+            setShifts((current) => current.filter((item) => item.shift_id !== shift.shift_id));
+            setFilteredShifts((current) => current.filter((item) => item.shift_id !== shift.shift_id));
+            alert("シフト反映と希望リクエストの登録が完了しました！");
 
-                // --- 既存：LW通知（変更なし） ---
+            // --- 担当者反映後にLINE WORKS通知 ---
                 const { data: chanData } = await supabase
                     .from("group_lw_channel_view")
                     .select("channel_id")
@@ -381,7 +379,7 @@ for (const row of csDocsData ?? []) {
                 const mention = sender ? `<m userId="${sender}">さん` : `${sender ?? "不明"}さん`;
 
                 if (chanData?.channel_id) {
-                    const message = `✅シフト希望が登録されました\n\n・マイファミーユ反映までお待ちください\n\n・日付: ${shift.shift_start_date}\n・時間: ${shift.shift_start_time}～${shift.shift_end_time}\n・利用者: ${shift.client_name} 様\n・種別: ${shift.service_code}\n・エリア: ${shift.postal_code_3}（${shift.district}）\n・同行希望: ${attendRequest ? "あり" : "なし"}\n・担当者: ${mention}`;
+                    const message = `✅シフト反映が完了しました\n\n・日付: ${shift.shift_start_date}\n・時間: ${shift.shift_start_time}～${shift.shift_end_time}\n・利用者: ${shift.client_name} 様\n・種別: ${shift.service_code}\n・エリア: ${shift.postal_code_3}（${shift.district}）\n・同行希望: ${attendRequest ? "あり" : "なし"}\n・担当者: ${mention}`;
 
                     await fetch("/api/lw-send-botmessage", {
                         method: "POST",
@@ -391,80 +389,6 @@ for (const row of csDocsData ?? []) {
                 } else {
                     console.warn("チャネルIDが取得できませんでした");
                 }
-
-                // 既存：RPA成功の直後に shift 割当 API を呼ぶ（ログ付き）
-                try {
-                    // ★追加：traceId を発行して3者（ブラウザ/Vercel/DB）で突合
-                    const traceId = crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random()}`;
-                    console.log("[SHIFT ASSIGN] start", {
-                        traceId,
-                        shift_id: shift.shift_id,
-                        requested_by_user_id: accountId,
-                        accompany: attendRequest,
-                    });
-
-                    const resp = await fetch("/api/shift-assign-after-rpa", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "x-trace-id": traceId },  // ★追加
-                        body: JSON.stringify({
-                            shift_id: shift.shift_id,
-                            requested_by_user_id: accountId, // ※ users.user_id（社内ID）
-                            accompany: attendRequest,
-                            role_code: null,
-                            trace_id: traceId, // （任意）本文にも入れておく
-                        }),
-                    });
-
-                    // ★追加：HTTPステータス＆生テキストを必ずログ（404/500の切り分け用）
-                    const raw = await resp.text();
-                    console.log("[SHIFT ASSIGN] http", { traceId, status: resp.status, ok: resp.ok, raw });
-
-                    let payload: ShiftAssignApiResponse | null = null;
-                    try { payload = JSON.parse(raw) as ShiftAssignApiResponse; } catch { }
-                    console.log("[SHIFT ASSIGN] payload", { traceId, payload });
-
-                    if (resp.ok && payload && "assign" in payload && payload.assign) {
-                        const { status, slot, message } = payload.assign;
-                        void slot
-                        void message
-                        //alert(`🧩 Shift割当結果: ${status}${slot ? ` / ${slot}` : ""}${message ? `\n${message}` : ""}`);
-                        // --- ★追加: LINE WORKS へ担当変更通知 ---
-                        try {
-                            if (status === "assigned" || status === "replaced") {
-                                if (chanData?.channel_id) {
-                                    const toHM = (t?: string | null) => (t ? t.slice(0, 5) : "");
-                                    // mention はすでに上で作っている `const mention = ...` を再利用
-                                    const text =
-                                        `${shift.shift_start_date} ${toHM(shift.shift_start_time)}～${toHM(shift.shift_end_time)} のシフトの担当を${mention}に変更しました（マイファミーユ）。\n` +
-                                        `変更に問題がある場合には、マネジャーに問い合わせください。`;
-
-                                    await fetch("/api/lw-send-botmessage", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ channelId: chanData.channel_id, text }),
-                                    });
-                                } else {
-                                    console.warn("チャネルIDが取得できませんでした（担当変更通知）");
-                                }
-                            }
-                        } catch (e) {
-                            console.warn("担当変更通知の送信に失敗", e);
-                        }
-
-
-                    } else {
-                        const errMsg =
-                            payload && "error" in payload && typeof payload.error === "string"
-                                ? payload.error
-                                : `HTTP ${resp.status}`;
-                        alert(`※シフト割当は未反映: ${errMsg}`);
-                    }
-                } catch (e) {
-                    console.error("[SHIFT ASSIGN] exception", e);
-                    alert("※シフト割当の呼び出しで例外が発生しました");
-                }
-
-                // --- ★追加ここまで ---
 
                 // 5) 時間調整のアラートも作成（cs_kaipoke_info.name を優先）
                 await createTimeAdjustAlertFromShift(
@@ -477,7 +401,6 @@ for (const row of csDocsData ?? []) {
                     },
                     timeAdjustNote
                 );
-            }
         } catch (e) {
             alert("処理中にエラーが発生しました");
             console.error(e);
