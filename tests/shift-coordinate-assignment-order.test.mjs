@@ -7,7 +7,7 @@ const route = readFileSync(new URL('../src/app/api/shift-coordinate-rpa-request/
 const migration = readFileSync(new URL('../supabase/migrations/202610191200_atomic_shift_coordinate_request.sql', import.meta.url), 'utf8');
 
 test('シフ子は担当者反映と申請登録を完了してから成功通知する', () => {
-  const requestCall = page.indexOf('fetch("/api/shift-coordinate-rpa-request"');
+  const requestCall = page.indexOf('"/api/shift-coordinate-rpa-request"');
   const successNotice = page.indexOf('✅シフト反映が完了しました');
 
   assert.notEqual(requestCall, -1);
@@ -33,4 +33,11 @@ test('割当とRPA登録は同一DB関数で冪等に処理する', () => {
 test('反映成功後はシフ子の候補一覧から対象シフトを除外する', () => {
   assert.match(page, /setShifts\(\(current\) => current\.filter\(\(item\) => item\.shift_id !== shift\.shift_id\)\)/);
   assert.match(page, /setFilteredShifts\(\(current\) => current\.filter\(\(item\) => item\.shift_id !== shift\.shift_id\)\)/);
+});
+
+test('シフト反映とLINE WORKS通知は30秒でタイムアウトする', () => {
+  assert.match(page, /SHIFT_COORDINATE_TIMEOUT_MS = 30_000/);
+  assert.match(page, /fetchShiftCoordinateWithTimeout/);
+  assert.match(page, /シフト反映が30秒以内に完了しませんでした/);
+  assert.match(page, /LINE WORKS通知が30秒以内に完了しませんでした/);
 });
