@@ -49,4 +49,5 @@ test('LINE WORKS通知失敗時はヘルパーマネジャーへ要対応通知�
   assert.match(notificationAlertRoute, /HELPER_MANAGER_CHANNEL_ID/);
   assert.match(notificationAlertRoute, /【要対応：シフ子の通知失敗】/);
   assert.match(notificationAlertRoute, /元の通知が遅れて届く可能性/);
+  assert.match(page, /利用者グループの通知先チャンネルを取得できませんでした/);
 });
