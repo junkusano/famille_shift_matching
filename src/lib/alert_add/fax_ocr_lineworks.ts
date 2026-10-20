@@ -4,6 +4,7 @@ import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { FAX_UNHANDLED_GROUP_NAME } from "@/lib/alert_add/fax_unhandled_lineworks";
 import { buildFaxOcrSummary } from "@/lib/alert_add/fax_ocr_summary";
+import { detectFaxReply, type FaxReplyMatch } from "@/lib/alert_add/fax_reply_detection";
 
 const LEGACY_FAX_UNHANDLED_GROUP_NAME = "◆（Fax）対応忘れ防止グループ（ケアマネ）";
 
@@ -25,13 +26,20 @@ export type FaxOcrNotificationResult = {
   error?: string;
 };
 
-function buildFallbackMessage(input: FaxOcrNotificationInput): string {
+function buildFallbackMessage(input: FaxOcrNotificationInput, replyMatch?: FaxReplyMatch): string {
   const text = input.pages
     .map(({ pageNumber, text }) => `【ページ${pageNumber}】\n${text.trim()}`)
     .join("\n\n");
 
   const detailUrl = `${getAppBaseUrl()}/cm-portal/fax/${input.faxId}`;
   const rawOcr = text || "読み取れる内容はなし";
+  const replyNotice = replyMatch?.isReplyCandidate
+    ? [
+        "▼FAX区分: こちらから送信したFAXへの返信候補",
+        `▼返信元候補（当社送信先）: ${replyMatch.destinationOffice || "読み取れる内容はなし"}`,
+        `▼当社送信日時: ${replyMatch.sentAt || "読み取れる内容はなし"}`,
+      ]
+    : [];
   const lines = [
     "【ファミーユFAX受信】",
     `送信元: ${input.faxNumber || "読み取れる内容はなし"}`,
@@ -63,6 +71,7 @@ function buildFallbackMessage(input: FaxOcrNotificationInput): string {
     "- 読み取れる内容はなし",
     "【7】提供表",
     "- 読み取れる内容はなし",
+    ...replyNotice,
     "",
     "【文書分類（cs_doc）】",
     "判定_id: 読み取れる内容はなし",
@@ -110,7 +119,7 @@ async function buildMessage(
       faxId: input.faxId,
       error: error instanceof Error ? error.message : String(error),
     });
-    return buildFallbackMessage(input);
+    return buildFallbackMessage(input, await detectFaxReply(input.faxNumber, input.receivedAt));
   }
 }
 
