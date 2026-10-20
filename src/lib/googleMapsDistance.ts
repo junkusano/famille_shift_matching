@@ -322,6 +322,14 @@ export async function runGoogleMapsDistanceUpdate(
 
       const aMonth = a.shift.shift_start_date?.slice(0, 7) ?? "";
       const bMonth = b.shift.shift_start_date?.slice(0, 7) ?? "";
+      const aMonthIsCalculated = staffMonthWithSuccessfulSegments.has(`${a.staffId}:${aMonth}`);
+      const bMonthIsCalculated = staffMonthWithSuccessfulSegments.has(`${b.staffId}:${bMonth}`);
+      const aNeedsPastOrCurrentCalculation = aMonth <= currentMonth && !aMonthIsCalculated ? 0 : 1;
+      const bNeedsPastOrCurrentCalculation = bMonth <= currentMonth && !bMonthIsCalculated ? 0 : 1;
+      if (aNeedsPastOrCurrentCalculation !== bNeedsPastOrCurrentCalculation) {
+        return aNeedsPastOrCurrentCalculation - bNeedsPastOrCurrentCalculation;
+      }
+
       const priority = (month: string) => month === previousMonth ? 0 : month === currentMonth ? 1 : 2;
       const monthPriority = priority(aMonth) - priority(bMonth);
       if (monthPriority !== 0) return monthPriority;
@@ -329,8 +337,8 @@ export async function runGoogleMapsDistanceUpdate(
       // 同じ月では、まだ成功した明細がない職員を先に処理する。
       // 職員単位の既存明細だけで判定すると、別月を計算済みの職員が
       // 当月未計算でも先に並び、未計算者が長期間残るため月単位で判定する。
-      const aIsCalculated = staffMonthWithSuccessfulSegments.has(`${a.staffId}:${aMonth}`) ? 1 : 0;
-      const bIsCalculated = staffMonthWithSuccessfulSegments.has(`${b.staffId}:${bMonth}`) ? 1 : 0;
+      const aIsCalculated = aMonthIsCalculated ? 1 : 0;
+      const bIsCalculated = bMonthIsCalculated ? 1 : 0;
       return aIsCalculated - bIsCalculated
         || (b.shift.shift_start_date ?? "").localeCompare(a.shift.shift_start_date ?? "")
         || a.staffId.localeCompare(b.staffId);
