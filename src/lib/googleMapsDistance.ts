@@ -56,7 +56,7 @@ const FUTURE_MONTHS = Math.max(0, Number(process.env.GOOGLE_MAPS_DISTANCE_FUTURE
 const EXCLUDED_STAFF_NAMES = new Set([
   "濵川 千咲", "サービス サポート", "益田 名実", "塩澤 里美", "高橋 りか",
   "松岡 佑太", "増田 志乃", "太田 明子", "大津 美羽", "池本 梨夏",
-  "長谷川 愛", "渡久地 泰子", "白井 伶佳", "小針 京子",
+  "長谷川 愛", "渡久地 泰子", "白井 伶佳", "小針 京子", "岩田 恵一",
 ]);
 
 function addressHash(address: string) {
@@ -274,10 +274,15 @@ export async function runGoogleMapsDistanceUpdate(
     const targetStaffIds = [...new Set(targets.map((target) => target.staffId))];
     const { data: existingStaffSegments } = await supabaseAdmin
       .from("manager_distance_segments")
-      .select("staff_user_id")
+      .select("staff_user_id, segment_date, status, distance_meters")
       .in("staff_user_id", targetStaffIds.length ? targetStaffIds : ["__no_staff__"]);
-    const staffWithSegments = new Set(
-      (existingStaffSegments ?? []).map((row) => String(row.staff_user_id))
+    const successfulSegments = (existingStaffSegments ?? [])
+      .filter((row) => row.status === "success" && row.distance_meters != null);
+    const staffWithSuccessfulSegments = new Set(
+      successfulSegments.map((row) => String(row.staff_user_id))
+    );
+    const staffMonthWithSuccessfulSegments = new Set(
+      successfulSegments.map((row) => `${String(row.staff_user_id)}:${String(row.segment_date).slice(0, 7)}`)
     );
 
     // API呼び出し処理より先に、全対象ルートをDBへ登録する。
@@ -309,13 +314,26 @@ export async function runGoogleMapsDistanceUpdate(
     }
 
     targets.sort((a, b) => {
-      const aHasSegments = staffWithSegments.has(a.staffId) ? 1 : 0;
-      const bHasSegments = staffWithSegments.has(b.staffId) ? 1 : 0;
-      if (aHasSegments !== bHasSegments) return aHasSegments - bHasSegments;
+      // まず一度も成功していない職員を優先し、計算枠を特定の職員が
+      // 占有して未計算者が残り続けることを防ぐ。
+      const aHasAnySegments = staffWithSuccessfulSegments.has(a.staffId) ? 1 : 0;
+      const bHasAnySegments = staffWithSuccessfulSegments.has(b.staffId) ? 1 : 0;
+      if (aHasAnySegments !== bHasAnySegments) return aHasAnySegments - bHasAnySegments;
+
       const aMonth = a.shift.shift_start_date?.slice(0, 7) ?? "";
       const bMonth = b.shift.shift_start_date?.slice(0, 7) ?? "";
       const priority = (month: string) => month === previousMonth ? 0 : month === currentMonth ? 1 : 2;
-      return priority(aMonth) - priority(bMonth) || (b.shift.shift_start_date ?? "").localeCompare(a.shift.shift_start_date ?? "");
+      const monthPriority = priority(aMonth) - priority(bMonth);
+      if (monthPriority !== 0) return monthPriority;
+
+      // 同じ月では、まだ成功した明細がない職員を先に処理する。
+      // 職員単位の既存明細だけで判定すると、別月を計算済みの職員が
+      // 当月未計算でも先に並び、未計算者が長期間残るため月単位で判定する。
+      const aIsCalculated = staffMonthWithSuccessfulSegments.has(`${a.staffId}:${aMonth}`) ? 1 : 0;
+      const bIsCalculated = staffMonthWithSuccessfulSegments.has(`${b.staffId}:${bMonth}`) ? 1 : 0;
+      return aIsCalculated - bIsCalculated
+        || (b.shift.shift_start_date ?? "").localeCompare(a.shift.shift_start_date ?? "")
+        || a.staffId.localeCompare(b.staffId);
     });
 
     await supabaseAdmin.from("google_maps_distance_cron_runs").update({ target_shift_count: shiftRows.length, target_segment_count: targets.length }).eq("id", run.id);

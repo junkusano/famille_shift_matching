@@ -53,6 +53,11 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER = 12;
 const MONTHLY_MOVEMENT_ALLOWANCE_YEN = 2000;
+const HIDDEN_STAFF_NAMES = new Set(["岩田恵一"]);
+
+function isHiddenStaffName(name: string | null | undefined): boolean {
+  return HIDDEN_STAFF_NAMES.has((name ?? "").replace(/\s/g, ""));
+}
 
 function calculateGasolineAmount(distanceKm: number, pricePerLiter: number | null, hasDistance: boolean): number {
   if (!hasDistance || pricePerLiter == null) return 0;
@@ -269,6 +274,7 @@ export default function ManagerDistanceIndexPage() {
     const managerMap = new Map<string, ManagerSummary>();
 
     for (const row of rows) {
+      if (isHiddenStaffName(row.staff_name)) continue;
       const monthKey = getMonthKey(row.target_month);
 
       if (!monthKeys.includes(monthKey)) {
@@ -318,6 +324,7 @@ export default function ManagerDistanceIndexPage() {
   const legacySummaries = useMemo<ManagerSummary[]>(() => {
     const managerMap = new Map<string, ManagerSummary>();
     for (const row of legacyRows) {
+      if (isHiddenStaffName(row.staff_name)) continue;
       const monthKey = getMonthKey(row.target_month);
       if (!monthKeys.includes(monthKey)) continue;
       const current = managerMap.get(row.user_id) ?? {
