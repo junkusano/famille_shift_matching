@@ -3,6 +3,7 @@ import { downloadCsDocPdf, extractTextWithAbbyy } from "@/lib/cs-docs-reprocess"
 import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
 import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { detectFaxReply, type FaxReplyMatch } from "@/lib/alert_add/fax_reply_detection";
 
 type FaxForSummary = {
   id: number;
@@ -112,7 +113,18 @@ async function generateSummary(
   pages: PageForSummary[],
   ocrText: string,
   documentTypes: DocumentType[],
+  replyMatch: FaxReplyMatch,
 ): Promise<string> {
+  const replyNotice = replyMatch.isReplyCandidate
+    ? [
+        "▼FAX区分: こちらから送信したFAXへの返信候補",
+        `▼返信元候補（当社送信先）: ${replyMatch.destinationOffice || NO_CONTENT}`,
+        `▼当社送信日時: ${replyMatch.sentAt || NO_CONTENT}`,
+        replyMatch.subject ? `▼当社送信件名: ${replyMatch.subject}` : null,
+        "",
+      ].filter((line): line is string => line !== null)
+    : [];
+
   if (!ocrText.trim()) {
     return [
       "【ファミーユFAX受信】",
@@ -120,6 +132,7 @@ async function generateSummary(
       `PDFファイル: ${driveUrl(fax.file_id)}`,
       `▼文書日付: ${NO_CONTENT}`,
       "",
+      ...replyNotice,
       "▼要約:",
       "【1】送信者情報（事業所名・担当者名）",
       `- 事業所名: ${NO_CONTENT}`,
@@ -165,6 +178,7 @@ async function generateSummary(
         content: [
           "あなたは介護・福祉事業所のFAXを整理する担当者です。",
           "OCR本文だけを根拠に、日本語で指定JSONを返してください。推測で補完せず、情報がない項目は『読み取れる内容はなし』としてください。",
+          "reply_context.isReplyCandidateがtrueの場合は、当社送信先・送信日時を返信候補の根拠として要約に反映してください。ただしOCR本文から読めた送信元や依頼内容は上書きせず、返信候補であることを明示してください。",
           "指定された全項目を必ず返し、該当しない区分も『読み取れる内容はなし』にしてください。利用者名は読み取れた場合のみ末尾に『様』を付けてください。",
         ].join("\n"),
       },
@@ -194,6 +208,7 @@ async function generateSummary(
           },
           document_types: documentTypes,
           fax: { fax_number: fax.fax_number, file_name: fax.file_name, received_at: fax.received_at },
+          reply_context: replyMatch,
           pages,
           ocr_text: ocrText.slice(0, 50000),
         }),
@@ -209,12 +224,14 @@ async function generateSummary(
   const senderPerson = getString(parsed, "sender_person");
   const clientName = withHonorific(getString(parsed, "client_name"));
   const docId = parsed.document_type_id == null ? NO_CONTENT : String(parsed.document_type_id);
+  const requestContent = getString(parsed, "request_content");
   return [
     "【ファミーユFAX受信】",
     `送信元:${senderOffice} / 担当者:${senderPerson}`,
     `PDFファイル: ${driveUrl(fax.file_id)}`,
     `▼文書日付: ${getString(parsed, "document_date")}`,
     "",
+    ...replyNotice,
     "▼要約:",
     "【1】送信者情報（事業所名・担当者名）",
     `- 事業所名: ${senderOffice}`,
@@ -224,7 +241,7 @@ async function generateSummary(
     `- 住所: ${getNestedString(parsed, "client", "address")}`,
     `- 連絡先: ${getNestedString(parsed, "client", "contact")}`,
     "【3】依頼内容（依頼された内容・文脈）",
-    `- 内容: ${getString(parsed, "request_content")}`,
+    `- 内容: ${requestContent}`,
     "【4】ケアプランまたは個別援助計画が含まれる場合",
     `- 本人・家族の希望: ${getNestedString(parsed, "care_plan", "hope")}`,
     `- サービスに至った理由: ${getNestedString(parsed, "care_plan", "reason")}`,
@@ -256,11 +273,14 @@ export async function buildFaxOcrSummary(
   pages: PageForSummary[],
   accessToken: string,
 ): Promise<string> {
-  const { data: types } = await supabaseAdmin
-    .from("cm_document_types")
-    .select("id, name")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
-  const { text } = await getOcrText(fax, pages, accessToken);
-  return generateSummary(fax, pages, text, (types ?? []) as DocumentType[]);
+  const [{ data: types }, { text }, replyMatch] = await Promise.all([
+    supabaseAdmin
+      .from("cm_document_types")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true }),
+    getOcrText(fax, pages, accessToken),
+    detectFaxReply(fax.fax_number, fax.received_at),
+  ]);
+  return generateSummary(fax, pages, text, (types ?? []) as DocumentType[], replyMatch);
 }
