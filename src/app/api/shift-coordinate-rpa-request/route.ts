@@ -1,6 +1,8 @@
 // app/api/shift-coordinate-rpa-request/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
+import { getUserFromBearer } from '@/lib/auth/getUserFromBearer';
+import { ensureUserCanRequestShift, getAccountIdForAuthUser } from '@/lib/shift/shiftRequestEligibility';
 
 export async function POST(req: NextRequest) {
     // ---- APIロギング用 ----
@@ -13,6 +15,11 @@ export async function POST(req: NextRequest) {
     let accompanyForLog: boolean | null = null;
 
     try {
+        const auth = await getUserFromBearer(req);
+        if (!auth.token || !auth.user?.id) {
+            return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 });
+        }
+
         const body = await req.json();
         stages.push({ t: now(), stage: 'parsed_body', bodyKeys: Object.keys(body ?? {}) });
 
@@ -48,6 +55,18 @@ export async function POST(req: NextRequest) {
         if (!shift_id || !requested_by_user_id) {
             apiLogError = 'bad request';
             return NextResponse.json({ error: 'bad request' }, { status: 400 });
+        }
+
+        const accountId = await getAccountIdForAuthUser(auth.user.id);
+        if (!accountId || accountId !== String(requested_by_user_id)) {
+            apiLogError = '申請者情報がログインユーザーと一致しません';
+            return NextResponse.json({ error: '申請者情報を確認できません' }, { status: 403 });
+        }
+
+        const eligibility = await ensureUserCanRequestShift(auth.user.id, shift_id);
+        if (!eligibility.ok) {
+            apiLogError = eligibility.error;
+            return NextResponse.json({ error: eligibility.error }, { status: 403 });
         }
 
         const request_details = {

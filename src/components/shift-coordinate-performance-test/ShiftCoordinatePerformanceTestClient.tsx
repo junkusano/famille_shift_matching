@@ -481,7 +481,14 @@ export default function ShiftCoordinatePerformanceTestClient({ multipleServicesB
 
           const resp = await fetch("/api/shift-assign-after-rpa", {
             method: "POST",
-            headers: { "Content-Type": "application/json", "x-trace-id": traceId },
+            headers: {
+              "Content-Type": "application/json",
+              "x-trace-id": traceId,
+              "x-shifuko-qualification-check": "1",
+              ...(session.data.session?.access_token
+                ? { Authorization: `Bearer ${session.data.session.access_token}` }
+                : {}),
+            },
             body: JSON.stringify({
               shift_id: shift.shift_id,
               requested_by_user_id: accountId,
@@ -935,6 +942,7 @@ export default function ShiftCoordinatePerformanceTestClient({ multipleServicesB
                       <MultipleServiceShiftCard
                         key={`${item.date}:${item.id}`}
                         group={item}
+                        myServiceKeys={myServiceKeys}
                         creatingRequest={creatingShiftRequest}
                         onRequest={(attend, note) => {
                           void handleMultipleServiceRequest(item, attend, note);

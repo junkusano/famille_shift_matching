@@ -676,7 +676,14 @@ export default function ShiftPage() {
             const traceId = makeTraceId();
             const assignResp = await fetch('/api/shift-assign-after-rpa', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-trace-id': traceId },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-trace-id': traceId,
+                    'x-shifuko-qualification-check': '1',
+                    ...(session?.access_token
+                        ? { Authorization: `Bearer ${session.access_token}` }
+                        : {}),
+                },
                 body: JSON.stringify({
                     shift_id: shift.shift_id,
                     requested_by_user_id: accountId, // users.user_id
