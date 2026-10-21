@@ -1,3 +1,3 @@
-export function buildHealthCheckPersonCommentNotification(name: string, requestId: string) {
-  return `【人事労務・健康診断】産業医が本人向けコメントを登録しました\n対象者：${name}\n申請ID：${requestId}`;
+export function buildHealthCheckPersonCommentNotification() {
+  return "産業医が本人向けコメントを登録しました。マイファミーユの全員共通メニュー＞健康診断結果＞医師の意見欄　を確認お願いします。";
 }
