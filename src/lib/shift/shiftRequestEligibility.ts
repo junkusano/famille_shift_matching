@@ -53,7 +53,7 @@ export async function getAccountIdForAuthUser(authUserId: string) {
 export async function ensureUserCanRequestShift(authUserId: string, shiftId: number | string) {
   const [{ data: shift, error: shiftError }, serviceKeys] = await Promise.all([
     supabaseAdmin
-      .from("shift")
+      .from("shift_self_coordinate_card_view")
       .select("service_code,require_doc_group")
       .eq("shift_id", Number(shiftId))
       .maybeSingle(),
