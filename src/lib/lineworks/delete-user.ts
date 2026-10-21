@@ -2,15 +2,16 @@ import axios from "axios";
 import { getAccessToken } from "@/lib/getAccessToken";
 
 /**
- * Immediately deletes a LINE WORKS user by its immutable userId.
+ * Deletes a LINE WORKS user by its immutable userId.
  *
- * Deletion is intentionally idempotent: the dashboard can be retried after a
- * timeout or after an earlier request already removed the account.
+ * The normal deletion endpoint preserves LINE WORKS's recovery window. The
+ * dashboard can be retried after a timeout or after an earlier request already
+ * removed the account.
  */
 export async function deleteLineWorksUser(lineworksUserId: string): Promise<void> {
   const accessToken = await getAccessToken();
   try {
-    await axios.delete(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(lineworksUserId)}/forcedelete`, {
+    await axios.delete(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(lineworksUserId)}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
   } catch (error) {
