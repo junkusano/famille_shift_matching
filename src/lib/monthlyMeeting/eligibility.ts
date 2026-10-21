@@ -14,6 +14,17 @@ export function isMeetingMonthEligible(
   return entryDate <= monthEnd;
 }
 
+/** 入社日が空白の職員について、対象月が初回勤務月以降か判定する。 */
+export function isMeetingMonthOnOrAfterFirstShift(
+  firstShiftDate: string | null | undefined,
+  targetYm: string,
+): boolean {
+  const firstDate = String(firstShiftDate ?? "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(firstDate)
+    && /^\d{4}-\d{2}$/.test(targetYm)
+    && targetYm >= firstDate.slice(0, 7);
+}
+
 export type MonthlyMeetingAlertKey = {
   targetYm: string;
   userId: string;
