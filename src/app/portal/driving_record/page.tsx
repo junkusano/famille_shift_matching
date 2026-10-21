@@ -494,7 +494,7 @@ export default function ManagerDistanceIndexPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            マネージャー移動距離指数
+            走行距離指数
           </h1>
 
           <p className="mt-1 text-sm text-muted-foreground">
@@ -544,7 +544,7 @@ export default function ManagerDistanceIndexPage() {
       <div className="rounded-lg border bg-card shadow-sm">
         <div className="border-b px-4 py-3">
           <p className="text-sm text-muted-foreground">
-            対象権限：manager・admin
+            対象：manager・admin、および社用車を使用する契約社員
           </p>
         </div>
 
