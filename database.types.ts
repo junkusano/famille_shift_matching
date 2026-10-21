@@ -10605,6 +10605,7 @@ export type Database = {
           end_at: string | null
           id: string
           kaipoke_cs_id: string | null
+          jmty_status: string | null
           sharefull_job_id: string | null
           sharefull_status: string | null
           shift_end_time: string | null
@@ -10628,6 +10629,7 @@ export type Database = {
           end_at?: string | null
           id?: string
           kaipoke_cs_id?: string | null
+          jmty_status?: string | null
           sharefull_job_id?: string | null
           sharefull_status?: string | null
           shift_end_time?: string | null
@@ -10651,6 +10653,7 @@ export type Database = {
           end_at?: string | null
           id?: string
           kaipoke_cs_id?: string | null
+          jmty_status?: string | null
           sharefull_job_id?: string | null
           sharefull_status?: string | null
           shift_end_time?: string | null
@@ -10679,6 +10682,7 @@ export type Database = {
           end_at: string | null
           fare: string | null
           internal_label: string | null
+          jmty_template_status: string | null
           kaipoke_cs_id: string | null
           kaiteku_offer_id: string | null
           kaiteku_scraped_at: string | null
@@ -10721,6 +10725,7 @@ export type Database = {
           end_at?: string | null
           fare?: string | null
           internal_label?: string | null
+          jmty_template_status?: string | null
           kaipoke_cs_id?: string | null
           kaiteku_offer_id?: string | null
           kaiteku_scraped_at?: string | null
@@ -10763,6 +10768,7 @@ export type Database = {
           end_at?: string | null
           fare?: string | null
           internal_label?: string | null
+          jmty_template_status?: string | null
           kaipoke_cs_id?: string | null
           kaiteku_offer_id?: string | null
           kaiteku_scraped_at?: string | null
