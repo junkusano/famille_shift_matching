@@ -151,7 +151,7 @@ function TreeGroup({ group, pathname, searchParams }: { group: MenuGroup; pathna
   </section>;
 }
 
-function TreeMenu({ role, userId }: { role: string | null; userId: string | null }) {
+function TreeMenu({ role, userId, canViewDistanceIndex }: { role: string | null; userId: string | null; canViewDistanceIndex: boolean }) {
   const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
   const normalizedRole = (role ?? "").trim().toLowerCase();
@@ -169,6 +169,9 @@ function TreeMenu({ role, userId }: { role: string | null; userId: string | null
   const managerFrequentItems: MenuItem[] = [{ label: "ダッシュボード", href: "/portal/dashboard" }, { label: "エントリー一覧", href: "/portal/entry-list" }, { label: "応募導線分析", href: "/portal/recruitment-analytics" }, { label: "利用者情報", href: "/portal/kaipoke-info" }, { label: "シフト表", href: "/portal/roster/daily", secondary: { label: "β版", href: "/portal/roster/daily-beta", beta: true } }, { label: "月間シフト", href: "/portal/roster/monthly" }];
   const serviceSupportFrequentItems: MenuItem[] = isServiceSupport ? [{ label: "居宅介護支援ポータルHome", href: "https://famille-shift-matching-git-master-junkusanos-projects.vercel.app/cm-portal" }] : [];
   const commonFrequentItems: MenuItem[] = [{ label: "ポータルHome", href: "/portal" }, { label: "シフト・訪問記録", href: "/portal/shift" }, { label: "シフ子", href: "/portal/shift-coordinate" }, { label: "実績記録チェック", href: "/portal/disability-check" }, { label: "職員証", href: "/portal/badge" }];
+  if (canViewDistanceIndex && !isManagerOrAdmin) {
+    commonFrequentItems.splice(1, 0, { label: "走行距離指数", href: "/portal/driving_record" });
+  }
   return <nav className="mt-5 space-y-4" aria-label="ポータルメニュー">
     <div className="rounded-lg border border-sky-300/25 bg-sky-950/25 p-2">
       <h3 className="px-2 pb-1 text-xs font-bold tracking-wide text-sky-200">よく使うメニュー</h3>
@@ -180,8 +183,8 @@ function TreeMenu({ role, userId }: { role: string | null; userId: string | null
   </nav>;
 }
 
-function NavLinks({ role, userId }: { role: string | null; userId: string | null }) {
-  return <TreeMenu role={role} userId={userId} />;
+function NavLinks({ role, userId, canViewDistanceIndex }: { role: string | null; userId: string | null; canViewDistanceIndex: boolean }) {
+  return <TreeMenu role={role} userId={userId} canViewDistanceIndex={canViewDistanceIndex} />;
 }
 
 function UserHeader({ userData, role }: { userData: UserData; role: string | null }) {
@@ -197,12 +200,14 @@ function SidebarContent({
   userData,
   role,
   userId,
+  canViewDistanceIndex,
   onDeletePhoto,
   onReuploadPhoto,
 }: {
   userData: UserData;
   role: string | null;
   userId: string | null;
+  canViewDistanceIndex: boolean;
   onDeletePhoto: () => Promise<void> | void;
   onReuploadPhoto: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void> | void;
 }) {
@@ -213,7 +218,7 @@ function SidebarContent({
         <div className="mt-3">
           <AvatarBlock photoUrl={userData.photo_url} onDelete={onDeletePhoto} onReupload={onReuploadPhoto} size={128} />
         </div>
-        <NavLinks role={role} userId={userId} />
+        <NavLinks role={role} userId={userId} canViewDistanceIndex={canViewDistanceIndex} />
       </div>
       <div className="pt-4">
         <hr className="border-white my-2" />
@@ -308,7 +313,7 @@ function MobileBottomNavigation({ pathname, onNavigate }: { pathname: string; on
 /** ========= Main layout ========= */
 export default function PortalLayout({ children }: Props) {
   const router = useRouter();
-  const { role, userId, loading } = useRoleContext();
+  const { role, userId, loading, canViewDistanceIndex } = useRoleContext();
   const [userData, setUserData] = useState<UserData | null>(null);
 
   const pathname = usePathname();
@@ -394,7 +399,7 @@ export default function PortalLayout({ children }: Props) {
         </button>
 
         {!isCollapsed && (
-          <SidebarContent userData={userData} role={role} userId={userId} onDeletePhoto={handleDeletePhoto} onReuploadPhoto={handlePhotoReupload} />
+          <SidebarContent userData={userData} role={role} userId={userId} canViewDistanceIndex={canViewDistanceIndex} onDeletePhoto={handleDeletePhoto} onReuploadPhoto={handlePhotoReupload} />
         )}
       </aside>
 

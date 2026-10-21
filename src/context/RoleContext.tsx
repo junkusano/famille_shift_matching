@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { isCompanyCarDistanceIndexStaffName } from '@/constants/distanceIndexAccess';
 
 export type Role = 'admin' | 'manager' | 'member' | 'occupational_physician' | null;
 
@@ -9,6 +10,7 @@ export interface RoleContextValue {
   role: Role;
   userId: string | null;
   loading: boolean;
+  canViewDistanceIndex: boolean;
 }
 
 // Context自体は非公開にして、hookでのみアクセスさせる
@@ -18,6 +20,7 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
   const [role, setRole] = useState<Role>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [canViewDistanceIndex, setCanViewDistanceIndex] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -36,8 +39,21 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
           console.error('Role fetch error:', error);
           if (mounted) setRole('member');
         } else {
+          const { data: entryData } = await supabase
+            .from('form_entries')
+            .select('last_name_kanji, first_name_kanji')
+            .eq('auth_uid', user.id)
+            .maybeSingle();
           if (mounted) setUserId(data?.user_id ?? null);
           if (mounted) setRole((data?.system_role as Role) ?? 'member');
+          if (mounted) {
+            const currentRole = String(data?.system_role ?? '').toLowerCase();
+            setCanViewDistanceIndex(
+              currentRole === 'admin'
+                || currentRole === 'manager'
+                || isCompanyCarDistanceIndexStaffName(entryData?.last_name_kanji, entryData?.first_name_kanji),
+            );
+          }
         }
       } finally {
         if (mounted) setLoading(false);
@@ -47,7 +63,7 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <RoleContext.Provider value={{ role, userId, loading }}>
+    <RoleContext.Provider value={{ role, userId, loading, canViewDistanceIndex }}>
       {children}
     </RoleContext.Provider>
   );
