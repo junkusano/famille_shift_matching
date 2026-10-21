@@ -1,12 +1,24 @@
 import axios from "axios";
 import { getAccessToken } from "@/lib/getAccessToken";
 
-/** Deletes a LINE WORKS user by its immutable LINE WORKS userId. */
+/**
+ * Immediately deletes a LINE WORKS user by its immutable userId.
+ *
+ * Deletion is intentionally idempotent: the dashboard can be retried after a
+ * timeout or after an earlier request already removed the account.
+ */
 export async function deleteLineWorksUser(lineworksUserId: string): Promise<void> {
   const accessToken = await getAccessToken();
-  await axios.delete(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(lineworksUserId)}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  try {
+    await axios.delete(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(lineworksUserId)}/forcedelete`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+  } catch (error) {
+    // LINE WORKS returns 404 when a retry targets an already deleted user.
+    // 410 is retained for compatibility with the normal deletion endpoint.
+    if (axios.isAxiosError(error) && [404, 410].includes(error.response?.status ?? 0)) return;
+    throw error;
+  }
 }
 
 /** Confirms current existence by the immutable LINE WORKS userId. */
