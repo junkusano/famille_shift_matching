@@ -4,6 +4,7 @@
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { ensureSystemAlert } from "@/lib/alert/ensureSystemAlert";
 import { isMeetingMonthEligible } from "@/lib/monthlyMeeting/eligibility";
+import { hasStaffShiftInMonth } from "@/lib/monthlyMeeting/shiftEligibility";
 
 type AttendanceRow = {
     target_month: string; // YYYY-MM-01
@@ -17,7 +18,6 @@ type AttendanceRow = {
 
 type StaffInfoRow = {
     user_id: string | null;
-    created_at: string | null;
     entry_date_original: string | null;
     entry_date_latest: string | null;
     last_name_kanji: string | null;
@@ -76,7 +76,7 @@ async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInf
 
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
-        .select("user_id, created_at, entry_date_original, entry_date_latest, last_name_kanji, first_name_kanji, org_unit_id, orgunitname")
+        .select("user_id, entry_date_original, entry_date_latest, last_name_kanji, first_name_kanji, org_unit_id, orgunitname")
         .in("user_id", userIds);
 
     if (error) {
@@ -158,15 +158,22 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
         new Set(dateFilteredRows.map((r) => String(r.user_id ?? "").trim()).filter(Boolean))
     );
     const staffMap = await loadStaffInfoMap(userIds);
-    const filteredRows = dateFilteredRows.filter((row) => {
+    const filteredRows: AttendanceRow[] = [];
+    for (const row of dateFilteredRows) {
         const staff = staffMap.get(String(row.user_id ?? "").trim());
-        return isMeetingMonthEligible(
-            staff?.entry_date_original,
-            staff?.entry_date_latest,
-            row.target_month.slice(0, 7),
-            staff?.created_at,
+        const targetYm = row.target_month.slice(0, 7);
+        const hasEntryDate = Boolean(
+            String(staff?.entry_date_latest || staff?.entry_date_original || "").trim(),
         );
-    });
+        const eligible = hasEntryDate
+            ? isMeetingMonthEligible(
+                staff?.entry_date_original,
+                staff?.entry_date_latest,
+                targetYm,
+            )
+            : await hasStaffShiftInMonth(String(row.user_id ?? "").trim(), targetYm);
+        if (eligible) filteredRows.push(row);
+    }
 
     if (!filteredRows.length) {
         return {

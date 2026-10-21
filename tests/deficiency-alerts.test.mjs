@@ -18,9 +18,9 @@ test("入社日が不明な既存職員は従来どおり月例会議の対象",
   assert.equal(isMeetingMonthEligible(null, null, "2026-09"), true);
 });
 
-test("入社日が空でも登録日時を使って入社前月を除外する", () => {
-  assert.equal(isMeetingMonthEligible(null, null, "2026-03", "2026-08-25T15:17:06+09:00"), false);
-  assert.equal(isMeetingMonthEligible(null, null, "2026-08", "2026-08-25T15:17:06+09:00"), true);
+test("入社日が空の場合は勤務シフト判定に委ねる", () => {
+  assert.equal(isMeetingMonthEligible(null, null, "2026-03"), true);
+  assert.equal(isMeetingMonthEligible(null, null, "2026-08"), true);
 });
 
 test("既存の入社前月アラートだけを解消対象として識別する", () => {
@@ -33,7 +33,6 @@ test("既存の入社前月アラートだけを解消対象として識別す�
     shouldResolveMonthlyMeetingAlert({
       entryDateOriginal: null,
       entryDateLatest: "2026-08-01",
-      createdAt: null,
       targetYm: "2026-03",
     }),
     true,
@@ -42,7 +41,6 @@ test("既存の入社前月アラートだけを解消対象として識別す�
     shouldResolveMonthlyMeetingAlert({
       entryDateOriginal: null,
       entryDateLatest: "2026-08-01",
-      createdAt: null,
       targetYm: "2026-08",
     }),
     false,
@@ -51,7 +49,6 @@ test("既存の入社前月アラートだけを解消対象として識別す�
     shouldResolveMonthlyMeetingAlert({
       entryDateOriginal: null,
       entryDateLatest: null,
-      createdAt: null,
       targetYm: "2026-03",
     }),
     false,
