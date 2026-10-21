@@ -5,6 +5,7 @@ import {
     parseMonthlyMeetingAlertKey,
     shouldResolveMonthlyMeetingAlert,
 } from "@/lib/monthlyMeeting/eligibility";
+import { hasStaffShiftInMonth } from "@/lib/monthlyMeeting/shiftEligibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +20,6 @@ type Body = {
 
 type StaffEntryRow = {
     user_id: string | null;
-    created_at: string | null;
     entry_date_original: string | null;
     entry_date_latest: string | null;
 };
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         if (userIds.length > 0) {
             const { data: staffRows, error: staffError } = await supabaseAdmin
                 .from("user_entry_united_view_single")
-                .select("user_id, created_at, entry_date_original, entry_date_latest")
+                .select("user_id, entry_date_original, entry_date_latest")
                 .in("user_id", userIds);
 
             if (staffError) {
@@ -77,15 +77,22 @@ export async function GET(req: NextRequest) {
 
         for (const { row, key } of alertKeys) {
             const staff = staffMap.get(key.userId);
-            if (
-                !staff ||
-                !shouldResolveMonthlyMeetingAlert({
+            if (!staff) {
+                skippedCount++;
+                continue;
+            }
+
+            const hasEntryDate = Boolean(
+                String(staff.entry_date_latest || staff.entry_date_original || "").trim(),
+            );
+            const shouldResolve = hasEntryDate
+                ? shouldResolveMonthlyMeetingAlert({
                     entryDateOriginal: staff.entry_date_original,
                     entryDateLatest: staff.entry_date_latest,
-                    createdAt: staff.created_at,
                     targetYm: key.targetYm,
                 })
-            ) {
+                : !(await hasStaffShiftInMonth(key.userId, key.targetYm));
+            if (!shouldResolve) {
                 skippedCount++;
                 continue;
             }
