@@ -26,6 +26,7 @@ type AttendanceRow = {
 
 type StaffInfoRow = {
     user_id: string | null;
+    created_at: string | null;
     entry_date_original: string | null;
     entry_date_latest: string | null;
     channel_id: string | null; // 人事労務サポートルーム
@@ -99,7 +100,7 @@ async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInf
 
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
-        .select("user_id, entry_date_original, entry_date_latest, channel_id, lw_userid, last_name_kanji, first_name_kanji, orgunitname")
+        .select("user_id, created_at, entry_date_original, entry_date_latest, channel_id, lw_userid, last_name_kanji, first_name_kanji, orgunitname")
         .in("user_id", userIds);
 
     if (error) {
@@ -238,6 +239,7 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
             staff?.entry_date_original,
             staff?.entry_date_latest,
             row.target_month.slice(0, 7),
+            staff?.created_at,
         );
     });
 

@@ -2,10 +2,15 @@ export function isMeetingMonthEligible(
   entryDateOriginal: string | null | undefined,
   entryDateLatest: string | null | undefined,
   targetYm?: string,
+  createdAt?: string | null,
 ): boolean {
   if (!targetYm) return true;
 
-  const entryDate = String(entryDateLatest || entryDateOriginal || "").trim();
+  const entryDate = String(
+    entryDateLatest || entryDateOriginal || createdAt || "",
+  )
+    .trim()
+    .slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) return true;
   if (!/^\d{4}-\d{2}$/.test(targetYm)) return true;
 
@@ -41,16 +46,20 @@ export function parseMonthlyMeetingAlertKey(
 export function shouldResolveMonthlyMeetingAlert(args: {
   entryDateOriginal: string | null | undefined;
   entryDateLatest: string | null | undefined;
+  createdAt?: string | null;
   targetYm: string;
 }): boolean {
   const entryDate = String(
-    args.entryDateLatest || args.entryDateOriginal || "",
-  ).trim();
+    args.entryDateLatest || args.entryDateOriginal || args.createdAt || "",
+  )
+    .trim()
+    .slice(0, 10);
   if (!entryDate) return false;
 
   return !isMeetingMonthEligible(
     args.entryDateOriginal,
     args.entryDateLatest,
     args.targetYm,
+    args.createdAt,
   );
 }
