@@ -58,6 +58,10 @@ const EXCLUDED_STAFF_NAMES = new Set([
   "松岡 佑太", "増田 志乃", "太田 明子", "大津 美羽", "池本 梨夏",
   "長谷川 愛", "渡久地 泰子", "白井 伶佳", "小針 京子", "岩田 恵一",
 ]);
+// 契約社員のうち、社用車を使用しているため走行距離指数の対象とする職員。
+const COMPANY_CAR_CONTRACT_STAFF_NAMES = new Set([
+  "佐藤 美佐子", "片岡 由美子", "小林 千佳", "山岡 幸洋",
+]);
 
 function addressHash(address: string) {
   return createHash("sha256").update(address.trim().replace(/\s+/g, " ")).digest("hex");
@@ -200,15 +204,15 @@ export async function runGoogleMapsDistanceUpdate(
     if (entriesByIdError) throw new Error(entriesByIdError.message);
     if (entriesByAuthError) throw new Error(entriesByAuthError.message);
     const entries = [...(entriesById ?? []), ...(entriesByAuth ?? [])] as EntryRow[];
-    const managerStaffIds = new Set(
+    const distanceStaffIds = new Set(
       userRows
-        .filter((user) => ["manager", "admin", "system_admin", "super_admin"].includes(
-          String(user.system_role ?? "").toLowerCase()
-        ))
         .filter((user) => {
           const entry = entries.find((item) => item.id === user.entry_id || item.auth_uid === user.auth_user_id);
           const name = clean(`${entry?.last_name_kanji ?? ""} ${entry?.first_name_kanji ?? ""}`);
-          return !EXCLUDED_STAFF_NAMES.has(name);
+          const isManager = ["manager", "admin", "system_admin", "super_admin"].includes(
+            String(user.system_role ?? "").toLowerCase()
+          );
+          return (isManager || COMPANY_CAR_CONTRACT_STAFF_NAMES.has(name)) && !EXCLUDED_STAFF_NAMES.has(name);
         })
         .map((user) => user.user_id)
     );
@@ -222,7 +226,7 @@ export async function runGoogleMapsDistanceUpdate(
     const addressByClient = new Map<string, string>(clientRows.map((c: ClientRow) => [c.kaipoke_cs_id, clean(c.address)]));
     const assigned = shiftRows.flatMap((shift: ShiftRow) => [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
       .filter((staffId): staffId is string => Boolean(staffId && staffId !== "-"))
-      .filter((staffId) => managerStaffIds.has(staffId))
+      .filter((staffId) => distanceStaffIds.has(staffId))
       .map((staffId) => ({
         shift,
         staffId,

@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import { useRoleContext } from "@/context/RoleContext";
 
 type MonthlyDistanceRow = {
   target_month: string;
@@ -99,6 +100,7 @@ function createRecentMonthKeys(count: number): string[] {
 }
 
 export default function ManagerDistanceIndexPage() {
+  const { loading: roleLoading, canViewDistanceIndex } = useRoleContext();
   const [rows, setRows] = useState<MonthlyDistanceRow[]>([]);
   const [legacyRows, setLegacyRows] = useState<LegacyDistanceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,6 +123,10 @@ export default function ManagerDistanceIndexPage() {
   );
 
   const loadData = useCallback(async () => {
+    if (!canViewDistanceIndex) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setErrorMessage("");
 
@@ -228,7 +234,7 @@ export default function ManagerDistanceIndexPage() {
       .maybeSingle();
     setLastUpdatedAt(latestRun?.finished_at ?? null);
     setLoading(false);
-  }, [monthKeys]);
+  }, [canViewDistanceIndex, monthKeys]);
 
   const updateDistance = async (staffUserId?: string) => {
     if (staffUserId) {
@@ -489,12 +495,20 @@ export default function ManagerDistanceIndexPage() {
     }, new Map<string, DistanceSegmentRow[]>()).entries()
   );
 
+  if (roleLoading) {
+    return <main className="p-6 text-sm text-muted-foreground">権限を確認しています…</main>;
+  }
+
+  if (!canViewDistanceIndex) {
+    return <main className="p-6 text-sm text-red-700">このページへの閲覧権限がありません。</main>;
+  }
+
   return (
     <main className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            マネージャー移動距離指数
+            走行距離指数
           </h1>
 
           <p className="mt-1 text-sm text-muted-foreground">
@@ -544,7 +558,7 @@ export default function ManagerDistanceIndexPage() {
       <div className="rounded-lg border bg-card shadow-sm">
         <div className="border-b px-4 py-3">
           <p className="text-sm text-muted-foreground">
-            対象権限：manager・admin
+            対象：manager・admin、および社用車を使用する契約社員
           </p>
         </div>
 
