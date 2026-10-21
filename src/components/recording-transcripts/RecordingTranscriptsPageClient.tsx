@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { searchClients, type ClientSearchResult } from "@/lib/cm/clients/actions";
+import { getAccessToken } from "@/lib/cm/auth/getAccessToken";
 import {
   type RecordingTranscriptDetail,
   type RecordingTranscriptFilters,
@@ -101,6 +103,13 @@ function SecretBadge() {
   );
 }
 
+type StaffSuggestion = {
+  value: string;
+  label: string;
+  email: string | null;
+  display: string;
+};
+
 function StatusBadge({ status }: { status: string }) {
   return (
     <span
@@ -172,6 +181,8 @@ function DetailModal({
   onClose,
   onDelete,
   onSave,
+  participantHistory,
+  staffSuggestions,
   saving,
 }: {
   actionError: string | null;
@@ -182,10 +193,16 @@ function DetailModal({
   onClose: () => void;
   onDelete: () => Promise<void>;
   onSave: (input: EditPayload) => Promise<boolean>;
+  participantHistory: string[];
+  staffSuggestions: StaffSuggestion[];
   saving: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<EditDraft>(EMPTY_EDIT_DRAFT);
+  const [clientCandidates, setClientCandidates] = useState<ClientSearchResult[]>([]);
+  const [clientSearching, setClientSearching] = useState(false);
+  const [clientSearchError, setClientSearchError] = useState<string | null>(null);
+  const [participantHistoryState, setParticipantHistoryState] = useState<string[]>(participantHistory);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -207,6 +224,39 @@ function DetailModal({
     });
   }, [detail]);
 
+  useEffect(() => setParticipantHistoryState(participantHistory), [participantHistory]);
+
+  useEffect(() => {
+    if (!editing || !draft.clientName.trim()) {
+      setClientCandidates([]);
+      setClientSearchError(null);
+      return;
+    }
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setClientSearching(true);
+      setClientSearchError(null);
+      try {
+        const token = await getAccessToken();
+        const result = await searchClients({ search: draft.clientName.trim(), status: "active", limit: 20 }, token);
+        if (!active) return;
+        if (result.ok === false) throw new Error(result.error);
+        setClientCandidates(result.data ?? []);
+      } catch (error) {
+        if (active) {
+          setClientCandidates([]);
+          setClientSearchError(error instanceof Error ? error.message : "利用者検索に失敗しました");
+        }
+      } finally {
+        if (active) setClientSearching(false);
+      }
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [draft.clientName, editing]);
+
   const participantItems = participants(detail?.participants);
   const busy = saving || deleting;
 
@@ -223,7 +273,33 @@ function DetailModal({
       participants: nextParticipants,
       transcriptRaw: draft.transcriptRaw.trim() || null,
     });
-    if (saved) setEditing(false);
+    if (saved) {
+      const entered = nextParticipants.map((item) => item.label?.trim()).filter((value): value is string => Boolean(value));
+      const nextHistory = Array.from(new Set([...entered, ...participantHistoryState])).slice(0, 100);
+      setParticipantHistoryState(nextHistory);
+      try {
+        window.localStorage.setItem("famille-voice-participant-history", JSON.stringify(nextHistory));
+      } catch {
+        // 履歴保存が利用できない環境でも、文字起こしの保存自体は成功扱いにする。
+      }
+      setEditing(false);
+    }
+  };
+
+  const participantSuggestions = (query: string) => {
+    const normalized = query.trim().toLocaleLowerCase("ja-JP");
+    const staff = staffSuggestions
+      .filter((item) => !normalized || `${item.label} ${item.email ?? ""}`.toLocaleLowerCase("ja-JP").includes(normalized))
+      .map((item) => ({ id: item.value, label: item.label, kind: "staff" as const, staffUserId: item.value, meta: item.email ?? "職員" }));
+    const other = participantHistoryState
+      .filter((label) => !normalized || label.toLocaleLowerCase("ja-JP").includes(normalized))
+      .map((label) => ({ id: `history-${label}`, label, kind: "other" as const, staffUserId: null, meta: "履歴" }));
+    const seen = new Set<string>();
+    return [...staff, ...other].filter((item) => {
+      if (seen.has(item.label)) return false;
+      seen.add(item.label);
+      return true;
+    }).slice(0, 12);
   };
 
   return (
@@ -296,7 +372,14 @@ function DetailModal({
               {editing ? (
                 <div className="space-y-4 rounded-lg border border-sky-200 bg-sky-50/40 p-4">
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="text-sm"><span className="mb-1 block text-xs font-medium text-slate-600">利用者名</span><input className="w-full rounded-md border bg-white px-3 py-2" maxLength={200} onChange={(event) => setDraft((value) => ({ ...value, clientName: event.target.value }))} value={draft.clientName} /></label>
+                    <label className="relative text-sm"><span className="mb-1 block text-xs font-medium text-slate-600">利用者名（1文字から検索）</span><input className="w-full rounded-md border bg-white px-3 py-2" maxLength={200} onChange={(event) => setDraft((value) => ({ ...value, clientName: event.target.value, clientId: "" }))} value={draft.clientName} />
+                      {(clientSearching || clientCandidates.length > 0 || clientSearchError) && <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-56 overflow-auto rounded-md border bg-white p-1 text-sm shadow-lg">
+                        {clientSearching && <p className="px-3 py-2 text-xs text-slate-500">利用者を検索中...</p>}
+                        {clientSearchError && <p className="px-3 py-2 text-xs text-red-600">{clientSearchError}</p>}
+                        {!clientSearching && !clientSearchError && clientCandidates.map((candidate) => <button className="block w-full rounded px-3 py-2 text-left hover:bg-sky-50" key={candidate.id} onClick={() => { setDraft((value) => ({ ...value, clientName: candidate.name, clientId: candidate.kaipoke_cs_id ?? candidate.id })); setClientCandidates([]); }} type="button"><span className="font-medium">{candidate.name}</span><span className="ml-2 text-xs text-slate-500">{candidate.kana ?? ""} {candidate.kaipoke_cs_id ? `／${candidate.kaipoke_cs_id}` : ""}</span></button>)}
+                        {!clientSearching && !clientSearchError && clientCandidates.length === 0 && draft.clientName.trim() && <p className="px-3 py-2 text-xs text-slate-500">該当する利用者がいません。手入力で保存できます。</p>}
+                      </div>}
+                    </label>
                     <label className="text-sm"><span className="mb-1 block text-xs font-medium text-slate-600">利用者ID</span><input className="w-full rounded-md border bg-white px-3 py-2" maxLength={200} onChange={(event) => setDraft((value) => ({ ...value, clientId: event.target.value }))} value={draft.clientId} /></label>
                     <label className="text-sm"><span className="mb-1 block text-xs font-medium text-slate-600">コンテキスト名</span><input className="w-full rounded-md border bg-white px-3 py-2" maxLength={300} onChange={(event) => setDraft((value) => ({ ...value, contextName: event.target.value }))} value={draft.contextName} /></label>
                     <label className="text-sm"><span className="mb-1 block text-xs font-medium text-slate-600">コンテキストID</span><input className="w-full rounded-md border bg-white px-3 py-2" maxLength={200} onChange={(event) => setDraft((value) => ({ ...value, contextId: event.target.value }))} value={draft.contextId} /></label>
@@ -324,15 +407,16 @@ function DetailModal({
                     {draft.participants.length === 0 && <p className="rounded-md border border-dashed bg-white p-3 text-xs text-slate-500">参加者は登録されていません。</p>}
                     {draft.participants.map((item, index) => (
                       <div className="flex items-center gap-2" key={item.id ?? "participant-" + index}>
+                        <div className="relative min-w-0 flex-1">
                         <input
-                          className="min-w-0 flex-1 rounded-md border bg-white px-3 py-2 text-sm"
+                          className="w-full rounded-md border bg-white px-3 py-2 text-sm"
                           maxLength={200}
                           onChange={(event) =>
                             setDraft((value) => ({
                               ...value,
                               participants: value.participants.map((participant, participantIndex) =>
                                 participantIndex === index
-                                  ? { ...participant, label: event.target.value }
+                                  ? { ...participant, label: event.target.value, kind: "other", staffUserId: null }
                                   : participant,
                               ),
                             }))
@@ -340,6 +424,8 @@ function DetailModal({
                           placeholder="参加者名"
                           value={typeof item.label === "string" ? item.label : ""}
                         />
+                        {(typeof item.label === "string" && item.label.trim()) && <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-48 overflow-auto rounded-md border bg-white p-1 text-sm shadow-lg">{participantSuggestions(item.label).map((suggestion) => <button className="block w-full rounded px-3 py-2 text-left hover:bg-sky-50" key={`${suggestion.id}-${suggestion.label}`} onClick={() => setDraft((value) => ({ ...value, participants: value.participants.map((participant, participantIndex) => participantIndex === index ? { ...participant, id: suggestion.id, label: suggestion.label, kind: suggestion.kind, staffUserId: suggestion.staffUserId } : participant) }))} type="button"><span className="font-medium">{suggestion.label}</span><span className="ml-2 text-xs text-slate-500">（{suggestion.meta}）</span></button>)}</div>}
+                        </div>
                         <span className="w-14 text-center text-xs text-slate-500">{item.kind === "staff" ? "職員" : "その他"}</span>
                         <button
                           className="rounded-md border border-red-200 bg-white px-3 py-2 text-xs text-red-700 hover:bg-red-50"
@@ -413,6 +499,19 @@ export default function RecordingTranscriptsPageClient({ basePath, data, filters
   const [actionError, setActionError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [storedParticipantHistory, setStoredParticipantHistory] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("famille-voice-participant-history");
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) {
+        setStoredParticipantHistory(parsed.filter((value): value is string => typeof value === "string").slice(0, 100));
+      }
+    } catch {
+      // 履歴が読めない環境でも、文字起こし一覧は通常どおり利用できる。
+    }
+  }, []);
 
   useEffect(() => {
     if (data) {
@@ -519,6 +618,13 @@ export default function RecordingTranscriptsPageClient({ basePath, data, filters
     [viewData.recorderOptions],
   );
 
+  const participantHistory = useMemo(() => {
+    const fromRows = viewData.rows.flatMap((row) => participants(row.participants))
+      .map((item) => (typeof item.label === "string" ? item.label.trim() : ""))
+      .filter(Boolean);
+    return Array.from(new Set([...storedParticipantHistory, ...fromRows])).slice(0, 100);
+  }, [storedParticipantHistory, viewData.rows]);
+
   const openDetail = async (row: RecordingTranscriptListRow) => {
     setSelectedId(row.id);
     setDetail(null);
@@ -555,6 +661,18 @@ export default function RecordingTranscriptsPageClient({ basePath, data, filters
         throw new Error(payload && "error" in payload ? payload.error : "詳細を取得できませんでした");
       }
       setDetail(payload.detail);
+      const entered = participants(payload.detail.participants)
+        .map((item) => (typeof item.label === "string" ? item.label.trim() : ""))
+        .filter(Boolean);
+      setStoredParticipantHistory((current) => {
+        const next = Array.from(new Set([...entered, ...current])).slice(0, 100);
+        try {
+          window.localStorage.setItem("famille-voice-participant-history", JSON.stringify(next));
+        } catch {
+          // 履歴保存が利用できない環境でも、文字起こしの保存自体は成功扱いにする。
+        }
+        return next;
+      });
     } catch (error) {
       setDetailError(error instanceof Error ? error.message : "詳細を取得できませんでした");
     } finally {
@@ -753,6 +871,8 @@ export default function RecordingTranscriptsPageClient({ basePath, data, filters
           }}
           onDelete={deleteDetail}
           onSave={saveDetail}
+          participantHistory={participantHistory}
+          staffSuggestions={recorderOptions}
           saving={saving}
         />
       )}
