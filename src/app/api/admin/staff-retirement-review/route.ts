@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { fetchAllLineworksUsers } from "@/lib/lineworks/fetchAllUsers";
 import { deleteLineWorksUser } from "@/lib/lineworks/delete-user";
+import { filterActiveLineWorksUsers } from "@/lib/lineworks/active-users";
 
 type ReviewRow = { user_id: string; staff_name: string; status: string | null; lw_userid: string | null; last_shift_date: string | null; next_shift_date: string | null; hired_at: string | null };
 
@@ -27,9 +28,10 @@ export async function GET(req: NextRequest) {
       fetchAllLineworksUsers(),
     ]);
     if (error) throw error;
-    const liveIds = new Set(lineworksUsers.map((user) => user.userId));
+    const activeLineworksUsers = filterActiveLineWorksUsers(lineworksUsers);
+    const liveIds = new Set(activeLineworksUsers.map((user) => user.userId));
     const excludedOrgUserIds = new Set(
-      lineworksUsers
+      activeLineworksUsers
         .filter((user) => user.organizations?.some((organization) =>
           organization.orgUnits?.some((orgUnit) => ["fb9bab81-5f4e-4725-2d34-05240f80a71a", "5b26013b-a3d4-42ab-266c-05cad5ab1c10", "6ca601b9-2699-475d-2ba2-0564acb86091", "7a159f5c-50ec-4281-282d-05bbebfd46f0"].includes(orgUnit.orgUnitId ?? ""))
         ))
