@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   isMeetingMonthEligible,
+  isMeetingMonthOnOrAfterFirstShift,
   parseMonthlyMeetingAlertKey,
   shouldResolveMonthlyMeetingAlert,
 } from "../src/lib/monthlyMeeting/eligibility.ts";
@@ -51,6 +52,21 @@ test("既存の入社前月アラートだけを解消対象として識別す�
       entryDateLatest: null,
       targetYm: "2026-03",
     }),
+    false,
+  );
+});
+
+test("入社日空白者は初回勤務月より前の会議を対象外にする", () => {
+  assert.equal(
+    isMeetingMonthOnOrAfterFirstShift("2026-08-25", "2026-07"),
+    false,
+  );
+  assert.equal(
+    isMeetingMonthOnOrAfterFirstShift("2026-08-25", "2026-08"),
+    true,
+  );
+  assert.equal(
+    isMeetingMonthOnOrAfterFirstShift(null, "2026-08"),
     false,
   );
 });

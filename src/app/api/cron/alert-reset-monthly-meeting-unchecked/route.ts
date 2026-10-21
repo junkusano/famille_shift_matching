@@ -5,7 +5,11 @@ import {
     parseMonthlyMeetingAlertKey,
     shouldResolveMonthlyMeetingAlert,
 } from "@/lib/monthlyMeeting/eligibility";
-import { hasStaffShiftInMonth } from "@/lib/monthlyMeeting/shiftEligibility";
+import {
+    getFirstStaffShiftDate,
+    hasStaffShiftInMonth,
+    isMeetingMonthOnOrAfterFirstShift,
+} from "@/lib/monthlyMeeting/shiftEligibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,7 +95,11 @@ export async function GET(req: NextRequest) {
                     entryDateLatest: staff.entry_date_latest,
                     targetYm: key.targetYm,
                 })
-                : !(await hasStaffShiftInMonth(key.userId, key.targetYm));
+                : !(await hasStaffShiftInMonth(key.userId, key.targetYm))
+                    || !isMeetingMonthOnOrAfterFirstShift(
+                        await getFirstStaffShiftDate(key.userId),
+                        key.targetYm,
+                    );
             if (!shouldResolve) {
                 skippedCount++;
                 continue;

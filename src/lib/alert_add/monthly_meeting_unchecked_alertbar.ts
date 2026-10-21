@@ -4,7 +4,11 @@
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { ensureSystemAlert } from "@/lib/alert/ensureSystemAlert";
 import { isMeetingMonthEligible } from "@/lib/monthlyMeeting/eligibility";
-import { hasStaffShiftInMonth } from "@/lib/monthlyMeeting/shiftEligibility";
+import {
+    getFirstStaffShiftDate,
+    hasStaffShiftInMonth,
+    isMeetingMonthOnOrAfterFirstShift,
+} from "@/lib/monthlyMeeting/shiftEligibility";
 
 type AttendanceRow = {
     target_month: string; // YYYY-MM-01
@@ -171,7 +175,11 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
                 staff?.entry_date_latest,
                 targetYm,
             )
-            : await hasStaffShiftInMonth(String(row.user_id ?? "").trim(), targetYm);
+            : (await hasStaffShiftInMonth(String(row.user_id ?? "").trim(), targetYm))
+                && isMeetingMonthOnOrAfterFirstShift(
+                    await getFirstStaffShiftDate(String(row.user_id ?? "").trim()),
+                    targetYm,
+                );
         if (eligible) filteredRows.push(row);
     }
 

@@ -1,6 +1,10 @@
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isMeetingMonthEligible } from "@/lib/monthlyMeeting/eligibility";
-import { hasStaffShiftInMonth } from "@/lib/monthlyMeeting/shiftEligibility";
+import {
+  getFirstStaffShiftDate,
+  hasStaffShiftInMonth,
+  isMeetingMonthOnOrAfterFirstShift,
+} from "@/lib/monthlyMeeting/shiftEligibility";
 
 // 月例会議は当月のシフトや所属の meeting_must に依存せず、在籍職員を対象にする。
 // これにより、新しく職員登録された人も当月ページを開いた時点で自動追加される。
@@ -28,7 +32,10 @@ export async function getMonthlyMeetingStaffIds(targetYm?: string): Promise<stri
         activeIds.push(userId);
       }
     } else if (targetYm && await hasStaffShiftInMonth(userId, targetYm)) {
-      activeIds.push(userId);
+      const firstShiftDate = await getFirstStaffShiftDate(userId);
+      if (isMeetingMonthOnOrAfterFirstShift(firstShiftDate, targetYm)) {
+        activeIds.push(userId);
+      }
     }
   }
 
