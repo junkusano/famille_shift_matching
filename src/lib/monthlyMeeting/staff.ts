@@ -8,7 +8,7 @@ const FORCE_MONTHLY_MEETING_USER_IDS = ["shinomasuda", "satominishio", "taigamis
 export async function getMonthlyMeetingStaffIds(targetYm?: string): Promise<string[]> {
   const { data, error } = await supabaseAdmin
     .from("users")
-    .select("user_id,status,entry_date_original,entry_date_latest")
+    .select("user_id,status,created_at,entry_date_original,entry_date_latest")
     .limit(100000);
 
   if (error) throw error;
@@ -16,7 +16,12 @@ export async function getMonthlyMeetingStaffIds(targetYm?: string): Promise<stri
   const activeIds = (data ?? [])
     .filter((row) => !String(row.status ?? "").toLowerCase().startsWith("removed"))
     .filter((row) =>
-      isMeetingMonthEligible(row.entry_date_original, row.entry_date_latest, targetYm),
+      isMeetingMonthEligible(
+        row.entry_date_original,
+        row.entry_date_latest,
+        targetYm,
+        row.created_at,
+      ),
     )
     .map((row) => String(row.user_id ?? "").trim())
     .filter(Boolean);
