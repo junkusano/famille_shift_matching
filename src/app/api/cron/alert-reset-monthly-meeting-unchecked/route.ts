@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
         const staffMap = new Map<string, StaffEntryRow>();
         if (userIds.length > 0) {
             const { data: staffRows, error: staffError } = await supabaseAdmin
-                .from("user_entry_united_view_single")
+                .from("users")
                 .select("user_id, entry_date_original, entry_date_latest")
                 .in("user_id", userIds);
 
