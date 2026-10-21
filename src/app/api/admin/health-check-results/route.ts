@@ -53,18 +53,17 @@ async function notifyHealthCheckRejection(applicantUserId: string, requestId: st
   }
 }
 
-async function notifyHealthCheckPersonComment(applicantUserId: string, requestId: string) {
+async function notifyHealthCheckPersonComment(applicantUserId: string) {
   const { data: applicant, error } = await supabaseAdmin
     .from("user_entry_united_view_single")
-    .select("user_id,channel_id,last_name_kanji,first_name_kanji")
+    .select("user_id,channel_id")
     .eq("user_id", applicantUserId)
     .maybeSingle();
   if (error) throw error;
   if (!applicant?.channel_id) return;
-  const name = `${applicant.last_name_kanji ?? ""} ${applicant.first_name_kanji ?? ""}`.trim() || applicantUserId;
   try {
     const accessToken = await getAccessToken();
-    await sendLWBotMessage(applicant.channel_id, buildHealthCheckPersonCommentNotification(name, requestId), accessToken);
+    await sendLWBotMessage(applicant.channel_id, buildHealthCheckPersonCommentNotification(), accessToken);
   } catch (notifyError) {
     console.error("[health-check-admin] person comment notification failed", notifyError);
   }
@@ -195,7 +194,7 @@ export async function PATCH(req: NextRequest) {
         const { error: fallbackError } = await supabaseAdmin.from("wf_request").update({ payload: { ...currentPayload, health_check_doctor_comment: comment, ...( !required || comment ? { health_check_occupational_physician_checked: true, health_check_occupational_physician_checked_at: now, health_check_occupational_physician_checked_by: actor.user_id } : {}) }, updated_at: now }).eq("id", body.request_id);
         if (fallbackError) throw fallbackError;
       } else if (error) throw error;
-      if (comment) await notifyHealthCheckPersonComment(current.applicant_user_id, body.request_id).catch((notifyError) => {
+      if (comment) await notifyHealthCheckPersonComment(current.applicant_user_id).catch((notifyError) => {
         console.error("[health-check-admin] person comment notification lookup failed", notifyError);
       });
       return NextResponse.json({ ok: true, doctor_comment: comment });
