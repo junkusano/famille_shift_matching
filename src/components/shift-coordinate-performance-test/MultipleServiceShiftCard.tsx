@@ -14,11 +14,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { minutesLabel, type MultipleServiceGroup } from "@/lib/multiple-services";
+import { requiredServiceKeysForService, type ServiceKey } from "@/lib/certificateJudge";
 import type { ShiftData } from "@/types/shift";
 
 type Props = {
   group: MultipleServiceGroup<ShiftData>;
   creatingRequest?: boolean;
+  myServiceKeys: ServiceKey[] | null;
   onRequest: (attendRequest: boolean, timeAdjustNote?: string) => void;
 };
 
@@ -33,11 +35,16 @@ function formatDate(value: string) {
 export default function MultipleServiceShiftCard({
   group,
   creatingRequest = false,
+  myServiceKeys,
   onRequest,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [attendRequest, setAttendRequest] = useState(false);
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
+  const eligible = group.shifts.every((shift) => {
+    const requiredKeys = requiredServiceKeysForService(shift.service_code ?? null, shift.require_doc_group ?? null);
+    return requiredKeys.length === 0 || (myServiceKeys !== null && requiredKeys.some((key) => myServiceKeys.includes(key)));
+  });
 
   return (
     <Card className="h-full overflow-hidden border-violet-300 bg-violet-50/40 shadow-sm ring-1 ring-violet-100 transition hover:-translate-y-0.5 hover:shadow-md">
@@ -104,8 +111,8 @@ export default function MultipleServiceShiftCard({
         <div className="mt-auto border-t border-violet-100 pt-4">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button className="w-full bg-violet-700 text-white hover:bg-violet-800" disabled={Boolean(group.invalidReason)}>
-                まとめて希望する
+              <Button className="w-full bg-violet-700 text-white hover:bg-violet-800" disabled={Boolean(group.invalidReason) || !eligible}>
+                {eligible ? "まとめて希望する" : "資格要件を満たしていません"}
               </Button>
             </DialogTrigger>
             <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[500px]">

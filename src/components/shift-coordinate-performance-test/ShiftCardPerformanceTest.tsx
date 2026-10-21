@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabaseClient";
 import { buildSmsMessage, getClientSmsBusinessName, getClientSmsMainPhone } from "@/lib/smsMessage";
-import type { ServiceKey } from "@/lib/certificateJudge";
+import { requiredServiceKeysForService, type ServiceKey } from "@/lib/certificateJudge";
 import type { ShiftData } from "@/types/shift";
 import type { RegularShiftCandidate } from "@/lib/shift/regularShift";
 
@@ -98,12 +98,14 @@ function isHiddenRequestShift(shift: ShiftData) {
 }
 
 function isEligibleForService(shift: ShiftData, myServiceKeys: ServiceKey[] | null) {
-  const key = getString(shift, "require_doc_group") ?? "";
-  if (!key) return true;
-  if (myServiceKeys === null) return true;
-  if (myServiceKeys.includes(key as ServiceKey)) return true;
-  if (key === "移動支援" && myServiceKeys.includes("家事・身体・移動支援" as ServiceKey)) return true;
-  return false;
+  const requiredKeys = requiredServiceKeysForService(
+    typeof shift.service_code === "string" ? shift.service_code : null,
+    getString(shift, "require_doc_group") ?? null,
+  );
+  if (requiredKeys.length === 0) return true;
+  if (myServiceKeys === null) return false;
+  return requiredKeys.some((key) => myServiceKeys.includes(key) ||
+    (key === "移動支援" && myServiceKeys.includes("家事・身体・移動支援")));
 }
 
 function EstimatedPayLine({ amount }: { amount?: number | null }) {
@@ -421,7 +423,9 @@ export default function ShiftCardPerformanceTest({
         <div className="mt-auto flex flex-col items-stretch gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:flex-wrap sm:items-center">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button className="w-full sm:w-auto">このシフトを希望する</Button>
+              <Button className="w-full sm:w-auto" disabled={!eligible || !!creatingRequest}>
+                {eligible ? "このシフトを希望する" : "資格要件を満たしていません"}
+              </Button>
             </DialogTrigger>
             <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-4 mr-0">
               {!eligible && (

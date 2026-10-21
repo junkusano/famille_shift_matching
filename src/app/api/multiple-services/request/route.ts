@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { MULTIPLE_SERVICE_PREFIX } from "@/lib/multiple-services";
+import { ensureUserCanRequestShift } from "@/lib/shift/shiftRequestEligibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,6 +61,13 @@ export async function POST(req: NextRequest) {
         { ok: false, error: "複数サービスの構成が更新されています。画面を再読込してください" },
         { status: 409 },
       );
+    }
+
+    for (const shiftId of shiftIds) {
+      const eligibility = await ensureUserCanRequestShift(auth.user.id, shiftId);
+      if (!eligibility.ok) {
+        return NextResponse.json({ ok: false, error: eligibility.error }, { status: 403 });
+      }
     }
 
     const { data, error } = await supabaseAdmin.rpc("assign_user_to_multiple_service_v1", {

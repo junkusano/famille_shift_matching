@@ -1,6 +1,8 @@
 // src/app/api/shift-assign-after-rpa/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
+import { getUserFromBearer } from '@/lib/auth/getUserFromBearer';
+import { ensureUserCanRequestShift, getAccountIdForAuthUser } from '@/lib/shift/shiftRequestEligibility';
 
 export const runtime = 'nodejs';        // ← service-role必須のためEdge回避
 export const dynamic = 'force-dynamic'; // ← キャッシュ無効
@@ -29,6 +31,7 @@ export async function POST(req: NextRequest) {
       : `${Date.now()}_${Math.random()}`);
 
   try {
+    const auth = await getUserFromBearer(req);
     const body = await req.json();
     stages.push({ t: now(), stage: 'entered_api', keys: Object.keys(body ?? {}), traceId });
     console.log('[AFTER-RPA]', traceId, 'entered_api', Object.keys(body ?? {}));
@@ -49,6 +52,22 @@ export async function POST(req: NextRequest) {
       stages.push({ t: now(), stage: 'bad_request', traceId });
       console.warn('[AFTER-RPA]', traceId, 'bad_request');
       return NextResponse.json({ error: 'bad request', stages, traceId }, { status: 400 });
+    }
+
+    // シフ子からの申請は、割当前に資格要件をサーバーで再確認する。
+    // 他の管理・検証用呼び出しには既存の挙動を残す。
+    if (req.headers.get('x-shifuko-qualification-check') === '1') {
+      if (!auth.token || !auth.user?.id) {
+        return NextResponse.json({ error: 'ログインが必要です', stages, traceId }, { status: 401 });
+      }
+      const accountId = await getAccountIdForAuthUser(auth.user.id);
+      if (!accountId || accountId !== String(requested_by_user_id)) {
+        return NextResponse.json({ error: '申請者情報を確認できません', stages, traceId }, { status: 403 });
+      }
+      const eligibility = await ensureUserCanRequestShift(auth.user.id, shift_id);
+      if (!eligibility.ok) {
+        return NextResponse.json({ error: eligibility.error, stages, traceId }, { status: 403 });
+      }
     }
 
     stages.push({ t: now(), stage: 'rpc_call', shift_id, requested_by_user_id, accompany, traceId });

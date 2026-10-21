@@ -385,7 +385,12 @@ for (const row of csDocsData ?? []) {
                     "/api/shift-coordinate-rpa-request",
                     {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers: {
+                            "Content-Type": "application/json",
+                            ...(session.data.session?.access_token
+                                ? { Authorization: `Bearer ${session.data.session.access_token}` }
+                                : {}),
+                        },
                         body: JSON.stringify({
                             shift_id: shift.shift_id,
                             kaipoke_cs_id: shift.kaipoke_cs_id,
