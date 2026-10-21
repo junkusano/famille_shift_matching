@@ -26,6 +26,20 @@ function loadDeleteUser(deleteImpl) {
   return module.exports.deleteLineWorksUser;
 }
 
+function loadActiveUsers() {
+  const code = ts.transpileModule(
+    fs.readFileSync(new URL("../src/lib/lineworks/active-users.ts", import.meta.url), "utf8"),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
+  ).outputText;
+  const module = { exports: {} };
+  new Function("require", "module", "exports", code)(
+    () => ({}),
+    module,
+    module.exports,
+  );
+  return module.exports.filterActiveLineWorksUsers;
+}
+
 test("退職処理のLINE WORKS削除は通常削除APIを使い、削除済みの再実行を成功扱いにする", async () => {
   const calls = [];
   const deleteUser = loadDeleteUser(async (url, options) => {
@@ -40,4 +54,17 @@ test("退職処理のLINE WORKS削除は通常削除APIを使い、削除済み�
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, "https://www.worksapis.com/v1.0/users/staff%2Flw%2Bid");
   assert.equal(calls[0].options.headers.Authorization, "Bearer test-token");
+});
+
+test("退職整合性一覧はLINE WORKSの削除済みユーザーを対象外にする", () => {
+  const filterActiveLineWorksUsers = loadActiveUsers();
+
+  assert.deepEqual(
+    filterActiveLineWorksUsers([
+      { userId: "active-user" },
+      { userId: "deleted-user", isDeleted: true },
+      { userId: "legacy-user", isDeleted: false },
+    ]),
+    [{ userId: "active-user" }, { userId: "legacy-user", isDeleted: false }],
+  );
 });
