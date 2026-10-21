@@ -26,7 +26,7 @@ function loadDeleteUser(deleteImpl) {
   return module.exports.deleteLineWorksUser;
 }
 
-test("退職処理のLINE WORKS削除は即時削除APIを使い、削除済みの再実行を成功扱いにする", async () => {
+test("退職処理のLINE WORKS削除は通常削除APIを使い、削除済みの再実行を成功扱いにする", async () => {
   const calls = [];
   const deleteUser = loadDeleteUser(async (url, options) => {
     calls.push({ url, options });
@@ -38,6 +38,6 @@ test("退職処理のLINE WORKS削除は即時削除APIを使い、削除済み�
 
   await assert.doesNotReject(() => deleteUser("staff/lw+id"));
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, "https://www.worksapis.com/v1.0/users/staff%2Flw%2Bid/forcedelete");
+  assert.equal(calls[0].url, "https://www.worksapis.com/v1.0/users/staff%2Flw%2Bid");
   assert.equal(calls[0].options.headers.Authorization, "Bearer test-token");
 });
