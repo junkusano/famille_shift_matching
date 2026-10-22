@@ -9,7 +9,10 @@ import {
     type MentionTarget,
 } from "@/lib/lineworks/sendLWBotMentionMessage";
 import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
-import { isMeetingMonthEligible } from "@/lib/monthlyMeeting/eligibility";
+import {
+    isMeetingMonthEligible,
+    isRetiredStaffStatus,
+} from "@/lib/monthlyMeeting/eligibility";
 
 const LW_BOT_NO =
     process.env.LINEWORKS_BOT_NO || process.env.WORKS_BOT_NO || process.env.LW_BOT_NO || "6807751";
@@ -26,6 +29,7 @@ type AttendanceRow = {
 
 type StaffInfoRow = {
     user_id: string | null;
+    status: string | null;
     entry_date_original: string | null;
     entry_date_latest: string | null;
     channel_id: string | null; // 人事労務サポートルーム
@@ -99,7 +103,7 @@ async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInf
 
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
-        .select("user_id, entry_date_original, entry_date_latest, channel_id, lw_userid, last_name_kanji, first_name_kanji, orgunitname")
+        .select("user_id, status, entry_date_original, entry_date_latest, channel_id, lw_userid, last_name_kanji, first_name_kanji, orgunitname")
         .in("user_id", userIds);
 
     if (error) {
@@ -111,6 +115,7 @@ async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInf
         const userId = String(row.user_id ?? "").trim();
         const org = String(row.orgunitname ?? "").trim();
         if (!userId) continue;
+        if (isRetiredStaffStatus(row.status)) continue;
         if (org === "サービスサポート" || org.includes("サービスサポート")) continue;
         map.set(userId, row);
     }
@@ -234,6 +239,7 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
     const staffMap = await loadStaffInfoMap(userIds);
     const eligibleRows = filteredRows.filter((row) => {
         const staff = staffMap.get(String(row.user_id ?? "").trim());
+        if (isRetiredStaffStatus(staff?.status)) return false;
         return isMeetingMonthEligible(
             staff?.entry_date_original,
             staff?.entry_date_latest,
