@@ -278,7 +278,7 @@ export async function runGoogleMapsDistanceUpdate(
     const targetStaffIds = [...new Set(targets.map((target) => target.staffId))];
     const { data: existingStaffSegments } = await supabaseAdmin
       .from("manager_distance_segments")
-      .select("staff_user_id, segment_date, status, distance_meters")
+      .select("shift_id, staff_user_id, segment_date, segment_kind, status, distance_meters")
       .in("staff_user_id", targetStaffIds.length ? targetStaffIds : ["__no_staff__"]);
     const successfulSegments = (existingStaffSegments ?? [])
       .filter((row) => row.status === "success" && row.distance_meters != null);
@@ -287,6 +287,9 @@ export async function runGoogleMapsDistanceUpdate(
     );
     const staffMonthWithSuccessfulSegments = new Set(
       successfulSegments.map((row) => `${String(row.staff_user_id)}:${String(row.segment_date).slice(0, 7)}`)
+    );
+    const successfulSegmentKeys = new Set(
+      successfulSegments.map((row) => `${String(row.shift_id)}:${String(row.staff_user_id)}:${String(row.segment_kind)}`)
     );
 
     // API呼び出し処理より先に、全対象ルートをDBへ登録する。
@@ -318,6 +321,14 @@ export async function runGoogleMapsDistanceUpdate(
     }
 
     targets.sort((a, b) => {
+      const segmentKey = (target: RouteTarget) =>
+        `${String(target.shift.shift_id)}:${target.staffId}:${target.segmentKind}`;
+      // 同じ職員・月の中では、成功済み明細より未処理明細を先にする。
+      // 成功済み明細を先に並べると、API/時間上限に達した際に月途中の未処理日が残る。
+      const aNeedsCalculation = successfulSegmentKeys.has(segmentKey(a)) ? 1 : 0;
+      const bNeedsCalculation = successfulSegmentKeys.has(segmentKey(b)) ? 1 : 0;
+      if (aNeedsCalculation !== bNeedsCalculation) return aNeedsCalculation - bNeedsCalculation;
+
       // まず一度も成功していない職員を優先し、計算枠を特定の職員が
       // 占有して未計算者が残り続けることを防ぐ。
       const aHasAnySegments = staffWithSuccessfulSegments.has(a.staffId) ? 1 : 0;
