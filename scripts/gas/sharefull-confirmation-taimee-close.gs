@@ -22,100 +22,138 @@ function processSharefullConfirmationsForTaimeeClose() {
 function processSharefullConfirmationsForTaimeeCloseLocked_() {
   var config = readSharefullCloseConfig_();
   var processed = sharefullCloseProcessedIds_();
+  var props = PropertiesService.getScriptProperties();
   var label = confirmationProcessedLabel_("MYFAMILLE_SHAREFULL_CONFIRMATION_PROCESSED");
   var activationTimestamp = confirmationActivationTimestamp_();
-
-  for (var start = 0; ; start += 100) {
-    // 通常の確定メールは処理済みスレッドを除外する。
-    var threads = GmailApp.search(config.gmailQuery + " -label:" + label.getName(), start, 100);
-    if (!threads.length) break;
-    var failed = false;
-    threads.forEach(function(thread) {
-      var threadSucceeded = true;
-      thread.getMessages().forEach(function(message) {
-        if (!processSharefullConfirmationMessage_(message, config, activationTimestamp, processed, "confirmed")) threadSucceeded = false;
+  var messages = {}, threads = [], failed = false;
+  var deadline = Date.now() + 240000;
+  // ラベルは表示用。旧版の誤ラベルや同スレッドへの新着でメールを見失わない。
+  // 旧設定が確定件名やラベルに絞られていても、取消を含む送信元の通知を補完する。
+  var queries = [config.gmailQuery, "from:" + config.senderEmail + " newer_than:14d"];
+  queries.filter(function(query,index) {return queries.indexOf(query) === index;}).forEach(function(query) {
+   for (var start = 0; Date.now() < deadline; start += 100) {
+    var page = GmailApp.search(query, start, 100);
+    if (!page.length) break;
+    page.forEach(function(thread) {
+      var relevant = thread.getMessages().filter(function(message) {
+        return !isConfirmationMessageBeforeActivation_(message, activationTimestamp)
+          && sharefullMessageHasSignal_(message, config.senderEmail);
       });
-      if (threadSucceeded) thread.addLabel(label);
-      else failed = true;
-    });
-    // 失敗メールを残して次回トリガーで再試行する。
-    if (failed) break;
-  }
-
-  // 処理済みラベルが付いたスレッドにも後からキャンセル通知が届くため、
-  // キャンセルだけはラベルを除外せず検索する。通常の確定メールは再送しない。
-  for (var cancellationStart = 0; ; cancellationStart += 100) {
-    var cancellationThreads = GmailApp.search(config.gmailQuery, cancellationStart, 100);
-    if (!cancellationThreads.length) break;
-    var cancellationFailed = false;
-    cancellationThreads.forEach(function(thread) {
-      thread.getMessages().forEach(function(message) {
-        if (!processSharefullConfirmationMessage_(message, config, activationTimestamp, processed, "cancelled")) {
-          cancellationFailed = true;
-        }
+      relevant.forEach(function(message) {
+        messages[message.getId()] = message;
+        if (!processed[message.getId()]) props.setProperty("SHAREFULL_CONFIRMATION_PENDING_" + message.getId(), "1");
       });
+      threads.push({thread:thread,messages:relevant});
     });
-    if (cancellationFailed) break;
-  }
+   }
+  });
+  // 検索期間を過ぎた失敗メールも、IDを残して取り直す。
+  Object.keys(props.getProperties()).filter(function(key) {
+    return key.indexOf("SHAREFULL_CONFIRMATION_PENDING_") === 0;
+  }).forEach(function(key) {
+    var id = key.substring("SHAREFULL_CONFIRMATION_PENDING_".length);
+    if (processed[id]) { props.deleteProperty(key); return; }
+    if (!messages[id]) {
+      try { messages[id] = GmailApp.getMessageById(id); }
+      catch (e) { failed = true; console.warn(JSON.stringify({stage:"gmail_retry",event_id:id,code:"MESSAGE_UNAVAILABLE"})); }
+    }
+  });
+  // 取消を先に反映し、追いつき処理で古い確定から停止指示を作らない。
+  Object.keys(messages).map(function(id) {return messages[id];}).sort(function(a,b) {
+    return b.getDate().getTime() - a.getDate().getTime();
+  }).forEach(function(message) {
+    if (Date.now() >= deadline) { failed = true; return; }
+    if (!processSharefullConfirmationMessage_(message,config,activationTimestamp,processed)) failed = true;
+  });
+  threads.forEach(function(item) {
+    if (item.messages.length && item.messages.every(function(message) {return !!processed[message.getId()];})) {
+      try { item.thread.addLabel(label); }
+      catch (e) { failed = true; console.warn(JSON.stringify({stage:"gmail_label",code:"LABEL_FAILED"})); }
+    }
+  });
+  if (failed) throw new Error("SHAREFULL_CONFIRMATION_RETRY_PENDING");
+}
+
+function sharefullMessageHasSignal_(message, expectedSender) {
+  var from = message.getFrom(), match = /<([^>]+)>/.exec(from);
+  if ((match ? match[1] : from).trim().toLowerCase() !== expectedSender) return false;
+  var text = message.getSubject() + "\n" + message.getPlainBody();
+  return sharefullConfirmationSignal_(text,"confirmed") || sharefullConfirmationSignal_(text,"cancelled");
 }
 
 function processSharefullConfirmationMessage_(message, config, activationTimestamp, processed, requiredState) {
   var messageId = message.getId();
   if (processed[messageId]) return true;
-  if (isConfirmationMessageBeforeActivation_(message, activationTimestamp)) {
-    processed[messageId] = true;
-    saveSharefullCloseProcessedIds_(processed);
-    return true;
-  }
-
-  var event = parseSharefullConfirmationMail_(message, config.senderEmail);
-  if (!event) {
-    // 検索条件に合う送信元から届いた確定/取消通知なのにIDを抽出できない場合、
-    // 成功扱いにするとスレッドが処理済みになり、次回以降の再試行から漏れる。
-    var from = message.getFrom();
-    var senderMatch = /<([^>]+)>/.exec(from);
-    var senderEmail = (senderMatch ? senderMatch[1] : from).trim().toLowerCase();
-    var text = message.getSubject() + "\n" + message.getPlainBody();
-    var hasEventSignal = sharefullConfirmationSignal_(text, requiredState);
-    if (senderEmail === config.senderEmail && hasEventSignal) {
-      console.warn("Sharefull通知の案件IDを抽出できません。処理済みにせず次回再試行します。");
+  if (isConfirmationMessageBeforeActivation_(message,activationTimestamp)) return true;
+  if (!sharefullMessageHasSignal_(message,config.senderEmail)) return true;
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty("SHAREFULL_CONFIRMATION_PENDING_" + messageId, "1");
+  try {
+    var event = parseSharefullConfirmationMail_(message,config.senderEmail);
+    if (!event) {
+      console.warn(JSON.stringify({stage:"parse",event_id:messageId,code:"ORDER_ID_MISSING"}));
       return false;
     }
+    if (requiredState && event.state !== requiredState) return true;
+    var endpoint = event.state === "cancelled" ? "cancelled" : "confirmed";
+    var response = UrlFetchApp.fetch(config.apiBaseUrl + "/api/rpa/sharefull/" + endpoint, {
+      method:"post",contentType:"application/json",headers:{Authorization:"Bearer " + config.apiToken},
+      payload:JSON.stringify(event),muteHttpExceptions:true
+    });
+    var code = response.getResponseCode(), result;
+    try {result = JSON.parse(response.getContentText() || "{}");} catch (e) {result = {};}
+    if (code < 200 || code >= 300 || result.ok !== true || result.recorded !== true
+        || result.event_id !== messageId || ["queued","cancelled","stale","work_finished","already_processed"].indexOf(result.outcome) === -1
+        || (result.outcome === "queued" && !result.close_request_id)) {
+      var errorCode = /^[A-Z_]{1,80}$/.test(result.code || "") ? result.code : "ACK_NOT_CONFIRMED";
+      console.warn(JSON.stringify({stage:"api",event_id:messageId,http_status:code,code:errorCode}));
+      return false;
+    }
+    props.setProperty("SHAREFULL_CONFIRMATION_ACK_" + messageId, new Date().toISOString());
+    props.deleteProperty("SHAREFULL_CONFIRMATION_PENDING_" + messageId);
+    processed[messageId] = true;
+    console.log(JSON.stringify({stage:"ack",event_id:messageId,outcome:result.outcome,close_request_id:result.close_request_id || null}));
     return true;
-  }
-  if (event.state !== requiredState) return true;
-
-  var endpoint = event.state === "cancelled" ? "cancelled" : "confirmed";
-  var response = UrlFetchApp.fetch(config.apiBaseUrl + "/api/rpa/sharefull/" + endpoint, {
-    method: "post",
-    contentType: "application/json",
-    headers: { Authorization: "Bearer " + config.apiToken },
-    payload: JSON.stringify(event),
-    muteHttpExceptions: true
-  });
-  var code = response.getResponseCode();
-  var result;
-  try { result = JSON.parse(response.getContentText() || "{}"); } catch (e) { result = {}; }
-  if (code < 200 || code >= 300 || !result.ok) {
-    console.warn("Sharefull応募イベントの処理に失敗しました。HTTP " + code);
+  } catch (e) {
+    console.warn(JSON.stringify({stage:"delivery",event_id:messageId,code:"DELIVERY_EXCEPTION"}));
     return false;
   }
-
-  processed[messageId] = true;
-  saveSharefullCloseProcessedIds_(processed);
-  return true;
 }
 
 /** 両媒体のメールをまとめて5分ごとに確認する。 */
 function processSpotOfferConfirmationEmails() {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return;
+  var props = PropertiesService.getScriptProperties();
+  var run = {version:"mail-delivery-v2",started_at:new Date().toISOString(),status:"running",failed_providers:[]};
   try {
-    processSharefullConfirmationsForTaimeeCloseLocked_();
-    processSpotOfferTaimeeConfirmationsForSharefullCloseLocked_();
+    props.setProperty("SPOT_OFFER_CONFIRMATION_LAST_RUN",JSON.stringify(run));
+    try {processSharefullConfirmationsForTaimeeCloseLocked_();} catch (e) {recordConfirmationProviderFailure_(run,"sharefull",e);}
+    try {processSpotOfferTaimeeConfirmationsForSharefullCloseLocked_();} catch (e) {recordConfirmationProviderFailure_(run,"taimee",e);}
+    run.status = run.failed_providers.length ? "retry_pending" : "completed";
+    run.finished_at = new Date().toISOString();
+    props.setProperty("SPOT_OFFER_CONFIRMATION_LAST_RUN",JSON.stringify(run));
+    if (run.failed_providers.length) throw new Error("CONFIRMATION_RETRY_PENDING: " + run.failed_providers.join(","));
   } finally {
     lock.releaseLock();
   }
+}
+
+function recordConfirmationProviderFailure_(run,provider,error) {
+  run.failed_providers.push(provider);
+  var message = String(error && error.message || "");
+  var code = /authorization|permission|scope|権限/i.test(message) ? "AUTHORIZATION_REQUIRED"
+    : /quota|too many|Service invoked|制限/i.test(message) ? "QUOTA_EXCEEDED"
+    : /Script Properties|有効化|起動時刻/.test(message) ? "CONFIGURATION_MISSING" : "RETRY_PENDING";
+  console.warn(JSON.stringify({stage:"provider",provider:provider,code:code}));
+}
+
+function logSpotOfferConfirmationStatus() {
+  var props = PropertiesService.getScriptProperties();
+  console.log(props.getProperty("SPOT_OFFER_CONFIRMATION_LAST_RUN") || "No runs recorded");
+  console.log(JSON.stringify({sharefull_pending:Object.keys(props.getProperties()).filter(function(key) {
+    return key.indexOf("SHAREFULL_CONFIRMATION_PENDING_") === 0;
+  }).length}));
 }
 
 /** 初回設定時に一度実行し、両メール種別の5分ごとの確認トリガーを作成する。 */
@@ -182,7 +220,7 @@ function parseSharefullConfirmationMail_(message, expectedSender) {
   return {
     sharefull_job_id: jobId || undefined,
     sharefull_order_id: orderId || undefined,
-    application_key: applicationId || [jobId || orderId, applicant || "unknown"].join("::"),
+    application_key: applicationId || [orderId || jobId, applicant || "unknown"].join("::"),
     event_id: message.getId(),
     applicant_name: applicant || null,
     cancellation_reason: cancelled ? cancellationReason || null : null,
@@ -228,20 +266,17 @@ function sharefullCloseCapture_(text, pattern) {
 }
 
 function sharefullCloseProcessedIds_() {
-  var raw = PropertiesService.getScriptProperties().getProperty("SHAREFULL_CONFIRMATION_PROCESSED_MESSAGE_IDS") || "[]";
-  try {
-    return JSON.parse(raw).reduce(function(map, id) { map[id] = true; return map; }, {});
-  } catch (e) {
-    return {};
-  }
-}
-
-function saveSharefullCloseProcessedIds_(processed) {
-  var ids = Object.keys(processed);
-  PropertiesService.getScriptProperties().setProperty(
-    "SHAREFULL_CONFIRMATION_PROCESSED_MESSAGE_IDS",
-    JSON.stringify(ids.slice(-100))
-  );
+  var properties = PropertiesService.getScriptProperties().getProperties(), processed = {};
+  Object.keys(properties).forEach(function(key) {
+    if (key.indexOf("SHAREFULL_CONFIRMATION_ACK_") === 0) {
+      if (Date.parse(properties[key]) < Date.now() - 30 * 24 * 60 * 60 * 1000) {
+        PropertiesService.getScriptProperties().deleteProperty(key);
+        return;
+      }
+      processed[key.substring("SHAREFULL_CONFIRMATION_ACK_".length)] = true;
+    }
+  });
+  return processed;
 }
 
 /** タイミーのマッチング通知を受け、シェアフル募集停止を依頼する。 */
