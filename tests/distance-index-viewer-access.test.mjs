@@ -9,7 +9,7 @@ test("社用車利用の契約社員4名を走行距離指数の閲覧対象に�
   for (const name of ["佐藤 美佐子", "片岡 由美子", "小林 千佳", "山岡 幸洋"]) {
     assert.match(roleSource, new RegExp(`'${name}'`));
   }
-  assert.match(roleSource, /currentRole === 'admin'[\s\S]*DISTANCE_INDEX_VIEWER_NAMES\.has\(staffName\)/);
+  assert.match(roleSource, /normalizedRole === 'admin'[\s\S]*DISTANCE_INDEX_VIEWER_NAMES\.has\(staffName\)/);
 });
 
 test("閲覧対象者には距離更新操作を表示しない", () => {

@@ -5,6 +5,16 @@ import { supabase } from '@/lib/supabaseClient';
 
 export type Role = 'admin' | 'manager' | 'member' | 'occupational_physician' | null;
 
+export function normalizeRole(value: unknown): Exclude<Role, null> {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (normalized === 'admin' || normalized === 'system_admin' || normalized === 'super_admin') {
+    return 'admin';
+  }
+  if (normalized === 'manager') return 'manager';
+  if (normalized === 'occupational_physician') return 'occupational_physician';
+  return 'member';
+}
+
 const DISTANCE_INDEX_VIEWER_NAMES = new Set([
   '佐藤 美佐子',
   '片岡 由美子',
@@ -37,7 +47,7 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
 
         const { data, error } = await supabase
           .from('users')
-          .select('user_id, system_role, last_name_kanji, first_name_kanji')
+          .select('user_id, system_role, role, last_name_kanji, first_name_kanji')
           .eq('auth_user_id', user.id)
           .single();
 
@@ -46,13 +56,14 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
           if (mounted) setRole('member');
         } else {
           if (mounted) setUserId(data?.user_id ?? null);
-          if (mounted) setRole((data?.system_role as Role) ?? 'member');
+          const rawRole = data?.system_role || data?.role;
+          const normalizedRole = normalizeRole(rawRole);
+          if (mounted) setRole(normalizedRole);
           if (mounted) {
-            const currentRole = String(data?.system_role ?? '').toLowerCase();
             const staffName = `${data?.last_name_kanji ?? ''} ${data?.first_name_kanji ?? ''}`.trim();
             setCanViewDistanceIndex(
-              currentRole === 'admin'
-              || currentRole === 'manager'
+              normalizedRole === 'admin'
+              || normalizedRole === 'manager'
               || DISTANCE_INDEX_VIEWER_NAMES.has(staffName),
             );
           }
