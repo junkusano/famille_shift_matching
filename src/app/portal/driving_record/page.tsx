@@ -117,6 +117,7 @@ export default function ManagerDistanceIndexPage() {
   const [loadingDistanceSegments, setLoadingDistanceSegments] = useState(false);
 
   const monthKeys = useMemo(() => createRecentMonthKeys(4), []);
+  const currentMonthKey = monthKeys[monthKeys.length - 1] ?? "";
   const googleMonthKeys = useMemo(
     () => monthKeys.filter((monthKey) => monthKey >= "2026-08"),
     [monthKeys],
@@ -246,7 +247,7 @@ export default function ManagerDistanceIndexPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const endpoint = staffUserId
-        ? `/api/cron/google-maps-distance?staff_user_id=${encodeURIComponent(staffUserId)}`
+        ? `/api/cron/google-maps-distance?staff_user_id=${encodeURIComponent(staffUserId)}&target_month=${encodeURIComponent(currentMonthKey)}`
         : "/api/cron/google-maps-distance";
       const response = await fetch(endpoint, {
         method: "POST",
