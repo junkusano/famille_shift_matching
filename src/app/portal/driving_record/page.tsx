@@ -55,14 +55,26 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER = 12;
 const MONTHLY_MOVEMENT_ALLOWANCE_YEN = 2000;
 const HIDDEN_STAFF_NAMES = new Set(["岩田恵一"]);
+const COMPANY_CAR_CONTRACT_STAFF_NAMES = new Set([
+  "佐藤 美佐子",
+  "片岡 由美子",
+  "小林 千佳",
+  "山岡 幸洋",
+]);
 
 function isHiddenStaffName(name: string | null | undefined): boolean {
   return HIDDEN_STAFF_NAMES.has((name ?? "").replace(/\s/g, ""));
 }
 
-function calculateGasolineAmount(distanceKm: number, pricePerLiter: number | null, hasDistance: boolean): number {
+function calculateGasolineAmount(
+  distanceKm: number,
+  pricePerLiter: number | null,
+  hasDistance: boolean,
+  includeMonthlyMovementAllowance = true,
+): number {
   if (!hasDistance || pricePerLiter == null) return 0;
-  return distanceKm / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * pricePerLiter + MONTHLY_MOVEMENT_ALLOWANCE_YEN;
+  return distanceKm / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * pricePerLiter
+    + (includeMonthlyMovementAllowance ? MONTHLY_MOVEMENT_ALLOWANCE_YEN : 0);
 }
 
 function formatSegmentKind(kind: string): string {
@@ -100,7 +112,9 @@ function createRecentMonthKeys(count: number): string[] {
 }
 
 export default function ManagerDistanceIndexPage() {
-  const { loading: roleLoading, canViewDistanceIndex } = useRoleContext();
+  const { loading: roleLoading, role, userId, canViewDistanceIndex } = useRoleContext();
+  const canManageDistanceIndex = role === "admin" || role === "manager";
+  const canViewOwnDistanceOnly = !canManageDistanceIndex;
   const [rows, setRows] = useState<MonthlyDistanceRow[]>([]);
   const [legacyRows, setLegacyRows] = useState<LegacyDistanceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,7 +160,7 @@ export default function ManagerDistanceIndexPage() {
 
     const startMonth = `${monthKeys[0]}-01`;
 
-    const { data, error } = await supabase
+    let distanceQuery = supabase
       .from("manager_monthly_google_maps_distance_view")
       .select(
         [
@@ -158,7 +172,11 @@ export default function ManagerDistanceIndexPage() {
           "monthly_distance_index",
         ].join(",")
       )
-      .gte("target_month", startMonth)
+      .gte("target_month", startMonth);
+    if (canViewOwnDistanceOnly && userId) {
+      distanceQuery = distanceQuery.eq("user_id", userId);
+    }
+    const { data, error } = await distanceQuery
       .order("staff_name", {
         ascending: true,
       })
@@ -185,10 +203,14 @@ export default function ManagerDistanceIndexPage() {
     setRows(typedRows);
 
     // 給与計算用に、旧方式（郵便番号上3桁差分）の指数も残す。
-    const { data: legacyData, error: legacyError } = await supabase
+    let legacyQuery = supabase
       .from("manager_monthly_distance_index_view")
       .select("target_month, user_id, staff_name, monthly_distance_index")
-      .gte("target_month", startMonth)
+      .gte("target_month", startMonth);
+    if (canViewOwnDistanceOnly && userId) {
+      legacyQuery = legacyQuery.eq("user_id", userId);
+    }
+    const { data: legacyData, error: legacyError } = await legacyQuery
       .order("staff_name", { ascending: true })
       .order("target_month", { ascending: true });
     if (legacyError) {
@@ -235,7 +257,7 @@ export default function ManagerDistanceIndexPage() {
       .maybeSingle();
     setLastUpdatedAt(latestRun?.finished_at ?? null);
     setLoading(false);
-  }, [canViewDistanceIndex, monthKeys]);
+  }, [canViewDistanceIndex, canViewOwnDistanceOnly, monthKeys, userId]);
 
   const updateDistance = async (staffUserId?: string) => {
     if (staffUserId) {
@@ -282,6 +304,7 @@ export default function ManagerDistanceIndexPage() {
 
     for (const row of rows) {
       if (isHiddenStaffName(row.staff_name)) continue;
+      if (canViewOwnDistanceOnly && row.user_id !== userId) continue;
       const monthKey = getMonthKey(row.target_month);
 
       if (!monthKeys.includes(monthKey)) {
@@ -326,12 +349,13 @@ export default function ManagerDistanceIndexPage() {
         );
       }
     );
-  }, [monthKeys, rows]);
+  }, [canViewOwnDistanceOnly, monthKeys, rows, userId]);
 
   const legacySummaries = useMemo<ManagerSummary[]>(() => {
     const managerMap = new Map<string, ManagerSummary>();
     for (const row of legacyRows) {
       if (isHiddenStaffName(row.staff_name)) continue;
+      if (canViewOwnDistanceOnly && row.user_id !== userId) continue;
       const monthKey = getMonthKey(row.target_month);
       if (!monthKeys.includes(monthKey)) continue;
       const current = managerMap.get(row.user_id) ?? {
@@ -347,7 +371,7 @@ export default function ManagerDistanceIndexPage() {
       managerMap.set(row.user_id, current);
     }
     return Array.from(managerMap.values()).sort((a, b) => a.staffName.localeCompare(b.staffName, "ja"));
-  }, [legacyRows, monthKeys]);
+  }, [canViewOwnDistanceOnly, legacyRows, monthKeys, userId]);
 
   const monthlyTotals = useMemo(() => {
     const totals: Record<string, number> = {};
@@ -538,14 +562,16 @@ export default function ManagerDistanceIndexPage() {
         >
           {loading ? "更新中..." : "再読み込み"}
         </button>
-        <button
-          type="button"
-          onClick={() => void updateDistance()}
-          disabled={loading || updatingDistance}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {updatingDistance ? "距離更新中..." : "距離データを更新"}
-        </button>
+        {canManageDistanceIndex && (
+          <button
+            type="button"
+            onClick={() => void updateDistance()}
+            disabled={loading || updatingDistance}
+            className="inline-flex h-10 items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {updatingDistance ? "距離更新中..." : "距離データを更新"}
+          </button>
+        )}
         <button
           type="button"
           onClick={exportDistanceCsv}
@@ -606,12 +632,14 @@ export default function ManagerDistanceIndexPage() {
 
               <tbody>
                 {summaries.map((manager) => {
+                  const includeMonthlyMovementAllowance = !COMPANY_CAR_CONTRACT_STAFF_NAMES.has(manager.staffName);
                   const managerAmount = googleMonthKeys.reduce((sum, monthKey) => {
                     const price = priceByMonth[monthKey];
                     return sum + calculateGasolineAmount(
                       manager.monthlyValues[monthKey] ?? 0,
                       price ?? null,
                       (manager.monthlySegmentCounts[monthKey] ?? 0) > 0,
+                      includeMonthlyMovementAllowance,
                     );
                   }, 0);
 
@@ -654,14 +682,16 @@ export default function ManagerDistanceIndexPage() {
                       {googleMonthKeys.reduce((sum, monthKey) => sum + (manager.monthlyValues[monthKey] ?? 0), 0).toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => void updateDistance(manager.userId)}
-                        disabled={loading || updatingDistance || updatingStaffId !== null}
-                        className="inline-flex items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {updatingStaffId === manager.userId ? "計算中..." : "この職員を計算"}
-                      </button>
+                      {canManageDistanceIndex && (
+                        <button
+                          type="button"
+                          onClick={() => void updateDistance(manager.userId)}
+                          disabled={loading || updatingDistance || updatingStaffId !== null}
+                          className="inline-flex items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {updatingStaffId === manager.userId ? "計算中..." : "この職員を計算"}
+                        </button>
+                      )}
                     </td>
                   </tr>
                   <tr key={`${manager.userId}-amount`} className="border-b bg-amber-50/40 text-sm">
@@ -675,6 +705,7 @@ export default function ManagerDistanceIndexPage() {
                         manager.monthlyValues[monthKey] ?? 0,
                         price ?? null,
                         segmentCount > 0,
+                        includeMonthlyMovementAllowance,
                       );
                       return <td key={monthKey} className="px-4 py-2 text-right tabular-nums text-amber-900">
                         {segmentCount === 0 ? "—" : price == null ? "単価未登録" : `${Math.round(amount).toLocaleString("ja-JP")} 円`}

@@ -10,11 +10,11 @@ const requests = [];
 context.UrlFetchApp = {
   fetch(url, options) {
     requests.push({ url, payload: JSON.parse(options.payload) });
-    return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ ok: true }) };
+    return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ ok: true,recorded:true,event_id:JSON.parse(options.payload).event_id,outcome:"cancelled" }) };
   },
 };
 context.PropertiesService = {
-  getScriptProperties: () => ({ setProperty: () => {} }),
+  getScriptProperties: () => ({ setProperty: () => {},deleteProperty:()=>{},getProperties:()=>({}) }),
 };
 vm.runInContext(source, context);
 
@@ -64,6 +64,12 @@ test("Sharefull以外のホストにある /orders/ID は注文IDとして受け
   ), "system@sharefull.com");
 
   assert.equal(result, null);
+});
+
+test("求人IDの有無が変わってもURL注文IDと同じ応募者から同じキーを作る",()=>{
+  const one=context.parseSharefullConfirmationMail_(message("【候補者が決定しました】","求人ID: 999\n候補者\n候補者A\nhttps://client.sharefull.com/orders/1234"),"system@sharefull.com");
+  const two=context.parseSharefullConfirmationMail_(message("【応募キャンセル】","キャンセルした応募者\n候補者A さん\nhttps://client.sharefull.com/orders/1234"),"system@sharefull.com");
+  assert.equal(one.application_key,two.application_key);
 });
 
 test("別の送信元から来たメールはSharefullイベントとして扱わない", () => {

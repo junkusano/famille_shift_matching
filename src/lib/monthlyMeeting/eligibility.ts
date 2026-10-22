@@ -14,6 +14,11 @@ export function isMeetingMonthEligible(
   return entryDate <= monthEnd;
 }
 
+/** 退職扱いの職員は、会議未参加の不備・通知対象に含めない。 */
+export function isRetiredStaffStatus(status: string | null | undefined): boolean {
+  return String(status ?? "").trim().toLowerCase().startsWith("removed");
+}
+
 /** 入社日が空白の職員について、対象月が初回勤務月以降か判定する。 */
 export function isMeetingMonthOnOrAfterFirstShift(
   firstShiftDate: string | null | undefined,
