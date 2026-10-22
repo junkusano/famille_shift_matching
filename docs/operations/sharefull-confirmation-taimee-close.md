@@ -8,8 +8,9 @@
 
 1. `processSpotOfferConfirmationEmails` が5分ごとに両方の対象Gmailを検索する。
 2. 送信元を完全一致で確認し、確定語句とシェアフル求人IDまたは管理番号を抽出する。管理画面URLの `/orders/<ID>` 形式も注文IDとして扱う。
-3. `/api/rpa/sharefull/confirmed` がMyFamille案件とIDを照合し、`sharefull` の応募状態を `confirmed` として記録する。
-4. タイミーPAD用 `close_job` を登録する。
+3. （LINE WORKS通知が先行して成功済みの前提。）`/api/rpa/sharefull/confirmed` がMyFamille案件とIDを照合する。このAPIから通知を再送しない。
+4. 停止対象のタイミー求人IDがある場合、`sharefull` の応募状態を `confirmed` として記録し、その後タイミーPAD用 `close_job` を登録する。
+5. 対応案件にタイミー求人IDがない場合は、応募状態を記録せずHTTP 409を返す。GASはメールを処理済みにせず、求人ID登録後の次回実行で再試行する。
 
 ### シェアフル応募キャンセル → 応募状態更新・スタッフ通知
 

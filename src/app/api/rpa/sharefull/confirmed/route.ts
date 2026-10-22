@@ -51,6 +51,9 @@ export async function POST(request: NextRequest) {
     if ((jobId && target.sharefull_job_id !== jobId) || (orderId && target.sharefull_order_id !== orderId)) {
       return NextResponse.json({ ok: false, error: "メール内の求人IDと管理番号が一致しません" }, { status: 409 });
     }
+    if (typeof target.taimee_job_id !== "string" || !target.taimee_job_id.trim()) {
+      return NextResponse.json({ ok: false, error: "停止対象のタイミー求人IDが登録されていません" }, { status: 409 });
+    }
 
     const { data: recorded, error: recordError } = await supabaseAdmin.rpc("record_spot_offer_application", {
       p_request_id: target.id as string,
