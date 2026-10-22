@@ -7,10 +7,18 @@ export type Role = 'admin' | 'manager' | 'member' | 'occupational_physician' | n
 
 export function normalizeRole(value: unknown): Exclude<Role, null> {
   const normalized = String(value ?? '').trim().toLowerCase();
-  if (normalized === 'admin' || normalized === 'system_admin' || normalized === 'super_admin') {
+  if (
+    normalized === 'admin'
+    || normalized === 'administrator'
+    || normalized === 'system_admin'
+    || normalized === 'super_admin'
+    || normalized === 'full'
+    || normalized === '管理者'
+    || normalized === 'システム管理者'
+  ) {
     return 'admin';
   }
-  if (normalized === 'manager') return 'manager';
+  if (normalized === 'manager' || normalized === 'マネージャー' || normalized === 'マネジャー') return 'manager';
   if (normalized === 'occupational_physician') return 'occupational_physician';
   return 'member';
 }
@@ -47,7 +55,7 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
 
         const { data, error } = await supabase
           .from('users')
-          .select('user_id, system_role, role, last_name_kanji, first_name_kanji')
+          .select('user_id, system_role, last_name_kanji, first_name_kanji')
           .eq('auth_user_id', user.id)
           .single();
 
@@ -56,8 +64,7 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
           if (mounted) setRole('member');
         } else {
           if (mounted) setUserId(data?.user_id ?? null);
-          const rawRole = data?.system_role || data?.role;
-          const normalizedRole = normalizeRole(rawRole);
+          const normalizedRole = normalizeRole(data?.system_role);
           if (mounted) setRole(normalizedRole);
           if (mounted) {
             const staffName = `${data?.last_name_kanji ?? ''} ${data?.first_name_kanji ?? ''}`.trim();
