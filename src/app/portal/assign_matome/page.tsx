@@ -557,27 +557,23 @@ export default function AssignMatomePage() {
 
             {/* 下部：利用者一覧 */}
             <div className="border rounded-md p-3 bg-white shadow-sm">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                    <h2 className="font-semibold text-sm">利用者一覧</h2>
-                    <label className="flex items-center gap-2 text-xs text-gray-700">
-                        並び順
-                        <select
-                            className="border rounded px-2 py-1"
-                            value={sortMode}
-                            onChange={(e) => setSortMode(e.target.value as SortMode)}
-                        >
-                            <option value="name">名前（漢字）順</option>
-                            <option value="kana">読みがな順</option>
-                        </select>
-                    </label>
-                </div>
+                <h2 className="font-semibold mb-2 text-sm">利用者一覧</h2>
 
                 <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                     <table className="min-w-full text-xs border-collapse">
                         <thead className="sticky top-0 bg-gray-100 z-10">
                             {/* 見出し行 */}
                             <tr className="border-b">
-                                <th className="text-left py-1 px-2">名前</th>
+                                <th className="text-left py-1 px-2">
+                                    <button
+                                        type="button"
+                                        className="rounded px-1 py-0.5 font-semibold hover:bg-gray-200"
+                                        onClick={() => setSortMode((mode) => mode === "name" ? "kana" : "name")}
+                                        title="名前順と読みがな順を切り替え"
+                                    >
+                                        {sortMode === "name" ? "名前（漢字）順" : "読みがな順"} ↕
+                                    </button>
+                                </th>
                                 <th className="text-left py-1 px-2">サービス種別</th>
                                 <th className="text-left py-1 px-2">エリア（郵便上3桁）</th>
                                 <th className="text-left py-1 px-2">実績記録担当者</th>
