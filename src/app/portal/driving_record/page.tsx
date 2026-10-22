@@ -112,8 +112,9 @@ function createRecentMonthKeys(count: number): string[] {
 }
 
 export default function ManagerDistanceIndexPage() {
-  const { loading: roleLoading, role, canViewDistanceIndex } = useRoleContext();
+  const { loading: roleLoading, role, userId, canViewDistanceIndex } = useRoleContext();
   const canManageDistanceIndex = role === "admin" || role === "manager";
+  const canViewOwnDistanceOnly = !canManageDistanceIndex;
   const [rows, setRows] = useState<MonthlyDistanceRow[]>([]);
   const [legacyRows, setLegacyRows] = useState<LegacyDistanceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,7 +160,7 @@ export default function ManagerDistanceIndexPage() {
 
     const startMonth = `${monthKeys[0]}-01`;
 
-    const { data, error } = await supabase
+    let distanceQuery = supabase
       .from("manager_monthly_google_maps_distance_view")
       .select(
         [
@@ -171,7 +172,11 @@ export default function ManagerDistanceIndexPage() {
           "monthly_distance_index",
         ].join(",")
       )
-      .gte("target_month", startMonth)
+      .gte("target_month", startMonth);
+    if (canViewOwnDistanceOnly && userId) {
+      distanceQuery = distanceQuery.eq("user_id", userId);
+    }
+    const { data, error } = await distanceQuery
       .order("staff_name", {
         ascending: true,
       })
@@ -198,10 +203,14 @@ export default function ManagerDistanceIndexPage() {
     setRows(typedRows);
 
     // 給与計算用に、旧方式（郵便番号上3桁差分）の指数も残す。
-    const { data: legacyData, error: legacyError } = await supabase
+    let legacyQuery = supabase
       .from("manager_monthly_distance_index_view")
       .select("target_month, user_id, staff_name, monthly_distance_index")
-      .gte("target_month", startMonth)
+      .gte("target_month", startMonth);
+    if (canViewOwnDistanceOnly && userId) {
+      legacyQuery = legacyQuery.eq("user_id", userId);
+    }
+    const { data: legacyData, error: legacyError } = await legacyQuery
       .order("staff_name", { ascending: true })
       .order("target_month", { ascending: true });
     if (legacyError) {
@@ -248,7 +257,7 @@ export default function ManagerDistanceIndexPage() {
       .maybeSingle();
     setLastUpdatedAt(latestRun?.finished_at ?? null);
     setLoading(false);
-  }, [canViewDistanceIndex, monthKeys]);
+  }, [canViewDistanceIndex, canViewOwnDistanceOnly, monthKeys, userId]);
 
   const updateDistance = async (staffUserId?: string) => {
     if (staffUserId) {
@@ -295,6 +304,7 @@ export default function ManagerDistanceIndexPage() {
 
     for (const row of rows) {
       if (isHiddenStaffName(row.staff_name)) continue;
+      if (canViewOwnDistanceOnly && row.user_id !== userId) continue;
       const monthKey = getMonthKey(row.target_month);
 
       if (!monthKeys.includes(monthKey)) {
@@ -339,12 +349,13 @@ export default function ManagerDistanceIndexPage() {
         );
       }
     );
-  }, [monthKeys, rows]);
+  }, [canViewOwnDistanceOnly, monthKeys, rows, userId]);
 
   const legacySummaries = useMemo<ManagerSummary[]>(() => {
     const managerMap = new Map<string, ManagerSummary>();
     for (const row of legacyRows) {
       if (isHiddenStaffName(row.staff_name)) continue;
+      if (canViewOwnDistanceOnly && row.user_id !== userId) continue;
       const monthKey = getMonthKey(row.target_month);
       if (!monthKeys.includes(monthKey)) continue;
       const current = managerMap.get(row.user_id) ?? {
@@ -360,7 +371,7 @@ export default function ManagerDistanceIndexPage() {
       managerMap.set(row.user_id, current);
     }
     return Array.from(managerMap.values()).sort((a, b) => a.staffName.localeCompare(b.staffName, "ja"));
-  }, [legacyRows, monthKeys]);
+  }, [canViewOwnDistanceOnly, legacyRows, monthKeys, userId]);
 
   const monthlyTotals = useMemo(() => {
     const totals: Record<string, number> = {};
