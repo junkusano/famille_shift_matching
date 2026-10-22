@@ -54,10 +54,10 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
         if (!user) return;
 
         const { data, error } = await supabase
-          .from('users')
+          .from('user_entry_united_view_single')
           .select('user_id, system_role, last_name_kanji, first_name_kanji')
           .eq('auth_user_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (error) {
           console.error('Role fetch error:', error);
