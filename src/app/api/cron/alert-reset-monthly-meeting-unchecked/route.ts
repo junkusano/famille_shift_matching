@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import {
     parseMonthlyMeetingAlertKey,
     shouldResolveMonthlyMeetingAlert,
+    isRetiredStaffStatus,
 } from "@/lib/monthlyMeeting/eligibility";
 import {
     getFirstStaffShiftDate,
@@ -24,6 +25,7 @@ type Body = {
 
 type StaffEntryRow = {
     user_id: string | null;
+    status: string | null;
     entry_date_original: string | null;
     entry_date_latest: string | null;
 };
@@ -61,7 +63,7 @@ export async function GET(req: NextRequest) {
         if (userIds.length > 0) {
             const { data: staffRows, error: staffError } = await supabaseAdmin
                 .from("users")
-                .select("user_id, entry_date_original, entry_date_latest")
+                .select("user_id, status, entry_date_original, entry_date_latest")
                 .in("user_id", userIds);
 
             if (staffError) {
@@ -89,17 +91,19 @@ export async function GET(req: NextRequest) {
             const hasEntryDate = Boolean(
                 String(staff.entry_date_latest || staff.entry_date_original || "").trim(),
             );
-            const shouldResolve = hasEntryDate
-                ? shouldResolveMonthlyMeetingAlert({
-                    entryDateOriginal: staff.entry_date_original,
-                    entryDateLatest: staff.entry_date_latest,
-                    targetYm: key.targetYm,
-                })
-                : !(await hasStaffShiftInMonth(key.userId, key.targetYm))
-                    || !isMeetingMonthOnOrAfterFirstShift(
-                        await getFirstStaffShiftDate(key.userId),
-                        key.targetYm,
-                    );
+            const shouldResolve = isRetiredStaffStatus(staff.status) || (
+                hasEntryDate
+                    ? shouldResolveMonthlyMeetingAlert({
+                        entryDateOriginal: staff.entry_date_original,
+                        entryDateLatest: staff.entry_date_latest,
+                        targetYm: key.targetYm,
+                    })
+                    : !(await hasStaffShiftInMonth(key.userId, key.targetYm))
+                        || !isMeetingMonthOnOrAfterFirstShift(
+                            await getFirstStaffShiftDate(key.userId),
+                            key.targetYm,
+                        )
+            );
             if (!shouldResolve) {
                 skippedCount++;
                 continue;

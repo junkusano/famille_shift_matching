@@ -3,7 +3,10 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { ensureSystemAlert } from "@/lib/alert/ensureSystemAlert";
-import { isMeetingMonthEligible } from "@/lib/monthlyMeeting/eligibility";
+import {
+    isMeetingMonthEligible,
+    isRetiredStaffStatus,
+} from "@/lib/monthlyMeeting/eligibility";
 import {
     getFirstStaffShiftDate,
     hasStaffShiftInMonth,
@@ -22,6 +25,7 @@ type AttendanceRow = {
 
 type StaffInfoRow = {
     user_id: string | null;
+    status: string | null;
     entry_date_original: string | null;
     entry_date_latest: string | null;
     last_name_kanji: string | null;
@@ -80,7 +84,7 @@ async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInf
 
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
-        .select("user_id, entry_date_original, entry_date_latest, last_name_kanji, first_name_kanji, org_unit_id, orgunitname")
+        .select("user_id, status, entry_date_original, entry_date_latest, last_name_kanji, first_name_kanji, org_unit_id, orgunitname")
         .in("user_id", userIds);
 
     if (error) {
@@ -165,6 +169,7 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
     const filteredRows: AttendanceRow[] = [];
     for (const row of dateFilteredRows) {
         const staff = staffMap.get(String(row.user_id ?? "").trim());
+        if (isRetiredStaffStatus(staff?.status)) continue;
         const targetYm = row.target_month.slice(0, 7);
         const hasEntryDate = Boolean(
             String(staff?.entry_date_latest || staff?.entry_date_original || "").trim(),
