@@ -10,6 +10,7 @@
 2. 送信元を完全一致で確認し、確定語句とシェアフル求人IDまたは管理番号を抽出する。管理画面URLの `/orders/<ID>` 形式も注文IDとして扱う。
 3. `/api/rpa/sharefull/confirmed` がMyFamille案件とIDを照合し、`sharefull` の応募状態を `confirmed` として記録する。
 4. タイミーPAD用 `close_job` を登録する。
+5. Sharefull確定のLINE WORKS通知を既存のSharefull通知先へ送る。イベント単位で送信claim/通知済み時刻を記録し、同じGmailイベントの再試行で二重送信しない。送信に失敗した場合はAPIを失敗として返し、GASの次回5分実行で再試行する。
 
 ### シェアフル応募キャンセル → 応募状態更新・スタッフ通知
 

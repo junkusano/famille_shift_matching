@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createCloseRequest } from "@/lib/spot_offer/spot_offer_sync_check";
+import { notifySharefullApplication } from "@/lib/spot-sync/sharefullApplicationNotification";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 export const dynamic = "force-dynamic";
@@ -76,6 +77,21 @@ export async function POST(request: NextRequest) {
     await createCloseRequest(target, "other_application", {
       syncOperationKey: closeOperationKey,
       createdFrom: "/api/rpa/sharefull/confirmed",
+    });
+
+    const notificationText = [
+      "【Sharefull 応募確定】",
+      `管理番号: ${target.sharefull_order_id || orderId || "不明"}`,
+      `求人ID: ${target.sharefull_job_id || jobId || "不明"}`,
+      `勤務日: ${target.shift_start_date || "不明"}`,
+      `勤務開始: ${String(target.shift_start_time || "").slice(0, 5) || "不明"}`,
+      "シェアフルからの確定通知を検知しました。関連する他媒体の募集停止状況を確認してください。",
+    ].join("\n");
+    await notifySharefullApplication({
+      provider: "sharefull",
+      eventId,
+      text: notificationText,
+      eventTable: "spot_offer_application_events",
     });
 
     return NextResponse.json({ ok: true, duplicate: Boolean(eventResult?.duplicate) });
