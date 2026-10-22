@@ -55,14 +55,26 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER = 12;
 const MONTHLY_MOVEMENT_ALLOWANCE_YEN = 2000;
 const HIDDEN_STAFF_NAMES = new Set(["岩田恵一"]);
+const COMPANY_CAR_CONTRACT_STAFF_NAMES = new Set([
+  "佐藤 美佐子",
+  "片岡 由美子",
+  "小林 千佳",
+  "山岡 幸洋",
+]);
 
 function isHiddenStaffName(name: string | null | undefined): boolean {
   return HIDDEN_STAFF_NAMES.has((name ?? "").replace(/\s/g, ""));
 }
 
-function calculateGasolineAmount(distanceKm: number, pricePerLiter: number | null, hasDistance: boolean): number {
+function calculateGasolineAmount(
+  distanceKm: number,
+  pricePerLiter: number | null,
+  hasDistance: boolean,
+  includeMonthlyMovementAllowance = true,
+): number {
   if (!hasDistance || pricePerLiter == null) return 0;
-  return distanceKm / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * pricePerLiter + MONTHLY_MOVEMENT_ALLOWANCE_YEN;
+  return distanceKm / AVERAGE_FUEL_EFFICIENCY_KM_PER_LITER * pricePerLiter
+    + (includeMonthlyMovementAllowance ? MONTHLY_MOVEMENT_ALLOWANCE_YEN : 0);
 }
 
 function formatSegmentKind(kind: string): string {
@@ -606,12 +618,14 @@ export default function ManagerDistanceIndexPage() {
 
               <tbody>
                 {summaries.map((manager) => {
+                  const includeMonthlyMovementAllowance = !COMPANY_CAR_CONTRACT_STAFF_NAMES.has(manager.staffName);
                   const managerAmount = googleMonthKeys.reduce((sum, monthKey) => {
                     const price = priceByMonth[monthKey];
                     return sum + calculateGasolineAmount(
                       manager.monthlyValues[monthKey] ?? 0,
                       price ?? null,
                       (manager.monthlySegmentCounts[monthKey] ?? 0) > 0,
+                      includeMonthlyMovementAllowance,
                     );
                   }, 0);
 
@@ -675,6 +689,7 @@ export default function ManagerDistanceIndexPage() {
                         manager.monthlyValues[monthKey] ?? 0,
                         price ?? null,
                         segmentCount > 0,
+                        includeMonthlyMovementAllowance,
                       );
                       return <td key={monthKey} className="px-4 py-2 text-right tabular-nums text-amber-900">
                         {segmentCount === 0 ? "—" : price == null ? "単価未登録" : `${Math.round(amount).toLocaleString("ja-JP")} 円`}
