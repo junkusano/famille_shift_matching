@@ -13,13 +13,19 @@ const ALLOWED_STATUSES = new Set(["template_review", "ready_for_offer"]);
 export async function POST(request: NextRequest) {
   try {
     await requireTaimeeRpaOperator(request);
-    const body = await request.json() as { core_id?: unknown; sharefull_template_status?: unknown };
+    const body = await request.json() as { core_id?: unknown; sharefull_template_id?: unknown; sharefull_template_status?: unknown };
     const coreId = typeof body.core_id === "string" ? body.core_id.trim() : "";
     const status = typeof body.sharefull_template_status === "string"
       ? body.sharefull_template_status.trim()
       : "";
     if (!coreId || !ALLOWED_STATUSES.has(status)) {
       return NextResponse.json({ error: "core_idまたは審査状態が不正です" }, { status: 400 });
+    }
+    // Older extensions could attach a neighbouring card's status to this core.
+    // Require the observed ID, including for demotion, and reject stale copies.
+    const templateId = typeof body.sharefull_template_id === "string" ? body.sharefull_template_id.trim() : "";
+    if (!/^\d{4,}$/.test(templateId)) {
+      return NextResponse.json({ error: "確認したテンプレートIDが必要です。拡張機能を最新版へ更新してください" }, { status: 409 });
     }
 
     const { data: template, error: lookupError } = await supabaseAdmin
@@ -30,13 +36,20 @@ export async function POST(request: NextRequest) {
     if (lookupError) throw lookupError;
     const templateRecord = template as unknown as Record<string, unknown> | null;
     if (!templateRecord || !isSharefullSyncClient(templateRecord.kaipoke_cs_id)) return NextResponse.json({ error: "テンプレートが見つかりません" }, { status: 404 });
+    if (String(templateRecord.sharefull_template_id ?? "").trim() !== templateId) {
+      return NextResponse.json({ error: "確認したテンプレートIDが現在の登録と一致しません" }, { status: 409 });
+    }
 
     const updatedAt = new Date().toISOString();
-    const { error: updateError } = await supabaseAdmin
+    const { data: updated, error: updateError } = await supabaseAdmin
       .from(sharefullTemplateTableName() as never)
       .update({ sharefull_template_status: status, updated_at: updatedAt })
-      .eq("core_id", coreId);
+      .eq("core_id", coreId)
+      .eq("sharefull_template_id", templateId)
+      .select("core_id")
+      .maybeSingle();
     if (updateError) throw updateError;
+    if (!updated) return NextResponse.json({ error: "テンプレートが更新されたため、再確認してください" }, { status: 409 });
 
     // 既存の案件単位ステータスも互換のため同期する。
     const { error: requestUpdateError } = await supabaseAdmin
