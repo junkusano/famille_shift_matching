@@ -15,6 +15,7 @@ type KaipokeUser = {
     id: string;
     kaipoke_cs_id: string;
     name: string;
+    kana: string | null;
     service_kind: string | null;
     postal_code: string | null;
     asigned_org: string | null;
@@ -125,6 +126,7 @@ export default function AssignMatomePage() {
             id,
             kaipoke_cs_id,
             name,
+            kana,
             service_kind,
             postal_code,
             asigned_org,
@@ -132,6 +134,9 @@ export default function AssignMatomePage() {
           `
                     )
                     .eq("is_active", true)
+                    // 利用者名ではなく、登録された読みがな順で表示する。
+                    // 読みがなが未登録の利用者は末尾に置き、同じ読みがなでは氏名順にする。
+                    .order("kana", { ascending: true, nullsFirst: false })
                     .order("name", { ascending: true });
 
                 if (usersError) throw usersError;
