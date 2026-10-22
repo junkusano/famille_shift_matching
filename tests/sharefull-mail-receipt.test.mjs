@@ -21,6 +21,12 @@ test('同一メールは受領を一件に保ち、再送で完了状態を上�
 test('同一ID・異なる内容の再送を拒み、元の受領を維持する',async()=>{
  const h=harness();await h.receiveSharefullMail(mail);await assert.rejects(h.receiveSharefullMail({...mail,orderId:'other'}),/MAIL_EVENT_ID_COLLISION/);assert.equal(h.rows.get('mail1').order_id,'1234');
 });
+test('旧GASから新版への切替でfallbackキーだけが変わっても同じ受領を利用する',async()=>{
+ const h=harness();const old={...mail,jobId:'5678',applicationKey:'5678::candidate'};
+ await h.receiveSharefullMail(old);await h.finishSharefullMail('mail1',{status:'completed',close_request_id:'close1'});
+ const r=await h.receiveSharefullMail({...old,applicationKey:'1234::candidate'});assert.equal(r.status,'completed');assert.equal(h.rows.size,1);
+ await assert.rejects(h.receiveSharefullMail({...old,applicationKey:'custom-identity'}),/MAIL_EVENT_ID_COLLISION/);
+});
 test('受領行が存在しない完了更新を成功扱いしない',async()=>{
  const h=harness();await assert.rejects(h.finishSharefullMail('missing',{status:'completed'}),/row missing/);
 });

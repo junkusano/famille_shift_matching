@@ -8,7 +8,11 @@ export type SharefullMail = {
 
 /** メールの同一性を固定し、照合エラーも受領記録に残す。本文・トークンはログに出さない。 */
 export async function receiveSharefullMail(mail: SharefullMail) {
-  const hash = createHash("sha256").update(JSON.stringify(mail)).digest("hex");
+  // 旧GASの求人ID::氏名と新版の注文ID::氏名は同じメールのfallback表現。
+  const fallbackKeys = [mail.jobId, mail.orderId].filter(Boolean).map(id => `${id}::${mail.applicantName}`);
+  const applicationKey = mail.applicantName && fallbackKeys.includes(mail.applicationKey)
+    ? `${mail.orderId || mail.jobId}::${mail.applicantName}` : mail.applicationKey;
+  const hash = createHash("sha256").update(JSON.stringify({ ...mail, applicationKey })).digest("hex");
   const { error: insertError } = await db.from("spot_offer_mail_receipts").upsert({
     provider: "sharefull", event_id: mail.eventId, event_kind: mail.kind, payload_hash: hash,
     job_id: mail.jobId || null, order_id: mail.orderId || null, occurred_at: mail.occurredAt,

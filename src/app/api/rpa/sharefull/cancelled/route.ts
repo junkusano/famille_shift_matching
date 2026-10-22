@@ -115,7 +115,13 @@ export async function POST(request: NextRequest) {
     }
 
     const result = recorded as Record<string, unknown> | null;
-    if (result?.stale) {
+    // RPCの重複応答にはstaleが含まれない。再試行時も通知前に最新状態を確認する。
+    const { data: current, error: currentError } = await supabaseAdmin.from("spot_offer_applications")
+      .select("state,occurred_at").eq("request_id",String(target.id)).eq("provider","sharefull")
+      .eq("application_key",application.application_key).maybeSingle();
+    if (currentError) throw currentError;
+    if (!current) return await reject("APPLICATION_STATE_MISSING",503,String(target.id));
+    if (result?.stale || current.state !== "cancelled" || Date.parse(current.occurred_at) !== Date.parse(occurredAt)) {
       await finishSharefullMail(eventId,{status:"ignored",outcome:"stale",request_id:String(target.id)});
       return NextResponse.json({ok:true,recorded:true,event_id:eventId,outcome:"stale"});
     }

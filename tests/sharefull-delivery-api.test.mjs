@@ -14,7 +14,7 @@ function load(kind,options={}) {
  sharefullMailWorkFinished:()=>!!options.expired,
  notifySharefullApplication:async()=>{calls.push(['notify']);return {sent:true};},
  createCloseRequest:async(...args)=>{calls.push(['close',...args]);if(options.closeError)throw options.closeError;return options.closeResult??{outcome:'queued',close_request_id:'close-1'};},
- supabaseAdmin:{from:table=>{calls.push(['select',table]);const filters={};const b={select:()=>b,limit:()=>b,eq:(k,v)=>{filters[k]=v;return b;},in:()=>b,update:()=>b,then:(resolve,reject)=>Promise.resolve({data:table==='spot_offer_request_table'?(options.noTarget?[]:[target]):(options.applications??[]).filter(a=>['application_key','applicant_name'].every(k=>filters[k]===undefined||a[k]===filters[k])),error:null}).then(resolve,reject)};return b;},
+ supabaseAdmin:{from:table=>{calls.push(['select',table]);const filters={};const b={select:()=>b,limit:()=>b,eq:(k,v)=>{filters[k]=v;return b;},in:()=>b,update:()=>b,maybeSingle:async()=>({data:options.currentApplication??{state:'cancelled',occurred_at:'2026-10-22T01:00:00Z'},error:null}),then:(resolve,reject)=>Promise.resolve({data:table==='spot_offer_request_table'?(options.noTarget?[]:[target]):(options.applications??[]).filter(a=>['application_key','applicant_name'].every(k=>filters[k]===undefined||a[k]===filters[k])),error:null}).then(resolve,reject)};return b;},
   rpc:async(name,args)=>{calls.push(['record',name,args]);return {data:options.recordResult??{ok:true},error:null};}}
  });
  const source=fs.readFileSync(`src/app/api/rpa/sharefull/${kind}/route.ts`,'utf8').replace(/^import .*;\r?\n/gm,'');
@@ -63,4 +63,14 @@ test('旧版の求人IDfallbackキーを同一案件の一意な応募から継�
 });
 test('同名の応募が複数ある場合に推測で選ばない',async()=>{
  for(const kind of ['confirmed','cancelled']){const h=load(kind,{applications:[{application_key:'old1::candidate',applicant_name:'candidate'},{application_key:'old2::candidate',applicant_name:'candidate'}]});const r=await h.run();assert.equal(r.status,409);assert.ok(!h.calls.some(c=>c[0]==='record'));}
+});
+test('古い取消の完了記録失敗後も、新しい確定を取消済みと通知しない',async()=>{
+ const options={recordResult:{stale:true},currentApplication:{state:'confirmed',occurred_at:'2026-10-22T02:00:00Z'},finishError:new Error('receipt unavailable')};
+ const h=load('cancelled',options);assert.equal((await h.run()).status,500);
+ options.recordResult={duplicate:true};options.finishError=null;
+ const retry=await h.run();assert.equal(retry.body.outcome,'stale');assert.ok(!h.calls.some(c=>c[0]==='notify'));
+});
+test('新しい取消がある場合も古い取消の重複再送を通知しない',async()=>{
+ const h=load('cancelled',{recordResult:{duplicate:true},currentApplication:{state:'cancelled',occurred_at:'2026-10-22T02:00:00Z'}});
+ assert.equal((await h.run()).body.outcome,'stale');assert.ok(!h.calls.some(c=>c[0]==='notify'));
 });
