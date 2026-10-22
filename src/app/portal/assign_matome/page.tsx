@@ -10,6 +10,7 @@ import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/S
 // =======================
 
 type ServiceKindGenre = "介護" | "要支援" | "障害";
+type SortMode = "name" | "kana";
 
 type KaipokeUser = {
     id: string;
@@ -57,6 +58,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // `@supabase/supabase-js` の標準クライアント
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const jaCollator = new Intl.Collator("ja", { sensitivity: "base" });
 
 // =======================
 // ユーティリティ
@@ -98,6 +100,7 @@ export default function AssignMatomePage() {
     const [filterPostalArea, setFilterPostalArea] = useState("");
     const [filterStaff, setFilterStaff] = useState("");
     const [filterOrg, setFilterOrg] = useState("");
+    const [sortMode, setSortMode] = useState<SortMode>("name");
     const staffSelectOptions = useMemo<SearchableSelectOption[]>(
         () =>
             staffOptions.map((staff) => ({
@@ -134,9 +137,6 @@ export default function AssignMatomePage() {
           `
                     )
                     .eq("is_active", true)
-                    // 利用者名ではなく、登録された読みがな順で表示する。
-                    // 読みがなが未登録の利用者は末尾に置き、同じ読みがなでは氏名順にする。
-                    .order("kana", { ascending: true, nullsFirst: false })
                     .order("name", { ascending: true });
 
                 if (usersError) throw usersError;
@@ -300,7 +300,7 @@ export default function AssignMatomePage() {
 
     // ★ フィルタ後の行
     const filteredRows = useMemo(() => {
-        return rows.filter((r) => {
+        const filtered = rows.filter((r) => {
             /// ★ 99999999 で始まる利用者（お休み）は一覧に表示しない
             if (r.kaipoke_cs_id.startsWith("99999999")) {
                 return false;
@@ -333,6 +333,20 @@ export default function AssignMatomePage() {
 
             return true;
         });
+
+        return filtered.sort((a, b) => {
+            if (sortMode === "kana") {
+                const aKana = a.kana?.trim() ?? "";
+                const bKana = b.kana?.trim() ?? "";
+                // 読みがな未登録の利用者は、読みがな登録済みの利用者の後ろに置く。
+                if (!aKana && bKana) return 1;
+                if (aKana && !bKana) return -1;
+                const byKana = jaCollator.compare(aKana, bKana);
+                if (byKana !== 0) return byKana;
+            }
+
+            return jaCollator.compare(a.name, b.name);
+        });
     }, [
         rows,
         filterName,
@@ -340,6 +354,7 @@ export default function AssignMatomePage() {
         filterPostalArea,
         filterStaff,
         filterOrg,
+        sortMode,
     ]);
 
     // -----------------------
@@ -542,7 +557,20 @@ export default function AssignMatomePage() {
 
             {/* 下部：利用者一覧 */}
             <div className="border rounded-md p-3 bg-white shadow-sm">
-                <h2 className="font-semibold mb-2 text-sm">利用者一覧</h2>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                    <h2 className="font-semibold text-sm">利用者一覧</h2>
+                    <label className="flex items-center gap-2 text-xs text-gray-700">
+                        並び順
+                        <select
+                            className="border rounded px-2 py-1"
+                            value={sortMode}
+                            onChange={(e) => setSortMode(e.target.value as SortMode)}
+                        >
+                            <option value="name">名前（漢字）順</option>
+                            <option value="kana">読みがな順</option>
+                        </select>
+                    </label>
+                </div>
 
                 <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                     <table className="min-w-full text-xs border-collapse">
