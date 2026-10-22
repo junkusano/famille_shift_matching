@@ -315,7 +315,8 @@ export async function createCloseRequest(
     | "date_changed"
     | "time_changed"
     | "other_application",
-  opts?: { dryRun?: boolean; syncOperationKey?: string; createdFrom?: string }
+  opts?: { dryRun?: boolean; syncOperationKey?: string; createdFrom?: string;
+    sharefullConfirmation?: { applicationKey: string; eventId: string; occurredAt: string } }
 ) {
 
   const shiftId = spotOfferRequest["shift_id"];
@@ -341,10 +342,10 @@ if (process.env.SPOT_PROVIDER_SYNC_ENABLED === "true" && sharefullRpaMode() !== 
   if (sharefullError && sharefullError.code !== "23505") throw sharefullError;
 }
 const syncOperationKey = opts?.syncOperationKey ?? ["spot-sync", "taimee", "close", String(spotOfferRequest["taimee_job_id"]), reason, String(spotOfferRequest["recruitment_revision"] ?? 0)].join(":");
-if (!spotOfferRequest["taimee_job_id"]) return;
+if (!spotOfferRequest["taimee_job_id"] && !opts?.sharefullConfirmation) return;
 const { data: duplicate, error: duplicateError } = await supabase.from("rpa_command_requests").select("id").eq("request_details->>sync_operation_key", syncOperationKey).limit(1);
 if (duplicateError) throw duplicateError;
-if (duplicate?.length) return;
+if (duplicate?.length && !opts?.sharefullConfirmation) return;
 const payload = {
   sync_operation_key: syncOperationKey,
   created_from: opts?.createdFrom ?? "/api/cron/spot-offer-sync-check",
@@ -391,6 +392,17 @@ const payload = {
 };
 
   const applicantUser = await getApplicantUser();
+
+  if (opts?.sharefullConfirmation) {
+    const confirmation = opts.sharefullConfirmation;
+    const { data, error } = await supabase.rpc("enqueue_sharefull_confirmation_close", {
+      p_request_id: spotOfferRequest["id"], p_application_key: confirmation.applicationKey,
+      p_event_id: confirmation.eventId, p_occurred_at: confirmation.occurredAt,
+      p_requester_id: applicantUser.auth_user_id, p_payload: payload,
+    });
+    if (error) throw error;
+    return data as { outcome: "queued" | "stale" | "target_missing"; close_request_id?: string };
+  }
 
   const { error } = await supabase.from("rpa_command_requests").insert({
     template_id: SKIMABITO_JOB_EDIT_TEMPLATE_ID,
