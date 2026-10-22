@@ -5,6 +5,13 @@ import { supabase } from '@/lib/supabaseClient';
 
 export type Role = 'admin' | 'manager' | 'member' | 'occupational_physician' | null;
 
+const DISTANCE_INDEX_VIEWER_NAMES = new Set([
+  '佐藤 美佐子',
+  '片岡 由美子',
+  '小林 千佳',
+  '山岡 幸洋',
+]);
+
 export interface RoleContextValue {
   role: Role;
   userId: string | null;
@@ -30,7 +37,7 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
 
         const { data, error } = await supabase
           .from('users')
-          .select('user_id, system_role')
+          .select('user_id, system_role, last_name_kanji, first_name_kanji')
           .eq('auth_user_id', user.id)
           .single();
 
@@ -42,7 +49,12 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
           if (mounted) setRole((data?.system_role as Role) ?? 'member');
           if (mounted) {
             const currentRole = String(data?.system_role ?? '').toLowerCase();
-            setCanViewDistanceIndex(currentRole === 'admin' || currentRole === 'manager');
+            const staffName = `${data?.last_name_kanji ?? ''} ${data?.first_name_kanji ?? ''}`.trim();
+            setCanViewDistanceIndex(
+              currentRole === 'admin'
+              || currentRole === 'manager'
+              || DISTANCE_INDEX_VIEWER_NAMES.has(staffName),
+            );
           }
         }
       } finally {

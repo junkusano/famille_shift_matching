@@ -112,7 +112,8 @@ function createRecentMonthKeys(count: number): string[] {
 }
 
 export default function ManagerDistanceIndexPage() {
-  const { loading: roleLoading, canViewDistanceIndex } = useRoleContext();
+  const { loading: roleLoading, role, canViewDistanceIndex } = useRoleContext();
+  const canManageDistanceIndex = role === "admin" || role === "manager";
   const [rows, setRows] = useState<MonthlyDistanceRow[]>([]);
   const [legacyRows, setLegacyRows] = useState<LegacyDistanceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -550,14 +551,16 @@ export default function ManagerDistanceIndexPage() {
         >
           {loading ? "更新中..." : "再読み込み"}
         </button>
-        <button
-          type="button"
-          onClick={() => void updateDistance()}
-          disabled={loading || updatingDistance}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {updatingDistance ? "距離更新中..." : "距離データを更新"}
-        </button>
+        {canManageDistanceIndex && (
+          <button
+            type="button"
+            onClick={() => void updateDistance()}
+            disabled={loading || updatingDistance}
+            className="inline-flex h-10 items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {updatingDistance ? "距離更新中..." : "距離データを更新"}
+          </button>
+        )}
         <button
           type="button"
           onClick={exportDistanceCsv}
@@ -668,14 +671,16 @@ export default function ManagerDistanceIndexPage() {
                       {googleMonthKeys.reduce((sum, monthKey) => sum + (manager.monthlyValues[monthKey] ?? 0), 0).toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => void updateDistance(manager.userId)}
-                        disabled={loading || updatingDistance || updatingStaffId !== null}
-                        className="inline-flex items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {updatingStaffId === manager.userId ? "計算中..." : "この職員を計算"}
-                      </button>
+                      {canManageDistanceIndex && (
+                        <button
+                          type="button"
+                          onClick={() => void updateDistance(manager.userId)}
+                          disabled={loading || updatingDistance || updatingStaffId !== null}
+                          className="inline-flex items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {updatingStaffId === manager.userId ? "計算中..." : "この職員を計算"}
+                        </button>
+                      )}
                     </td>
                   </tr>
                   <tr key={`${manager.userId}-amount`} className="border-b bg-amber-50/40 text-sm">
