@@ -39,6 +39,10 @@ export async function requireRpaAuthenticatedUser(request?: Request): Promise<st
 }
 
 export async function requireTaimeeRpaOperator(request?: Request): Promise<void> {
+  await requireTaimeeRpaOperatorUserId(request);
+}
+
+export async function requireTaimeeRpaOperatorUserId(request?: Request): Promise<string> {
   const authorization = request?.headers.get("authorization") ?? "";
   const bearer = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
   // 通常操作はCookie、RPAはログイン済み画面から渡される短期Bearerを使う。
@@ -81,6 +85,7 @@ export async function requireTaimeeRpaOperator(request?: Request): Promise<void>
   if (!["admin", "manager"].includes((staff?.system_role ?? "").toLowerCase())) {
     throw new RpaTaimeeError("この操作を実行する権限がありません", 403);
   }
+  return data.user.id;
 }
 
 export function nullableText(value: unknown, maxLength: number): string | null {
