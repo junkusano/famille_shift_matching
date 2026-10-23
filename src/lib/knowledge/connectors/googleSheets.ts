@@ -240,6 +240,7 @@ export const googleSheetsConnector: KnowledgeConnector = {
     const previousHashes = (ctx.cursor.rowHashes ?? {}) as RowHashes;
     const canUsePreviousHashes = ctx.cursor.normalizationVersion === NORMALIZATION_VERSION;
     const nextHashes: RowHashes = {};
+    const observedHashes: RowHashes = {};
     const objects: NormalizedSourceObject[] = [];
     const proposedKnowledge: ProposedKnowledge[] = [];
     const lastRows: Record<string, number> = {};
@@ -255,6 +256,7 @@ export const googleSheetsConnector: KnowledgeConnector = {
       const rows = response.data.values ?? [];
       const headers = (rows[0] ?? []).map(stringValue);
       nextHashes[sheetConfig.name] = {};
+      observedHashes[sheetConfig.name] = {};
       lastRows[sheetConfig.name] = Math.max(sheetConfig.headerRow, sheetConfig.headerRow + rows.length - 1);
 
       for (let index = 1; index < rows.length; index += 1) {
@@ -266,6 +268,7 @@ export const googleSheetsConnector: KnowledgeConnector = {
           if (header) fields[header] = stringValue(row[column]);
         });
         const contentHash = hash({ headers, row });
+        observedHashes[sheetConfig.name][String(rowNumber)] = contentHash;
         const previousHash = canUsePreviousHashes ? previousHashes[sheetConfig.name]?.[String(rowNumber)] : undefined;
         if (previousHash === contentHash) {
           nextHashes[sheetConfig.name][String(rowNumber)] = contentHash;
@@ -308,6 +311,9 @@ export const googleSheetsConnector: KnowledgeConnector = {
         normalizationVersion: NORMALIZATION_VERSION,
         lastRows,
         rowHashes: nextHashes,
+        // Publication must not use an old row already observed as changed, even
+        // when its persistence is deferred to the next bounded sync batch.
+        observedRowHashes: observedHashes,
         lastCheckedAt: new Date().toISOString(),
       },
       hasMore,

@@ -7,6 +7,7 @@ import { socialPublication, type SocialPublication } from "./socialSharing";
 import { verifyPublishedBlogPost } from "@/lib/wordpress/blogPosts";
 import { z } from "zod";
 import { runKnowledgeSource } from "@/lib/knowledge/pipeline";
+import { refreshLessonEditorial, isLessonPublicationCurrent, type LessonEditorialResult } from "@/lib/knowledge/lessonEditorial";
 import type { KnowledgeAutomationTask } from "@/lib/knowledge-automation/types";
 import { OPENAI_PROFILES } from "@/lib/openaiProfiles";
 import { supabaseAdmin } from "@/lib/supabase/service";
@@ -56,6 +57,7 @@ type PublicSource = { title: string; url: string };
 type Research = { brief: string; sources: PublicSource[] };
 
 export type WordPressBlogResult = {
+  lessonEditorial?: LessonEditorialResult;
   status: "created" | "skipped";
   message: string;
   sourceId?: string;
@@ -256,11 +258,12 @@ async function loadStorySeeds(allowInternalAiContext: boolean, history: BlogHist
       if (error) throw new Error("教訓の記事候補の読み取りに失敗しました。");
       for (const row of rows ?? []) {
         const summary = typeof row.public_summary === "string" ? row.public_summary.trim() : "";
-        if (!summary || used.has(row.id) || sourceWasPublished(row.id, history)) continue;
+          if (!summary || used.has(row.id) || sourceWasPublished(row.id, history)) continue;
+          if (!await isLessonPublicationCurrent(row.id)) continue;
         lessons.push({
           id: row.id, kind: "lesson_principle", title: summary.slice(0, 100),
           summary, detail: null, occurredAt: row.updated_at, category: null, externalUrl: null,
-          metadata: { importance: 4, conceptLevel: 3, sourceKind: "manager_lesson" },
+            metadata: { importance: 4, conceptLevel: 3, sourceKind: "manager_lesson" },
         });
       }
       if (!rows || rows.length < 100) break;
@@ -578,6 +581,7 @@ function editorialPriority(seed: StorySeed): NonNullable<WordPressBlogResult["ed
 
 export async function createWordPressBlogDraft(task: KnowledgeAutomationTask, runId?: string): Promise<WordPressBlogResult> {
   const refreshed = await refreshBlogSources();
+  const lessonEditorial = await refreshLessonEditorial();
   const allowInternalAiContext = task.settings.allow_external_ai_context === true;
   const history = await loadBlogHistory();
   if (!process.env.OPENAI_API_KEY) throw new Error("OpenAIの接続設定がありません。");
@@ -587,7 +591,7 @@ export async function createWordPressBlogDraft(task: KnowledgeAutomationTask, ru
     thought: 0, lesson_principle: 0, key_knowledge: 0, rss_article: 0,
   };
   for (const candidate of candidates) candidateCounts[candidate.kind] += 1;
-  const diagnostics = { candidateCounts, sourceWarnings: refreshed.warnings };
+  const diagnostics = { candidateCounts, sourceWarnings: refreshed.warnings, lessonEditorial };
   const rejected: { sourceId: string; reason: string }[] = [];
   const selectionStartedAt = Date.now();
   const reject = async (sourceId: string, reason: string) => {
@@ -614,7 +618,10 @@ export async function createWordPressBlogDraft(task: KnowledgeAutomationTask, ru
       : consentMessage ?? (hasViewpoints
         ? "記事候補はありますが、今回の独自性・重複の審査で採用できませんでした。"
         : "公開条件を満たす未使用の草野ナレッジ・教訓候補がありません。教訓は公開用要約の一般化・承認状況を確認してください。");
-    return { status: "skipped", ...diagnostics, message: reason + (refreshed.warnings.length ? ` 情報源の同期にも注意事項が${refreshed.warnings.length}件あります。` : "") };
+    return { status: "skipped", ...diagnostics, message: reason +
+      (lessonEditorial.needsReview ? ` 教訓の公開用要約・審査待ちは${lessonEditorial.needsReview}件です。` : "") +
+      (lessonEditorial.remaining ? ` 教訓の候補更新はあと${lessonEditorial.remaining}件あり、次回に継続します。` : "") +
+      (refreshed.warnings.length ? ` 情報源の同期にも注意事項が${refreshed.warnings.length}件あります。` : "") };
   }
   const date = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" })
     .format(new Date()).replaceAll("/", "");
@@ -657,6 +664,10 @@ export async function createWordPressBlogDraft(task: KnowledgeAutomationTask, ru
   // Recheck after slow research/image generation, including posts whose verification failed.
   if (sourceWasPublished(seed.id, await loadBlogHistory())) {
     return { status: "skipped", message: "この題材の記事が既に保存されているため、重複投稿を見送りました。" };
+  }
+  if (seed.metadata.sourceKind === "manager_lesson" && !await isLessonPublicationCurrent(seed.id)) {
+    await reject(seed.id, "生成中に教訓原文または公開承認が変更されました。再審査まで公開しません。");
+    continue;
   }
   const post = await createWordPressPost({
     status: publish ? "publish" : "draft",

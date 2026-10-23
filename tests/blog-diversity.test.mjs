@@ -23,7 +23,7 @@ test('history includes conclusions, excludes private drafts and is bounded',()=>
  const posts=Array.from({length:35},(_,i)=>({id:i,slug:'test',status:i===0?'private':'publish',title:{raw:'題'},content:{raw:'<p>冒頭</p><h2>結論</h2><p>固有の結論</p>'}}));
  const recent=policy.editorialHistory(posts);assert.equal(recent.length,30);assert.equal(recent[0].id,1);assert.match(recent[0].content,/固有の結論/);
 });
-function harness({history=[],historyError=false,runError=false,distinct=true,verifyError=false,thoughts=null,knowledge=[],lessons=[],syncError=false,rss=[],selectionResults=[],noveltyResults=[],researchMissing=0,researchError=false}={}) {
+function harness({history=[],historyError=false,runError=false,distinct=true,verifyError=false,thoughts=null,knowledge=[],lessons=[],syncError=false,rss=[],selectionResults=[],noveltyResults=[],researchMissing=0,researchError=false,lessonChecks=[],lessonPending=0}={}) {
  process.env.OPENAI_API_KEY??='test';const calls=[];const seed={id:'80b2f759-aaaa-bbbb-cccc-000000000000',title:'新しい題材',summary:'別の読者の問い',content:'具体的な内容',metadata:{articleCandidate:'高'},category:'採用'};
  const article={title:'新人が質問できる職場づくりを考える',excerpt:'概要'.repeat(30),thesis:'主張'.repeat(45),trigger_heading:'最初の具体的な場面',trigger_body:'場面'.repeat(100),tension_heading:'質問する側が感じること',tension_body:'課題'.repeat(150),viewpoint_heading:'先輩と管理者の役割を考える',viewpoint_body:'視点'.repeat(150),action_heading:'実際の仕事で試せる工夫',actions:['行動'.repeat(100),'提案'.repeat(100)],conclusion:'結論'.repeat(100),category_id:null,featured_image_search_terms:['新人','相談'],featured_image_prompt:'写真'.repeat(50),featured_image_alt:'新人と先輩が相談する場面を示す写真'};
  const db={from(table){const filters=[];let pageStart=0;const q={
@@ -45,6 +45,7 @@ function harness({history=[],historyError=false,runError=false,distinct=true,ver
   return{output_text:'外部根拠',output:[{type:'message',content:[{type:'output_text',annotations:[{type:'url_citation',url:'https://example.org/source',title:'参考'}]}]}]};
  }}}
  const m=moduleAt('../src/lib/knowledge-automation/wordpressBlog.ts',{
+  '@/lib/knowledge/lessonEditorial':{refreshLessonEditorial:async()=>({originals:0,queued:0,needsReview:lessonPending,approved:0,obsolete:0,remaining:0}),isLessonPublicationCurrent:async()=>lessonChecks.length?lessonChecks.shift():true},
   'server-only':{},openai:{default:AI},'./blogDiversity':policy,'./blogRss':{loadLiveRssArticles:async()=>({articles:[],failed:[],feedCount:0})},'./socialSharing':{socialPublication:()=>({})},
   '@/lib/knowledge/pipeline':{runKnowledgeSource:async()=>{if(syncError)throw Error('同期失敗');return{hasMore:false}}},'@/lib/openaiProfiles':{OPENAI_PROFILES:{standard:{model:'test'},heavy:{model:'test'}}},
   '@/lib/supabase/service':{supabaseAdmin:db},'@/lib/wordpress/blogPosts':{verifyPublishedBlogPost:async()=>{calls.push(['verify']);if(verifyError)throw Error('verify failed')}},
@@ -138,4 +139,16 @@ test('older raw knowledge is not starved by the first hundred already used entri
  const thoughts=Array.from({length:101},(_,i)=>({id:String(i).padStart(8,'0')+'-bbbb',title:'思考'+i,summary:'判断基準',metadata:{articleCandidate:'高'}}));
  const history=thoughts.slice(0,100).map(s=>({slug:'smart-ai-20261001-'+s.id.slice(0,8),status:'publish',title:{raw:'過去'},content:{raw:'本文'}}));
  const h=harness({thoughts,history,selectionResults:[thoughts[100].id]});const r=await h.run();assert.equal(r.sourceId,thoughts[100].id);
+});
+
+test('changed lesson is filtered before sending its public summary to AI',async()=>{
+ const h=harness({thoughts:[],lessons:[{id:'lesson-1',public_summary:'変更前の要約'}],lessonChecks:[false]});
+ const r=await h.run();assert.equal(r.status,'skipped');assert.equal(r.candidateCounts.lesson_principle,0);assert.equal(h.calls.some(c=>c[0]==='ai'),false);
+});
+test('source changed during research stops the WordPress write',async()=>{
+ const h=harness({thoughts:[],lessons:[{id:'lesson-1',public_summary:'公開用の教訓'}],selectionResults:['lesson-1'],lessonChecks:[true,false]});
+ const r=await h.run();assert.equal(r.status,'skipped');assert.equal(h.calls.some(c=>c[0]==='create'),false);assert.match(r.message,/再審査/);
+});
+test('pending generalization is reported separately from exhausted article ideas',async()=>{
+ const h=harness({thoughts:[],lessonPending:12});const r=await h.run();assert.equal(r.lessonEditorial.needsReview,12);assert.match(r.message,/審査待ちは12件/);
 });
