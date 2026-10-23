@@ -33,9 +33,8 @@ function loadNotifier({ notifiedAt = null, sendFails = false, eventTable = "shar
         or() { return builder; },
         maybeSingle() {
           if (state.operation === "update" && state.values.notification_claimed_at) {
-            if (!claimAllowed) return Promise.resolve({ data: null, error: null });
-            claimAllowed = false;
-            return Promise.resolve({ data: { event_id: "event-1" }, error: null });
+            // 本番で再現したPATCH + OR + SELECTのエラーを返し、旧経路を成功扱いしない。
+            return Promise.resolve({ data: null, error: new Error("42703: notification_claimed_at does not exist") });
           }
           if (state.operation === "select") return Promise.resolve({ data: currentNotifiedAt ? { notified_at: currentNotifiedAt } : null, error: null });
           return Promise.resolve({ data: null, error: null });
