@@ -18,6 +18,16 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabaseAdmin.rpc('claim_rpa_runner_job', { p_runner_id: runner.runnerId, p_runner_environment: runner.environment });
     if (error) return NextResponse.json({ ok: false, error: 'Job claim failed' }, { status: 500 });
     const job = Array.isArray(data) ? data[0] as ClaimedJob | undefined : undefined;
+    // Existing queued jobs must obey the same input guard as new publication jobs.
+    // Reconciliation only reads a saved result and must remain available.
+    if (job?.job_type === 'sharefull.create_spot_offer' && job.payload.reconcile_only !== true
+      && (typeof job.payload.headcount !== 'number' || !Number.isSafeInteger(job.payload.headcount) || job.payload.headcount <= 0)) {
+      const { error: holdError } = await supabaseAdmin.from('rpa_runner_jobs')
+        .update({ status: 'cancelled', error_code: 'INVALID_HEADCOUNT_HELD', result: { reason: '募集人数が不正なため掲載保留' }, completed_at: new Date().toISOString() })
+        .eq('id', job.id).eq('status', 'claimed').eq('claimed_runner_id', runner.runnerId);
+      if (holdError) throw holdError;
+      return NextResponse.json({ ok: true, job: null });
+    }
     if (job?.job_type === 'sharefull.check_decision_status'
       && (process.env.SHAREFULL_DECISION_MONITOR_ENABLED?.trim().toLowerCase() !== 'true'
         || !isSharefullTestDeployment()
