@@ -3,6 +3,7 @@ import { getAccessToken } from "@/lib/getAccessToken";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { sendSpotNotification } from "@/lib/spot-sync/sendSpotNotification";
 import { isSharefullSyncClient, sharefullTemplateTableName, sharefullRpaMode } from "@/lib/spot-sync/sharefullScope";
 
 const DEFAULT_CHANNEL_ID = "99142491";
@@ -68,7 +69,8 @@ export async function POST(request: NextRequest) {
     const message = ["【シェアフル】テンプレートが審査待ちです", `テンプレート名: ${templateName}`, `確認リンク: ${templateUrl}`].join("\n");
     try {
       const channelId = process.env.SHAREFULL_CONTENT_POLICY_CHANNEL_ID?.trim() || DEFAULT_CHANNEL_ID;
-      await sendLWBotMessage(channelId, message, await getAccessToken());
+      await sendSpotNotification({topic:'sharefull_template_review',key:templateId,channelId,text:message,
+        accessToken:await getAccessToken()},{sendChannel:sendLWBotMessage});
     } catch (notificationError) {
       const detail = notificationError instanceof Error ? notificationError.message.slice(0, 500) : "LINE WORKS送信に失敗しました";
       await supabaseAdmin.from("sharefull_template_review_notifications" as never)

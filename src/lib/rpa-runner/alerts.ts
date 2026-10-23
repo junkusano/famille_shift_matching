@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { getAccessToken } from '@/lib/getAccessToken';
 import { sendLWBotMessage } from '@/lib/lineworks/sendLWBotMessage';
 import { supabaseAdmin } from '@/lib/supabase/service';
+import { sendSpotNotification } from '@/lib/spot-sync/sendSpotNotification';
+import { sharefullRpaMode } from '@/lib/spot-sync/sharefullScope';
 
 const CHANNEL_ID = '99142491';
 const SUPPRESSION_MS = 30 * 60 * 1000;
@@ -72,7 +74,11 @@ export async function notifyRpaJobFailure(alert: RpaFailureAlert): Promise<void>
   if (insertError || !row) return;
   if (active) return;
   try {
-    await sendLWBotMessage(CHANNEL_ID, message(alert), await getAccessToken());
+    const token=await getAccessToken();
+    if (alert.jobType.startsWith('sharefull.')) {
+      await sendSpotNotification({topic:'sharefull_runner_failure',key:row.id,channelId:CHANNEL_ID,
+        text:message(alert),accessToken:token,isTest:sharefullRpaMode()==='test'},{sendChannel:sendLWBotMessage});
+    } else await sendLWBotMessage(CHANNEL_ID, message(alert), token);
     await supabaseAdmin.from('rpa_runner_alerts').update({ notified_at: new Date().toISOString() }).eq('id', row.id);
     await supabaseAdmin.from('rpa_runner_jobs').update({ lineworks_notified_at: new Date().toISOString() }).eq('id', alert.jobId);
   } catch (error) {

@@ -20,6 +20,7 @@ function loadAlert(mode = "test", { claimAvailable = true, failConfirmation = fa
     process: { env: { SHAREFULL_RPA_MODE: mode } },
     sharefullRpaMode: () => mode,
     getAccessToken: async () => "token",
+    sendSpotNotification: async (input, deps) => deps.sendChannel(input.channelId,input.text,input.accessToken),
     sendLWBotMessage: async (channelId, text, token) => calls.push({ channelId, text, token }),
     supabaseAdmin: {
       from: (table) => {

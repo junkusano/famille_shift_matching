@@ -93,6 +93,14 @@ order by received_at desc;
 
 ## API環境
 
+### 案件連携通知の追加個別受信者
+
+既存の共通トークを維持したまま、`spot_notification_recipients`で有効な受信者へBotの個別トークで同じ通知を追加送信する。対象topicは`sharefull_application`（確定・キャンセル）、`sharefull_content_policy`（停止対象の文面チェック）、`sharefull_template_review`（審査待ち）、`sharefull_runner_failure`（Sharefullジョブの障害）に限定する。給与・勤務変更など他業務の通知先や共通トークのメンバーは変更しない。
+
+受信者はLINE WORKSの登録情報と照合した内部userIdを運用DBへ保存し、コード・共有記録へ個人識別情報を入れない。`202610240900_spot_notification_recipients.sql`を先に適用してからAPIを公開する。送信先設定と配信履歴はservice_role限定で、ブラウザから直接変更できない。
+
+`spot_notification_deliveries`が共通トーク・個別受信者ごとに送信完了を保持する。個別へのHTTP拒否後の再試行でも成功済みの共通トークを再送しない。通信断や送信後の保存失敗は受理結果不明として自動再送を止め、配信履歴とLINE WORKSを照合する。古いclaimも自動的に送り直さない。本番の個別受信者へテストモードの通知は送らない。過去の処理済み通知を追加受信者のために再処理しない。
+
 本番Vercel環境に `SHAREFULL_CONFIRMATION_GAS_TOKEN` と `TAIMEE_CONFIRMATION_GAS_TOKEN` を設定する。タイミーからシェアフルを停止するAPIは `SPOT_PROVIDER_SYNC_ENABLED=true` かつ本番モードの場合だけ処理する。秘密値はリポジトリやログへ記録しない。APIはBearerトークンを検証し、MyFamille DBの `spot_offer_applications` と相手媒体のRPA指示キューを更新する。
 
 参照: [タイミー「マッチングした際のお知らせメールについて」](https://clients-help.timee.co.jp/hc/ja/articles/19324681452697-%E3%83%9E%E3%83%83%E3%83%81%E3%83%B3%E3%82%B0%E3%81%97%E3%81%9F%E9%9A%9B%E3%81%AE%E3%81%8A%E7%9F%A5%E3%82%89%E3%81%9B%E3%83%A1%E3%83%BC%E3%83%AB%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6)、[タイミー「タイミーからのメールが届かない」](https://clients-help.timee.co.jp/hc/ja/articles/17525852371993-%E3%82%BF%E3%82%A4%E3%83%9F%E3%83%BC%E3%81%8B%E3%82%89%E3%81%AE%E3%83%A1%E3%83%BC%E3%83%AB%E3%81%8C%E5%B1%8A%E3%81%8B%E3%81%AA%E3%81%84)
