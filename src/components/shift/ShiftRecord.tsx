@@ -279,6 +279,27 @@ function useShiftInfo(shiftId: string) {
   return info;
 }
 
+type LinkedGoogleCalendarEvent = {
+  id: string;
+  title: string | null;
+  start_at: string;
+  end_at: string;
+  is_all_day: boolean;
+};
+
+function formatGoogleEventTime(event: LinkedGoogleCalendarEvent): string {
+  if (event.is_all_day) return "終日";
+
+  const format = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  return `${format.format(new Date(event.start_at))}〜${format.format(new Date(event.end_at))}`;
+}
+
 function renderTemplate(tpl: string, ctx: Record<string, unknown>): string {
   return tpl.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, key) => {
     if (!Object.prototype.hasOwnProperty.call(ctx, key)) return "";
@@ -658,6 +679,44 @@ export default function ShiftRecord({
   const sp = useSearchParams();
   const clientNameFromQS = sp.get("client_name") || undefined;
   const shiftInfo = useShiftInfo(shiftId);
+  const [linkedGoogleEvents, setLinkedGoogleEvents] = useState<LinkedGoogleCalendarEvent[]>([]);
+  const [linkedGoogleEventsLoading, setLinkedGoogleEventsLoading] = useState(true);
+  const [linkedGoogleEventsError, setLinkedGoogleEventsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setLinkedGoogleEventsLoading(true);
+        setLinkedGoogleEventsError(null);
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session?.access_token) throw new Error("not authenticated");
+
+        const response = await fetch(
+          `/api/google-calendar/linked-events?shift_id=${encodeURIComponent(shiftId)}`,
+          {
+            cache: "no-store",
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          },
+        );
+
+        if (!response.ok) throw new Error("linked Google events request failed");
+        const body = await response.json();
+        if (!cancelled) setLinkedGoogleEvents(body.events ?? []);
+      } catch {
+        if (!cancelled) setLinkedGoogleEventsError("Google予定を取得できませんでした");
+      } finally {
+        if (!cancelled) setLinkedGoogleEventsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shiftId]);
 
   // 追加（5項目）
   const qsStaff01UserId = sp.get("staff_01_user_id") || undefined;
@@ -1461,6 +1520,33 @@ export default function ShiftRecord({
           </button>
         </div>
       </div>
+
+      <section className="rounded-lg border border-gray-200 bg-gray-50 p-3" aria-label="Google予定・参照専用">
+        <h3 className="text-sm font-semibold text-gray-700">Google予定・参照専用</h3>
+        {linkedGoogleEventsLoading && (
+          <p className="mt-1 text-xs text-gray-500">読み込み中…</p>
+        )}
+        {linkedGoogleEventsError && (
+          <p className="mt-1 text-xs text-red-600">{linkedGoogleEventsError}</p>
+        )}
+        {!linkedGoogleEventsLoading && !linkedGoogleEventsError && linkedGoogleEvents.length === 0 && (
+          <p className="mt-1 text-xs text-gray-500">該当する予定はありません。</p>
+        )}
+        {!linkedGoogleEventsLoading && !linkedGoogleEventsError && linkedGoogleEvents.length > 0 && (
+          <ul className="mt-2 divide-y divide-gray-200 rounded border border-gray-200 bg-white">
+            {linkedGoogleEvents.map((event) => (
+              <li key={event.id} className="flex gap-3 px-3 py-2 text-sm">
+                <span className="shrink-0 font-medium text-gray-700">
+                  {formatGoogleEventTime(event)}
+                </span>
+                <span className="min-w-0 break-words text-gray-900">
+                  {event.title || "（タイトルなし）"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* 本体 */}
       {/* --- スマホ: 上部固定の横並びLナビ --- */}
