@@ -12,9 +12,9 @@ function load(kind,options={}) {
  receiveSharefullMail:async m=>{calls.push(['receive',m]);if(options.receiveError)throw options.receiveError;return {status:options.receiptStatus??'received',close_request_id:'close-1'};},
  finishSharefullMail:async(id,u)=>{calls.push(['finish',u]);finishes.push(u);if(options.finishError)throw options.finishError;},
  sharefullMailWorkFinished:()=>!!options.expired,
- notifySharefullApplication:async()=>{calls.push(['notify']);return {sent:true};},
+ notifySharefullApplication:async input=>{calls.push(['notify',input]);if(options.notificationError)throw options.notificationError;return options.notificationResult??{sent:true};},
  createCloseRequest:async(...args)=>{calls.push(['close',...args]);if(options.closeError)throw options.closeError;return options.closeResult??{outcome:'queued',close_request_id:'close-1'};},
- supabaseAdmin:{from:table=>{calls.push(['select',table]);const filters={};const b={select:()=>b,limit:()=>b,eq:(k,v)=>{filters[k]=v;return b;},in:()=>b,update:()=>b,maybeSingle:async()=>({data:options.currentApplication??{state:'cancelled',occurred_at:'2026-10-22T01:00:00Z'},error:null}),then:(resolve,reject)=>Promise.resolve({data:table==='spot_offer_request_table'?(options.noTarget?[]:[target]):(options.applications??[]).filter(a=>['application_key','applicant_name'].every(k=>filters[k]===undefined||a[k]===filters[k])),error:null}).then(resolve,reject)};return b;},
+ supabaseAdmin:{from:table=>{calls.push(['select',table]);const filters={};const b={select:()=>b,limit:()=>b,eq:(k,v)=>{filters[k]=v;return b;},in:()=>b,update:()=>b,maybeSingle:async()=>({data:options.currentApplication??{state:kind==='confirmed'?'confirmed':'cancelled',occurred_at:'2026-10-22T01:00:00Z'},error:null}),then:(resolve,reject)=>Promise.resolve({data:table==='spot_offer_request_table'?(options.noTarget?[]:[target]):(options.applications??[]).filter(a=>['application_key','applicant_name'].every(k=>filters[k]===undefined||a[k]===filters[k])),error:null}).then(resolve,reject)};return b;},
   rpc:async(name,args)=>{calls.push(['record',name,args]);return {data:options.recordResult??{ok:true},error:null};}}
  });
  const source=fs.readFileSync(`src/app/api/rpa/sharefull/${kind}/route.ts`,'utf8').replace(/^import .*;\r?\n/gm,'');
@@ -22,6 +22,21 @@ function load(kind,options={}) {
  const body={sharefull_order_id:'1234',event_id:'mail-1',application_key:'1234::candidate',applicant_name:'candidate',occurred_at:'2026-10-22T01:00:00Z'};
  return {calls,finishes,run:(patch={},token='test-token')=>context.exports.POST({headers:{get:()=>`Bearer ${token}`},json:async()=>({...body,...patch})})};
 }
+test('確定の停止指示と通知の両方が成功してから受領を完了する',async()=>{
+ const h=load('confirmed');const r=await h.run();assert.equal(r.status,200);
+ const notification=h.calls.find(c=>c[0]==='notify');assert.ok(notification);
+ assert.equal(notification[1].eventTable,'spot_offer_application_events');assert.equal(notification[1].eventId,'mail-1');
+ assert.ok(!notification[1].text.includes('candidate'));assert.ok(h.calls.findIndex(c=>c[0]==='close')<h.calls.findIndex(c=>c[0]==='notify'));
+ assert.equal(h.finishes.at(-1).status,'completed');
+});
+test('確定通知失敗・他処理の送信中には完了ACKを返さず再試行を残す',async()=>{
+ for(const options of [{notificationError:new Error('send failed')},{notificationResult:{sent:false,inProgress:true}}]){
+ const h=load('confirmed',options);const r=await h.run();assert.ok(r.status>=500);assert.equal(r.body.ok,false);assert.equal(h.finishes.at(-1).status,'retry');}
+});
+test('停止登録後に最新応募がキャンセルなら旧確定通知を送らない',async()=>{
+ const h=load('confirmed',{currentApplication:{state:'cancelled',occurred_at:'2026-10-22T02:00:00Z'}});
+ const r=await h.run();assert.equal(r.body.outcome,'stale');assert.ok(!h.calls.some(c=>c[0]==='notify'));
+});
 test('認証エラーではメール受領・応募・停止指示を書かない',async()=>{
  const h=load('confirmed');const r=await h.run({},'wrong');assert.equal(r.status,401);assert.equal(h.calls.length,0);
 });
