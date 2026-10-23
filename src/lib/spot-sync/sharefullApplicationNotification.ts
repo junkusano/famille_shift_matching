@@ -1,6 +1,7 @@
 import { getAccessToken } from "@/lib/getAccessToken";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { sendSpotNotification } from "@/lib/spot-sync/sendSpotNotification";
 
 const DEFAULT_CHANNEL_ID = "99142491";
 
@@ -42,7 +43,9 @@ export async function notifySharefullApplication(input: ApplicationNotification)
   }
 
   try {
-    await sendLWBotMessage(channelId, input.text, await getAccessToken());
+    await sendSpotNotification({topic:'sharefull_application',key:`${eventTable}:${input.provider}:${input.eventId}`,
+      channelId,text:input.text,accessToken:await getAccessToken(),isTest:eventTable.startsWith('sharefull_rpa_test_')},
+      {sendChannel:sendLWBotMessage});
     const { error: deliveredError } = await supabaseAdmin
       .from(eventTable as never)
       .update({ notified_at: new Date().toISOString(), notification_claimed_at: null, notification_error: null })

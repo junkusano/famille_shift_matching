@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import type { SharefullContentPolicyReport } from "@/lib/spot-sync/sharefullContentPolicy";
 import { sharefullRpaMode } from "@/lib/spot-sync/sharefullScope";
 import { createHash } from "node:crypto";
+import { sendSpotNotification } from "@/lib/spot-sync/sendSpotNotification";
 
 const DEFAULT_CHANNEL_ID = "99142491";
 
@@ -158,7 +159,8 @@ export async function recordSharefullContentPolicyBlock(input: ContentPolicyBloc
   }
 
   try {
-    await deps.sendMessage(deps.channelId, notificationText(input), await deps.getToken());
+    await sendSpotNotification({topic:'sharefull_content_policy',key:rowRecord.id,channelId:deps.channelId,
+      text:notificationText(input),accessToken:await deps.getToken(),isTest:!isProduction},{sendChannel:deps.sendMessage});
   } catch (notificationError) {
     const message = notificationError instanceof Error ? notificationError.message : String(notificationError);
     const failureUpdate: Record<string, unknown> = { notification_error: message, updated_at: new Date().toISOString() };

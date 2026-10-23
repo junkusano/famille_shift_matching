@@ -52,6 +52,7 @@ function loadNotifier({ notifiedAt = null, sendFails = false, eventTable = "shar
     exports: {},
     process: { env: { SHAREFULL_CONTENT_POLICY_CHANNEL_ID: "99142491" } },
     supabaseAdmin: db,
+    sendSpotNotification: async (input, deps) => deps.sendChannel(input.channelId,input.text,input.accessToken),
     getAccessToken: async () => "opaque-access-token",
     sendLWBotMessage: async (channelId, text, token) => {
       calls.push({ channelId, text, token });
