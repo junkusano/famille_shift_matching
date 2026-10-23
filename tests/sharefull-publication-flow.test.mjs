@@ -95,6 +95,20 @@ const baseEnv = {
   SHAREFULL_AUTO_POST_MODE: "save",
 };
 
+test("不正な募集人数は補正せず掲載ジョブを保留する", async () => {
+  for (const headcount of [-999, 0, -1, 1.5, null, undefined]) {
+    const { publisher, insertedJobs } = loadPublisher({
+      env: baseEnv,
+      template: { core_id: "core-1", sharefull_template_id: "467875", sharefull_template_status: "ready_for_offer" },
+      requests: [{ id: "invalid-count", core_id: "core-1", shift_id: 42, status: "募集中" }],
+      shifts: [{ shift_id: 42, required_staff_count: headcount }],
+    });
+    const result = await publisher.enqueueSharefullPublicationJobsForTemplate("core-1", "test");
+    assert.equal(insertedJobs.length, 0, `invalid headcount ${headcount}`);
+    assert.ok(result.skipped.some((reason) => reason.includes("募集人数が不正")));
+  }
+});
+
 test("テスト環境でテンプレート未作成ならcreate_templateジョブを登録する", async () => {
   const { publisher, insertedJobs, usedTables } = loadPublisher({ env: baseEnv, template: { core_id: "core-1", kaipoke_cs_id: "12782561", sharefull_template_id: null, sharefull_template_status: null } });
 
@@ -214,6 +228,7 @@ test("掲載前の設定・ログイン失敗は時間経過後に上限3回ま�
     env: baseEnv,
     template: { core_id: "core-1", kaipoke_cs_id: "12782561", sharefull_template_id: "template-1", sharefull_template_status: "ready_for_offer" },
     requests: [{ id: "request-1", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 42, shift_start_date: "2099-01-02", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: "taimee-1", sharefull_job_id: null, sharefull_status: "ready_for_offer", recruitment_revision: 3 }],
+    shifts: [{ shift_id: 42, required_staff_count: 1 }],
     existingJobs: [{ status: "failed", error_category: "CONFIGURATION", failed_at: "2000-01-01T00:00:00.000Z", payload: { operation_key: "sharefull:create_spot_offer:save:42:3", spot_offer_request_id: "request-1" } }],
   });
 
@@ -228,6 +243,7 @@ test("掲載対象が再び有効になったcancelledジョブは再投入す�
     env: baseEnv,
     template: { core_id: "core-1", kaipoke_cs_id: "12782561", sharefull_template_id: "template-1", sharefull_template_status: "ready_for_offer" },
     requests: [{ id: "request-1", core_id: "core-1", kaipoke_cs_id: "12782561", shift_id: 42, shift_start_date: "2099-01-02", shift_start_time: "09:00", shift_end_time: "10:00", unit_amount: 1226, commute_fee: 0, status: "募集中", taimee_job_id: "taimee-1", sharefull_job_id: null, sharefull_status: "ready_for_offer", recruitment_revision: 3 }],
+    shifts: [{ shift_id: 42, required_staff_count: 1 }],
     existingJobs: [{ id: "job-1", status: "cancelled", payload: { operation_key: "sharefull:create_spot_offer:save:42:3", spot_offer_request_id: "request-1" } }],
   });
 

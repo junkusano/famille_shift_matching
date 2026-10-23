@@ -375,6 +375,16 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
         ? `${baseOperationKey}:retry:${cancelledJobs.length}`
         : baseOperationKey;
 
+    const headcount = requiredStaffCountByShiftId.get(row.shift_id);
+    if (!reconcileOnly && (typeof headcount !== "number" || !Number.isSafeInteger(headcount) || headcount <= 0)) {
+      const { error: holdError } = await supabaseAdmin.from(sharefullRequestTableName() as never)
+        .update({ sharefull_sync_error: "募集人数が不正なため掲載保留（元のシフト人数を確認してください）", updated_at: new Date().toISOString() })
+        .eq("id", row.id).is("sharefull_job_id", null);
+      if (holdError) throw holdError;
+      skipped.push(`${shiftId}:募集人数が不正なため掲載保留`);
+      continue;
+    }
+
     const payload = {
       action: "create_sharefull_job",
       command: "create_spot_offer",
@@ -390,7 +400,7 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
       shift_end_time: row.shift_end_time,
       hourly_wage: row.unit_amount,
       commute_fee: row.commute_fee,
-      headcount: requiredStaffCountByShiftId.get(row.shift_id) ?? 1,
+      headcount,
       execution_mode: mode,
       rpa_mode: sharefullRpaMode(),
       ...(reconcileOnly ? {
