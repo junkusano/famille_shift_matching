@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createCloseRequest } from "@/lib/spot_offer/spot_offer_sync_check";
+import { notifySharefullApplication } from "@/lib/spot-sync/sharefullApplicationNotification";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { receiveSharefullMail, finishSharefullMail, sharefullMailWorkFinished } from "@/lib/spot-sync/sharefullMailReceipt";
 
@@ -78,6 +79,27 @@ export async function POST(request: NextRequest) {
     if (outcome?.outcome === "stale") return await acknowledge("stale",requestId);
     if (outcome?.outcome === "target_missing") return await reject("TAIMEE_JOB_ID_MISSING",409,requestId);
     if (!outcome?.close_request_id) return await reject("CLOSE_REQUEST_NOT_PERSISTED",503,requestId);
+    // 通知の再試行中に届いた取消・新しい確定で、旧イベントを通知しない。
+    const {data:current,error:currentError} = await supabaseAdmin.from("spot_offer_applications")
+      .select("state,occurred_at").eq("request_id",requestId).eq("provider","sharefull")
+      .eq("application_key",applicationKey).maybeSingle();
+    if (currentError) throw currentError;
+    if (!current) return await reject("APPLICATION_STATE_MISSING",503,requestId);
+    if (current.state !== "confirmed" || Date.parse(current.occurred_at) !== Date.parse(occurredAt)) {
+      return await acknowledge("stale",requestId);
+    }
+    const notification = await notifySharefullApplication({
+      provider:"sharefull",eventId,eventTable:"spot_offer_application_events",
+      text:[
+        "【Sharefull 応募確定】",
+        `管理番号: ${target.sharefull_order_id || orderId || "不明"}`,
+        `求人ID: ${target.sharefull_job_id || jobId || "不明"}`,
+        `勤務日: ${target.shift_start_date || "不明"}`,
+        `勤務開始: ${String(target.shift_start_time || "").slice(0,5) || "不明"}`,
+        "シェアフルの確定メールを受領し、タイミー募集停止指示を登録しました。実際の停止完了は実行結果をご確認ください。",
+      ].join("\n"),
+    });
+    if (!notification.sent) return await reject("NOTIFICATION_PENDING",503,requestId);
     return await acknowledge("queued",requestId,outcome.close_request_id);
   } catch (error) {
     const collision = error instanceof Error && error.message === "MAIL_EVENT_ID_COLLISION";

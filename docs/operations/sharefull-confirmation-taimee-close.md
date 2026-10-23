@@ -10,6 +10,9 @@
 2. 送信元を完全一致で確認し、確定語句とシェアフル求人IDまたは管理番号を抽出する。管理画面URLの `/orders/<ID>` 形式も注文IDとして扱う。
 3. `/api/rpa/sharefull/confirmed` は、認証・入力検証後にメールIDを `spot_offer_mail_receipts` へ受領記録し、MyFamille案件とIDを照合して応募状態を記録する。案件未特定やID不一致も受領行にエラーコードを残す。
 4. 同じ案件行をロックし、最新の応募がまだ確定状態であることを確認してタイミーPAD用 `close_job` を登録する。実際の停止指示IDが得られた場合だけ成功とする。タイミーIDが空の場合は `TAIMEE_JOB_ID_MISSING` として受領を再試行状態に残す。
+5. 最新の応募状態を再確認し、有効な確定について既存のSharefull用LINE WORKS通知先へ停止指示の登録を通知する。応募者名は含めない。送信失敗・他処理で送信中の場合はメール受領を再試行に残し、通知が成功してから完了ACKを返す。同じイベントの通知済み時刻により再送を抑止する。これは停止指示の登録通知であり、実際の掲載停止完了を表さない。
+
+実行経路は媒体ごとに異なる。Sharefullの停止は`rpa_runner_jobs`の`sharefull.close_spot_offer`をChrome拡張Runnerが処理する。Timeeの停止は`rpa_command_requests`の`close_job`を既存のPAD経路が処理する。天白のChrome拡張Runnerがオンラインであるだけでは、Timee停止用PADが実行可能であることを確認できない。
 
 ### シェアフル応募キャンセル → 応募状態更新・スタッフ通知
 
