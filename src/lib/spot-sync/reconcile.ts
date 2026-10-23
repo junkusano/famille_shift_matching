@@ -43,10 +43,19 @@ export async function reconcileSpotProviders() {
             .in('status',['pending','approved']);
           check(cancelError);
         }
-        if (!testMode && action('taimee') === 'open' && shift) {
-          const {data: closed, error: closeError} = await db.from('rpa_command_requests').select('id,status').eq('request_details->>shift_id', String(request.shift_id)).eq('request_details->>reason','other_application').order('created_at',{ascending:false}).limit(1);
+        if (!testMode && action('taimee') === 'open' && shift && request.taimee_job_id) {
+          // 現在の求人の停止完了を探す。後発の重複失敗や別求人の履歴で判定を変えない。
+          const closeQuery = () => db.from('rpa_command_requests').select('id,status')
+            .eq('request_details->>shift_id', String(request.shift_id))
+            .eq('request_details->>taimee_job_id', String(request.taimee_job_id))
+            .eq('request_details->>command','close_job')
+            .eq('request_details->>reason','other_application');
+          const {data: closing,error: closingError} = await closeQuery()
+            .in('status',['pending','waiting_approval','approved','running','claimed','test_status']).limit(1);
+          check(closingError);
+          const {data: closed, error: closeError} = await closeQuery().eq('status','done').order('created_at',{ascending:false}).limit(1);
           check(closeError);
-          if (closed?.[0]?.status === 'done') {
+          if (!closing?.length && closed?.[0]?.status === 'done') {
             const key = `spot-sync:taimee:open:${closed[0].id}`;
             const {data: reopened,error: reopenedError} = await db.from('rpa_command_requests').select('id').eq('request_details->>sync_operation_key',key).limit(1);
             check(reopenedError);
