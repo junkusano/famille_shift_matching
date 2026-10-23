@@ -105,6 +105,7 @@ test('既存のタイミーGASを同時に読み込んでも両方の処理関�
 
 test('統合版の5分ハンドラーが新しいタイミー停止処理を呼び出す', () => {
   const calls = [];
+  context.PropertiesService = { getScriptProperties: () => ({ setProperty: () => {} }) };
   context.LockService = { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) };
   context.processSharefullConfirmationsForTaimeeCloseLocked_ = () => calls.push('sharefull');
   context.processSpotOfferTaimeeConfirmationsForSharefullCloseLocked_ = () => calls.push('taimee');

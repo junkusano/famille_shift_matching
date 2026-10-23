@@ -3,7 +3,6 @@ import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 const DEFAULT_CHANNEL_ID = "99142491";
-const CLAIM_TIMEOUT_MS = 5 * 60 * 1000;
 
 type ApplicationNotification = {
   provider: string;
@@ -22,18 +21,12 @@ export async function notifySharefullApplication(input: ApplicationNotification)
   inProgress?: boolean;
 }> {
   const eventTable = input.eventTable ?? "sharefull_rpa_test_spot_offer_application_events";
-  const now = new Date();
-  const staleBefore = new Date(now.getTime() - CLAIM_TIMEOUT_MS).toISOString();
   const channelId = process.env.SHAREFULL_CONTENT_POLICY_CHANNEL_ID?.trim() || DEFAULT_CHANNEL_ID;
+  // UPDATE ... OR ... SELECTは返却行に条件が再適用されるため、claimはRPCで原子的に取得する。
   const { data: claim, error: claimError } = await supabaseAdmin
-    .from(eventTable as never)
-    .update({ notification_claimed_at: now.toISOString(), notification_error: null })
-    .eq("provider", input.provider)
-    .eq("event_id", input.eventId)
-    .is("notified_at", null)
-    .or(`notification_claimed_at.is.null,notification_claimed_at.lt.${staleBefore}`)
-    .select("event_id")
-    .maybeSingle();
+    .rpc("claim_sharefull_application_notification", {
+      p_provider:input.provider,p_event_id:input.eventId,p_event_table:eventTable,
+    });
 
   if (claimError) throw claimError;
   if (!claim) {

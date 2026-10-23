@@ -40,6 +40,9 @@ export default function RpaRequestListPage() {
   const [statuses, setStatuses] = useState<StatusOption[]>([])
   const [newEntry, setNewEntry] = useState<Partial<RpaRequestView>>({})
   const [editedRows, setEditedRows] = useState<Record<string, Partial<RpaRequestView>>>({})
+  const [editingRowId, setEditingRowId] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   // ====== フィルター ======
@@ -117,18 +120,40 @@ export default function RpaRequestListPage() {
 
   const handleSave = async (id: string) => {
     const update = editedRows[id]
-    if (!update) return
-    const { error } = await supabase.from('rpa_command_requests').update(update).eq('id', id)
-    if (error) {
-      alert('更新失敗')
+    if (!update) {
+      setEditingRowId(null)
       return
     }
+    setIsSaving(true)
+    setSaveError(null)
+    try {
+      const { error } = await supabase.from('rpa_command_requests').update(update).eq('id', id)
+      if (error) {
+        setSaveError('更新できませんでした。入力内容は保持しています。もう一度保存してください。')
+        return
+      }
+      setEditedRows(prev => {
+        const cp = { ...prev }
+        delete cp[id]
+        return cp
+      })
+      setEditingRowId(null)
+      await fetchRequests()
+    } catch {
+      setSaveError('更新できませんでした。入力内容は保持しています。もう一度保存してください。')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleCancelEdit = (id: string) => {
     setEditedRows(prev => {
-      const cp = { ...prev }
-      delete cp[id]
-      return cp
+      const next = { ...prev }
+      delete next[id]
+      return next
     })
-    await fetchRequests()
+    setEditingRowId(null)
+    setSaveError(null)
   }
 
   const handleDelete = async (id: string) => {
@@ -138,6 +163,7 @@ export default function RpaRequestListPage() {
       alert('削除失敗')
       return
     }
+    if (editingRowId === id) handleCancelEdit(id)
     await fetchRequests()
   }
 
@@ -178,9 +204,11 @@ export default function RpaRequestListPage() {
   return (
     <div className="w-full overflow-x-hidden px-2 md:px-4 py-2 space-y-3 md:space-y-4 text-sm">
       <h1 className="text-base md:text-lg font-bold">RPAリクエスト一覧</h1>
+      {saveError && <p role="alert" className="text-sm text-red-700">{saveError}</p>}
 
       {/* ===== 上部フィルター（Fax相当のレイアウト） ===== */}
-      <div
+      <fieldset
+        disabled={editingRowId !== null}
         className="
           grid items-end gap-y-2 md:gap-y-2 md:gap-x-2
           grid-cols-1 md:grid-cols-7
@@ -265,7 +293,7 @@ export default function RpaRequestListPage() {
             setQKind(''); setQKeyword('');
           }}>クリア</Button>
         </div>
-      </div>
+      </fieldset>
 
       {/* ===== テーブル（先頭に“追加行”を配置） ===== */}
       <div className="overflow-x-auto rounded-md border">
@@ -372,12 +400,36 @@ export default function RpaRequestListPage() {
               </TableCell>
               <TableCell className="px-1 py-1 text-muted-foreground">—</TableCell>
               <TableCell className="px-1 py-1">
-                <Button size="sm" onClick={handleAdd} disabled={isLoading}>{isLoading ? '追加中…' : '追加'}</Button>
+                <Button size="sm" onClick={handleAdd} disabled={isLoading || editingRowId !== null}>{isLoading ? '追加中…' : '追加'}</Button>
               </TableCell>
             </TableRow>
 
             {/* データ行 */}
-            {pageRows.map((r) => (
+            {pageRows.map((r) => editingRowId !== r.id ? (
+              <TableRow key={r.id}>
+                <TableCell className="px-1 py-1">{r.requester_name ?? ''}</TableCell>
+                <TableCell className="px-1 py-1">{r.approver_name ?? ''}</TableCell>
+                <TableCell className="px-1 py-1">{r.kind_name ?? ''}</TableCell>
+                <TableCell className="px-1 py-1">{r.template_name ?? ''}</TableCell>
+                <TableCell className="px-1 py-1">{statuses.find(s => s.status_code === r.status)?.label ?? r.status ?? ''}</TableCell>
+                <TableCell className="px-1 py-1">
+                  <pre className="max-h-24 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(r.request_details ?? {}, null, 2)}</pre>
+                </TableCell>
+                <TableCell className="px-1 py-1">
+                  <pre className="max-h-24 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(r.result_details ?? {}, null, 2)}</pre>
+                </TableCell>
+                <TableCell className="px-1 py-1">
+                  <div className="max-h-24 overflow-auto whitespace-pre-wrap break-all">{r.result_summary ?? ''}</div>
+                </TableCell>
+                <TableCell className="px-1 py-1">{new Date(r.created_at).toLocaleString('ja-JP')}</TableCell>
+                <TableCell className="px-1 py-1">
+                  <div className="flex flex-wrap gap-1">
+                    <Button size="sm" disabled={editingRowId !== null} onClick={() => setEditingRowId(r.id)}>編集</Button>
+                    <Button size="sm" variant="destructive" disabled={editingRowId !== null} onClick={() => handleDelete(r.id)}>×</Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
               <TableRow key={r.id}>
                 <TableCell className="px-1 py-1">
                   <Select
@@ -456,22 +508,21 @@ export default function RpaRequestListPage() {
                 </TableCell>
 
                 <TableCell className="px-1 py-1">
-                  <TableCell className="px-1 py-1">
-                    <Textarea
-                      rows={3}
-                      className="resize-none"
-                      value={editedRows[r.id]?.result_summary ?? r.result_summary ?? ''}
-                      onChange={(e) => handleFieldChange(r.id, 'result_summary', e.target.value)}
-                    />
-                  </TableCell>
+                  <Textarea
+                    rows={3}
+                    className="resize-none"
+                    value={editedRows[r.id]?.result_summary ?? r.result_summary ?? ''}
+                    onChange={(e) => handleFieldChange(r.id, 'result_summary', e.target.value)}
+                  />
                 </TableCell>
 
                 <TableCell className="px-1 py-1">{new Date(r.created_at).toLocaleString('ja-JP')}</TableCell>
 
                 <TableCell className="px-1 py-1">
-                  <div className="flex gap-1">
-                    <Button size="sm" onClick={() => handleSave(r.id)}>保存</Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleDelete(r.id)}>×</Button>
+                  <div className="flex flex-wrap gap-1">
+                    <Button size="sm" disabled={isSaving} onClick={() => handleSave(r.id)}>{isSaving ? '保存中…' : '保存'}</Button>
+                    <Button size="sm" variant="outline" disabled={isSaving} onClick={() => handleCancelEdit(r.id)}>取消</Button>
+                    <Button size="sm" variant="destructive" disabled={isSaving} onClick={() => handleDelete(r.id)}>×</Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -486,9 +537,9 @@ export default function RpaRequestListPage() {
           {filtered.length} 件中 {filtered.length === 0 ? 0 : start + 1}–{Math.min(start + PAGE_SIZE, filtered.length)} を表示
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" disabled={pageClamped <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>前へ</Button>
+          <Button size="sm" variant="outline" disabled={pageClamped <= 1 || editingRowId !== null} onClick={() => setPage(p => Math.max(1, p - 1))}>前へ</Button>
           <div className="text-xs">{pageClamped} / {totalPages}</div>
-          <Button size="sm" variant="outline" disabled={pageClamped >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>次へ</Button>
+          <Button size="sm" variant="outline" disabled={pageClamped >= totalPages || editingRowId !== null} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>次へ</Button>
         </div>
       </div>
     </div>

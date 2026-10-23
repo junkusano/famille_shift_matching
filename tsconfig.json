@@ -41,6 +41,9 @@
   "exclude": [
     "node_modules",
     "tmp",
+    ".artifacts",
+    ".codex-worktrees",
+    "_codex_worktrees",
     "famille-operation-mcp"
   ]
 }

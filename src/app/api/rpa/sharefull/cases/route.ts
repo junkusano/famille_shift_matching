@@ -36,7 +36,9 @@ async function handleGET(request: NextRequest) {
     });
     // 一覧取得を起点に、既に審査完了済みの案件も掲載ジョブへ再照合する。
     // 操作キーで重複登録を防ぐため、手動再読み込みや初期表示でも安全に実行できる。
-    const publication = await enqueueSharefullPublicationJobsForReadyTemplates("rpa.sharefull.cases").catch(() => {
+    const publication = request.nextUrl.searchParams.get("read_only") === "true"
+      ? { registeredCount: 0, candidateCoreCount: 0, skipped: [], coreResults: [] }
+      : await enqueueSharefullPublicationJobsForReadyTemplates("rpa.sharefull.cases").catch(() => {
       console.warn('[rpa/sharefull/cases] publication reconciliation unavailable');
       return {registeredCount:0,candidateCoreCount:0,skipped:['掲載照合は後で再実行します'],coreResults:[]};
     });

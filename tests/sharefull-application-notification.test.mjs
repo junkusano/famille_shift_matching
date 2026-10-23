@@ -14,6 +14,14 @@ function loadNotifier({ notifiedAt = null, sendFails = false, eventTable = "shar
   let currentNotifiedAt = notifiedAt;
   let claimAllowed = !notifiedAt;
   const db = {
+    async rpc(name,args) {
+      assert.equal(name,"claim_sharefull_application_notification");
+      assert.equal(args.p_event_table,eventTable);
+      calls.push({rpc:name,table:args.p_event_table});
+      const granted=claimAllowed;
+      claimAllowed=false;
+      return {data:granted,error:null};
+    },
     from(table) {
       assert.equal(table, eventTable);
       const state = { operation: "select", values: null };
@@ -25,9 +33,8 @@ function loadNotifier({ notifiedAt = null, sendFails = false, eventTable = "shar
         or() { return builder; },
         maybeSingle() {
           if (state.operation === "update" && state.values.notification_claimed_at) {
-            if (!claimAllowed) return Promise.resolve({ data: null, error: null });
-            claimAllowed = false;
-            return Promise.resolve({ data: { event_id: "event-1" }, error: null });
+            // 本番で再現したPATCH + OR + SELECTのエラーを返し、旧経路を成功扱いしない。
+            return Promise.resolve({ data: null, error: new Error("42703: notification_claimed_at does not exist") });
           }
           if (state.operation === "select") return Promise.resolve({ data: currentNotifiedAt ? { notified_at: currentNotifiedAt } : null, error: null });
           return Promise.resolve({ data: null, error: null });
@@ -65,6 +72,14 @@ test("応募イベント通知は性別表現通知と同じLINE WORKS送信設�
   assert.equal(result.sent, true);
   assert.equal(calls.find((call) => call.channelId)?.channelId, "99142491");
   assert.match(calls.find((call) => call.channelId).text, /【テスト】/);
+});
+
+test("同じイベントの同時通知でもclaimは一処理だけに与える", async()=>{
+  const {notifier,calls}=loadNotifier();
+  const input={provider:"sharefull",eventId:"event-1",text:"single notification"};
+  const results=await Promise.all([notifier.notifySharefullApplication(input),notifier.notifySharefullApplication(input)]);
+  assert.equal(calls.filter(call=>call.channelId).length,1);
+  assert.ok(results.some(result=>result.sent));
 });
 
 test("送信済みイベントは二重送信しない", async () => {
