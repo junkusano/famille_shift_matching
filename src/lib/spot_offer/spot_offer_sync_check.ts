@@ -2,6 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createRpaRequestDetails } from "@/lib/spot_offer/createRpaRequestDetails";
 import { isSharefullSyncClient, sharefullRpaMode } from "@/lib/spot-sync/sharefullScope";
+import { findCurrentSharefullMailClose } from "@/lib/spot-sync/sharefullMailClose";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -329,6 +330,11 @@ export async function createCloseRequest(
 
  if (opts?.dryRun) {
   return;
+}
+
+if (reason === "other_application" && !opts?.sharefullConfirmation && spotOfferRequest["id"] && spotOfferRequest["taimee_job_id"]) {
+  const existing = await findCurrentSharefullMailClose(String(spotOfferRequest["id"]),String(spotOfferRequest["taimee_job_id"]));
+  if (existing) return {outcome:"queued" as const,close_request_id:existing};
 }
 
 // タイミーの既存停止理由をシェアフルにも渡す（日付変更前の情報を保持）。

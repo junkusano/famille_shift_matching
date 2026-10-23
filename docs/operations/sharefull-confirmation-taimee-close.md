@@ -14,6 +14,8 @@
 
 実行経路は媒体ごとに異なる。Sharefullの停止は`rpa_runner_jobs`の`sharefull.close_spot_offer`をChrome拡張Runnerが処理する。Timeeの停止は`rpa_command_requests`の`close_job`を既存のPAD経路が処理する。天白のChrome拡張Runnerがオンラインであるだけでは、Timee停止用PADが実行可能であることを確認できない。
 
+Cronの`other_application`停止は、現在のSharefull確定と同じ応募キー・発生日時、同じ案件・Timee IDに対応するメール起点の`approved`/`running`/`done`指示があれば再利用する。通知失敗でメール受領が`retry`の間も対象にする。古い確定・取消済み・失敗済みの指示は、この再利用の根拠にしない。
+
 ### シェアフル応募キャンセル → 応募状態更新・スタッフ通知
 
 1. GAS が確定メールを処理済みラベルの有無にかかわらず検索し、新しく届いたキャンセル通知を検出する。
