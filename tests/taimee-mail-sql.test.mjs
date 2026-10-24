@@ -1,0 +1,43 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+test('SQL: タイミー確定・取消・逆順・複数応募・失敗ジョブ・権限',async()=>{
+ const {PGlite}=await import(pathToFileURL(resolve(process.env.PGLITE_MODULE_PATH||'.artifacts/confirmation-sql-tools/node_modules/@electric-sql/pglite/dist/index.js')).href),db=new PGlite();
+ const id='00000000-0000-4000-8000-000000000001';
+ try {
+  await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;
+   CREATE TABLE spot_offer_request_table(id uuid PRIMARY KEY,status text,applicant_name text,applicant_sex text,applicant_control_url text,updated_at timestamptz,created_at timestamptz,sharefull_job_id text,sharefull_order_id text,sharefull_status text,sharefull_sync_error text,taimee_job_id text,applicant_source text,application_state text,application_conflict boolean,recruitment_paused boolean DEFAULT false,recruitment_revision bigint DEFAULT 0);
+   CREATE TABLE rpa_runner_jobs(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),created_at timestamptz DEFAULT now(),claimed_runner_id text,status text,job_type text,payload jsonb,result jsonb,completed_at timestamptz);
+   CREATE TABLE rpa_command_requests(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),template_id uuid,requester_id uuid,approver_id uuid,approved_at timestamptz,request_details jsonb,status text,updated_at timestamptz);
+   CREATE TABLE dummy_shift(id uuid);CREATE VIEW shift_self_coordinate_card_view2 AS SELECT d.id,s.applicant_control_url FROM dummy_shift d LEFT JOIN spot_offer_request_table s ON d.id=s.id;`);
+  for(const f of ['202609080900_spot_provider_sync.sql','202610151400_sharefull_application_notification_claims.sql','202610221900_sharefull_mail_delivery.sql','202610241100_taimee_mail_delivery.sql'])await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
+  await db.query("INSERT INTO spot_offer_request_table(id,status,taimee_job_id,sharefull_job_id,sharefull_order_id,sharefull_status) VALUES($1,'募集中','9001','8001','7001','published')",[id]);
+  const t='2026-10-24T01:00Z',later='2026-10-24T02:00Z';
+  const event=async(key,event,state,time)=>(await db.query('SELECT record_spot_offer_application($1,$2,$3,$4,$5,$6)',[id,'taimee',key,event,state,time])).rows[0].record_spot_offer_application;
+  const sync=async(key,event,state,time)=>(await db.query('SELECT apply_taimee_mail_sync($1,$2,$3,$4,$5)',[id,key,event,time,state])).rows[0].apply_taimee_mail_sync;
+  await event('A','confirmA','confirmed',t);const one=await sync('A','confirmA','confirmed',t);
+  assert.equal(one.outcome,'queued');assert.equal((await sync('A','confirmA','confirmed',t)).close_job_id,one.close_job_id);
+  await event('A','cancelA','cancelled',later);assert.equal((await sync('A','cancelA','cancelled',later)).outcome,'cancelled');
+  assert.equal((await db.query('SELECT status FROM rpa_runner_jobs WHERE id=$1',[one.close_job_id])).rows[0].status,'cancelled');
+  assert.equal((await sync('A','confirmA','confirmed',t)).outcome,'stale');
+  assert.equal((await db.query('SELECT status FROM spot_offer_request_table')).rows[0].status,'募集中');
+  await event('B','cancelB','cancelled',later);assert.equal((await event('B','confirmB','confirmed',t)).stale,true);
+  assert.equal((await sync('B','confirmB','confirmed',t)).outcome,'stale');
+  await event('C','confirmC','confirmed',t);const c=await sync('C','confirmC','confirmed',t);
+  await event('D','confirmD','confirmed',t);assert.equal((await sync('D','confirmD','confirmed',t)).close_job_id,c.close_job_id);
+  await event('C','cancelC','cancelled',later);await sync('C','cancelC','cancelled',later);
+  assert.equal((await db.query('SELECT status FROM rpa_runner_jobs WHERE id=$1',[c.close_job_id])).rows[0].status,'pending');
+  assert.equal((await db.query('SELECT status FROM spot_offer_request_table')).rows[0].status,'確定');
+  await db.query("UPDATE rpa_runner_jobs SET status='claimed' WHERE id=$1",[c.close_job_id]);
+  await event('D','cancelD','cancelled',later);await sync('D','cancelD','cancelled',later);
+  assert.equal((await db.query('SELECT status FROM rpa_runner_jobs WHERE id=$1',[c.close_job_id])).rows[0].status,'claimed');
+  await event('E','confirmE','confirmed',t);const e=await sync('E','confirmE','confirmed',t);
+  await db.query("UPDATE rpa_runner_jobs SET status='failed' WHERE id=$1",[e.close_job_id]);
+  await assert.rejects(sync('E','confirmE','confirmed',t),/CLOSE_JOB_NEEDS_REVIEW/);
+  await db.query("UPDATE spot_offer_request_table SET sharefull_order_id=NULL WHERE id=$1",[id]);
+  await assert.rejects(sync('E','confirmE','confirmed',t),/SHAREFULL_ORDER_MISSING/);
+  const rights=(await db.query("SELECT has_function_privilege('authenticated','apply_taimee_mail_sync(uuid,text,text,timestamptz,text)','EXECUTE') execute,has_table_privilege('anon','spot_offer_mail_receipts','SELECT') read")).rows[0];assert.equal(rights.execute,false);assert.equal(rights.read,false);
+ } finally {await db.close();}
+});

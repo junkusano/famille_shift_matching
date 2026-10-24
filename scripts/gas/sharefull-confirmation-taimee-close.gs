@@ -19,14 +19,14 @@ function processSharefullConfirmationsForTaimeeClose() {
   }
 }
 
-function processSharefullConfirmationsForTaimeeCloseLocked_() {
+function processSharefullConfirmationsForTaimeeCloseLocked_(runDeadline) {
   var config = readSharefullCloseConfig_();
   var processed = sharefullCloseProcessedIds_();
   var props = PropertiesService.getScriptProperties();
   var label = confirmationProcessedLabel_("MYFAMILLE_SHAREFULL_CONFIRMATION_PROCESSED");
   var activationTimestamp = confirmationActivationTimestamp_();
   var messages = {}, threads = [], failed = false;
-  var deadline = Date.now() + 240000;
+  var deadline = Math.min(Date.now() + 240000,runDeadline || Infinity);
   // ラベルは表示用。旧版の誤ラベルや同スレッドへの新着でメールを見失わない。
   // 旧設定が確定件名やラベルに絞られていても、取消を含む送信元の通知を補完する。
   var queries = [config.gmailQuery, "from:" + config.senderEmail + " newer_than:14d"];
@@ -125,11 +125,12 @@ function processSpotOfferConfirmationEmails() {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return;
   var props = PropertiesService.getScriptProperties();
-  var run = {version:"mail-delivery-v2",started_at:new Date().toISOString(),status:"running",failed_providers:[]};
+  var run = {version:"mail-delivery-v3",started_at:new Date().toISOString(),status:"running",failed_providers:[]};
+  var runDeadline = Date.now()+270000;
   try {
     props.setProperty("SPOT_OFFER_CONFIRMATION_LAST_RUN",JSON.stringify(run));
-    try {processSharefullConfirmationsForTaimeeCloseLocked_();} catch (e) {recordConfirmationProviderFailure_(run,"sharefull",e);}
-    try {processSpotOfferTaimeeConfirmationsForSharefullCloseLocked_();} catch (e) {recordConfirmationProviderFailure_(run,"taimee",e);}
+    try {processSharefullConfirmationsForTaimeeCloseLocked_(Date.now()+120000);} catch (e) {recordConfirmationProviderFailure_(run,"sharefull",e);}
+    try {processSpotOfferTaimeeConfirmationsForSharefullCloseLocked_(runDeadline);} catch (e) {recordConfirmationProviderFailure_(run,"taimee",e);}
     run.status = run.failed_providers.length ? "retry_pending" : "completed";
     run.finished_at = new Date().toISOString();
     props.setProperty("SPOT_OFFER_CONFIRMATION_LAST_RUN",JSON.stringify(run));
@@ -153,6 +154,8 @@ function logSpotOfferConfirmationStatus() {
   console.log(props.getProperty("SPOT_OFFER_CONFIRMATION_LAST_RUN") || "No runs recorded");
   console.log(JSON.stringify({sharefull_pending:Object.keys(props.getProperties()).filter(function(key) {
     return key.indexOf("SHAREFULL_CONFIRMATION_PENDING_") === 0;
+  }).length,taimee_pending:Object.keys(props.getProperties()).filter(function(key) {
+    return key.indexOf("TAIMEE_CONFIRMATION_PENDING_") === 0;
   }).length}));
 }
 
@@ -290,93 +293,151 @@ function processSpotOfferTaimeeConfirmationsForSharefullClose() {
   }
 }
 
-function processSpotOfferTaimeeConfirmationsForSharefullCloseLocked_() {
+function processSpotOfferTaimeeConfirmationsForSharefullCloseLocked_(runDeadline) {
   var config = readTaimeeCloseConfig_();
   var processed = taimeeCloseProcessedIds_();
+  var props = PropertiesService.getScriptProperties();
   var label = confirmationProcessedLabel_("MYFAMILLE_TAIMEE_CONFIRMATION_PROCESSED");
-  var activationTimestamp = confirmationActivationTimestamp_();
-
-  for (;;) {
-    // 処理済みスレッドを検索対象から外し、先頭から確実に読み進める。
-    var threads = GmailApp.search(config.gmailQuery + " -label:" + label.getName(), 0, 100);
-    if (!threads.length) break;
-    var failed = false;
-    threads.forEach(function(thread) {
-      var threadSucceeded = true;
-      thread.getMessages().forEach(function(message) {
-        var messageId = message.getId();
-        if (processed[messageId]) return;
-
-        if (isConfirmationMessageBeforeActivation_(message, activationTimestamp)) {
-          processed[messageId] = true;
-          saveTaimeeCloseProcessedIds_(processed);
-          return;
-        }
-
-        var event = parseSpotOfferTaimeeConfirmationMail_(message, config.senderEmail);
-        if (!event) return;
-
-        var response = UrlFetchApp.fetch(config.apiBaseUrl + "/api/rpa/taimee/confirmed", {
-          method: "post",
-          contentType: "application/json",
-          headers: { Authorization: "Bearer " + config.apiToken },
-          payload: JSON.stringify(event),
-          muteHttpExceptions: true
-        });
-        var code = response.getResponseCode();
-        var result;
-        try { result = JSON.parse(response.getContentText() || "{}"); } catch (e) { result = {}; }
-        if (code < 200 || code >= 300 || !result.ok) {
-          console.warn("タイミーマッチング通知の処理に失敗しました。HTTP " + code);
-          threadSucceeded = false;
-          return;
-        }
-
-        processed[messageId] = true;
-        saveTaimeeCloseProcessedIds_(processed);
+  var activationTimestamp = taimeeMailActivationTimestamp_();
+  var messages = {}, threads = [], failed = false;
+  var deadline = Math.min(Date.now() + 240000,runDeadline || Infinity);
+  // ラベルは表示用。旧版の誤ラベルや同スレッドへの新着でメールを見失わない。
+  // 旧設定が確定件名やラベルに絞られていても、取消を含む送信元の通知を補完する。
+  var queries = [config.gmailQuery, "from:" + config.senderEmail + " newer_than:14d"];
+  queries.filter(function(query,index) {return queries.indexOf(query) === index;}).forEach(function(query) {
+   for (var start = 0; Date.now() < deadline; start += 100) {
+    var page = GmailApp.search(query, start, 100);
+    if (!page.length) break;
+    page.forEach(function(thread) {
+      var relevant = thread.getMessages().filter(function(message) {
+        return !isConfirmationMessageBeforeActivation_(message, activationTimestamp)
+          && taimeeMessageHasSignal_(message, config.senderEmail);
       });
-      if (threadSucceeded) thread.addLabel(label);
-      else failed = true;
+      relevant.forEach(function(message) {
+        messages[message.getId()] = message;
+        if (!processed[message.getId()]) props.setProperty("TAIMEE_CONFIRMATION_PENDING_" + message.getId(), "1");
+      });
+      threads.push({thread:thread,messages:relevant});
     });
-    // 失敗メールを残して次回トリガーで再試行する。
-    if (failed) break;
+   }
+  });
+  // 検索期間を過ぎた失敗メールも、IDを残して取り直す。
+  Object.keys(props.getProperties()).filter(function(key) {
+    return key.indexOf("TAIMEE_CONFIRMATION_PENDING_") === 0;
+  }).forEach(function(key) {
+    var id = key.substring("TAIMEE_CONFIRMATION_PENDING_".length);
+    if (processed[id]) { props.deleteProperty(key); return; }
+    if (!messages[id]) {
+      try {
+        var retryMessage=GmailApp.getMessageById(id);
+        if (!retryMessage) throw new Error("MESSAGE_UNAVAILABLE");
+        messages[id] = retryMessage;
+      }
+      catch (e) { failed = true; console.warn(JSON.stringify({stage:"gmail_retry",event_id:id,code:"MESSAGE_UNAVAILABLE"})); }
+    }
+  });
+  // 取消を先に反映し、追いつき処理で古い確定から停止指示を作らない。
+  Object.keys(messages).map(function(id) {return messages[id];}).sort(function(a,b) {
+    return b.getDate().getTime() - a.getDate().getTime();
+  }).forEach(function(message) {
+    if (Date.now() >= deadline) { failed = true; return; }
+    if (!processTaimeeConfirmationMessage_(message,config,activationTimestamp,processed)) failed = true;
+  });
+  threads.forEach(function(item) {
+    if (item.messages.length && item.messages.every(function(message) {return !!processed[message.getId()];})) {
+      try { item.thread.addLabel(label); }
+      catch (e) { failed = true; console.warn(JSON.stringify({stage:"gmail_label",code:"LABEL_FAILED"})); }
+    }
+  });
+  if (failed || Date.now() >= deadline) throw new Error("TAIMEE_CONFIRMATION_RETRY_PENDING");
+}
+
+function taimeeMessageHasSignal_(message, expectedSender) {
+  var from = message.getFrom(), match = /<([^>]+)>/.exec(from);
+  if ((match ? match[1] : from).trim().toLowerCase() !== expectedSender) return false;
+  var text = message.getSubject() + "\n" + message.getPlainBody();
+  return taimeeConfirmationSignal_(text,"confirmed") || taimeeConfirmationSignal_(text,"cancelled");
+}
+
+function processTaimeeConfirmationMessage_(message, config, activationTimestamp, processed, requiredState) {
+  var messageId = message.getId();
+  if (processed[messageId]) return true;
+  if (isConfirmationMessageBeforeActivation_(message,activationTimestamp)) return true;
+  if (!taimeeMessageHasSignal_(message,config.senderEmail)) return true;
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty("TAIMEE_CONFIRMATION_PENDING_" + messageId, "1");
+  try {
+    var event = parseSpotOfferTaimeeConfirmationMail_(message,config.senderEmail);
+    if (!event) {
+      console.warn(JSON.stringify({stage:"parse",event_id:messageId,code:"MAIL_IDENTIFIERS_MISSING"}));
+      return false;
+    }
+    if (requiredState && event.state !== requiredState) return true;
+    var endpoint = event.state === "cancelled" ? "cancelled" : "confirmed";
+    var response = UrlFetchApp.fetch(config.apiBaseUrl + "/api/rpa/taimee/" + endpoint, {
+      method:"post",contentType:"application/json",headers:{Authorization:"Bearer " + config.apiToken},
+      payload:JSON.stringify(event),muteHttpExceptions:true
+    });
+    var code = response.getResponseCode(), result;
+    try {result = JSON.parse(response.getContentText() || "{}");} catch (e) {result = {};}
+    if (code < 200 || code >= 300 || result.ok !== true || result.recorded !== true
+        || result.event_id !== messageId || ["queued","cancelled","stale","work_finished","already_processed","no_target","out_of_scope"].indexOf(result.outcome) === -1
+        || (result.outcome === "queued" && !result.close_job_id)) {
+      var errorCode = /^[A-Z_]{1,80}$/.test(result.code || "") ? result.code : "ACK_NOT_CONFIRMED";
+      console.warn(JSON.stringify({stage:"api",event_id:messageId,http_status:code,code:errorCode}));
+      return false;
+    }
+    props.setProperty("TAIMEE_CONFIRMATION_ACK_" + messageId, new Date().toISOString());
+    props.deleteProperty("TAIMEE_CONFIRMATION_PENDING_" + messageId);
+    processed[messageId] = true;
+    console.log(JSON.stringify({stage:"ack",event_id:messageId,outcome:result.outcome,close_job_id:result.close_job_id || null}));
+    return true;
+  } catch (e) {
+    console.warn(JSON.stringify({stage:"delivery",event_id:messageId,code:"DELIVERY_EXCEPTION"}));
+    return false;
   }
 }
 
-function parseSpotOfferTaimeeConfirmationMail_(message, expectedSender) {
-  var from = message.getFrom();
-  var senderMatch = /<([^>]+)>/.exec(from);
-  var senderEmail = (senderMatch ? senderMatch[1] : from).trim().toLowerCase();
-  if (senderEmail !== expectedSender) return null;
 
-  var subject = message.getSubject();
-  var body = message.getPlainBody();
-  var fullText = subject + "\n" + body;
-  // Daily matching-status summaries and chat notices also mention matching.
-  // Only accept the individual worker-confirmation notification.
-  if (!/ワーカーが\s*\d+名マッチングしました/.test(fullText)) return null;
-
-  // タイミー通知に含まれる /offerings/{id} は実際のタイミー求人ID。
-  // 業務タイトルの @数字@ はMyFamille側の介護事業所IDとして使われるため、求人IDには使わない。
-  var taimeeJobId = taimeeCloseCapture_(fullText, /\/offerings\/([0-9]{4,})(?:[/?#\s)\]>]|$)/i);
-  if (!taimeeJobId) {
-    taimeeJobId = taimeeCloseCapture_(fullText, /(?:求人ID|求人番号|募集ID|募集番号)\s*[：:]?\s*([A-Za-z0-9_-]+)/i);
+// 新版開始時点より前のメールを一括再配送しない。失敗IDは期間外でも再試行する。
+function taimeeMailActivationTimestamp_() {
+  var props = PropertiesService.getScriptProperties();
+  var raw = props.getProperty("TAIMEE_MAIL_DELIVERY_ACTIVATED_AT");
+  if (!raw) {
+    raw = new Date(Math.max(confirmationActivationTimestamp_(),Date.now()-5*60*1000)).toISOString();
+    props.setProperty("TAIMEE_MAIL_DELIVERY_ACTIVATED_AT",raw);
   }
-  var title = taimeeCloseCapture_(fullText, /(?:業務タイトル|求人タイトル|仕事タイトル)\s*[：:]?\s*([^\n\r]+)/i);
-  var titleJobId = /@([0-9]{4,})@/.exec(title);
-  if (titleJobId) title = title.replace(/\s*@([0-9]{4,})@\s*/g, " ").trim();
-  var workStart = parseTaimeeWorkStart_(fullText);
-  if (!taimeeJobId && (!title || !workStart)) return null;
+  var value=Date.parse(raw);
+  if (!isFinite(value)) throw new Error("TAIMEE_MAIL_ACTIVATION_INVALID");
+  return value;
+}
 
-  return {
-    taimee_job_id: taimeeJobId || undefined,
-    template_title: title || undefined,
-    shift_start_date: workStart ? workStart.date : undefined,
-    shift_start_time: workStart ? workStart.time : undefined,
-    application_key: [taimeeJobId || title, workStart ? workStart.date : "", workStart ? workStart.time : ""].join("::"),
-    event_id: message.getId(),
-    occurred_at: message.getDate().toISOString()
-  };
+function taimeeConfirmationSignal_(text,state) {
+  return state === "cancelled"
+    ? /キャンセルされました/.test(text) && /(?:求人のひな形|ワーカーの名前)/.test(text)
+    : /ワーカーが\s*\d+名マッチングしました/.test(text);
+}
+
+function parseSpotOfferTaimeeConfirmationMail_(message, expectedSender) {
+  var from=message.getFrom(), sender=/<([^>]+)>/.exec(from);
+  if ((sender?sender[1]:from).trim().toLowerCase() !== expectedSender) return null;
+  var fullText=message.getSubject()+"\n"+message.getPlainBody();
+  var cancelled=taimeeConfirmationSignal_(fullText,"cancelled");
+  if (!cancelled && !taimeeConfirmationSignal_(fullText,"confirmed")) return null;
+  // 複数人まとめ通知は一人分として投影しない。
+  if (!cancelled && !/ワーカーが\s*1名マッチングしました/.test(fullText)) return null;
+  var taimeeJobId=taimeeCloseCapture_(fullText,/https:\/\/app-new\.taimee\.co\.jp\/clients\/[0-9]+\/offerings\/([0-9]{4,})(?:[/?#\s)\]>]|$)/i);
+  var title=taimeeCloseCapture_(fullText,/(?:業務タイトル|求人タイトル|仕事タイトル|求人のひな形)[ \t]*[：:]?[ \t]*\r?\n?([^\n\r]+)/i);
+  title=title.replace(/\s*@[0-9]{4,}@\s*/g," ").trim();
+  var name=taimeeCloseCapture_(fullText,/(?:^|\n)[ \t]*[◆♦]?[ \t]*(?:ワーカーの名前|名前)[ \t]*[：:]?[ \t]*\r?\n?([^\n\r]+)/i);
+  name=name.normalize("NFKC").replace(/\s+/g,"").trim();
+  var workStart=parseTaimeeWorkStart_(fullText);
+  if (!taimeeJobId && (!title || !workStart)) return null;
+  return {state:cancelled?"cancelled":"confirmed",taimee_job_id:taimeeJobId||undefined,
+    template_title:title||undefined,shift_start_date:workStart?workStart.date:undefined,
+    shift_start_time:workStart?workStart.time:undefined,applicant_name:name||undefined,
+    application_key:[taimeeJobId||title,workStart?workStart.date:"",workStart?workStart.time:"",name].join("::"),
+    event_id:message.getId(),occurred_at:message.getDate().toISOString()};
 }
 
 function parseTaimeeWorkStart_(text) {
@@ -411,19 +472,16 @@ function taimeeCloseCapture_(text, pattern) {
 }
 
 function taimeeCloseProcessedIds_() {
-  var raw = PropertiesService.getScriptProperties().getProperty("TAIMEE_CONFIRMATION_PROCESSED_MESSAGE_IDS") || "[]";
-  try {
-    return JSON.parse(raw).reduce(function(map, id) { map[id] = true; return map; }, {});
-  } catch (e) {
-    return {};
-  }
-}
-
-function saveTaimeeCloseProcessedIds_(processed) {
-  var ids = Object.keys(processed);
-  PropertiesService.getScriptProperties().setProperty(
-    "TAIMEE_CONFIRMATION_PROCESSED_MESSAGE_IDS",
-    JSON.stringify(ids.slice(-100))
-  );
+  var properties = PropertiesService.getScriptProperties().getProperties(), processed = {};
+  Object.keys(properties).forEach(function(key) {
+    if (key.indexOf("TAIMEE_CONFIRMATION_ACK_") === 0) {
+      if (Date.parse(properties[key]) < Date.now() - 30 * 24 * 60 * 60 * 1000) {
+        PropertiesService.getScriptProperties().deleteProperty(key);
+        return;
+      }
+      processed[key.substring("TAIMEE_CONFIRMATION_ACK_".length)] = true;
+    }
+  });
+  return processed;
 }
 

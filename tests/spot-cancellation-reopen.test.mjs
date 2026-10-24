@@ -35,3 +35,15 @@ test('終了したSharefullだけIDを開放し、既存公開求人は重複作
 });
 test('履歴照会失敗を再掲載可能と誤認しない',async()=>{const f=fixture({errorTable:'rpa_command_requests'});const r=await f.run();assert.equal(r.errors.length,1);assert.equal(f.opens.length,0);});
 
+test('タイミー取消後に終了済みSharefullを再掲載準備し、他応募・担当者・手動停止なら保持する',async()=>{
+ const base={request:{sharefull_status:'closed'},applications:[{request_id:'request',provider:'taimee',state:'cancelled'}]};
+ const f=fixture(base);await f.run();assert.equal(f.request.sharefull_status,'ready_for_offer');
+ for(const options of [{request:{...base.request,recruitment_paused:true}},{shift:{staff_01_user_id:'assigned'}},{applications:[{request_id:'request',provider:'taimee',state:'confirmed'}]},{shift:{shift_start_date:'2020-01-01'}}]) {
+  const blocked=fixture({...base,...options});await blocked.run();assert.equal(blocked.request.sharefull_status,'closed');assert.equal(blocked.request.sharefull_job_id,'sharefull');
+ }
+});
+
+test('同じSharefull停止ジョブの完了・失敗後にCronが重複投入しない',async()=>{
+ for(const status of ['completed','failed']) {const f=fixture({applications:[{request_id:'request',provider:'taimee',state:'confirmed'}]});f.rows.rpa_runner_jobs.push({id:'close',status,payload:{sync_operation_key:'spot-sync:sharefull:close:order:2'}});await f.run();assert.equal(f.rows.rpa_runner_jobs.length,1);}
+});
+
