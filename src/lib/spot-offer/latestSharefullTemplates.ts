@@ -1,5 +1,6 @@
 type TemplateRow = {
   core_id?: unknown;
+  recruitment_kind?: unknown;
   kaipoke_cs_id?: unknown;
   updated_at?: unknown;
   created_at?: unknown;
@@ -18,7 +19,7 @@ function timestamp(value: unknown): number {
 /** Return every active-scope template with usable identity fields in deterministic order. */
 export function activeSharefullTemplates<T extends TemplateRow>(rows: readonly T[]): T[] {
   return rows
-    .filter((row) => text(row.kaipoke_cs_id) && text(row.core_id))
+    .filter((row) => (text(row.kaipoke_cs_id) || row.recruitment_kind === "office") && text(row.core_id))
     .slice()
     .sort((a, b) => {
       const clientOrder = text(a.kaipoke_cs_id).localeCompare(text(b.kaipoke_cs_id));

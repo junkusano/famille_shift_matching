@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
 import { enqueueSharefullPublicationJobsForReadyTemplates } from "@/lib/spot-offer/enqueueSharefullPublicationJob";
-import { sharefullSyncClientIds, sharefullSyncScopeLabel, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
+import { sharefullScopeFilter, sharefullSyncClientIds, sharefullSyncScopeLabel, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +11,10 @@ async function handleGET(request: NextRequest) {
   try {
     await requireTaimeeRpaOperator(request);
     let query = supabaseAdmin.from(sharefullTemplateTableName() as never)
-      .select("core_id,template_title,internal_label,work_description,matching_place_name,meeting_yuubinn,meeting_place,meeting_place_banchi,required_licenses,matching_msg,kaipoke_cs_id,status,start_at,end_at,sharefull_template_id,sharefull_template_status,updated_at")
+      .select("core_id,recruitment_kind,template_title,internal_label,work_description,matching_place_name,meeting_yuubinn,meeting_place,meeting_place_banchi,required_licenses,matching_msg,kaipoke_cs_id,status,start_at,end_at,sharefull_template_id,sharefull_template_status,updated_at")
       .order("updated_at", { ascending: false }).limit(500);
     const clientIds = sharefullSyncClientIds();
-    if (clientIds !== null) query = query.in("kaipoke_cs_id", clientIds);
+    if (clientIds !== null) query = query.or(sharefullScopeFilter(clientIds));
     const { data, error } = await query;
     if (error) throw error;
 

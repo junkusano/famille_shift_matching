@@ -364,3 +364,13 @@ test("本番環境でも要確認文言を記録し、案件掲載を継続す�
   assert.equal(policyBlocks[0].report.status, "flagged");
   assert.equal(result.registeredCount, 1);
 });
+
+
+test("事務案件は介護シフトなしで独立ID・残り1枠を掲載する", async () => {
+ const row={id:"office-request",core_id:"office-core",recruitment_kind:"office",kaipoke_cs_id:null,shift_id:null,office_headcount:1,shift_start_date:"2099-01-02",shift_start_time:"11:00:00",shift_end_time:"13:00:00",unit_amount:1300,commute_fee:200,status:"募集中",sharefull_job_id:null,sharefull_status:"ready_for_offer",recruitment_revision:0};
+ const {publisher,insertedJobs}=loadPublisher({env:{SHAREFULL_AUTO_POST_ENABLED:"true"},template:{core_id:row.core_id,recruitment_kind:"office",sharefull_template_id:"123456",sharefull_template_status:"ready_for_offer"},requests:[row]});
+ const result=await publisher.enqueueSharefullPublicationJobsForTemplate(row.core_id,"test");
+ assert.equal(result.registeredCount,1);assert.equal(insertedJobs[0].payload.shift_id,null);
+ assert.equal(insertedJobs[0].payload.headcount,1);assert.equal(insertedJobs[0].payload.hourly_wage,1300);
+ assert.equal(insertedJobs[0].payload.operation_key,"sharefull:create_spot_offer:publish:office:office-request:0");
+});

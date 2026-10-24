@@ -39,3 +39,9 @@ test('認証失敗・名前不明・未来の発生日時は業務を書き換�
 
 test('通知失敗でも受領に案件IDと実在停止ジョブIDを残して追跡できる',async()=>{const h=load({notificationFail:true});await h.run();const receipt=h.receipts.get('mail-1');assert.equal(receipt.status,'retry');assert.equal(receipt.request_id,'request-1');assert.equal(receipt.close_runner_job_id,'job-1');});
 
+
+
+test('事務募集の登録前メールを新しい残枠の確定として再利用しない',async()=>{
+ const h=load({target:{recruitment_kind:'office',office_mail_after:'2026-10-24T02:00Z'}});
+ const r=await h.run();assert.equal(r.body.outcome,'stale');assert.ok(!h.calls.some(c=>c.name||c.notify));
+});

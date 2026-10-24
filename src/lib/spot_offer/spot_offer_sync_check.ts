@@ -36,6 +36,7 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
   );
 
   for (const spotOfferRequest of spotOfferRequests ?? []) {
+    if (spotOfferRequest.recruitment_kind === "office") continue; // owned by provider reconciliation; no care shift exists
     if (process.env.SPOT_PROVIDER_SYNC_ENABLED === 'true') {
       const {data: ownApplications,error: applicationError} = await supabase.from('spot_offer_applications')
         .select('provider').eq('request_id',spotOfferRequest.id).eq('provider','taimee').in('state',['applied','confirmed']).limit(1);

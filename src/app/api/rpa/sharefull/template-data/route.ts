@@ -18,9 +18,12 @@ export async function GET(request: NextRequest) {
     ]);
     if (error || envError) throw error ?? envError;
     const template = data as Record<string, unknown> | null;
-    if (!template || !isSharefullSyncClient(template.kaipoke_cs_id)) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
+    if (!template || !isSharefullSyncClient(template.kaipoke_cs_id, template)) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
+    if (template.recruitment_kind === "office" && request.nextUrl.searchParams.get("office_capability") !== "1") {
+      return NextResponse.json({ error: "事務案件には拡張機能0.3.58以降が必要です", code: "OFFICE_EXTENSION_REQUIRED" }, { status: 426 });
+    }
     const values = Object.fromEntries((env ?? []).map((row) => [row.key_name, row.value ?? ""]));
-    const rawData = { ...template, env: {
+    const rawData = { ...template, env: template.recruitment_kind === "office" ? { sukima_detail: "", sukima_automsg: "", sukima_koudou: "", sukima_caution: String(template.cautions ?? "") } : {
       sukima_detail: String(values.sukima_detail ?? ""), sukima_automsg: String(values.sukima_automsg ?? ""),
       sukima_koudou: String(values.sukima_koudou ?? ""), sukima_caution: String(values.sukima_caution ?? ""),
     } };

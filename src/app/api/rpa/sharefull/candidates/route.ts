@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const { data: requests, error: requestError } = await supabaseAdmin
       .from(sharefullRequestTableName() as never)
       .select(
-        "id, core_id, kaipoke_cs_id, shift_id, shift_start_date, shift_start_time, shift_end_time, unit_amount, commute_fee, status, taimee_job_id, sharefull_job_id, sharefull_status"
+        "id, core_id, recruitment_kind, kaipoke_cs_id, shift_id, shift_start_date, shift_start_time, shift_end_time, unit_amount, commute_fee, status, taimee_job_id, sharefull_job_id, sharefull_status"
       )
       .eq("status", "募集中")
       .gte("shift_start_date", today)
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     if (requestError) throw requestError;
 
-    const rows = ((requests ?? []) as unknown as Array<Record<string, any>>).filter((row) => isSharefullSyncClient(row.kaipoke_cs_id));
+    const rows = ((requests ?? []) as unknown as Array<Record<string, any>>).filter((row) => isSharefullSyncClient(row.kaipoke_cs_id, row));
     const coreIds = Array.from(
       new Set(rows.map((row) => row.core_id).filter((coreId): coreId is string => Boolean(coreId)))
     );
