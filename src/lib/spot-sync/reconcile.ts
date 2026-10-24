@@ -71,11 +71,26 @@ export async function reconcileSpotProviders() {
         if (sharefullInScope && sharefullAction === 'close' && request.sharefull_job_id && request.sharefull_status !== 'closed') {
           if (!request.sharefull_order_id) throw new Error('シェアフルのURL管理番号が未取得です。求人詳細の確認が必要です。');
           const key = `spot-sync:sharefull:close:${request.sharefull_order_id}:${request.recruitment_revision}`;
-          const {error: insertError} = await db.from('rpa_runner_jobs').insert({job_type:'sharefull.close_spot_offer',status:'pending',target_runner_id:testMode ? (process.env.SHAREFULL_TEST_RUNNER_ID?.trim() || 'sharefull-test-runner') : null,payload:{
-            spot_offer_request_id:request.id, sharefull_order_id:request.sharefull_order_id,sharefull_job_id:request.sharefull_job_id,
-            sync_operation_key:key,created_from:'cron.spot-offer-sync-check'
-          }});
-          check(insertError);
+          const {data:existingClose,error:existingCloseError}=await db.from('rpa_runner_jobs').select('id,status')
+            .eq('payload->>sync_operation_key',key).limit(1);
+          check(existingCloseError);
+          if (existingClose?.some(job=>['failed','cancelled'].includes(job.status))) throw new Error('Sharefull停止ジョブの調査が必要です。');
+          const {data:activeClose,error:activeCloseError}=await db.from('rpa_runner_jobs').select('id')
+            .eq('job_type','sharefull.close_spot_offer').eq('payload->>spot_offer_request_id',request.id)
+            .eq('payload->>sharefull_order_id',request.sharefull_order_id).in('status',['pending','claimed']).limit(1);
+          check(activeCloseError);
+          if (!existingClose?.length && !activeClose?.length) {
+            const {data:failedClose,error:failedCloseError}=await db.from('rpa_runner_jobs').select('id')
+              .eq('job_type','sharefull.close_spot_offer').eq('payload->>spot_offer_request_id',request.id)
+              .eq('payload->>sharefull_order_id',request.sharefull_order_id).eq('status','failed').limit(1);
+            check(failedCloseError);
+            if (failedClose?.length) throw new Error('Sharefull停止ジョブの調査が必要です。');
+            const {error: insertError} = await db.from('rpa_runner_jobs').insert({job_type:'sharefull.close_spot_offer',status:'pending',target_runner_id:testMode ? (process.env.SHAREFULL_TEST_RUNNER_ID?.trim() || 'sharefull-test-runner') : null,payload:{
+              spot_offer_request_id:request.id, sharefull_order_id:request.sharefull_order_id,sharefull_job_id:request.sharefull_job_id,
+              sync_operation_key:key,created_from:'cron.spot-offer-sync-check'
+            }});
+            check(insertError);
+          }
         }
         if (sharefullInScope && sharefullAction === 'open' && request.sharefull_status === 'closed') {
           // 終了求人のIDは履歴に保存済み。新しい募集として作り直す。
