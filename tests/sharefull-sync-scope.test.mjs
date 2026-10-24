@@ -96,3 +96,13 @@ test("応募決定監視はテスト配置・テストモード・明示有効�
     SHAREFULL_RPA_MODE: "test",
   }).shouldRunSharefullDecisionMonitor(), true);
 });
+
+
+test("事務区分のみを個別に許可し利用者スコープは拡大しない",()=>{
+ const scope=loadScope();
+ assert.equal(scope.isSharefullSyncClient(null),false);
+ assert.equal(scope.isSharefullSyncClient(null,{core_id:"office",recruitment_kind:"office"}),true);
+ assert.equal(scope.isSharefullSyncClient(null,{core_id:"office",recruitment_kind:"care"}),false);
+ assert.equal(scope.isSharefullSyncClient("outside",{core_id:"office",recruitment_kind:"office"}),false);
+ assert.equal(scope.sharefullScopeFilter(["123"]),"kaipoke_cs_id.in.(123),recruitment_kind.eq.office");
+});

@@ -67,7 +67,10 @@ export async function handleTaimeeMail(request: NextRequest, state: State) {
    || (time && String(target.shift_start_time).slice(0,5)!==time)) throw new Error('MAIL_REQUEST_MISMATCH');
   const {error:linkError}=await db.from('spot_offer_mail_receipts').update({request_id:target.id,last_attempt_at:new Date().toISOString()})
    .eq('provider','taimee').eq('event_id',eventId);check(linkError);
-  if(!isSharefullSyncClient(target.kaipoke_cs_id)) return finish('out_of_scope',target);
+  if(!isSharefullSyncClient(target.kaipoke_cs_id, target)) return finish('out_of_scope',target);
+  // Existing matches belong to the reserved slots on the source offering.
+  // Only newly arriving matches may fill this independently registered slot.
+  if(target.recruitment_kind==='office' && timestamp<Date.parse(target.office_mail_after)) return finish('stale',target);
   if(sharefullMailWorkFinished(target)) return finish('work_finished',target);
   const {data:apps,error:appsError}=await db.from('spot_offer_applications').select('application_key,applicant_name,state,occurred_at')
    .eq('request_id',target.id).eq('provider','taimee');check(appsError);

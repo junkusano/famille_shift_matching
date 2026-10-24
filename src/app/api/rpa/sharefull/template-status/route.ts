@@ -30,12 +30,12 @@ export async function POST(request: NextRequest) {
 
     const { data: template, error: lookupError } = await supabaseAdmin
       .from(sharefullTemplateTableName() as never)
-      .select("core_id, kaipoke_cs_id, sharefull_template_id")
+      .select("core_id, recruitment_kind, kaipoke_cs_id, sharefull_template_id")
       .eq("core_id", coreId)
       .maybeSingle();
     if (lookupError) throw lookupError;
     const templateRecord = template as unknown as Record<string, unknown> | null;
-    if (!templateRecord || !isSharefullSyncClient(templateRecord.kaipoke_cs_id)) return NextResponse.json({ error: "テンプレートが見つかりません" }, { status: 404 });
+    if (!templateRecord || !isSharefullSyncClient(templateRecord.kaipoke_cs_id, templateRecord)) return NextResponse.json({ error: "テンプレートが見つかりません" }, { status: 404 });
     if (String(templateRecord.sharefull_template_id ?? "").trim() !== templateId) {
       return NextResponse.json({ error: "確認したテンプレートIDが現在の登録と一致しません" }, { status: 409 });
     }

@@ -65,3 +65,11 @@ test("拡張機能への本文取得時に要確認文言を記録し、本文�
   assert.equal(blocks[0].source, "rpa.sharefull.template-data");
   assert.equal(blocks[0].report.findings[0].ruleId, "gender-sensitive-recruiting");
 });
+
+
+test("旧拡張は事務テンプレートを取得できず新版は介護共通文面を追加しない",async()=>{
+ const {route}=loadRoute({core_id:"office",recruitment_kind:"office",kaipoke_cs_id:null,work_description:"事務業務",cautions:"PC操作必須"});
+ assert.equal((await route.GET({nextUrl:{searchParams:new URLSearchParams("core_id=office")}})).status,426);
+ const r=await route.GET({nextUrl:{searchParams:new URLSearchParams("core_id=office&office_capability=1")}});
+ assert.equal(r.status,200);assert.equal(r.body.data.env.sukima_detail,"");assert.equal(r.body.data.env.sukima_caution,"PC操作必須");
+});

@@ -13,17 +13,17 @@ export async function POST(request: NextRequest) {
     const templateId = typeof body.sharefull_template_id === "string" ? body.sharefull_template_id.trim() : "";
     if (!coreId || !templateId || templateId === "428828") return NextResponse.json({ error: "IDが不正です" }, { status: 400 });
     const { data: existing, error: lookupError } = await supabaseAdmin
-      .from(sharefullTemplateTableName() as never).select("core_id, kaipoke_cs_id, sharefull_template_id, template_title, work_description, cautions, auto_message, matching_msg").eq("core_id", coreId).maybeSingle();
+      .from(sharefullTemplateTableName() as never).select("core_id, recruitment_kind, kaipoke_cs_id, sharefull_template_id, template_title, work_description, cautions, auto_message, matching_msg").eq("core_id", coreId).maybeSingle();
     if (lookupError) throw lookupError;
     const existingRecord = existing as unknown as Record<string, unknown> | null;
-    if (!existingRecord || !isSharefullSyncClient(existingRecord.kaipoke_cs_id)) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
+    if (!existingRecord || !isSharefullSyncClient(existingRecord.kaipoke_cs_id, existingRecord)) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
     const { data: envRows, error: envError } = await supabaseAdmin
       .from("env_variables").select("key_name,value").eq("group_key", "sukima");
     if (envError) throw envError;
     const envValues = Object.fromEntries((envRows ?? []).map((row) => [row.key_name, row.value ?? ""]));
     const source: Record<string, unknown> = {
       ...existingRecord,
-      env: {
+      env: existingRecord.recruitment_kind === "office" ? { sukima_detail: "", sukima_automsg: "", sukima_koudou: "", sukima_caution: String(existingRecord.cautions ?? "") } : {
         sukima_detail: String(envValues.sukima_detail ?? ""),
         sukima_automsg: String(envValues.sukima_automsg ?? ""),
         sukima_koudou: String(envValues.sukima_koudou ?? ""),

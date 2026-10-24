@@ -33,17 +33,18 @@ export async function reconcileSpotProviders() {
     const applications = (applicationsRaw ?? []) as Row[];
     for (const request of requests) {
       try {
-        const shift = shifts?.find(s => String(s.shift_id) === String(request.shift_id)) ?? null;
+        const office = request.recruitment_kind === 'office';
+        const shift = office ? request : shifts?.find(s => String(s.shift_id) === String(request.shift_id)) ?? null;
         const apps = (applications ?? []).filter(a => a.request_id === request.id) as Application[];
         const action = (provider: string) => desiredAction({provider, status:request.status, applications:apps, shift, assigned:!!shift && staffAssigned(shift,roles), manualStop:request.recruitment_paused});
         if (!testMode && shouldEnqueueTaimeeClose({status: request.status, applications: apps, shift, assigned: !!shift && staffAssigned(shift, roles), manualStop: request.recruitment_paused})) await createCloseRequest(request, shift && staffAssigned(shift, roles) ? 'staff_confirmed' : 'other_application');
-        if (!testMode && action('taimee') !== 'close') {
+        if (!testMode && !office && action('taimee') !== 'close') {
           const {error: cancelError} = await db.from('rpa_command_requests').update({status:'cancelled'})
             .eq('request_details->>shift_id',String(request.shift_id)).eq('request_details->>reason','other_application')
             .in('status',['pending','approved']);
           check(cancelError);
         }
-        if (!testMode && action('taimee') === 'open' && shift && request.taimee_job_id) {
+        if (!testMode && !office && action('taimee') === 'open' && shift && request.taimee_job_id) {
           // 現在の求人の停止完了を探す。後発の重複失敗や別求人の履歴で判定を変えない。
           const closeQuery = () => db.from('rpa_command_requests').select('id,status')
             .eq('request_details->>shift_id', String(request.shift_id))
@@ -62,7 +63,7 @@ export async function reconcileSpotProviders() {
             if (!reopened?.length) await createOpenRequest(shift, undefined, {reason:'application_cancelled',sourceCloseRequestId:closed[0].id});
           }
         }
-        const sharefullInScope = isSharefullSyncClient(request.kaipoke_cs_id);
+        const sharefullInScope = isSharefullSyncClient(request.kaipoke_cs_id, request);
         const sharefullAction = action('sharefull');
         if (sharefullInScope && sharefullAction !== 'open') {
           const {error: cancelError} = await db.from('rpa_runner_jobs').update({status:'cancelled'}).eq('job_type','sharefull.create_spot_offer').eq('payload->>spot_offer_request_id',request.id).eq('status','pending');
@@ -114,8 +115,8 @@ export async function validateSharefullSyncJob(jobType: string, payload: Row): P
   if (!payload.spot_offer_request_id) return true; // 既存の手動ジョブは互換性維持
   const {data:rRaw,error}=await db.from(sharefullRequestTableName() as never).select('*').eq('id',payload.spot_offer_request_id).maybeSingle(); check(error);
   const r = rRaw as Row | null;
-  if (!r || !isSharefullSyncClient(r.kaipoke_cs_id)) return false;
-  const {data:sRaw,error:se}=await db.from('shift').select('*').eq('shift_id',r.shift_id).maybeSingle(); check(se);
+  if (!r || !isSharefullSyncClient(r.kaipoke_cs_id, r)) return false;
+  const {data:sRaw,error:se}=r.recruitment_kind === 'office' ? {data:r,error:null} : await db.from('shift').select('*').eq('shift_id',r.shift_id).maybeSingle(); check(se);
   const s = sRaw as Row | null;
   const {data:appsRaw,error:ae}=await db.from(sharefullApplicationTableName() as never).select('provider,state').eq('request_id',r.id); check(ae);
   const apps = (appsRaw ?? []) as Row[];
@@ -128,5 +129,6 @@ export async function validateSharefullSyncJob(jobType: string, payload: Row): P
     || payload.reason === 'time_changed' && Math.abs(timeMinutes(payload.original_shift_start_time)-timeMinutes(s.shift_start_time))>30);
   const ownApplication = apps.some(a=>a.provider==='sharefull' && ['applied','confirmed'].includes(a.state));
   if(jobType==='sharefull.close_spot_offer') return !ownApplication && (action==='close' || obsolete) && r.sharefull_order_id===payload.sharefull_order_id && r.sharefull_job_id===payload.sharefull_job_id;
-  return action==='open' && !r.sharefull_job_id && r.shift_start_date===payload.shift_start_date && timeMinutes(r.shift_start_time)===timeMinutes(payload.shift_start_time);
+  return action==='open' && !r.sharefull_job_id && r.shift_start_date===payload.shift_start_date && timeMinutes(r.shift_start_time)===timeMinutes(payload.shift_start_time)
+    && (r.recruitment_kind!=='office' || (payload.core_id===r.core_id && payload.headcount===r.office_headcount && r.office_headcount===1 && r.shift_end_time===payload.shift_end_time && r.unit_amount===payload.hourly_wage && r.commute_fee===payload.commute_fee));
 }

@@ -41,3 +41,9 @@ test("利用者IDまたはcore_idがない行は対象にしない", () => {
 
   assert.deepEqual([...activeSharefullTemplates(rows)], []);
 });
+
+
+test("利用者IDなしの登録済み事務ひな型だけを残す",()=>{
+ const rows=[{core_id:"office",recruitment_kind:"office",kaipoke_cs_id:null},{core_id:"missing",kaipoke_cs_id:null}];
+ assert.deepEqual(Array.from(activeSharefullTemplates(rows),x=>x.core_id),["office"]);
+});

@@ -26,12 +26,12 @@ export async function POST(request: NextRequest) {
 
     const { data: template, error: lookupError } = await supabaseAdmin
       .from(sharefullTemplateTableName() as never)
-      .select("core_id, kaipoke_cs_id, sharefull_template_id")
+      .select("core_id, recruitment_kind, kaipoke_cs_id, sharefull_template_id")
       .eq("core_id", coreId)
       .maybeSingle();
     if (lookupError) throw lookupError;
     const record = template as unknown as Record<string, unknown> | null;
-    if (!record || !isSharefullSyncClient(record.kaipoke_cs_id)
+    if (!record || !isSharefullSyncClient(record.kaipoke_cs_id, record)
       || String(record.sharefull_template_id ?? "").trim() !== templateId) {
       return NextResponse.json({ error: "保存済みSharefullテンプレートと一致しません" }, { status: 404 });
     }

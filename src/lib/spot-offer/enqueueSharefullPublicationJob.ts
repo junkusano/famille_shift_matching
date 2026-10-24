@@ -1,6 +1,6 @@
 import { providerSyncEnabled, validateSharefullSyncJob } from '@/lib/spot-sync/reconcile';
 import { canRecruit } from '@/lib/spot-sync/policy';
-import { isSharefullSyncClient, sharefullRequestTableName, sharefullRpaMode, sharefullSyncClientIds, sharefullSyncScopeLabel, sharefullTargetRunnerId, sharefullTemplateTableName } from '@/lib/spot-sync/sharefullScope';
+import { sharefullScopeFilter, isSharefullSyncClient, sharefullRequestTableName, sharefullRpaMode, sharefullSyncClientIds, sharefullSyncScopeLabel, sharefullTargetRunnerId, sharefullTemplateTableName } from '@/lib/spot-sync/sharefullScope';
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { SHAREFULL_PUBLICATION_DEDUPE_STATUSES } from "@/lib/spot-offer/publicationJobDedupe";
 import { applySharefullContentPolicy } from "@/lib/spot-sync/sharefullContentPolicy";
@@ -109,9 +109,8 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
   let query = supabaseAdmin.from(sharefullTemplateTableName() as never)
     .select("*")
     .eq("status", "active")
-    .not("kaipoke_cs_id", "is", null)
     .order("updated_at", { ascending: false });
-  if (targetClientIds !== null) query = query.in("kaipoke_cs_id", targetClientIds);
+  if (targetClientIds !== null) query = query.or(sharefullScopeFilter(targetClientIds));
 
   const rows: JsonRecord[] = [];
   const pageSize = 500;
@@ -203,12 +202,12 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
 
   const { data: template, error: templateError } = await supabaseAdmin
     .from(sharefullTemplateTableName() as never)
-    .select("core_id, kaipoke_cs_id, sharefull_template_id, sharefull_template_status, template_title, work_description, cautions, auto_message, matching_msg, internal_label")
+    .select("core_id, recruitment_kind, kaipoke_cs_id, sharefull_template_id, sharefull_template_status, template_title, work_description, cautions, auto_message, matching_msg, internal_label")
     .eq("core_id", coreId)
     .maybeSingle();
   if (templateError) throw templateError;
   const templateRecord = template as unknown as JsonRecord | null;
-  if (templateRecord && !isSharefullSyncClient(templateRecord.kaipoke_cs_id)) {
+  if (templateRecord && !isSharefullSyncClient(templateRecord.kaipoke_cs_id, templateRecord)) {
     return {
       enabled: true,
       registeredCount: 0,
@@ -270,7 +269,7 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
   const today = todayInJst();
   let requestQuery = supabaseAdmin
     .from(sharefullRequestTableName() as never)
-    .select("id, core_id, kaipoke_cs_id, shift_id, shift_start_date, shift_start_time, shift_end_time, unit_amount, commute_fee, status, taimee_job_id, sharefull_job_id, sharefull_status, recruitment_revision")
+    .select("id, core_id, recruitment_kind, kaipoke_cs_id, shift_id, shift_start_date, shift_start_time, shift_end_time, unit_amount, commute_fee, status, taimee_job_id, sharefull_job_id, sharefull_status, recruitment_revision, office_headcount")
     .eq("core_id", coreId)
     .eq("status", "募集中")
     .gte("shift_start_date", today)
@@ -280,7 +279,7 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
     .order("shift_start_time", { ascending: true })
     .order("id", { ascending: true });
   const scopeClientIds = sharefullSyncClientIds();
-  if (scopeClientIds !== null) requestQuery = requestQuery.in("kaipoke_cs_id", scopeClientIds);
+  if (scopeClientIds !== null) requestQuery = requestQuery.or(sharefullScopeFilter(scopeClientIds));
   const requests: JsonRecord[] = [];
   const requestPageSize = 500;
   for (let offset = 0; ; offset += requestPageSize) {
@@ -325,7 +324,7 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
   const skipped: string[] = [];
 
   for (const row of requests ?? []) {
-    const shiftId = text(row.shift_id);
+    const shiftId = row.recruitment_kind === "office" ? `office:${row.id}` : text(row.shift_id);
     if (!shiftId) continue;
     const baseOperationKey = `sharefull:create_spot_offer:${mode}:${shiftId}:${row.recruitment_revision ?? 0}`;
     if (!canRecruit(row)) continue;
@@ -375,7 +374,7 @@ export async function enqueueActiveSharefullTemplateCreationJobs(source: string)
         ? `${baseOperationKey}:retry:${cancelledJobs.length}`
         : baseOperationKey;
 
-    const headcount = requiredStaffCountByShiftId.get(row.shift_id);
+    const headcount = row.recruitment_kind === "office" ? row.office_headcount : requiredStaffCountByShiftId.get(row.shift_id);
     if (!reconcileOnly && (typeof headcount !== "number" || !Number.isSafeInteger(headcount) || headcount <= 0)) {
       const { error: holdError } = await supabaseAdmin.from(sharefullRequestTableName() as never)
         .update({ sharefull_sync_error: "募集人数が不正なため掲載保留（元のシフト人数を確認してください）", updated_at: new Date().toISOString() })
@@ -454,13 +453,13 @@ export async function enqueueSharefullPublicationJobsForReadyTemplates(source: s
   const today = todayInJst();
   let query = supabaseAdmin
     .from(sharefullRequestTableName() as never)
-    .select("id, core_id, kaipoke_cs_id")
+    .select("id, core_id, recruitment_kind, kaipoke_cs_id")
     .eq("status", "募集中")
     .gte("shift_start_date", today)
     .is("sharefull_job_id", null)
     .or("sharefull_status.is.null,sharefull_status.in.(template_review,ready_for_offer)");
   const scopeClientIds = sharefullSyncClientIds();
-  if (scopeClientIds !== null) query = query.in("kaipoke_cs_id", scopeClientIds);
+  if (scopeClientIds !== null) query = query.or(sharefullScopeFilter(scopeClientIds));
   const rows: Array<{ id: string; core_id: string | null; kaipoke_cs_id: string | null }> = [];
   query = query.order("id", { ascending: true });
   const pageSize = 500;

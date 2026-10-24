@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isSharefullSyncClient, sharefullRequestTableName, sharefullSyncClientIds, sharefullSyncScopeLabel, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
+import { sharefullScopeFilter, isSharefullSyncClient, sharefullRequestTableName, sharefullSyncClientIds, sharefullSyncScopeLabel, sharefullTemplateTableName } from "@/lib/spot-sync/sharefullScope";
 import { isRpaTaimeeError, requireTaimeeRpaOperator } from "@/lib/rpa/taimee";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
@@ -30,16 +30,16 @@ export async function POST(request: NextRequest) {
 
     let templateQuery = supabaseAdmin
       .from(sharefullTemplateTableName() as never)
-      .select("core_id, kaipoke_cs_id, sharefull_template_id")
+      .select("core_id, recruitment_kind, kaipoke_cs_id, sharefull_template_id")
       .not("sharefull_template_id", "is", null);
     const clientIds = sharefullSyncClientIds();
-    if (clientIds !== null) templateQuery = templateQuery.in("kaipoke_cs_id", clientIds);
+    if (clientIds !== null) templateQuery = templateQuery.or(sharefullScopeFilter(clientIds));
     const { data: templates, error: templateError } = await templateQuery;
     if (templateError) throw templateError;
 
     const missing = (templates ?? []).filter((template) => {
       const id = template.sharefull_template_id?.trim();
-      return id && isSharefullSyncClient(template.kaipoke_cs_id) && !observed.has(id);
+      return id && id !== "428828" && isSharefullSyncClient(template.kaipoke_cs_id, template) && !observed.has(id);
     });
     if (missing.length === 0) {
       return NextResponse.json({ ok: true, reset_count: 0, skipped_published_count: 0, scope: sharefullSyncScopeLabel() });

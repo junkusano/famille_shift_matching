@@ -408,10 +408,18 @@ export function sharefullSyncClientIds(): string[] | null {
   return ids.length > 0 ? [...new Set(ids)] : DEFAULT_TARGET_CLIENT_IDS;
 }
 
-export function isSharefullSyncClient(kaipokeCsId: unknown): boolean {
+export function isSharefullSyncClient(kaipokeCsId: unknown, record?: Record<string, unknown>): boolean {
   if (sharefullRpaMode() === "test") return true;
+  // Office recruitment is explicitly registered by service_role, never by
+  // inventing a client/shift identity. SQL constraints guard this discriminator.
+  if (record?.recruitment_kind === "office" && record.core_id && !kaipokeCsId) return true;
   const clientIds = sharefullSyncClientIds();
   return clientIds === null || clientIds.includes(String(kaipokeCsId ?? "").trim());
+}
+
+/** Combine the existing client scope with explicitly approved office records. */
+export function sharefullScopeFilter(clientIds: readonly string[]): string {
+  return `kaipoke_cs_id.in.(${clientIds.join(",")}),recruitment_kind.eq.office`;
 }
 
 export function sharefullSyncScopeLabel(): string {

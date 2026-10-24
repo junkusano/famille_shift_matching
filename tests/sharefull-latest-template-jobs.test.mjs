@@ -20,12 +20,13 @@ function loadEnqueuer({ templates = [], existingJobs = [], clientIds = ["client-
         else state[column] = values;
         return builder;
       },
+      or(expression) { state.clientIds=expression.match(/kaipoke_cs_id.in.\(([^)]*)\)/)?.[1].split(",")||[]; state.office=true; return builder; },
       not() { return builder; },
       order() { return builder; },
       limit() { return builder; },
       range() {
         const data = table.includes("template_unified")
-          ? templates.filter((row) => row.status === state.status && (!state.clientIds || state.clientIds.includes(row.kaipoke_cs_id)))
+          ? templates.filter((row) => row.status === state.status && (!state.clientIds || state.clientIds.includes(row.kaipoke_cs_id) || (state.office && row.recruitment_kind === "office")))
           : [];
         return Promise.resolve({ data, error: null });
       },
@@ -54,6 +55,7 @@ function loadEnqueuer({ templates = [], existingJobs = [], clientIds = ["client-
     exports: {}, process: { env: {} }, console,
     supabaseAdmin: { from: query },
     sharefullSyncClientIds: () => clientIds,
+    sharefullScopeFilter: ids => `kaipoke_cs_id.in.(${ids.join(",")}),recruitment_kind.eq.office`,
     sharefullTemplateTableName: () => mode === "test" ? "sharefull_rpa_test_spot_offer_template_unified" : "spot_offer_template_unified",
     sharefullRpaMode: () => mode,
     sharefullSyncScopeLabel: () => mode === "test" ? "test" : clientIds?.join(",") ?? "all",
@@ -177,4 +179,10 @@ test("失敗3回で自動再試行を打ち切る", async () => {
   const result = await enqueuer("test.retry-capped");
   assert.equal(insertedJobs.length, 0);
   assert.match(result.skipped[0], /上限に達しました/);
+});
+
+
+test("明示登録した事務ひな型は利用者スコープを広げず作成キューへ入る",async()=>{
+ const {enqueuer,insertedJobs}=loadEnqueuer({templates:[{core_id:"office",recruitment_kind:"office",kaipoke_cs_id:null,status:"active"},{core_id:"outside",kaipoke_cs_id:"outside",status:"active"}]});
+ await enqueuer("test.office");assert.deepEqual(insertedJobs.map(j=>j.payload.core_id),["office"]);
 });
