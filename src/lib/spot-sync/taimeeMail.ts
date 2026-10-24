@@ -45,8 +45,10 @@ export async function handleTaimeeMail(request: NextRequest, state: State) {
   const {data:receipt,error:receiptError}=await db.from('spot_offer_mail_receipts').select('payload_hash,status,outcome,close_runner_job_id').eq('provider','taimee').eq('event_id',eventId).single();
   check(receiptError);
   if(receipt?.payload_hash!==hash) return NextResponse.json({ok:false,code:'MAIL_EVENT_ID_COLLISION'},{status:409});
-  if(['completed','ignored'].includes(receipt.status) && receipt.outcome) return NextResponse.json({ok:true,recorded:true,event_id:eventId,
-   outcome:receipt.outcome,close_job_id:receipt.close_runner_job_id||undefined});
+  if(['completed','ignored'].includes(receipt.status) && receipt.outcome) {
+   if(receipt.outcome==='queued'&&!receipt.close_runner_job_id) throw new Error('CLOSE_JOB_RECORD_MISSING');
+   return NextResponse.json({ok:true,recorded:true,event_id:eventId,outcome:receipt.outcome,close_job_id:receipt.close_runner_job_id||undefined});
+  }
   async function finish(outcome:Outcome,target?:Row,job?:string,republication?:string) {
    const {error}=await db.from('spot_offer_mail_receipts').update({status:outcome==='work_finished'||outcome==='out_of_scope'?'ignored':'completed',
     outcome,request_id:target?.id||null,close_runner_job_id:job||null,error_code:null,
@@ -63,6 +65,8 @@ export async function handleTaimeeMail(request: NextRequest, state: State) {
   const target=matches[0] as Row;
   if((title && normalizeTaimeeTitle(target.template_title)!==title) || (date && target.shift_start_date!==date)
    || (time && String(target.shift_start_time).slice(0,5)!==time)) throw new Error('MAIL_REQUEST_MISMATCH');
+  const {error:linkError}=await db.from('spot_offer_mail_receipts').update({request_id:target.id,last_attempt_at:new Date().toISOString()})
+   .eq('provider','taimee').eq('event_id',eventId);check(linkError);
   if(!isSharefullSyncClient(target.kaipoke_cs_id)) return finish('out_of_scope',target);
   if(sharefullMailWorkFinished(target)) return finish('work_finished',target);
   const {data:apps,error:appsError}=await db.from('spot_offer_applications').select('application_key,applicant_name,state,occurred_at')
@@ -78,6 +82,8 @@ export async function handleTaimeeMail(request: NextRequest, state: State) {
    p_event_id:eventId,p_occurred_at:occurredAt,p_state:state});check(syncError);
   const result=sync as Row;
   if(!['queued','cancelled','stale','no_target'].includes(result?.outcome) || (result.outcome==='queued'&&!result.close_job_id)) throw new Error('SYNC_ACK_MISSING');
+  const {error:progressError}=await db.from('spot_offer_mail_receipts').update({outcome:result.outcome,close_runner_job_id:result.close_job_id||null})
+   .eq('provider','taimee').eq('event_id',eventId);check(progressError);
   if(result.outcome!=='stale') {
    const notification=await notifySharefullApplication({provider:'taimee',eventId,eventTable:'spot_offer_application_events',
     text:`【タイミー${state==='confirmed'?'応募確定':'キャンセル'}】\n${date||target.shift_start_date} ${time||String(target.shift_start_time).slice(0,5)}\n${normalizeTaimeeTitle(target.template_title)}\n${state==='confirmed'?(result.outcome==='queued'?'シェアフルの募集停止を依頼しました。':'応募状態を記録しました。シェアフルの停止対象はありません。'):'応募の取消を記録しました。再掲載は他の応募・担当者・手動停止・締切を確認して行います。'}`});
@@ -88,7 +94,7 @@ export async function handleTaimeeMail(request: NextRequest, state: State) {
   const code=error instanceof Error && /^[A-Z_]{1,80}$/.test(error.message)?error.message:'TAIMEE_MAIL_PROCESSING_FAILED';
   if(received) await db.from('spot_offer_mail_receipts').update({status:'retry',error_code:code,last_attempt_at:new Date().toISOString()}).eq('provider','taimee').eq('event_id',eventId);
   console.warn('[taimee-mail-receipt]',{event_id:eventId,code});
-  const conflicts=['REQUEST_AMBIGUOUS','MAIL_REQUEST_MISMATCH','APPLICANT_AMBIGUOUS','LEGACY_APPLICANT_UNRESOLVED','SHAREFULL_ORDER_MISSING','CLOSE_JOB_NEEDS_REVIEW'];
+  const conflicts=['REQUEST_AMBIGUOUS','MAIL_REQUEST_MISMATCH','APPLICANT_AMBIGUOUS','LEGACY_APPLICANT_UNRESOLVED','SHAREFULL_ORDER_MISSING','CLOSE_JOB_NEEDS_REVIEW','CLOSE_JOB_RECORD_MISSING'];
   return NextResponse.json({ok:false,code,event_id:eventId},{status:code==='REQUEST_NOT_FOUND'?404:conflicts.includes(code)?409:503});
  }
 }

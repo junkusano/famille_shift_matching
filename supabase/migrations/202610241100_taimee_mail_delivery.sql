@@ -41,7 +41,7 @@ BEGIN
    AND payload->>'sharefull_order_id'=r.sharefull_order_id) THEN RAISE EXCEPTION 'CLOSE_JOB_NEEDS_REVIEW'; END IF;
   INSERT INTO public.rpa_runner_jobs(job_type,status,payload) VALUES('sharefull.close_spot_offer','pending',jsonb_build_object(
    'spot_offer_request_id',r.id,'sharefull_order_id',r.sharefull_order_id,'sharefull_job_id',r.sharefull_job_id,
-   'sync_operation_key',operation_key,'created_from','/api/rpa/taimee/confirmed')) ON CONFLICT DO NOTHING RETURNING id INTO job_id;
+   'sync_operation_key',operation_key,'taimee_event_id',p_event_id,'created_from','/api/rpa/taimee/confirmed')) ON CONFLICT DO NOTHING RETURNING id INTO job_id;
   IF job_id IS NULL THEN SELECT id INTO job_id FROM public.rpa_runner_jobs WHERE payload->>'sync_operation_key'=operation_key AND status IN ('pending','claimed','completed') LIMIT 1; END IF;
  END IF;
  IF job_id IS NULL THEN RAISE EXCEPTION 'CLOSE_JOB_NOT_RECORDED'; END IF;

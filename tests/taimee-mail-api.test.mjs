@@ -37,3 +37,5 @@ test('古いメールと勤務終了後は停止と通知を増やさない',asy
 test('同じメールIDの内容衝突は元の受領を上書きしない',async()=>{const h=load();await h.run();assert.equal((await h.run('cancelled')).body.code,'MAIL_EVENT_ID_COLLISION');assert.equal(h.receipts.get('mail-1').outcome,'queued');});
 test('認証失敗・名前不明・未来の発生日時は業務を書き換えない',async()=>{for(const [patch,token] of [[{},'wrong'],[{applicant_name:''},'opaque'],[{occurred_at:'2099-01-01'},'opaque']]){const h=load();assert.ok((await h.run('confirmed',patch,token)).status>=400);assert.equal(h.calls.length,0);}});
 
+test('通知失敗でも受領に案件IDと実在停止ジョブIDを残して追跡できる',async()=>{const h=load({notificationFail:true});await h.run();const receipt=h.receipts.get('mail-1');assert.equal(receipt.status,'retry');assert.equal(receipt.request_id,'request-1');assert.equal(receipt.close_runner_job_id,'job-1');});
+
